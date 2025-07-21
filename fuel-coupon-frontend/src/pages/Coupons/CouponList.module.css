@@ -1,0 +1,14 @@
+/* src/pages/Coupons/CouponList.module.css */
+.container {
+    padding: 20px;
+    background-color: #f0f0f0;
+  }
+  
+  .heading {
+    font-size: 1.5em;
+    color: blue;
+  }
+  
+  .listItem {
+    margin-bottom: 10px;
+  }

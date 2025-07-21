@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handover Request - Parliament of Zimbabwe</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
+        .header { background-color: #1a472a; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .details { background-color: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .button { background-color: #1a472a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Parliament of Zimbabwe</h1>
+        <h2>Fuel Coupon Management System</h2>
+    </div>
+    
+    <div class="content">
+        <h3>Handover Request #{{ handover.id }}</h3>
+        
+        <p>Dear {{ handover.to_user.get_full_name }},</p>
+        
+        <p>You have received a new handover request from {{ handover.from_user.get_full_name }}.</p>
+        
+        <div class="details">
+            <h4>Handover Details:</h4>
+            <ul>
+                <li><strong>Handover ID:</strong> {{ handover.id }}</li>
+                <li><strong>From:</strong> {{ handover.from_user.get_full_name }} ({{ handover.from_user.username }})</li>
+                <li><strong>Date:</strong> {{ handover.handover_date|date:"Y-m-d H:i" }}</li>
+                <li><strong>Status:</strong> {{ handover.get_status_display }}</li>
+            </ul>
+            
+            <h4>Items Being Handed Over:</h4>
+            {% if handover.coupon %}
+                <p><strong>Coupon:</strong> {{ handover.coupon.coupon_number }} ({{ handover.coupon.litres }}L)</p>
+            {% elif handover.book %}
+                <p><strong>Book:</strong> {{ handover.book.book_number }} from Box {{ handover.book.box.box_code }}</p>
+            {% elif handover.box %}
+                <p><strong>Box:</strong> {{ handover.box.box_code }} ({{ handover.box.total_litres }}L total)</p>
+            {% endif %}
+            
+            {% if handover.notes %}
+                <p><strong>Notes:</strong> {{ handover.notes }}</p>
+            {% endif %}
+        </div>
+        
+        <p>Please log into the system to review and confirm this handover.</p>
+        
+        <a href="{{ system_url }}" class="button">Access Fuel System</a>
+    </div>
+    
+    <div class="footer">
+        <p>This is an automated notification from the Parliament of Zimbabwe Fuel Coupon Management System.</p>
+        <p>Generated on {{ timestamp|date:"Y-m-d H:i:s" }}</p>
+    </div>
+</body>
+</html>

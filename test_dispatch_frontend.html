@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Coupon System API Test - Dispatch System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .endpoint {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            padding: 15px;
+        }
+        .endpoint h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .get { background-color: #28a745; }
+        .post { background-color: #007bff; }
+        .put { background-color: #ffc107; color: #000; }
+        .delete { background-color: #dc3545; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+        .auth-section {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 2em;
+        }
+        .stat-card p {
+            margin: 0;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚛 Fuel Coupon System - Dispatch API Test</h1>
+        <p>Test the new dispatch functionality and coupon numbering system (2025 - ZWG Currency)</p>
+        
+        <div class="auth-section">
+            <h3>🔐 Authentication</h3>
+            <input type="text" id="username" placeholder="Username" value="admin">
+            <input type="password" id="password" placeholder="Password" value="admin">
+            <button onclick="login()">Login</button>
+            <span id="auth-status"></span>
+        </div>
+
+        <div class="stats" id="stats">
+            <!-- Stats will be populated here -->
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 API Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/v1/dispatches/</h3>
+            <p>Get list of book dispatches from main center to subcenters</p>
+            <button onclick="testEndpoint('/api/v1/dispatches/', 'GET')">Test</button>
+            <div id="result-dispatches" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/v1/books/available/</h3>
+            <p>Get available books that can be dispatched</p>
+            <button onclick="testEndpoint('/api/v1/books/available/', 'GET')">Test</button>
+            <div id="result-books-available" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/v1/subcenters/</h3>
+            <p>Get list of subcenters where books can be dispatched</p>
+            <button onclick="testEndpoint('/api/v1/subcenters/', 'GET')">Test</button>
+            <div id="result-subcenters" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/v1/boxes/</h3>
+            <p>Get coupon boxes with first/last coupon numbers</p>
+            <button onclick="testEndpoint('/api/v1/boxes/', 'GET')">Test</button>
+            <div id="result-boxes" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/v1/books/</h3>
+            <p>Get coupon books with sequential numbering</p>
+            <button onclick="testEndpoint('/api/v1/books/', 'GET')">Test</button>
+            <div id="result-books" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /api/v1/dispatches/</h3>
+            <p>Create a new dispatch</p>
+            <button onclick="createTestDispatch()">Create Test Dispatch</button>
+            <div id="result-create-dispatch" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/v1/allocations/</h3>
+            <p>Get coupon allocations (with vehicle details)</p>
+            <button onclick="testEndpoint('/api/v1/allocations/', 'GET')">Test</button>
+            <div id="result-allocations" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>💰 Currency & Exchange Rate Test</h2>
+        <p>Verify ZWG currency and 2025 exchange rate (1 USD = 27.50 ZWG)</p>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> Current Fuel Prices & Exchange Rate</h3>
+            <button onclick="testFuelPrices()">Check Fuel Prices</button>
+            <div id="result-fuel-prices" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+        
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const statusEl = document.getElementById('auth-status');
+            
+            try {
+                const response = await fetch('/api/v1/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access;
+                    statusEl.innerHTML = '✅ Logged in successfully';
+                    statusEl.style.color = 'green';
+                    loadStats();
+                } else {
+                    const error = await response.text();
+                    statusEl.innerHTML = '❌ Login failed: ' + error;
+                    statusEl.style.color = 'red';
+                }
+            } catch (error) {
+                statusEl.innerHTML = '❌ Connection error: ' + error.message;
+                statusEl.style.color = 'red';
+            }
+        }
+        
+        async function testEndpoint(url, method = 'GET') {
+            const resultId = 'result-' + url.split('/').filter(x => x).join('-').replace(/[^a-zA-Z0-9-]/g, '');
+            const resultEl = document.getElementById(resultId);
+            
+            if (!resultEl) {
+                console.error('Result element not found for', url);
+                return;
+            }
+            
+            resultEl.style.display = 'block';
+            resultEl.textContent = 'Loading...';
+            resultEl.className = 'result';
+            
+            try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                const response = await fetch(url, {
+                    method,
+                    headers
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultEl.textContent = JSON.stringify(data, null, 2);
+                    resultEl.className = 'result success';
+                } else {
+                    resultEl.textContent = `Error ${response.status}: ${JSON.stringify(data, null, 2)}`;
+                    resultEl.className = 'result error';
+                }
+            } catch (error) {
+                resultEl.textContent = 'Network error: ' + error.message;
+                resultEl.className = 'result error';
+            }
+        }
+        
+        async function createTestDispatch() {
+            const resultEl = document.getElementById('result-create-dispatch');
+            resultEl.style.display = 'block';
+            resultEl.textContent = 'Creating test dispatch...';
+            resultEl.className = 'result';
+            
+            // First get available books and subcenters
+            try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                };
+                
+                const [booksResponse, centersResponse] = await Promise.all([
+                    fetch('/api/v1/books/available/', { headers }),
+                    fetch('/api/v1/subcenters/', { headers })
+                ]);
+                
+                if (!booksResponse.ok || !centersResponse.ok) {
+                    throw new Error('Failed to get books or subcenters');
+                }
+                
+                const books = await booksResponse.json();
+                const centers = await centersResponse.json();
+                
+                if (books.length === 0) {
+                    resultEl.textContent = 'No available books to dispatch';
+                    resultEl.className = 'result error';
+                    return;
+                }
+                
+                if (centers.results?.length === 0 && centers.length === 0) {
+                    resultEl.textContent = 'No subcenters available';
+                    resultEl.className = 'result error';
+                    return;
+                }
+                
+                const targetCenter = centers.results?.[0] || centers[0];
+                const selectedBooks = books.slice(0, 3); // Take first 3 books
+                
+                const dispatchData = {
+                    to_center: targetCenter.id,
+                    books: selectedBooks.map(book => book.id),
+                    transport_details: 'Test dispatch created via API test page',
+                    notes: `Test dispatch - ${new Date().toISOString()}`
+                };
+                
+                const createResponse = await fetch('/api/v1/dispatches/', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(dispatchData)
+                });
+                
+                const result = await createResponse.json();
+                
+                if (createResponse.ok) {
+                    resultEl.textContent = 'Dispatch created successfully:\\n' + JSON.stringify(result, null, 2);
+                    resultEl.className = 'result success';
+                } else {
+                    resultEl.textContent = `Error creating dispatch: ${JSON.stringify(result, null, 2)}`;
+                    resultEl.className = 'result error';
+                }
+                
+            } catch (error) {
+                resultEl.textContent = 'Error: ' + error.message;
+                resultEl.className = 'result error';
+            }
+        }
+        
+        async function testFuelPrices() {
+            const resultEl = document.getElementById('result-fuel-prices');
+            resultEl.style.display = 'block';
+            resultEl.textContent = 'Loading fuel prices...';
+            resultEl.className = 'result';
+            
+            try {
+                const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+                
+                const response = await fetch('/api/v1/dashboard/', { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const priceInfo = {
+                        'Exchange Rate (2025)': data.exchange_rate ? `1 USD = ${data.exchange_rate} ZWG` : 'Not set',
+                        'Petrol Price (USD)': data.petrol_price_usd ? `$${data.petrol_price_usd}/L` : 'Not set',
+                        'Diesel Price (USD)': data.diesel_price_usd ? `$${data.diesel_price_usd}/L` : 'Not set',
+                        'Petrol Price (ZWG)': data.petrol_price_usd && data.exchange_rate ? 
+                            `${(data.petrol_price_usd * data.exchange_rate).toFixed(2)} ZWG/L` : 'Calculated from USD',
+                        'Diesel Price (ZWG)': data.diesel_price_usd && data.exchange_rate ? 
+                            `${(data.diesel_price_usd * data.exchange_rate).toFixed(2)} ZWG/L` : 'Calculated from USD'
+                    };
+                    
+                    resultEl.textContent = JSON.stringify(priceInfo, null, 2);
+                    resultEl.className = 'result success';
+                } else {
+                    resultEl.textContent = `Error: ${JSON.stringify(data, null, 2)}`;
+                    resultEl.className = 'result error';
+                }
+            } catch (error) {
+                resultEl.textContent = 'Error: ' + error.message;
+                resultEl.className = 'result error';
+            }
+        }
+        
+        async function loadStats() {
+            if (!authToken) return;
+            
+            try {
+                const headers = { 'Authorization': `Bearer ${authToken}` };
+                const response = await fetch('/api/v1/dashboard/', { headers });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const statsEl = document.getElementById('stats');
+                    
+                    statsEl.innerHTML = `
+                        <div class="stat-card">
+                            <h3>${data.total_boxes || 0}</h3>
+                            <p>Total Boxes</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.total_books || 0}</h3>
+                            <p>Total Books</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.total_coupons || 0}</h3>
+                            <p>Total Coupons</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.exchange_rate || '27.50'} ZWG</h3>
+                            <p>Per 1 USD (2025)</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+    </script>
+</body>
+</html>

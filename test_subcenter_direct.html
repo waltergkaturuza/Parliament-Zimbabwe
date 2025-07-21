@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubCenter Endpoints Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; text-align: center; }
+        h2 { color: #666; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .step {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 3px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 SubCenter Endpoints Test</h1>
+        <p><strong>Purpose:</strong> Test the fixed subcenter statistics and recent-activity endpoints</p>
+        
+        <h2>Step 1: Authentication</h2>
+        <div class="step">
+            <input type="text" id="username" placeholder="Username" value="admin">
+            <input type="password" id="password" placeholder="Password" value="admin123">
+            <button onclick="login()">Login</button>
+            <div id="authResult"></div>
+        </div>
+
+        <h2>Step 2: Get SubCenters List</h2>
+        <div class="step">
+            <button onclick="getSubCenters()">Get SubCenters</button>
+            <div id="subcentersResult"></div>
+        </div>
+
+        <h2>Step 3: Test SubCenter Endpoints</h2>
+        <div class="step">
+            <input type="number" id="subcenterId" placeholder="SubCenter ID" min="1">
+            <button onclick="testStatistics()">Test Statistics</button>
+            <button onclick="testRecentActivity()">Test Recent Activity</button>
+            <div id="endpointsResult"></div>
+        </div>
+
+        <h2>Step 4: Create Test SubCenter (if needed)</h2>
+        <div class="step">
+            <input type="text" id="subcenterName" placeholder="SubCenter Name" value="Test SubCenter">
+            <input type="text" id="subcenterLocation" placeholder="Location" value="Test Location">
+            <button onclick="createSubCenter()">Create SubCenter</button>
+            <div id="createResult"></div>
+        </div>
+
+        <h2>Results Summary</h2>
+        <div id="summary" class="step">
+            <p>Complete the steps above to see results...</p>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        const baseUrl = 'http://localhost:8000/api/v1';
+        let results = {};
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`${baseUrl}/auth/login/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('authResult');
+                
+                if (response.ok) {
+                    authToken = data.access;
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ Login successful!</div>
+                        <div class="result">User: ${data.user?.username || username}</div>
+                    `;
+                    results.login = 'success';
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ Login failed: ${data.detail || 'Unknown error'}</div>
+                        <div class="result">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.login = 'failed';
+                }
+            } catch (error) {
+                document.getElementById('authResult').innerHTML = `
+                    <div class="status error">❌ Error: ${error.message}</div>
+                `;
+                results.login = 'error';
+            }
+            updateSummary();
+        }
+
+        async function getSubCenters() {
+            if (!authToken) {
+                alert('Please login first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/subcenters/`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('subcentersResult');
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ Found ${data.length} subcenters</div>
+                        <div class="result">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    
+                    if (data.length > 0) {
+                        document.getElementById('subcenterId').value = data[0].id;
+                    }
+                    results.subcenters = 'success';
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ Failed to get subcenters</div>
+                        <div class="result">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.subcenters = 'failed';
+                }
+            } catch (error) {
+                document.getElementById('subcentersResult').innerHTML = `
+                    <div class="status error">❌ Error: ${error.message}</div>
+                `;
+                results.subcenters = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testStatistics() {
+            const subcenterId = document.getElementById('subcenterId').value;
+            if (!authToken || !subcenterId) {
+                alert('Please login and enter a subcenter ID first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/subcenters/${subcenterId}/statistics/`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('endpointsResult');
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ Statistics endpoint working!</div>
+                        <div class="result">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.statistics = 'success';
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ Statistics endpoint failed</div>
+                        <div class="result">Status: ${response.status}<br>${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.statistics = 'failed';
+                }
+            } catch (error) {
+                document.getElementById('endpointsResult').innerHTML = `
+                    <div class="status error">❌ Statistics Error: ${error.message}</div>
+                `;
+                results.statistics = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testRecentActivity() {
+            const subcenterId = document.getElementById('subcenterId').value;
+            if (!authToken || !subcenterId) {
+                alert('Please login and enter a subcenter ID first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/subcenters/${subcenterId}/recent-activity/`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                const data = await response.json();
+                const currentResult = document.getElementById('endpointsResult').innerHTML;
+                
+                if (response.ok) {
+                    document.getElementById('endpointsResult').innerHTML = currentResult + `
+                        <div class="status success">✅ Recent Activity endpoint working!</div>
+                        <div class="result">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.recentActivity = 'success';
+                } else {
+                    document.getElementById('endpointsResult').innerHTML = currentResult + `
+                        <div class="status error">❌ Recent Activity endpoint failed</div>
+                        <div class="result">Status: ${response.status}<br>${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.recentActivity = 'failed';
+                }
+            } catch (error) {
+                const currentResult = document.getElementById('endpointsResult').innerHTML;
+                document.getElementById('endpointsResult').innerHTML = currentResult + `
+                    <div class="status error">❌ Recent Activity Error: ${error.message}</div>
+                `;
+                results.recentActivity = 'error';
+            }
+            updateSummary();
+        }
+
+        async function createSubCenter() {
+            const name = document.getElementById('subcenterName').value;
+            const location = document.getElementById('subcenterLocation').value;
+            
+            if (!authToken || !name || !location) {
+                alert('Please login and enter name and location first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/subcenters/`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, location })
+                });
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('createResult');
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ SubCenter created successfully!</div>
+                        <div class="result">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    document.getElementById('subcenterId').value = data.id;
+                    results.create = 'success';
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ Failed to create subcenter</div>
+                        <div class="result">Status: ${response.status}<br>${JSON.stringify(data, null, 2)}</div>
+                    `;
+                    results.create = 'failed';
+                }
+            } catch (error) {
+                document.getElementById('createResult').innerHTML = `
+                    <div class="status error">❌ Create Error: ${error.message}</div>
+                `;
+                results.create = 'error';
+            }
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const summaryDiv = document.getElementById('summary');
+            let html = '<h3>Test Results:</h3>';
+            
+            const tests = ['login', 'subcenters', 'statistics', 'recentActivity', 'create'];
+            tests.forEach(test => {
+                const result = results[test];
+                if (result === 'success') {
+                    html += `<div class="status success">✅ ${test}: SUCCESS</div>`;
+                } else if (result === 'failed') {
+                    html += `<div class="status error">❌ ${test}: FAILED</div>`;
+                } else if (result === 'error') {
+                    html += `<div class="status error">🔥 ${test}: ERROR</div>`;
+                } else {
+                    html += `<div class="status warning">⏳ ${test}: PENDING</div>`;
+                }
+            });
+            
+            if (results.statistics === 'success' && results.recentActivity === 'success') {
+                html += '<br><div class="status success">🎉 All SubCenter endpoints are working!</div>';
+            }
+            
+            summaryDiv.innerHTML = html;
+        }
+
+        // Initialize
+        updateSummary();
+    </script>
+</body>
+</html>

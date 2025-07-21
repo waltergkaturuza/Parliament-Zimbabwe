@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parliament Session Reminder - Parliament of Zimbabwe</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
+        .header { background-color: #1a472a; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .details { background-color: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .urgent { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .session-info { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #1a472a; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Parliament of Zimbabwe</h1>
+        <h2>Session Attendance Reminder</h2>
+    </div>
+    
+    <div class="content">
+        <h3>{{ session.title }}</h3>
+        
+        <p>Dear {{ beneficiary.get_full_name }},</p>
+        
+        <p>This is a reminder about the upcoming Parliament session:</p>
+        
+        <div class="session-info">
+            <h4>Session Details:</h4>
+            <ul>
+                <li><strong>Title:</strong> {{ session.title }}</li>
+                <li><strong>Type:</strong> {{ session.get_session_type_display }}</li>
+                <li><strong>Date & Time:</strong> {{ session.start_date|date:"l, F j, Y \a\t g:i A" }}</li>
+                {% if session.end_date %}
+                <li><strong>End Time:</strong> {{ session.end_date|date:"g:i A" }}</li>
+                {% endif %}
+                <li><strong>Venue:</strong> {{ session.venue }}</li>
+                {% if session.fuel_entitlement_litres > 0 %}
+                <li><strong>Fuel Entitlement:</strong> {{ session.fuel_entitlement_litres }}L (based on attendance)</li>
+                {% endif %}
+            </ul>
+        </div>
+        
+        {% if session.is_mandatory %}
+        <div class="urgent">
+            <strong>⚠️ MANDATORY ATTENDANCE</strong><br>
+            Your attendance at this session is required. Please ensure you are present on time.
+        </div>
+        {% else %}
+        <p><strong>Note:</strong> Your attendance is requested for this session.</p>
+        {% endif %}
+        
+        {% if session.description %}
+        <div class="details">
+            <h4>Session Description:</h4>
+            <p>{{ session.description }}</p>
+        </div>
+        {% endif %}
+        
+        <h4>Important Reminders:</h4>
+        <ul>
+            <li>Please arrive at least 15 minutes before the session starts</li>
+            <li>Bring valid identification for attendance registration</li>
+            <li>Mobile phones should be on silent during sessions</li>
+            {% if session.fuel_entitlement_litres > 0 %}
+            <li>Fuel entitlements will be processed based on verified attendance</li>
+            {% endif %}
+        </ul>
+        
+        <p>If you cannot attend this session, please notify your Sub-Center Officer as soon as possible.</p>
+    </div>
+    
+    <div class="footer">
+        <p>This is an automated notification from the Parliament of Zimbabwe Fuel Coupon Management System.</p>
+        <p>Generated on {{ timestamp|date:"Y-m-d H:i:s" }}</p>
+    </div>
+</body>
+</html>

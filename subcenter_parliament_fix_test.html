@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubCenter Parliament Access Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #2E7D32;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .fix-section {
+            margin: 30px 0;
+            padding: 20px;
+            border-left: 4px solid #2196F3;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .fix-section h2 {
+            color: #1976D2;
+            margin-top: 0;
+        }
+        .code-block {
+            background: #263238;
+            color: #4CAF50;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .steps {
+            counter-reset: step-counter;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+            position: relative;
+            counter-increment: step-counter;
+        }
+        .step::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: -15px;
+            top: 15px;
+            background: #4CAF50;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .step h3 {
+            margin: 0 0 10px 0;
+            color: #2E7D32;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #C8E6C9;
+            color: #2E7D32;
+        }
+        .status.fixed {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+        .highlight {
+            background: #FFEB3B;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .test-section {
+            background: linear-gradient(45deg, #E8F5E8, #F1F8E9);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 SubCenter Parliament Access Fix</h1>
+            <h2>Issue Resolution & Testing Guide</h2>
+            <p><strong>Issue:</strong> Parliament operations not appearing for SUB_CENTER users</p>
+            <p><strong>Status:</strong> <span class="status fixed">✅ FIXED</span></p>
+        </div>
+
+        <div class="fix-section">
+            <h2>🐛 Problem Identified</h2>
+            <p>The parliament operations navigation in <code>UnifiedLayout.tsx</code> was missing <span class="highlight">SUB_CENTER</span> in the role permission check. Only <code>['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'BENEFICIARY']</code> roles were allowed access to parliament operations.</p>
+        </div>
+
+        <div class="fix-section">
+            <h2>✅ Solution Implemented</h2>
+            
+            <div class="steps">
+                <div class="step">
+                    <h3>Navigation Permission Update</h3>
+                    <p>Updated the role check in <code>UnifiedLayout.tsx</code> to include SUB_CENTER:</p>
+                    <div class="code-block">
+// Before (Line 193)
+if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'BENEFICIARY'])) {
+
+// After (Fixed)
+if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'BENEFICIARY'])) {
+                    </div>
+                    <span class="status fixed">✅ FIXED</span>
+                </div>
+
+                <div class="step">
+                    <h3>Parliament Session Form Enhancement</h3>
+                    <p>Added session manager and subcenter selection capabilities:</p>
+                    <div class="code-block">
+// Added new state variables
+const [users, setUsers] = useState&lt;any[]&gt;([]);
+const [usersLoading, setUsersLoading] = useState(false);
+const [subcenters, setSubcenters] = useState&lt;any[]&gt;([]);
+const [subcentersLoading, setSubcentersLoading] = useState(false);
+
+// Added form fields for session manager and subcenter selection
+                    </div>
+                    <span class="status success">✅ ENHANCED</span>
+                </div>
+
+                <div class="step">
+                    <h3>TypeScript Type Updates</h3>
+                    <p>Updated ParliamentSession interface to include new management fields:</p>
+                    <div class="code-block">
+export interface ParliamentSession {
+  // ... existing fields
+  session_manager?: string;
+  session_manager_details?: {
+    id: string;
+    username: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+  };
+  managing_subcenter?: string;
+  managing_subcenter_details?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+}
+                    </div>
+                    <span class="status success">✅ UPDATED</span>
+                </div>
+
+                <div class="step">
+                    <h3>Backend Integration</h3>
+                    <p>Backend already supports subcenter management:</p>
+                    <ul>
+                        <li>✅ ParliamentSession model has session_manager and managing_subcenter fields</li>
+                        <li>✅ ParliamentSessionViewSet allows SUB_CENTER access</li>
+                        <li>✅ Program model supports subcenter association</li>
+                        <li>✅ Enhanced serializers with nested details</li>
+                    </ul>
+                    <span class="status success">✅ READY</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Testing Instructions</h2>
+            
+            <div class="steps">
+                <div class="step">
+                    <h3>Login with SUB_CENTER Credentials</h3>
+                    <p>Log in using a SUB_CENTER user account. You should now see:</p>
+                    <ul>
+                        <li>📊 Dashboard with role-appropriate content</li>
+                        <li>🏛️ Parliament Operations section in the sidebar</li>
+                        <li>📋 Parliament Sessions link</li>
+                        <li>📋 Programs link</li>
+                        <li>👥 Members Management link</li>
+                    </ul>
+                </div>
+
+                <div class="step">
+                    <h3>Navigate to Parliament Operations</h3>
+                    <p>Click on any parliament operation link to verify access:</p>
+                    <ul>
+                        <li><code>/dashboard/sessions</code> - Parliament Sessions management</li>
+                        <li><code>/dashboard/programs</code> - Programs management</li>
+                        <li><code>/dashboard/beneficiaries</code> - Members management</li>
+                    </ul>
+                </div>
+
+                <div class="step">
+                    <h3>Test Session Management</h3>
+                    <p>In Parliament Sessions page, verify you can:</p>
+                    <ul>
+                        <li>✅ View existing sessions</li>
+                        <li>✅ Create new sessions</li>
+                        <li>✅ Select session managers (dropdown should load users)</li>
+                        <li>✅ Assign managing subcenters (dropdown should load subcenters)</li>
+                        <li>✅ Edit existing sessions</li>
+                        <li>✅ View session details with manager information</li>
+                    </ul>
+                </div>
+
+                <div class="step">
+                    <h3>Verify Regional Data Filtering</h3>
+                    <p>SUB_CENTER users should see:</p>
+                    <ul>
+                        <li>🎯 Only sessions and programs related to their subcenter</li>
+                        <li>👤 Ability to assign themselves as session managers</li>
+                        <li>🏢 Their subcenter pre-selected in forms</li>
+                        <li>📊 Regional statistics and activities</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="fix-section">
+            <h2>🎯 Expected Results</h2>
+            <p>After the fix, SUB_CENTER users should have:</p>
+            
+            <ul>
+                <li>✅ <strong>Full Parliament Navigation Access</strong> - All parliament operation links visible</li>
+                <li>✅ <strong>Session Management Capabilities</strong> - Create, edit, and manage parliament sessions</li>
+                <li>✅ <strong>Manager Assignment</strong> - Assign themselves or other officers as session managers</li>
+                <li>✅ <strong>Regional Organization</strong> - Associate sessions with their subcenter</li>
+                <li>✅ <strong>Program Management</strong> - Organize and manage local programs</li>
+                <li>✅ <strong>Proper Data Filtering</strong> - See only regional data with option for system oversight</li>
+            </ul>
+        </div>
+
+        <div class="fix-section">
+            <h2>🔄 Development Commands</h2>
+            <p>To test the changes in development:</p>
+            <div class="code-block">
+# Start the backend Django server
+cd fuel_coupon_system
+python manage.py runserver
+
+# Start the frontend Vite dev server
+cd fuel-coupon-frontend
+npm run dev
+
+# Build frontend to check for TypeScript errors
+npm run build
+            </div>
+        </div>
+
+        <div class="fix-section">
+            <h2>📋 Next Steps</h2>
+            <ol>
+                <li>🧪 <strong>Test with real SUB_CENTER credentials</strong></li>
+                <li>🔍 <strong>Verify regional data filtering works correctly</strong></li>
+                <li>📊 <strong>Check dashboard analytics show appropriate data</strong></li>
+                <li>🏛️ <strong>Test parliament session creation and management workflow</strong></li>
+                <li>📝 <strong>Update user documentation with new capabilities</strong></li>
+                <li>👥 <strong>Train SUB_CENTER officers on new parliament management features</strong></li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h2>✅ Fix Summary</h2>
+            <p style="text-align: center; font-size: 1.2em;">
+                <span class="highlight">SUB_CENTER users now have full access to parliament operations!</span>
+            </p>
+            <p>The navigation issue has been resolved, and subcenter officers can now:</p>
+            <ul>
+                <li>🏛️ Access all parliament operations from the sidebar</li>
+                <li>📝 Create and manage parliament sessions</li>
+                <li>👤 Assign session managers and subcenter associations</li>
+                <li>📊 View regional parliament activity and statistics</li>
+                <li>🎯 Perform all functions needed for decentralized parliament management</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactive elements
+        document.querySelectorAll('.step').forEach((step, index) => {
+            step.addEventListener('click', function() {
+                this.style.transform = 'scale(1.02)';
+                this.style.boxShadow = '0 5px 15px rgba(0,0,0,0.15)';
+                
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                    this.style.boxShadow = 'none';
+                }, 200);
+            });
+        });
+    </script>
+</body>
+</html>

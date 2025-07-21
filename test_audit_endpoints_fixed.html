@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Endpoints Fix Validation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .test-btn { padding: 10px 20px; margin: 5px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .test-btn:hover { background-color: #0056b3; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .endpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .endpoint-card { border: 1px solid #ddd; padding: 15px; border-radius: 5px; }
+        .method { font-weight: bold; color: #28a745; }
+        .url { font-family: monospace; background-color: #f8f9fa; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Audit Endpoints Fix Validation</h1>
+        <p>This page validates the fixes applied to resolve the 500 errors on audit endpoints.</p>
+
+        <div class="section">
+            <h2>📋 Issues Fixed</h2>
+            <ul>
+                <li>✅ Fixed field mapping in <code>audit_transactions</code> view</li>
+                <li>✅ Fixed field mapping in <code>audit_transaction_trail</code> view</li>
+                <li>✅ Added missing compliance endpoints</li>
+                <li>✅ Updated permissions to allow AUDITOR role access to analytics</li>
+                <li>✅ Added proper error handling and safe field access</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔗 Audit Endpoints</h2>
+            <div class="endpoint-grid">
+                <div class="endpoint-card">
+                    <h3>Audit Transactions</h3>
+                    <p><span class="method">GET</span> <span class="url">/api/v1/audit/transactions/</span></p>
+                    <p>Status: <span id="transactions-status" class="status">Testing...</span></p>
+                    <button class="test-btn" onclick="testEndpoint('/api/v1/audit/transactions/', 'transactions')">Test</button>
+                    <pre id="transactions-response">Click "Test" to check endpoint</pre>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Audit Stats</h3>
+                    <p><span class="method">GET</span> <span class="url">/api/v1/audit/transaction-stats/</span></p>
+                    <p>Status: <span id="stats-status" class="status">Testing...</span></p>
+                    <button class="test-btn" onclick="testEndpoint('/api/v1/audit/transaction-stats/', 'stats')">Test</button>
+                    <pre id="stats-response">Click "Test" to check endpoint</pre>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Compliance Reports</h3>
+                    <p><span class="method">GET</span> <span class="url">/api/v1/audit/compliance-reports/</span></p>
+                    <p>Status: <span id="compliance-reports-status" class="status">Testing...</span></p>
+                    <button class="test-btn" onclick="testEndpoint('/api/v1/audit/compliance-reports/', 'compliance-reports')">Test</button>
+                    <pre id="compliance-reports-response">Click "Test" to check endpoint</pre>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Compliance Stats</h3>
+                    <p><span class="method">GET</span> <span class="url">/api/v1/audit/compliance-stats/</span></p>
+                    <p>Status: <span id="compliance-stats-status" class="status">Testing...</span></p>
+                    <button class="test-btn" onclick="testEndpoint('/api/v1/audit/compliance-stats/', 'compliance-stats')">Test</button>
+                    <pre id="compliance-stats-response">Click "Test" to check endpoint</pre>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Analytics (Permission Fix)</h3>
+                    <p><span class="method">GET</span> <span class="url">/api/v1/analytics/</span></p>
+                    <p>Status: <span id="analytics-status" class="status">Testing...</span></p>
+                    <button class="test-btn" onclick="testEndpoint('/api/v1/analytics/?start_date=2025-06-06&end_date=2025-07-06', 'analytics')">Test</button>
+                    <pre id="analytics-response">Click "Test" to check endpoint</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🚀 Quick Test All</h2>
+            <button class="test-btn" onclick="testAllEndpoints()" style="background-color: #28a745;">Test All Endpoints</button>
+            <div id="overall-status" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>📝 Field Mapping Changes</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Old Field</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">New Field</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>timestamp</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>created</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;">AuditLog uses TimeStampedModel</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>object_type</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>content_type.model</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;">Uses Django ContentType framework</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>details</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>description + changes</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;">Separate description and changes fields</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>ip_address</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;"><code>user_ip</code></td>
+                        <td style="border: 1px solid #ddd; padding: 10px;">Consistent field naming</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>🛡️ Permission Updates</h2>
+            <ul>
+                <li><strong>FuelAnalyticsView:</strong> Added <code>IsAuditor</code> permission</li>
+                <li><strong>AdminDashboardView:</strong> Added <code>IsAuditor</code> permission</li>
+                <li><strong>Compliance endpoints:</strong> Use <code>IsAuthenticated</code> for broad access</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Base URL for API requests
+        const API_BASE = 'http://localhost:8000';
+        
+        // Get auth token from localStorage (assuming it's stored there)
+        function getAuthToken() {
+            const authData = localStorage.getItem('authToken') || localStorage.getItem('auth');
+            if (authData) {
+                try {
+                    const parsed = JSON.parse(authData);
+                    return parsed.access_token || parsed.token || authData;
+                } catch {
+                    return authData;
+                }
+            }
+            return null;
+        }
+
+        async function testEndpoint(url, elementPrefix) {
+            const statusElement = document.getElementById(`${elementPrefix}-status`);
+            const responseElement = document.getElementById(`${elementPrefix}-response`);
+            
+            statusElement.textContent = 'Testing...';
+            statusElement.className = 'status warning';
+            
+            try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                };
+                
+                const token = getAuthToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch(`${API_BASE}${url}`, {
+                    method: 'GET',
+                    headers: headers
+                });
+                
+                const data = await response.text();
+                
+                if (response.ok) {
+                    statusElement.textContent = `✅ Success (${response.status})`;
+                    statusElement.className = 'status success';
+                    try {
+                        const jsonData = JSON.parse(data);
+                        responseElement.textContent = JSON.stringify(jsonData, null, 2);
+                    } catch {
+                        responseElement.textContent = data;
+                    }
+                } else {
+                    statusElement.textContent = `❌ Error (${response.status})`;
+                    statusElement.className = 'status error';
+                    responseElement.textContent = `Status: ${response.status}\nResponse: ${data}`;
+                }
+            } catch (error) {
+                statusElement.textContent = `❌ Network Error`;
+                statusElement.className = 'status error';
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testAllEndpoints() {
+            const endpoints = [
+                ['/api/v1/audit/transactions/', 'transactions'],
+                ['/api/v1/audit/transaction-stats/', 'stats'],
+                ['/api/v1/audit/compliance-reports/', 'compliance-reports'],
+                ['/api/v1/audit/compliance-stats/', 'compliance-stats'],
+                ['/api/v1/analytics/?start_date=2025-06-06&end_date=2025-07-06', 'analytics']
+            ];
+            
+            const overallStatus = document.getElementById('overall-status');
+            overallStatus.style.display = 'block';
+            overallStatus.textContent = 'Testing all endpoints...';
+            overallStatus.className = 'status warning';
+            
+            let successCount = 0;
+            
+            for (const [url, prefix] of endpoints) {
+                await testEndpoint(url, prefix);
+                // Check if the test was successful
+                const statusElement = document.getElementById(`${prefix}-status`);
+                if (statusElement.textContent.includes('✅')) {
+                    successCount++;
+                }
+            }
+            
+            if (successCount === endpoints.length) {
+                overallStatus.textContent = `🎉 All ${endpoints.length} endpoints working!`;
+                overallStatus.className = 'status success';
+            } else {
+                overallStatus.textContent = `⚠️ ${successCount}/${endpoints.length} endpoints working`;
+                overallStatus.className = 'status warning';
+            }
+        }
+
+        // Auto-test on page load if we have auth
+        window.addEventListener('load', () => {
+            const token = getAuthToken();
+            if (token) {
+                setTimeout(() => {
+                    console.log('Auto-testing endpoints...');
+                    testAllEndpoints();
+                }, 1000);
+            } else {
+                console.log('No auth token found. Please login first.');
+                const statusElements = document.querySelectorAll('[id$="-status"]');
+                statusElements.forEach(el => {
+                    el.textContent = '⚠️ Please login first';
+                    el.className = 'status warning';
+                });
+            }
+        });
+    </script>
+</body>
+</html>

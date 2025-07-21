@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Compliance Download Endpoint</title>
+</head>
+<body>
+    <h1>Testing Compliance Report Download</h1>
+    
+    <button onclick="testDownload()">Test Download Endpoint</button>
+    <button onclick="testReportsEndpoint()">Test Reports List</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function testDownload() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing download endpoint...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/audit/compliance-reports/1/download/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                resultDiv.innerHTML = `
+                    <h3>Download Test Result:</h3>
+                    <p>Status: ${response.status}</p>
+                    <p>Status Text: ${response.statusText}</p>
+                    <p>URL: ${response.url}</p>
+                `;
+                
+                if (response.ok) {
+                    resultDiv.innerHTML += '<p style="color: green;">✅ Success! Endpoint is working</p>';
+                } else {
+                    resultDiv.innerHTML += '<p style="color: red;">❌ Error: ' + response.status + '</p>';
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Network Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function testReportsEndpoint() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing reports list endpoint...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/audit/compliance-reports/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                resultDiv.innerHTML = `
+                    <h3>Reports List Test Result:</h3>
+                    <p>Status: ${response.status}</p>
+                    <p>Status Text: ${response.statusText}</p>
+                    <p>URL: ${response.url}</p>
+                `;
+                
+                if (response.ok) {
+                    const data = await response.text();
+                    resultDiv.innerHTML += '<p style="color: green;">✅ Success! Endpoint is working</p>';
+                    resultDiv.innerHTML += `<pre>${data.substring(0, 200)}...</pre>`;
+                } else {
+                    resultDiv.innerHTML += '<p style="color: red;">❌ Error: ' + response.status + '</p>';
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Network Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

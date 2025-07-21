@@ -1,0 +1,555 @@
+// src/pages/parliament/SubCenterParliamentActivity.tsx
+import React, { useState, useEffect } from 'react';
+import type { FC } from 'react';
+import {
+  Card,
+  Table,
+  Typography,
+  Row,
+  Col,
+  Statistic,
+  Select,
+  DatePicker,
+  Spin,
+  Badge,
+  Tag,
+  Progress,
+  Timeline,
+  Alert,
+  Button,
+  Space,
+  Tooltip,
+  App
+} from 'antd';
+import type { RangePickerProps } from 'antd/es/date-picker';
+import {
+  TeamOutlined,
+  CalendarOutlined,
+  CarOutlined,
+  BarChartOutlined,
+  EyeOutlined,
+  EnvironmentOutlined,
+  UserOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined
+} from '@ant-design/icons';
+import apiClient from '@/api/apiClient';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+// Configure dayjs with relativeTime plugin
+dayjs.extend(relativeTime);
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { RangePicker } = DatePicker;
+
+interface SubCenterActivity {
+  id: string;
+  subcenter: {
+    name: string;
+    code: string;
+    location: string;
+    manager: string;
+  };
+  sessions_this_month: number;
+  programs_organized: number;
+  total_attendance: number;
+  fuel_allocated: number;
+  last_activity: string;
+  status: 'active' | 'inactive' | 'pending';
+  compliance_score: number;
+  recent_activities: {
+    date: string;
+    activity: string;
+    type: 'session' | 'program' | 'allocation';
+  }[];
+}
+
+const SubCenterParliamentActivity: FC = () => {
+  const { message } = App.useApp();
+  const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<SubCenterActivity[]>([]);
+  const [stats, setStats] = useState({
+    totalSubcenters: 0,
+    activeSubcenters: 0,
+    totalSessions: 0,
+    totalPrograms: 0,
+    averageCompliance: 0,
+    totalFuelAllocated: 0
+  });
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedPeriod, setSelectedPeriod] = useState<RangePickerProps['value']>(null);
+
+  useEffect(() => {
+    loadActivities();
+    loadStats();
+  }, [selectedStatus, selectedPeriod]);
+
+  const loadActivities = async () => {
+    try {
+      setLoading(true);
+      
+      // Mock data for subcenter activities
+      const mockActivities: SubCenterActivity[] = [
+        {
+          id: '1',
+          subcenter: {
+            name: 'Harare Central SubCenter',
+            code: 'HAR001',
+            location: 'Harare, Zimbabwe',
+            manager: 'John Mukamuri'
+          },
+          sessions_this_month: 12,
+          programs_organized: 5,
+          total_attendance: 245,
+          fuel_allocated: 8750,
+          last_activity: '2024-12-28T14:30:00Z',
+          status: 'active',
+          compliance_score: 94,
+          recent_activities: [
+            {
+              date: '2024-12-28T14:30:00Z',
+              activity: 'Parliament Session: Budget Review',
+              type: 'session'
+            },
+            {
+              date: '2024-12-27T10:15:00Z',
+              activity: 'Fuel Allocation: 450L distributed',
+              type: 'allocation'
+            },
+            {
+              date: '2024-12-25T09:00:00Z',
+              activity: 'Training Program: New MP Orientation',
+              type: 'program'
+            }
+          ]
+        },
+        {
+          id: '2',
+          subcenter: {
+            name: 'Bulawayo SubCenter',
+            code: 'BUL001',
+            location: 'Bulawayo, Zimbabwe',
+            manager: 'Mary Chigwamba'
+          },
+          sessions_this_month: 8,
+          programs_organized: 3,
+          total_attendance: 156,
+          fuel_allocated: 5420,
+          last_activity: '2024-12-26T16:45:00Z',
+          status: 'active',
+          compliance_score: 89,
+          recent_activities: [
+            {
+              date: '2024-12-26T16:45:00Z',
+              activity: 'Parliament Session: Provincial Matters',
+              type: 'session'
+            },
+            {
+              date: '2024-12-24T11:30:00Z',
+              activity: 'Committee Meeting: Education',
+              type: 'session'
+            }
+          ]
+        },
+        {
+          id: '3',
+          subcenter: {
+            name: 'Chitungwiza SubCenter',
+            code: 'CHI001',
+            location: 'Chitungwiza, Zimbabwe',
+            manager: 'Peter Zimunya'
+          },
+          sessions_this_month: 6,
+          programs_organized: 2,
+          total_attendance: 98,
+          fuel_allocated: 3250,
+          last_activity: '2024-12-20T13:20:00Z',
+          status: 'pending',
+          compliance_score: 76,
+          recent_activities: [
+            {
+              date: '2024-12-20T13:20:00Z',
+              activity: 'Local Development Program',
+              type: 'program'
+            }
+          ]
+        },
+        {
+          id: '4',
+          subcenter: {
+            name: 'Gweru SubCenter',
+            code: 'GWE001',
+            location: 'Gweru, Zimbabwe',
+            manager: 'Sarah Moyo'
+          },
+          sessions_this_month: 2,
+          programs_organized: 1,
+          total_attendance: 34,
+          fuel_allocated: 1180,
+          last_activity: '2024-12-15T12:00:00Z',
+          status: 'inactive',
+          compliance_score: 45,
+          recent_activities: [
+            {
+              date: '2024-12-15T12:00:00Z',
+              activity: 'Monthly Status Update',
+              type: 'session'
+            }
+          ]
+        }
+      ];
+
+      // Filter by status if selected
+      let filteredActivities = mockActivities;
+      if (selectedStatus !== 'all') {
+        filteredActivities = mockActivities.filter(activity => activity.status === selectedStatus);
+      }
+
+      setActivities(filteredActivities);
+    } catch (error) {
+      console.error('Error loading activities:', error);
+      message.error('Failed to load subcenter activities');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      // Mock statistics data
+      setStats({
+        totalSubcenters: 8,
+        activeSubcenters: 6,
+        totalSessions: 89,
+        totalPrograms: 23,
+        averageCompliance: 84.5,
+        totalFuelAllocated: 45680
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge status="success" text="Active" />;
+      case 'pending':
+        return <Badge status="warning" text="Pending" />;
+      case 'inactive':
+        return <Badge status="error" text="Inactive" />;
+      default:
+        return <Badge status="default" text="Unknown" />;
+    }
+  };
+
+  const getComplianceColor = (score: number) => {
+    if (score >= 90) return '#52c41a';
+    if (score >= 70) return '#faad14';
+    return '#ff4d4f';
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'session':
+        return <CalendarOutlined style={{ color: '#1890ff' }} />;
+      case 'program':
+        return <TeamOutlined style={{ color: '#52c41a' }} />;
+      case 'allocation':
+        return <CarOutlined style={{ color: '#fa8c16' }} />;
+      default:
+        return <CheckCircleOutlined />;
+    }
+  };
+
+  const columns = [
+    {
+      title: 'SubCenter',
+      key: 'subcenter',
+      render: (_: any, record: SubCenterActivity) => (
+        <div>
+          <Text strong>{record.subcenter.name}</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            <EnvironmentOutlined /> {record.subcenter.location}
+          </Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            <UserOutlined /> {record.subcenter.manager}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Code',
+      dataIndex: ['subcenter', 'code'],
+      key: 'code',
+      render: (code: string) => <Tag color="blue">{code}</Tag>,
+    },
+    {
+      title: 'Sessions',
+      dataIndex: 'sessions_this_month',
+      key: 'sessions',
+      align: 'center' as const,
+      render: (count: number) => (
+        <Statistic value={count} valueStyle={{ fontSize: '14px' }} />
+      ),
+    },
+    {
+      title: 'Programs',
+      dataIndex: 'programs_organized',
+      key: 'programs',
+      align: 'center' as const,
+      render: (count: number) => (
+        <Statistic value={count} valueStyle={{ fontSize: '14px' }} />
+      ),
+    },
+    {
+      title: 'Attendance',
+      dataIndex: 'total_attendance',
+      key: 'attendance',
+      align: 'center' as const,
+      render: (count: number) => (
+        <Tag color="green">
+          <TeamOutlined /> {count}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Fuel (L)',
+      dataIndex: 'fuel_allocated',
+      key: 'fuel',
+      align: 'center' as const,
+      render: (litres: number) => (
+        <Tag color="orange">
+          <CarOutlined /> {litres?.toLocaleString()}L
+        </Tag>
+      ),
+    },
+    {
+      title: 'Compliance',
+      dataIndex: 'compliance_score',
+      key: 'compliance',
+      align: 'center' as const,
+      render: (score: number) => (
+        <Progress
+          type="circle"
+          size={50}
+          percent={score}
+          strokeColor={getComplianceColor(score)}
+          format={(percent) => `${percent}%`}
+        />
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      align: 'center' as const,
+      render: (status: string) => getStatusBadge(status),
+    },
+    {
+      title: 'Last Activity',
+      dataIndex: 'last_activity',
+      key: 'last_activity',
+      render: (date: string) => (
+        <div>
+          <div>{dayjs(date).format('MMM DD')}</div>
+          <div style={{ fontSize: '12px', color: '#999' }}>{dayjs(date).fromNow()}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'center' as const,
+      render: (_: any, record: SubCenterActivity) => (
+        <Tooltip title="View Details">
+          <Button 
+            type="text" 
+            icon={<EyeOutlined />} 
+            onClick={() => message.info(`Viewing details for ${record.subcenter.name}`)}
+          />
+        </Tooltip>
+      ),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+        <div style={{ marginTop: 16 }}>Loading subcenter activities...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '24px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <Title level={2}>
+          <TeamOutlined /> SubCenter Parliament Activities
+        </Title>
+        <Text type="secondary">
+          Monitor and coordinate parliament operations across all subcenters
+        </Text>
+      </div>
+
+      {/* Statistics Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Total SubCenters"
+              value={stats.totalSubcenters}
+              prefix={<TeamOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Active SubCenters"
+              value={stats.activeSubcenters}
+              prefix={<CheckCircleOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Total Sessions"
+              value={stats.totalSessions}
+              prefix={<CalendarOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Programs"
+              value={stats.totalPrograms}
+              prefix={<TeamOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Avg Compliance"
+              value={stats.averageCompliance}
+              suffix="%"
+              prefix={<BarChartOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Fuel Allocated"
+              value={stats.totalFuelAllocated}
+              suffix="L"
+              prefix={<CarOutlined />}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Filters */}
+      <Card style={{ marginBottom: '24px' }}>
+        <Row gutter={16} align="middle">
+          <Col xs={24} sm={12} md={8}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Filter by status"
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+            >
+              <Option value="all">All SubCenters</Option>
+              <Option value="active">Active</Option>
+              <Option value="pending">Pending</Option>
+              <Option value="inactive">Inactive</Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <RangePicker
+              style={{ width: '100%' }}
+              value={selectedPeriod}
+              onChange={(dates) => setSelectedPeriod(dates)}
+              placeholder={['Start Date', 'End Date']}
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Space>
+              <Button type="primary">
+                Export Report
+              </Button>
+              <Button>
+                Refresh Data
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* Alert for coordination */}
+      <Alert
+        message="SubCenter Coordination Dashboard"
+        description="Monitor parliament operations across all subcenters. Use this data for cross-regional coordination and identifying subcenters that may need support."
+        type="info"
+        showIcon
+        style={{ marginBottom: '24px' }}
+      />
+
+      <Row gutter={16}>
+        {/* Activities Table */}
+        <Col xs={24} lg={16}>
+          <Card title="SubCenter Activities Overview">
+            <Table
+              columns={columns}
+              dataSource={activities}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                total: activities.length,
+                pageSize: 10,
+                showSizeChanger: true,
+              }}
+            />
+          </Card>
+        </Col>
+
+        {/* Recent Activities Timeline */}
+        <Col xs={24} lg={8}>
+          <Card title="Recent System Activities">
+            <Timeline>
+              {activities.flatMap(activity => 
+                activity.recent_activities.slice(0, 2).map((item, index) => (
+                  <Timeline.Item
+                    key={`${activity.id}-${index}`}
+                    dot={getActivityIcon(item.type)}
+                  >
+                    <div>
+                      <Text strong>{activity.subcenter.name}</Text>
+                      <br />
+                      <Text type="secondary">{item.activity}</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {dayjs(item.date).fromNow()}
+                      </Text>
+                    </div>
+                  </Timeline.Item>
+                ))
+              )}
+            </Timeline>
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+};
+
+export default SubCenterParliamentActivity;

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updated Role-Based Navigation - Parliament Operations</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #2E7D32;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .role-section {
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .superuser { 
+            background: linear-gradient(45deg, #FFE0B2, #FFF3E0);
+            border-left: 5px solid #FF9800;
+        }
+        .subcenter { 
+            background: linear-gradient(45deg, #E8F5E8, #F1F8E9);
+            border-left: 5px solid #4CAF50;
+        }
+        .maincenter { 
+            background: linear-gradient(45deg, #E3F2FD, #F1F8FF);
+            border-left: 5px solid #2196F3;
+        }
+        .beneficiary { 
+            background: linear-gradient(45deg, #F3E5F5, #FCE4EC);
+            border-left: 5px solid #9C27B0;
+        }
+        .role-section h2 {
+            margin-top: 0;
+            font-size: 1.5em;
+        }
+        .navigation-list {
+            list-style: none;
+            padding: 0;
+        }
+        .navigation-list li {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #4CAF50;
+            display: flex;
+            align-items: center;
+        }
+        .navigation-list li::before {
+            content: "📋";
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        .navigation-list.oversight li::before { content: "👁️"; }
+        .navigation-list.personal li::before { content: "👤"; }
+        .navigation-list.admin li::before { content: "⚙️"; }
+        
+        .changes-section {
+            background: linear-gradient(45deg, #FFF9C4, #FFFDE7);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #FFC107;
+        }
+        .changes-section h2 {
+            color: #F57C00;
+            margin-top: 0;
+        }
+        .change-item {
+            margin: 15px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #FFC107;
+        }
+        .highlight {
+            background: #FFEB3B;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .removed {
+            background: #FFCDD2;
+            color: #C62828;
+            text-decoration: line-through;
+        }
+        .added {
+            background: #C8E6C9;
+            color: #2E7D32;
+            font-weight: bold;
+        }
+        .code-block {
+            background: #263238;
+            color: #4CAF50;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ Updated Role-Based Navigation</h1>
+            <h2>Parliament Operations - Proper Role Segregation</h2>
+            <p><strong>Updated:</strong> <span id="currentDate"></span></p>
+        </div>
+
+        <div class="changes-section">
+            <h2>🔄 Key Changes Made</h2>
+            <div class="change-item">
+                <h3>❌ Removed from MAIN_CENTER</h3>
+                <p><span class="removed">Parliament Operations Management</span> - MAIN_CENTER no longer has direct management access</p>
+            </div>
+            <div class="change-item">
+                <h3>❌ Removed from BENEFICIARY</h3>
+                <p><span class="removed">Parliament Operations Access</span> - Beneficiaries can only manage their individual accounts</p>
+            </div>
+            <div class="change-item">
+                <h3>✅ Added for MAIN_CENTER</h3>
+                <p><span class="added">Parliament Oversight Section</span> - Monitoring and coordination capabilities</p>
+            </div>
+            <div class="change-item">
+                <h3>✅ Added for BENEFICIARY</h3>
+                <p><span class="added">Personal Account Section</span> - Individual account management only</p>
+            </div>
+        </div>
+
+        <div class="role-section superuser">
+            <h2>👑 SUPERUSER / ADMIN</h2>
+            <p><strong>Role:</strong> Overall system administration and policy management</p>
+            <p><strong>Parliament Access:</strong> Full system access including operations management</p>
+            <ul class="navigation-list admin">
+                <li>Parliament Operations (Full Management)</li>
+                <li>Members Management</li>
+                <li>Parliament Sessions</li>
+                <li>Programs</li>
+                <li>Attendance Tracking</li>
+                <li>Fuel Allocations</li>
+                <li>System Analytics</li>
+                <li>Audit & Compliance</li>
+            </ul>
+        </div>
+
+        <div class="role-section subcenter">
+            <h2>🏪 SUB_CENTER Officers</h2>
+            <p><strong>Role:</strong> <span class="highlight">PRIMARY Parliament Operations Management</span></p>
+            <p><strong>Responsibility:</strong> Regional parliament session management and local operations</p>
+            <ul class="navigation-list">
+                <li>Parliament Operations Management</li>
+                <li>Members Management (Regional)</li>
+                <li>Parliament Sessions (Create/Manage)</li>
+                <li>Programs (Organize)</li>
+                <li>Attendance Tracking</li>
+                <li>Fuel Allocations (Regional)</li>
+                <li>Session Manager Assignment</li>
+                <li>SubCenter Association</li>
+            </ul>
+            <div class="code-block">
+// Navigation Permission
+if (hasRole(['SUPERUSER', 'ADMIN', 'SUB_CENTER'])) {
+  // Parliament operations management access
+}
+            </div>
+        </div>
+
+        <div class="role-section maincenter">
+            <h2>🏢 MAIN_CENTER Officers</h2>
+            <p><strong>Role:</strong> <span class="highlight">Parliament System Oversight & Coordination</span></p>
+            <p><strong>Responsibility:</strong> Monitor subcenter operations and provide system-wide coordination</p>
+            <ul class="navigation-list oversight">
+                <li>Parliament Reports (System-wide)</li>
+                <li>SubCenter Activities Monitoring</li>
+                <li>System Parliament Analytics</li>
+                <li>Cross-regional Coordination</li>
+                <li>Policy and Compliance Oversight</li>
+                <li>Analytics & Finance</li>
+                <li>Audit & Compliance</li>
+            </ul>
+            <div class="code-block">
+// Oversight Navigation Permission
+if (hasRole(['MAIN_CENTER'])) {
+  // Parliament oversight and monitoring access
+}
+            </div>
+        </div>
+
+        <div class="role-section beneficiary">
+            <h2>👤 BENEFICIARY</h2>
+            <p><strong>Role:</strong> <span class="highlight">Individual Account Management Only</span></p>
+            <p><strong>Responsibility:</strong> Manage personal fuel allocations and view transaction history</p>
+            <ul class="navigation-list personal">
+                <li>My Fuel Allocations</li>
+                <li>My Transaction History</li>
+                <li>My Profile</li>
+                <li>Personal Settings</li>
+            </ul>
+            <div class="code-block">
+// Personal Account Navigation Permission
+if (hasRole(['BENEFICIARY'])) {
+  // Individual account management only
+}
+            </div>
+            <p><strong>Note:</strong> Beneficiaries are coupon recipients, not parliament operations managers. They should only access their individual accounts.</p>
+        </div>
+
+        <div class="changes-section">
+            <h2>🔧 Implementation Details</h2>
+            
+            <div class="change-item">
+                <h3>Navigation Code Update (UnifiedLayout.tsx)</h3>
+                <div class="code-block">
+// OLD: Parliament operations for all
+if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'BENEFICIARY'])) {
+  // Parliament operations
+}
+
+// NEW: Separated by role
+// Parliament Operations Management (SUB_CENTER only)
+if (hasRole(['SUPERUSER', 'ADMIN', 'SUB_CENTER'])) {
+  // Parliament operations management
+}
+
+// Parliament Oversight (MAIN_CENTER)
+if (hasRole(['MAIN_CENTER'])) {
+  // Parliament oversight and monitoring
+}
+
+// Personal Account (BENEFICIARY)
+if (hasRole(['BENEFICIARY'])) {
+  // Individual account management only
+}
+                </div>
+            </div>
+
+            <div class="change-item">
+                <h3>Updated Role Hierarchy</h3>
+                <ol>
+                    <li><strong>SUPERUSER/ADMIN</strong> - Overall system administration</li>
+                    <li><strong>SUB_CENTER Officers</strong> - PRIMARY Parliament operations management</li>
+                    <li><strong>MAIN_CENTER Officers</strong> - Parliament system oversight and coordination</li>
+                    <li><strong>BENEFICIARIES</strong> - Individual account management only</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="role-section" style="background: linear-gradient(45deg, #E0F2F1, #F1F8E9);">
+            <h2>🎯 Expected User Experience</h2>
+            
+            <h3>When SUB_CENTER logs in:</h3>
+            <ul>
+                <li>✅ Sees "PARLIAMENT OPERATIONS" section</li>
+                <li>✅ Can create and manage parliament sessions</li>
+                <li>✅ Can assign session managers</li>
+                <li>✅ Can organize programs and events</li>
+            </ul>
+
+            <h3>When MAIN_CENTER logs in:</h3>
+            <ul>
+                <li>✅ Sees "PARLIAMENT OVERSIGHT" section</li>
+                <li>✅ Can monitor subcenter activities</li>
+                <li>✅ Can view system-wide parliament reports</li>
+                <li>❌ No direct parliament operations management</li>
+            </ul>
+
+            <h3>When BENEFICIARY logs in:</h3>
+            <ul>
+                <li>✅ Sees "MY ACCOUNT" section only</li>
+                <li>✅ Can view personal allocations and transactions</li>
+                <li>❌ No parliament operations access</li>
+                <li>❌ No system management capabilities</li>
+            </ul>
+        </div>
+
+        <div class="changes-section">
+            <h2>✅ Verification Steps</h2>
+            <ol>
+                <li><strong>Test SUB_CENTER Login:</strong> Should see Parliament Operations section with full management capabilities</li>
+                <li><strong>Test MAIN_CENTER Login:</strong> Should see Parliament Oversight section with monitoring capabilities</li>
+                <li><strong>Test BENEFICIARY Login:</strong> Should see only Personal Account section</li>
+                <li><strong>Verify Role Separation:</strong> Each role should have distinct navigation sections</li>
+                <li><strong>Check Data Filtering:</strong> Each role should see appropriate data scope</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Set current date
+        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-ZW', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // Add interaction to role sections
+        document.querySelectorAll('.role-section').forEach(section => {
+            section.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+                this.style.boxShadow = '0 8px 16px rgba(0,0,0,0.15)';
+            });
+            
+            section.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+            });
+        });
+    </script>
+</body>
+</html>

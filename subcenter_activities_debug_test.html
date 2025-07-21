@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubCenter Activities - Direct Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e8e8e8;
+        }
+        .header {
+            background: linear-gradient(135deg, #722ed1 0%, #1890ff 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .test-button {
+            background: #722ed1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 5px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .test-button:hover {
+            background: #9254de;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(114, 46, 209, 0.3);
+        }
+        .status-good { color: #52c41a; font-weight: bold; }
+        .status-error { color: #ff4d4f; font-weight: bold; }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Consolas', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 SubCenter Activities Page - Debug Test</h1>
+        <p>Troubleshooting SubCenter Activities under Parliament Oversight</p>
+        <p><strong>Server:</strong> <span id="serverStatus">Checking...</span></p>
+    </div>
+
+    <div class="test-card">
+        <h2>🎯 Issue Analysis</h2>
+        <p><strong>Problem:</strong> SubCenter Activities page not working under Parliament Oversight</p>
+        
+        <h3>✅ Fixes Applied:</h3>
+        <ul>
+            <li>✅ Fixed TypeScript error with RangePicker onChange handler</li>
+            <li>✅ Updated state type from <code>[dayjs.Dayjs, dayjs.Dayjs] | null</code> to <code>RangePickerProps['value']</code></li>
+            <li>✅ Added missing loading state check</li>
+            <li>✅ Replaced CSS classes (p-6, mb-6, text-xs) with inline styles</li>
+            <li>✅ Fixed all remaining TypeScript compilation errors</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <h2>🧪 Component Testing</h2>
+        
+        <h3>Direct Access Test:</h3>
+        <button class="test-button" onclick="testDirectAccess()">
+            Test SubCenter Activities Page
+        </button>
+        <div id="test-result" style="margin-top: 10px;"></div>
+        
+        <h3>Navigation Test:</h3>
+        <button class="test-button" onclick="testNavigation()">
+            Test from Dashboard Navigation
+        </button>
+        
+        <h3>Authentication Test:</h3>
+        <button class="test-button" onclick="testAuth()">
+            Test Authentication Status
+        </button>
+    </div>
+
+    <div class="test-card">
+        <h2>🔍 Key Changes Made</h2>
+        
+        <h3>1. TypeScript Fixes:</h3>
+        <div class="code-block">
+// BEFORE (causing TypeScript error):
+const [selectedPeriod, setSelectedPeriod] = useState&lt;[dayjs.Dayjs, dayjs.Dayjs] | null&gt;(null);
+
+// AFTER (fixed):
+import type { RangePickerProps } from 'antd/es/date-picker';
+const [selectedPeriod, setSelectedPeriod] = useState&lt;RangePickerProps['value']&gt;(null);
+
+// RangePicker onChange:
+&lt;RangePicker onChange={(dates) =&gt; setSelectedPeriod(dates)} /&gt;
+        </div>
+
+        <h3>2. Loading State Added:</h3>
+        <div class="code-block">
+if (loading) {
+    return (
+        &lt;div style={{ textAlign: 'center', padding: '50px' }}&gt;
+            &lt;Spin size="large" /&gt;
+            &lt;div style={{ marginTop: 16 }}&gt;Loading subcenter activities...&lt;/div&gt;
+        &lt;/div&gt;
+    );
+}
+        </div>
+
+        <h3>3. CSS Classes Replaced:</h3>
+        <div class="code-block">
+// BEFORE:
+className="p-6"        → style={{ padding: '24px' }}
+className="mb-6"       → style={{ marginBottom: '24px' }}
+className="text-xs"    → style={{ fontSize: '12px' }}
+className="text-gray-500" → style={{ color: '#999' }}
+        </div>
+    </div>
+
+    <div class="test-card">
+        <h2>📊 Expected Functionality</h2>
+        <p>When working correctly, the SubCenter Activities page should display:</p>
+        <ul>
+            <li>📈 Statistics cards showing total/active subcenters, sessions, programs</li>
+            <li>🔍 Filter controls for status and date range</li>
+            <li>📋 Table with subcenter information and performance metrics</li>
+            <li>⏰ Timeline showing recent activities across subcenters</li>
+            <li>🎯 Compliance scores and status indicators</li>
+            <li>👤 Manager contact information for each subcenter</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <h2>🚨 If Still Not Working</h2>
+        <p>If the page is still not working, check:</p>
+        <ol>
+            <li><strong>Authentication:</strong> Make sure you're logged in as a MAIN_CENTER user</li>
+            <li><strong>Route Protection:</strong> The page is protected by MainCenterRoute</li>
+            <li><strong>Browser Console:</strong> Check for JavaScript errors in browser console</li>
+            <li><strong>Network Tab:</strong> Check if there are any failed API requests</li>
+            <li><strong>React Dev Tools:</strong> Verify component is mounting correctly</li>
+        </ol>
+    </div>
+
+    <script>
+        function checkServerStatus() {
+            const statusEl = document.getElementById('serverStatus');
+            
+            fetch('http://localhost:5174')
+                .then(response => {
+                    if (response.ok) {
+                        statusEl.innerHTML = '<span style="color: #52c41a;">✅ Running (localhost:5174)</span>';
+                    } else {
+                        throw new Error('Server not responding');
+                    }
+                })
+                .catch(() => {
+                    statusEl.innerHTML = '<span style="color: #ff4d4f;">❌ Not Running</span>';
+                });
+        }
+
+        function testDirectAccess() {
+            const resultEl = document.getElementById('test-result');
+            const url = 'http://localhost:5174/dashboard/subcenter-activities';
+            
+            resultEl.innerHTML = '🔄 Opening SubCenter Activities page...';
+            
+            const testWindow = window.open(url, '_blank');
+            if (testWindow) {
+                resultEl.innerHTML = `✅ Page opened successfully!<br><small>${url}</small>`;
+            } else {
+                resultEl.innerHTML = '❌ Failed to open page (popup blocked?)';
+            }
+        }
+
+        function testNavigation() {
+            const url = 'http://localhost:5174/dashboard';
+            window.open(url, '_blank');
+        }
+
+        function testAuth() {
+            const url = 'http://localhost:5174/login';
+            window.open(url, '_blank');
+        }
+
+        // Check server status on load
+        checkServerStatus();
+        
+        // Check every 30 seconds
+        setInterval(checkServerStatus, 30000);
+    </script>
+</body>
+</html>
