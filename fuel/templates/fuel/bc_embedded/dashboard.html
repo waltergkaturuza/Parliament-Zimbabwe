@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parliament Fuel System - Dashboard</title>
+    <style>
+        /* BC-optimized styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .bc-container {
+            max-width: 100%;
+            height: calc(100vh - 10px);
+            padding: 15px;
+            overflow-y: auto;
+        }
+        
+        .bc-header {
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .bc-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .bc-subtitle {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: #106ebe;
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #28a745;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #0078d4;
+        }
+        
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0078d4;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+        
+        .content-section {
+            background: white;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #f1f1f1;
+            padding-bottom: 8px;
+        }
+        
+        .transaction-list {
+            list-style: none;
+        }
+        
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        
+        .transaction-item:last-child {
+            border-bottom: none;
+        }
+        
+        .transaction-info {
+            flex: 1;
+        }
+        
+        .transaction-user {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 3px;
+        }
+        
+        .transaction-details {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .transaction-amount {
+            font-weight: 700;
+            color: #0078d4;
+            font-size: 15px;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .sync-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background: #28a745;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0% { content: '.'; }
+            33% { content: '..'; }
+            66% { content: '...'; }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="bc-container">
+        <!-- Header -->
+        <div class="bc-header">
+            <h2>🏛️ Parliament Fuel Coupon System</h2>
+            <div class="bc-subtitle">
+                Integrated with Business Central
+                {% if bc_context.company_id %}
+                • Company: {{ bc_context.company_id }}
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <button class="btn" onclick="createTransaction()">
+                ⛽ New Transaction
+            </button>
+            <button class="btn btn-secondary" onclick="viewReports()">
+                📊 View Reports
+            </button>
+            <button class="btn btn-success" onclick="syncWithBC()">
+                🔄 Sync with BC
+            </button>
+            <button class="btn btn-secondary" onclick="openUserManagement()">
+                👥 Manage Users
+            </button>
+        </div>
+        
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total_transactions|default:"0" }}</div>
+                <div class="stat-label">Total Transactions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total_users|default:"0" }}</div>
+                <div class="stat-label">Active Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total_books|default:"0" }}</div>
+                <div class="stat-label">Coupon Books</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total_coupons|default:"0" }}</div>
+                <div class="stat-label">Total Coupons</div>
+            </div>
+        </div>
+        
+        <!-- Recent Transactions -->
+        <div class="content-section">
+            <h3 class="section-title">Recent Transactions</h3>
+            {% if recent_transactions %}
+                <ul class="transaction-list">
+                    {% for transaction in recent_transactions %}
+                    <li class="transaction-item">
+                        <div class="transaction-info">
+                            <div class="transaction-user">
+                                {{ transaction.user.get_full_name }}
+                            </div>
+                            <div class="transaction-details">
+                                {{ transaction.created_at|date:"M d, Y g:i A" }} • 
+                                Book: {{ transaction.book.book_number }}
+                                {% if transaction.bc_reference %}
+                                • BC Ref: {{ transaction.bc_reference }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="transaction-amount">
+                                {{ transaction.amount }} L
+                            </div>
+                            <div class="status-badge status-{{ transaction.status|lower }}">
+                                {{ transaction.get_status_display }}
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">⛽</div>
+                    <p>No transactions found. Create your first fuel transaction!</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- System Status -->
+        <div class="content-section">
+            <h3 class="section-title">System Status</h3>
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <div>
+                    <strong>🟢 System Online</strong><br>
+                    <small>All services operational</small>
+                </div>
+                <div>
+                    <strong>🔄 BC Sync</strong><br>
+                    <small>Last sync: <span id="last-sync">Loading...</span></small>
+                </div>
+                <div>
+                    <strong>📊 Environment</strong><br>
+                    <small>{{ bc_context.environment|default:"Production" }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sync Status Notification -->
+    <div class="sync-status" id="sync-status">
+        Syncing with Business Central...
+    </div>
+    
+    <script>
+        // Business Central Integration JavaScript
+        
+        function createTransaction() {
+            // Send message to BC to open transaction form
+            sendMessageToBC('OPEN_TRANSACTION_FORM', {
+                source: 'django-dashboard'
+            });
+            
+            // Alternative: Open in modal/iframe
+            showTransactionForm();
+        }
+        
+        function viewReports() {
+            sendMessageToBC('OPEN_REPORTS', {
+                source: 'django-dashboard'
+            });
+        }
+        
+        function syncWithBC() {
+            showSyncStatus(true);
+            
+            fetch('/bc/api/sync/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    sync_type: 'full'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showSyncStatus(false);
+                if (data.status === 'success') {
+                    showNotification('Sync completed successfully!', 'success');
+                    // Refresh the dashboard
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification('Sync failed: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showSyncStatus(false);
+                showNotification('Sync error: ' + error.message, 'error');
+            });
+        }
+        
+        function openUserManagement() {
+            sendMessageToBC('OPEN_USER_MANAGEMENT', {
+                source: 'django-dashboard'
+            });
+        }
+        
+        function showTransactionForm() {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px;">
+                    <h3>Quick Transaction</h3>
+                    <iframe src="/bc/transaction-form/" style="width: 100%; height: 400px; border: none;"></iframe>
+                    <button onclick="this.closest('div').parentElement.remove()" style="margin-top: 10px; padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px;">Close</button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function sendMessageToBC(eventType, data) {
+            // Send message to parent BC window
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    type: eventType,
+                    data: data,
+                    source: 'django-fuel-system'
+                }, '*');
+            }
+        }
+        
+        function showSyncStatus(show) {
+            const syncStatus = document.getElementById('sync-status');
+            syncStatus.style.display = show ? 'block' : 'none';
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 4px;
+                color: white;
+                font-weight: 500;
+                z-index: 1001;
+                min-width: 250px;
+            `;
+            
+            // Set color based on type
+            switch(type) {
+                case 'success':
+                    notification.style.background = '#28a745';
+                    break;
+                case 'error':
+                    notification.style.background = '#dc3545';
+                    break;
+                case 'warning':
+                    notification.style.background = '#ffc107';
+                    notification.style.color = '#333';
+                    break;
+                default:
+                    notification.style.background = '#17a2b8';
+            }
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.parentElement.removeChild(notification);
+                }
+            }, 5000);
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Listen for messages from Business Central
+        window.addEventListener('message', function(event) {
+            if (event.data.source === 'business-central') {
+                handleBCMessage(event.data);
+            }
+        });
+        
+        function handleBCMessage(message) {
+            switch(message.type) {
+                case 'BC_CONTEXT':
+                    // Update context from BC
+                    console.log('Received BC context:', message.data);
+                    break;
+                    
+                case 'REFRESH_DATA':
+                    // Refresh dashboard data
+                    location.reload();
+                    break;
+                    
+                case 'TRANSACTION_CREATED':
+                    // Handle new transaction notification
+                    showNotification('New transaction created in BC', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                    break;
+                    
+                case 'USER_SELECTED':
+                    // Handle user selection from BC
+                    console.log('User selected:', message.data);
+                    break;
+            }
+        }
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            // Send ready message to BC
+            sendMessageToBC('DJANGO_APP_READY', {
+                timestamp: new Date().toISOString()
+            });
+            
+            // Update last sync time
+            updateLastSyncTime();
+        });
+        
+        function updateLastSyncTime() {
+            // This would typically fetch from your API
+            document.getElementById('last-sync').textContent = 'Just now';
+        }
+        
+        // Auto-refresh every 5 minutes
+        setInterval(function() {
+            updateLastSyncTime();
+        }, 300000); // 5 minutes
+    </script>
+</body>
+</html>

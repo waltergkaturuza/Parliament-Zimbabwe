@@ -244,7 +244,7 @@ LOGGING = {
 
 # Microsoft Dynamics 365 Business Central Integration Settings
 # Parliament of Zimbabwe - Actual Credentials
-DYNAMICS_BC_URL = os.getenv('DYNAMICS_BC_URL', 'https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/production/ODataV4/')
+DYNAMICS_BC_URL = os.getenv('DYNAMICS_BC_URL', 'https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/')
 DYNAMICS_TENANT_ID = os.getenv('DYNAMICS_TENANT_ID', '086c4475-d0ef-4d2b-871c-4e078a083db5')
 DYNAMICS_CLIENT_ID = os.getenv('DYNAMICS_CLIENT_ID', 'c26c60eb-f154-40eb-b02e-f3997e083316')
 DYNAMICS_CLIENT_SECRET = os.getenv('DYNAMICS_CLIENT_SECRET', 'us18Q~TnKoQ5hYlKNtIAweLGoTdqX7kSdvFTIcI1')

@@ -1,0 +1,42 @@
+{
+  "base_url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')",
+  "working_apis": [
+    {
+      "name": "Customer Ledger Entries",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/Cust_LedgerEntries",
+      "record_count": 10
+    },
+    {
+      "name": "Item Ledger Entries",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/ItemLedgerEntries",
+      "record_count": 10
+    },
+    {
+      "name": "G/L Entries",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/G_LEntries",
+      "record_count": 10
+    },
+    {
+      "name": "Vendor Ledger Entries",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/VendorLedgerEntries",
+      "record_count": 10
+    },
+    {
+      "name": "Sales Dashboard",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/SalesDashboard",
+      "record_count": 10
+    },
+    {
+      "name": "Top Customer Overview",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/TopCustomerOverview",
+      "record_count": 5
+    },
+    {
+      "name": "Power BI Customer List",
+      "url": "https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/Company('CRONUS%20International%20Ltd.')/Power_BI_Customer_List",
+      "record_count": 10
+    }
+  ],
+  "company_name": "CRONUS International Ltd.",
+  "test_date": "2025-07-22T09:40:12.764874"
+}
