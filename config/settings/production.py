@@ -7,7 +7,8 @@ DEBUG = False
 
 # Azure App Service settings
 ALLOWED_HOSTS = [
-    'app-parliament-fuel-prod.azurewebsites.net',
+    'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
+    'parliament-fuel-system.azurewebsites.net',
     'fuel.parliament.gov.zw',
     'localhost',  # For local testing
 ]
@@ -16,10 +17,10 @@ ALLOWED_HOSTS = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'fuel_coupon_system'),
-        'USER': os.environ.get('DB_USER', 'parliament_admin'),
+        'NAME': os.environ.get('DB_NAME', 'postgres'),
+        'USER': os.environ.get('DB_USER', 'yekrzopkqr'),
         'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'psql-parliament-fuel-prod.postgres.database.azure.com'),
+        'HOST': os.environ.get('DB_HOST', 'parliament-fuel-postgres.postgres.database.azure.com'),
         'PORT': os.environ.get('DB_PORT', '5432'),
         'OPTIONS': {
             'sslmode': 'require',
@@ -158,7 +159,8 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
-    'https://app-parliament-fuel-prod.azurewebsites.net',
+    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
+    'https://parliament-fuel-system.azurewebsites.net',
 ]
 
 # Time zone
