@@ -16,7 +16,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'fuel',
-    'auth',
+    'auth.apps.AuthConfig',  # Use custom app config with unique label
     'utils',
 ]
 

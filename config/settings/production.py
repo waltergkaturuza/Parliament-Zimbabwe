@@ -51,20 +51,25 @@ BUSINESS_CENTRAL_CONFIG = {
     'api_version': 'v2.0',
 }
 
-# Azure Application Insights
-INSTALLED_APPS += [
-    'applicationinsights.django',
-]
+# Azure Application Insights (optional)
+if os.environ.get('APPINSIGHTS_INSTRUMENTATIONKEY'):
+    try:
+        import applicationinsights.django
+        INSTALLED_APPS += [
+            'applicationinsights.django',
+        ]
+        
+        APPLICATION_INSIGHTS = {
+            'ikey': os.environ.get('APPINSIGHTS_INSTRUMENTATIONKEY'),
+            'use_view_name': True,
+            'record_view_arguments': True,
+        }
 
-APPLICATION_INSIGHTS = {
-    'ikey': os.environ.get('APPINSIGHTS_INSTRUMENTATIONKEY'),
-    'use_view_name': True,
-    'record_view_arguments': True,
-}
-
-MIDDLEWARE = [
-    'applicationinsights.django.ApplicationInsightsMiddleware',
-] + MIDDLEWARE
+        MIDDLEWARE = [
+            'applicationinsights.django.ApplicationInsightsMiddleware',
+        ] + MIDDLEWARE
+    except ImportError:
+        pass  # Application Insights not available
 
 # Email Configuration - Azure/Office 365
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -106,7 +111,7 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 X_FRAME_OPTIONS = 'DENY'
 
-# Logging configuration
+# Logging configuration (Azure-compatible)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -125,13 +130,6 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '/tmp/django.log',
-            'maxBytes': 1024*1024*5,  # 5 MB
-            'backupCount': 5,
-            'formatter': 'verbose',
-        },
     },
     'root': {
         'handlers': ['console'],
@@ -139,12 +137,12 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'fuel': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
