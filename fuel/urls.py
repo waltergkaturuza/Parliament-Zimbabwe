@@ -31,6 +31,11 @@ from .views import (
     analytics_view,
 )
 
+# Home page API views
+from .views_home import (
+    home_stats, recent_activity, system_health, quick_insights
+)
+
 router = DefaultRouter()
 
 # User management
@@ -73,6 +78,12 @@ urlpatterns = [
     # Authentication
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
+    
+    # Home page APIs
+    path('api/home/stats/', home_stats, name='home-stats'),
+    path('api/home/activity/', recent_activity, name='home-activity'),
+    path('api/home/health/', system_health, name='home-health'),
+    path('api/home/insights/', quick_insights, name='home-insights'),
     
     # Admin endpoints
     path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),

@@ -15,7 +15,9 @@ import {
   Avatar,
   Timeline,
   Progress,
-  Divider
+  Divider,
+  Spin,
+  message
 } from 'antd';
 import {
   RocketOutlined,
@@ -31,10 +33,18 @@ import {
   UserOutlined,
   ArrowRightOutlined,
   LoginOutlined,
-  UserAddOutlined
+  UserAddOutlined,
+  WarningOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import ParliamentLogo from '@/components/ParliamentLogo';
+import { 
+  homeApiService, 
+  type HomeStats, 
+  type ActivityItem, 
+  type SystemHealth 
+} from '@/services/homeApi';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -42,6 +52,58 @@ const { Title, Paragraph, Text } = Typography;
 const Home = () => {
   const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
+  
+  // State for backend data
+  const [stats, setStats] = useState<HomeStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load data from backend
+  useEffect(() => {
+    const loadHomeData = async () => {
+      try {
+        setLoading(true);
+        
+        // Load all data in parallel
+        const [statsData, activityData, healthData] = await Promise.all([
+          homeApiService.getStats(),
+          homeApiService.getRecentActivity(),
+          homeApiService.getSystemHealth()
+        ]);
+        
+        setStats(statsData);
+        setRecentActivity(activityData);
+        setSystemHealth(healthData);
+        
+      } catch (error) {
+        console.error('Error loading home data:', error);
+        message.error('Failed to load some data. Using cached values.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHomeData();
+  }, []);
+
+  // Helper function to get icon for activity type
+  const getActivityIcon = (iconType: string) => {
+    const iconProps = { style: { fontSize: '16px' } };
+    
+    switch (iconType) {
+      case 'warning':
+        return <WarningOutlined style={{ color: '#faad14' }} {...iconProps} />;
+      case 'info':
+        return <InfoCircleOutlined style={{ color: '#1890ff' }} {...iconProps} />;
+      case 'team':
+        return <TeamOutlined style={{ color: '#1890ff' }} {...iconProps} />;
+      case 'bank':
+        return <BankOutlined style={{ color: '#722ed1' }} {...iconProps} />;
+      default:
+        return <CheckCircleOutlined style={{ color: '#52c41a' }} {...iconProps} />;
+    }
+  };
 
   const heroSlides = [
     {
@@ -103,37 +165,58 @@ const Home = () => {
     }
   ];
 
-  const stats = [
-    { title: "Active Users", value: 1250, prefix: <UserOutlined />, color: "#1890ff" },
-    { title: "Sub-Centers", value: 25, prefix: <BankOutlined />, color: "#52c41a" },
-    { title: "Distributed Coupons", value: 15420, prefix: <CarOutlined />, color: "#faad14" },
-    { title: "Success Rate", value: 99.8, suffix: "%", prefix: <TrophyOutlined />, color: "#722ed1" }
+  const stats_display = [
+    { 
+      title: "Active Users", 
+      value: stats?.active_users || 1250, 
+      prefix: <UserOutlined />, 
+      color: "#1890ff" 
+    },
+    { 
+      title: "Sub-Centers", 
+      value: stats?.sub_centers || 25, 
+      prefix: <BankOutlined />, 
+      color: "#52c41a" 
+    },
+    { 
+      title: "Distributed Coupons", 
+      value: stats?.distributed_coupons || 15420, 
+      prefix: <CarOutlined />, 
+      color: "#faad14" 
+    },
+    { 
+      title: "Success Rate", 
+      value: stats?.success_rate || 99.8, 
+      suffix: "%", 
+      prefix: <TrophyOutlined />, 
+      color: "#722ed1" 
+    }
   ];
 
-  const recentActivity = [
+  const recentActivityDisplay = recentActivity.length > 0 ? recentActivity : [
     {
       icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
       title: "System Update Completed",
       description: "Latest security patches installed successfully",
-      time: "2 hours ago"
+      time_display: "2 hours ago"
     },
     {
       icon: <TeamOutlined style={{ color: '#1890ff' }} />,
       title: "New Sub-Center Added",
       description: "Chitungwiza East sub-center is now operational",
-      time: "1 day ago"
+      time_display: "1 day ago"
     },
     {
       icon: <BarChartOutlined style={{ color: '#faad14' }} />,
       title: "Monthly Report Generated",
       description: "June 2025 distribution report available",
-      time: "3 days ago"
+      time_display: "3 days ago"
     },
     {
       icon: <SafetyCertificateOutlined style={{ color: '#722ed1' }} />,
       title: "Security Audit Passed",
       description: "Annual security compliance review completed",
-      time: "1 week ago"
+      time_display: "1 week ago"
     }
   ];
 
@@ -286,17 +369,21 @@ const Home = () => {
             
             <motion.div variants={staggerContainer} animate="animate">
               <Row gutter={[32, 32]}>
-                {stats.map((stat, index) => (
+                {stats_display.map((stat, index) => (
                   <Col xs={12} lg={6} key={index}>
                     <motion.div variants={fadeInUp}>
                       <Card className="text-center shadow-lg hover:shadow-xl transition-shadow">
-                        <Statistic
-                          title={stat.title}
-                          value={stat.value}
-                          prefix={stat.prefix}
-                          suffix={stat.suffix}
-                          valueStyle={{ color: stat.color, fontSize: '2rem' }}
-                        />
+                        {loading ? (
+                          <Spin size="large" />
+                        ) : (
+                          <Statistic
+                            title={stat.title}
+                            value={stat.value}
+                            prefix={stat.prefix}
+                            suffix={stat.suffix}
+                            valueStyle={{ color: stat.color, fontSize: '2rem' }}
+                          />
+                        )}
                       </Card>
                     </motion.div>
                   </Col>
@@ -366,25 +453,31 @@ const Home = () => {
                       <ClockCircleOutlined className="text-blue-500" />
                       Recent Activity
                     </Title>
-                    <Timeline
-                      items={recentActivity.map((activity, index) => ({
-                        key: index,
-                        dot: activity.icon,
-                        children: (
-                          <>
-                            <div className="mb-1">
-                              <Text strong>{activity.title}</Text>
-                            </div>
-                            <div className="mb-1">
-                              <Text type="secondary">{activity.description}</Text>
-                            </div>
-                            <Text type="secondary" className="text-sm">
-                              {activity.time}
-                            </Text>
-                          </>
-                        )
-                      }))}
-                    />
+                    {loading ? (
+                      <div className="flex justify-center items-center h-64">
+                        <Spin size="large" />
+                      </div>
+                    ) : (
+                      <Timeline
+                        items={recentActivityDisplay.map((activity, index) => ({
+                          key: index,
+                          dot: activity.icon || getActivityIcon(activity.icon_type || 'info'),
+                          children: (
+                            <>
+                              <div className="mb-1">
+                                <Text strong>{activity.title}</Text>
+                              </div>
+                              <div className="mb-1">
+                                <Text type="secondary">{activity.description}</Text>
+                              </div>
+                              <Text type="secondary" className="text-sm">
+                                {activity.time_display || activity.time}
+                              </Text>
+                            </>
+                          )
+                        }))}
+                      />
+                    )}
                   </Card>
                 </motion.div>
               </Col>
@@ -397,55 +490,61 @@ const Home = () => {
                       System Health
                     </Title>
                     
-                    <div className="space-y-6">
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <Text>Server Performance</Text>
-                          <Text strong>95%</Text>
-                        </div>
-                        <Progress 
-                          percent={95} 
-                          strokeColor="#52c41a"
-                          showInfo={false}
-                        />
+                    {loading ? (
+                      <div className="flex justify-center items-center h-64">
+                        <Spin size="large" />
                       </div>
-                      
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <Text>Database Health</Text>
-                          <Text strong>98%</Text>
+                    ) : (
+                      <div className="space-y-6">
+                        <div>
+                          <div className="flex justify-between mb-2">
+                            <Text>Server Performance</Text>
+                            <Text strong>{systemHealth?.server_performance || 95}%</Text>
+                          </div>
+                          <Progress 
+                            percent={systemHealth?.server_performance || 95} 
+                            strokeColor="#52c41a"
+                            showInfo={false}
+                          />
                         </div>
-                        <Progress 
-                          percent={98} 
-                          strokeColor="#1890ff"
-                          showInfo={false}
-                        />
-                      </div>
-                      
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <Text>Security Score</Text>
-                          <Text strong>99%</Text>
+                        
+                        <div>
+                          <div className="flex justify-between mb-2">
+                            <Text>Database Health</Text>
+                            <Text strong>{systemHealth?.database_health || 98}%</Text>
+                          </div>
+                          <Progress 
+                            percent={systemHealth?.database_health || 98} 
+                            strokeColor="#1890ff"
+                            showInfo={false}
+                          />
                         </div>
-                        <Progress 
-                          percent={99} 
-                          strokeColor="#722ed1"
-                          showInfo={false}
-                        />
-                      </div>
-                      
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <Text>User Satisfaction</Text>
-                          <Text strong>97%</Text>
+                        
+                        <div>
+                          <div className="flex justify-between mb-2">
+                            <Text>Security Score</Text>
+                            <Text strong>{systemHealth?.security_score || 99}%</Text>
+                          </div>
+                          <Progress 
+                            percent={systemHealth?.security_score || 99} 
+                            strokeColor="#722ed1"
+                            showInfo={false}
+                          />
                         </div>
-                        <Progress 
-                          percent={97} 
-                          strokeColor="#faad14"
-                          showInfo={false}
-                        />
+                        
+                        <div>
+                          <div className="flex justify-between mb-2">
+                            <Text>User Satisfaction</Text>
+                            <Text strong>{systemHealth?.user_satisfaction || 97}%</Text>
+                          </div>
+                          <Progress 
+                            percent={systemHealth?.user_satisfaction || 97} 
+                            strokeColor="#faad14"
+                            showInfo={false}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </Card>
                 </motion.div>
               </Col>
