@@ -12,33 +12,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='user',
-            name='is_approved',
-            field=models.BooleanField(default=False, help_text='Whether the user registration has been approved by an administrator'),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='approved_by',
-            field=models.ForeignKey(blank=True, help_text='Administrator who approved this user', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='approved_users', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='approved_at',
-            field=models.DateTimeField(blank=True, help_text='Timestamp when the user was approved', null=True),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='registration_justification',
-            field=models.TextField(blank=True, help_text="User's justification for registration", null=True),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='rejection_reason',
-            field=models.TextField(blank=True, help_text='Reason for rejecting the user registration', null=True),
-        ),
-        migrations.AddIndex(
-            model_name='user',
-            index=models.Index(fields=['is_approved'], name='fuel_user_is_appr_9dfd28_idx'),
-        ),
+        # All operations removed as these fields already exist in 0001_initial.py
+        # This migration is kept for dependency chain but does nothing
     ]

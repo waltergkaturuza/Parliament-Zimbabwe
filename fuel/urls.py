@@ -24,6 +24,9 @@ from .views import (
     # System management ViewSets
     SystemAlertViewSet, AuditLogViewSet,
     
+    # Business Central integration
+    test_business_central_connection,
+    
     # Legacy views (keeping for compatibility)
     analytics_view,
 )
@@ -77,6 +80,9 @@ urlpatterns = [
     
     # Analytics
     path('analytics/', analytics_view, name='analytics-view'),
+    
+    # Business Central integration
+    path('business-central/test/', test_business_central_connection, name='test-business-central'),
     
     # Include router URLs 
     path('', include(router.urls)),

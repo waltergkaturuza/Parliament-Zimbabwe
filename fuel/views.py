@@ -2295,3 +2295,52 @@ class SessionAttendanceViewSet(viewsets.ModelViewSet):
             'recent_attendances': serializer.data
         })
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def test_business_central_connection(request):
+    """Test Business Central API connection"""
+    from django.conf import settings
+    
+    # Check if BC configuration exists
+    bc_config = getattr(settings, 'BUSINESS_CENTRAL_CONFIG', {})
+    
+    if not bc_config.get('tenant_id') or not bc_config.get('client_id'):
+        return Response({
+            'status': 'error',
+            'message': 'Business Central configuration not found. Please set BC environment variables.',
+            'config_status': {
+                'tenant_id': bool(bc_config.get('tenant_id')),
+                'client_id': bool(bc_config.get('client_id')),
+                'client_secret': bool(bc_config.get('client_secret')),
+                'base_url': bool(bc_config.get('base_url')),
+                'company_id': bool(bc_config.get('company_id'))
+            }
+        }, status=status.HTTP_424_FAILED_DEPENDENCY)
+    
+    try:
+        # TODO: Implement actual BC API call when credentials are configured
+        # For now, just return configuration status
+        return Response({
+            'status': 'success',
+            'message': 'Business Central configuration found',
+            'config_status': {
+                'tenant_id': bool(bc_config.get('tenant_id')),
+                'client_id': bool(bc_config.get('client_id')),
+                'client_secret': bool(bc_config.get('client_secret')),
+                'base_url': bool(bc_config.get('base_url')),
+                'company_id': bool(bc_config.get('company_id')),
+                'environment': bc_config.get('environment', 'Not Set')
+            },
+            'next_steps': [
+                'Configure Azure App Registration for Business Central',
+                'Set BC environment variables in Azure Web App',
+                'Test actual BC API connection'
+            ]
+        })
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': f'Error testing Business Central connection: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
