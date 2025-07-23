@@ -1,53 +1,364 @@
-// Business Central AL Extension for Parliament Fuel System Integration
-// This code should be added to your Business Central extension
-
-// Control Add-in for embedding Django app
-controladdin "Parliament Fuel System"
+// Codeunit for handling Business Central and Django integration
+codeunit 50110 "Fuel System Integration"
 {
-    RequestedHeight = 700;
-    MinimumHeight = 500;
-    RequestedWidth = 1200;
-    MinimumWidth = 800;
-    VerticalStretch = true;
-    HorizontalStretch = true;
-
-    Scripts = 'https://parliament-fuel-system.azurewebsites.net/static/js/bc-integration.js';
-
-    /// <summary>
-    /// Fired when the control add-in is ready
-    /// </summary>
-    event ControlAddInReady();
-
-    /// <summary>
-    /// Fired when data changes in the Django app
-    /// </summary>
-    event DataChanged(data: Text);
-
-    /// <summary>
-    /// Fired when a transaction is created in Django
-    /// </summary>
-    event TransactionCreated(transactionData: Text);
-
-    /// <summary>
-    /// Initialize the Django app with BC context
-    /// </summary>
-    procedure InitializeApp(baseUrl: Text; bcContext: Text);
-
-    /// <summary>
-    /// Send data to the Django app
-    /// </summary>
-    procedure SendData(data: Text);
-
-    /// <summary>
-    /// Refresh the Django app data
-    /// </summary>
-    procedure RefreshData();
-
-    /// <summary>
-    /// Set the current user context
-    /// </summary>
-    procedure SetUserContext(userId: Text; companyId: Text);
-}
+    trigger OnRun()
+    begin
+    end;
+    
+    procedure SendTransactionToDjango(FuelTransaction: Record "Fuel Transaction"): Boolean
+    var
+        FuelSetup: Record "Fuel System Setup";
+        HttpClient: HttpClient;
+        HttpRequestMessage: HttpRequestMessage;
+        HttpResponseMessage: HttpResponseMessage;
+        ResponseText: Text;
+        RequestBody: Text;
+        WebhookUrl: Text;
+        Employee: Record Employee;
+    begin
+        // Get setup
+        if not FuelSetup.Get() then
+            Error('Fuel System Setup not found.');
+            
+        if not FuelSetup."Integration Enabled" then
+            exit(false);
+            
+        FuelSetup.TestField("Django Base URL");
+        
+        // Get employee data
+        if Employee.Get(FuelTransaction."Employee No.") then;
+        
+        // Build request
+        WebhookUrl := FuelSetup."Django Base URL" + 'api/bc/webhook/';
+        RequestBody := BuildTransactionJson(FuelTransaction, Employee);
+        
+        // Send request
+        HttpRequestMessage.Method := 'POST';
+        HttpRequestMessage.SetRequestUri(WebhookUrl);
+        HttpRequestMessage.Content.WriteFrom(RequestBody);
+        HttpRequestMessage.Content.GetHeaders.Clear();
+        HttpRequestMessage.Content.GetHeaders.Add('Content-Type', 'application/json');
+        
+        if FuelSetup."Webhook Secret" <> '' then
+            HttpRequestMessage.GetHeaders.Add('X-Webhook-Secret', FuelSetup."Webhook Secret");
+        
+        if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then begin
+            HttpResponseMessage.Content.ReadAs(ResponseText);
+            
+            if HttpResponseMessage.HttpStatusCode = 200 then begin
+                ProcessDjangoResponse(ResponseText, FuelTransaction);
+                exit(true);
+            end else begin
+                LogError('Django sync failed', StrSubstNo('Status: %1, Response: %2', 
+                    HttpResponseMessage.HttpStatusCode, ResponseText));
+                exit(false);
+            end;
+        end else begin
+            LogError('Django connection failed', 'Unable to connect to Django application');
+            exit(false);
+        end;
+    end;
+    
+    procedure ProcessDjangoWebhook(WebhookData: Text): Boolean
+    var
+        JsonObject: JsonObject;
+        JsonToken: JsonToken;
+        EventType: Text;
+        EntityData: Text;
+    begin
+        if not JsonObject.ReadFrom(WebhookData) then
+            exit(false);
+        
+        // Get event type
+        if JsonObject.Get('eventType', JsonToken) then
+            EventType := JsonToken.AsValue().AsText();
+        
+        // Process based on event type
+        case EventType of
+            'transaction_approved':
+                ProcessTransactionApproval(WebhookData);
+            'transaction_rejected':
+                ProcessTransactionRejection(WebhookData);
+            'fuel_data_updated':
+                ProcessFuelDataUpdate(WebhookData);
+            'sync_request':
+                ProcessSyncRequest(WebhookData);
+            else
+                LogError('Unknown webhook event', StrSubstNo('Event Type: %1', EventType));
+        end;
+        
+        exit(true);
+    end;
+    
+    local procedure BuildTransactionJson(FuelTransaction: Record "Fuel Transaction"; Employee: Record Employee): Text
+    var
+        JsonObject: JsonObject;
+        EntityDataObject: JsonObject;
+        ResultText: Text;
+    begin
+        // Main object
+        JsonObject.Add('eventType', 'transaction_created');
+        JsonObject.Add('timestamp', Format(CurrentDateTime, 0, 9));
+        
+        // Entity data
+        EntityDataObject.Add('transaction_no', FuelTransaction."Transaction No.");
+        EntityDataObject.Add('employee_no', FuelTransaction."Employee No.");
+        EntityDataObject.Add('employee_name', Employee."First Name" + ' ' + Employee."Last Name");
+        EntityDataObject.Add('transaction_date', Format(FuelTransaction."Transaction Date", 0, 9));
+        EntityDataObject.Add('fuel_amount', FuelTransaction."Fuel Amount");
+        EntityDataObject.Add('status', Format(FuelTransaction.Status));
+        EntityDataObject.Add('bc_transaction_id', FuelTransaction."Transaction No.");
+        
+        JsonObject.Add('entityData', EntityDataObject);
+        JsonObject.WriteTo(ResultText);
+        
+        exit(ResultText);
+    end;
+    
+    local procedure ProcessDjangoResponse(ResponseText: Text; var FuelTransaction: Record "Fuel Transaction")
+    var
+        JsonObject: JsonObject;
+        JsonToken: JsonToken;
+        DjangoId: Text;
+    begin
+        if not JsonObject.ReadFrom(ResponseText) then
+            exit;
+        
+        // Get Django transaction ID
+        if JsonObject.Get('transaction_id', JsonToken) then begin
+            DjangoId := JsonToken.AsValue().AsText();
+            FuelTransaction."Django Transaction ID" := DjangoId;
+            FuelTransaction."Created From Django" := false;
+            FuelTransaction.Modify();
+        end;
+    end;
+    
+    local procedure ProcessTransactionApproval(WebhookData: Text)
+    var
+        JsonObject: JsonObject;
+        JsonToken: JsonToken;
+        EntityDataObject: JsonObject;
+        TransactionNo: Code[20];
+        FuelTransaction: Record "Fuel Transaction";
+    begin
+        if not JsonObject.ReadFrom(WebhookData) then
+            exit;
+        
+        if JsonObject.Get('entityData', JsonToken) then begin
+            EntityDataObject := JsonToken.AsObject();
+            
+            if EntityDataObject.Get('bc_transaction_id', JsonToken) then begin
+                TransactionNo := JsonToken.AsValue().AsCode();
+                
+                if FuelTransaction.Get(TransactionNo) then begin
+                    FuelTransaction.Status := FuelTransaction.Status::Approved;
+                    FuelTransaction.Modify();
+                    
+                    // Post the transaction
+                    PostFuelTransactionFromWebhook(FuelTransaction);
+                end;
+            end;
+        end;
+    end;
+    
+    local procedure ProcessTransactionRejection(WebhookData: Text)
+    var
+        JsonObject: JsonObject;
+        JsonToken: JsonToken;
+        EntityDataObject: JsonObject;
+        TransactionNo: Code[20];
+        FuelTransaction: Record "Fuel Transaction";
+    begin
+        if not JsonObject.ReadFrom(WebhookData) then
+            exit;
+        
+        if JsonObject.Get('entityData', JsonToken) then begin
+            EntityDataObject := JsonToken.AsObject();
+            
+            if EntityDataObject.Get('bc_transaction_id', JsonToken) then begin
+                TransactionNo := JsonToken.AsValue().AsCode();
+                
+                if FuelTransaction.Get(TransactionNo) then begin
+                    FuelTransaction.Status := FuelTransaction.Status::Rejected;
+                    FuelTransaction.Modify();
+                end;
+            end;
+        end;
+    end;
+    
+    local procedure ProcessFuelDataUpdate(WebhookData: Text)
+    var
+        JsonObject: JsonObject;
+        JsonToken: JsonToken;
+        EntityDataObject: JsonObject;
+        FuelSetup: Record "Fuel System Setup";
+        NewRate: Decimal;
+    begin
+        if not JsonObject.ReadFrom(WebhookData) then
+            exit;
+        
+        if JsonObject.Get('entityData', JsonToken) then begin
+            EntityDataObject := JsonToken.AsObject();
+            
+            if EntityDataObject.Get('fuel_rate', JsonToken) then begin
+                NewRate := JsonToken.AsValue().AsDecimal();
+                
+                if FuelSetup.Get() then begin
+                    FuelSetup."Fuel Rate per Liter" := NewRate;
+                    FuelSetup.Modify();
+                end;
+            end;
+        end;
+    end;
+    
+    local procedure ProcessSyncRequest(WebhookData: Text)
+    var
+        FuelTransaction: Record "Fuel Transaction";
+    begin
+        // Send all pending transactions to Django
+        FuelTransaction.SetRange(Status, FuelTransaction.Status::Pending);
+        FuelTransaction.SetRange("Created From Django", false);
+        
+        if FuelTransaction.FindSet() then
+            repeat
+                SendTransactionToDjango(FuelTransaction);
+            until FuelTransaction.Next() = 0;
+    end;
+    
+    local procedure PostFuelTransactionFromWebhook(FuelTransaction: Record "Fuel Transaction")
+    var
+        FuelSetup: Record "Fuel System Setup";
+        GenJournalLine: Record "Gen. Journal Line";
+        LineNo: Integer;
+        Employee: Record Employee;
+        TotalAmount: Decimal;
+    begin
+        if FuelTransaction.Posted then
+            exit;
+        
+        FuelSetup.Get();
+        FuelSetup.TestField("Journal Template");
+        FuelSetup.TestField("Journal Batch");
+        FuelSetup.TestField("Fuel Expense Account");
+        FuelSetup.TestField("Fuel Payable Account");
+        
+        // Get last line number
+        GenJournalLine.SetRange("Journal Template Name", FuelSetup."Journal Template");
+        GenJournalLine.SetRange("Journal Batch Name", FuelSetup."Journal Batch");
+        if GenJournalLine.FindLast() then
+            LineNo := GenJournalLine."Line No." + 10000
+        else
+            LineNo := 10000;
+        
+        // Calculate total amount
+        TotalAmount := FuelTransaction."Fuel Amount" * FuelSetup."Fuel Rate per Liter";
+        
+        // Get employee
+        Employee.Get(FuelTransaction."Employee No.");
+        
+        // Create expense entry
+        GenJournalLine.Init();
+        GenJournalLine."Journal Template Name" := FuelSetup."Journal Template";
+        GenJournalLine."Journal Batch Name" := FuelSetup."Journal Batch";
+        GenJournalLine."Line No." := LineNo;
+        GenJournalLine."Posting Date" := FuelTransaction."Transaction Date";
+        GenJournalLine."Document No." := FuelTransaction."Transaction No.";
+        GenJournalLine."Account Type" := GenJournalLine."Account Type"::"G/L Account";
+        GenJournalLine."Account No." := FuelSetup."Fuel Expense Account";
+        GenJournalLine.Description := StrSubstNo('Fuel expense for %1 - %2L', 
+            Employee."First Name" + ' ' + Employee."Last Name", FuelTransaction."Fuel Amount");
+        GenJournalLine.Amount := TotalAmount;
+        GenJournalLine.Insert();
+        
+        // Create payable entry
+        LineNo += 10000;
+        GenJournalLine.Init();
+        GenJournalLine."Journal Template Name" := FuelSetup."Journal Template";
+        GenJournalLine."Journal Batch Name" := FuelSetup."Journal Batch";
+        GenJournalLine."Line No." := LineNo;
+        GenJournalLine."Posting Date" := FuelTransaction."Transaction Date";
+        GenJournalLine."Document No." := FuelTransaction."Transaction No.";
+        GenJournalLine."Account Type" := GenJournalLine."Account Type"::"G/L Account";
+        GenJournalLine."Account No." := FuelSetup."Fuel Payable Account";
+        GenJournalLine.Description := StrSubstNo('Fuel payable for %1 - %2L', 
+            Employee."First Name" + ' ' + Employee."Last Name", FuelTransaction."Fuel Amount");
+        GenJournalLine.Amount := -TotalAmount;
+        GenJournalLine.Insert();
+        
+        // Post the journal
+        CODEUNIT.Run(CODEUNIT::"Gen. Jnl.-Post Batch", GenJournalLine);
+        
+        // Update transaction
+        FuelTransaction.Posted := true;
+        FuelTransaction."Posted Date" := Today;
+        FuelTransaction.Modify();
+    end;
+    
+    local procedure LogError(ErrorTitle: Text; ErrorMessage: Text)
+    var
+        ErrorLog: Record "Error Message";
+    begin
+        // Log error for review
+        Error('%1: %2', ErrorTitle, ErrorMessage);
+    end;
+    
+    procedure GetDashboardData(): Text
+    var
+        FuelTransaction: Record "Fuel Transaction";
+        JsonObject: JsonObject;
+        JsonArray: JsonArray;
+        TransactionObject: JsonObject;
+        Employee: Record Employee;
+        ResultText: Text;
+        TotalPending: Integer;
+        TotalApproved: Integer;
+        TotalRejected: Integer;
+    begin
+        // Count transactions by status
+        FuelTransaction.SetRange(Status, FuelTransaction.Status::Pending);
+        TotalPending := FuelTransaction.Count;
+        
+        FuelTransaction.SetRange(Status, FuelTransaction.Status::Approved);
+        TotalApproved := FuelTransaction.Count;
+        
+        FuelTransaction.SetRange(Status, FuelTransaction.Status::Rejected);
+        TotalRejected := FuelTransaction.Count;
+        
+        // Build summary object
+        JsonObject.Add('total_pending', TotalPending);
+        JsonObject.Add('total_approved', TotalApproved);
+        JsonObject.Add('total_rejected', TotalRejected);
+        JsonObject.Add('last_updated', Format(CurrentDateTime, 0, 9));
+        
+        // Get recent transactions
+        FuelTransaction.Reset();
+        FuelTransaction.SetCurrentKey("Transaction Date");
+        FuelTransaction.SetAscending("Transaction Date", false);
+        if FuelTransaction.FindSet() then begin
+            repeat
+                TransactionObject.Clear();
+                TransactionObject.Add('transaction_no', FuelTransaction."Transaction No.");
+                TransactionObject.Add('employee_no', FuelTransaction."Employee No.");
+                
+                if Employee.Get(FuelTransaction."Employee No.") then
+                    TransactionObject.Add('employee_name', Employee."First Name" + ' ' + Employee."Last Name")
+                else
+                    TransactionObject.Add('employee_name', '');
+                
+                TransactionObject.Add('transaction_date', Format(FuelTransaction."Transaction Date", 0, 9));
+                TransactionObject.Add('fuel_amount', FuelTransaction."Fuel Amount");
+                TransactionObject.Add('status', Format(FuelTransaction.Status));
+                TransactionObject.Add('posted', FuelTransaction.Posted);
+                
+                JsonArray.Add(TransactionObject);
+            until (FuelTransaction.Next() = 0) or (JsonArray.Count >= 50); // Limit to 50 records
+        end;
+        
+        JsonObject.Add('recent_transactions', JsonArray);
+        JsonObject.WriteTo(ResultText);
+        
+        exit(ResultText);
+    end;
 
 // Page for Fuel System Dashboard
 page 50100 "Fuel System Dashboard"

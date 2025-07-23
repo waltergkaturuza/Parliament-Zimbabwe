@@ -1,0 +1,39 @@
+{
+  "id": "12345678-1234-1234-1234-123456789012",
+  "name": "Parliament Fuel Coupon System",
+  "publisher": "Parliament IT Department",
+  "version": "1.0.0.0",
+  "brief": "Integration with Parliament Fuel Coupon Management System",
+  "description": "This extension provides seamless integration between Business Central and the Parliament Fuel Coupon Management System, enabling fuel transaction management, approval workflows, and financial posting.",
+  "privacyStatement": "https://parliament-fuel-system.azurewebsites.net/privacy/",
+  "EULA": "https://parliament-fuel-system.azurewebsites.net/eula/",
+  "help": "https://parliament-fuel-system.azurewebsites.net/help/",
+  "url": "https://parliament-fuel-system.azurewebsites.net/",
+  "logo": "logo.png",
+  "dependencies": [],
+  "screenshots": [],
+  "platform": "1.0.0.0",
+  "application": "22.0.0.0",
+  "idRanges": [
+    {
+      "from": 50100,
+      "to": 50199
+    }
+  ],
+  "objectRanges": [
+    {
+      "from": 50100,
+      "to": 50199
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": false,
+    "includeSourceInSymbolFile": false
+  },
+  "runtime": "11.0",
+  "features": [
+    "NoImplicitWith"
+  ],
+  "target": "OnPrem"
+}
