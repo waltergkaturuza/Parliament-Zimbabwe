@@ -10,6 +10,7 @@ ALLOWED_HOSTS = [
     'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'parliament-fuel-system.azurewebsites.net',
     'fuel.parliament.gov.zw',
+    'parliament.gov.zw',
     'localhost',  # For local testing
 ]
 
@@ -166,9 +167,22 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
+    'https://parliament.gov.zw',
     'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'https://parliament-fuel-system.azurewebsites.net',
+    'https://parliament-fuel-frontend.azurestaticapps.net',
 ]
+
+# Business Central Integration Settings
+BC_INTEGRATION_ENABLED = os.environ.get('BC_INTEGRATION_ENABLED', 'True').lower() == 'true'
+BC_WEBHOOK_SECRET = os.environ.get('BC_WEBHOOK_SECRET', 'change-this-in-production')
+BC_API_TIMEOUT = 30  # seconds
+
+# Site URL for absolute URLs
+SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
+
+# X-Frame-Options for BC iframe embedding
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # Time zone
 TIME_ZONE = 'Africa/Harare'

@@ -36,6 +36,12 @@ from .views_home import (
     home_stats, recent_activity, system_health, quick_insights
 )
 
+# Business Central production integration views
+from .views_bc_production import (
+    bc_webhook, bc_dashboard_data, BCDashboardView, 
+    bc_transaction_approve, bc_health_check
+)
+
 router = DefaultRouter()
 
 # User management
@@ -84,6 +90,13 @@ urlpatterns = [
     path('api/home/activity/', recent_activity, name='home-activity'),
     path('api/home/health/', system_health, name='home-health'),
     path('api/home/insights/', quick_insights, name='home-insights'),
+    
+    # Business Central Production Integration
+    path('api/bc/webhook/', bc_webhook, name='bc-webhook'),
+    path('api/bc/dashboard-data/', bc_dashboard_data, name='bc-dashboard-data'),
+    path('api/bc/transaction/<int:transaction_id>/approve/', bc_transaction_approve, name='bc-transaction-approve'),
+    path('api/bc/health/', bc_health_check, name='bc-health-check'),
+    path('bc/dashboard/', BCDashboardView.as_view(), name='bc-dashboard'),
     
     # Admin endpoints
     path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parliament Fuel System - BC Integration</title>
+    
+    <!-- React CDN for production -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Ant Design CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@5.12.8/dist/reset.css">
+    
+    <!-- Custom styles for BC integration -->
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+        }
+        
+        .bc-dashboard {
+            padding: 16px;
+            min-height: 100vh;
+        }
+        
+        .bc-header {
+            background: #fff;
+            padding: 16px 24px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .bc-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .bc-stat-card {
+            background: #fff;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .bc-stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1890ff;
+            margin-bottom: 8px;
+        }
+        
+        .bc-stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .bc-content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+        }
+        
+        .bc-transactions {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .bc-alerts {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .bc-card-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #f0f0f0;
+            font-weight: 600;
+            color: #262626;
+        }
+        
+        .bc-card-body {
+            padding: 16px;
+        }
+        
+        .bc-transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .bc-transaction-info {
+            flex: 1;
+        }
+        
+        .bc-employee-no {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .bc-transaction-date {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .bc-status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .bc-status-pending {
+            background: #fff2e8;
+            color: #fa8c16;
+        }
+        
+        .bc-status-approved {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+        
+        .bc-status-rejected {
+            background: #fff2f0;
+            color: #f5222d;
+        }
+        
+        .bc-alert-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 4px solid #1890ff;
+            background: #f0f9ff;
+        }
+        
+        .bc-alert-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .bc-alert-message {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            .bc-content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .bc-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="bc-dashboard-root">
+        <div class="loading">Loading Parliament Fuel System...</div>
+    </div>
+    
+    <!-- BC Integration JavaScript -->
+    <script>
+        // Global configuration
+        window.BC_CONFIG = {
+            apiBaseUrl: '{{ api_base_url }}',
+            iframeMode: {{ iframe_mode|yesno:"true,false" }},
+            bcIntegration: {{ bc_integration|yesno:"true,false" }}
+        };
+        
+        // BC Dashboard Component
+        class BCDashboard extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = {
+                    loading: true,
+                    data: null,
+                    error: null
+                };
+            }
+            
+            componentDidMount() {
+                this.loadDashboardData();
+                // Refresh data every 30 seconds
+                this.interval = setInterval(() => {
+                    this.loadDashboardData();
+                }, 30000);
+                
+                // Listen for BC events
+                window.addEventListener('message', this.handleBCMessage.bind(this));
+            }
+            
+            componentWillUnmount() {
+                if (this.interval) {
+                    clearInterval(this.interval);
+                }
+                window.removeEventListener('message', this.handleBCMessage.bind(this));
+            }
+            
+            async loadDashboardData() {
+                try {
+                    const response = await fetch(`${window.BC_CONFIG.apiBaseUrl}/api/bc/dashboard-data/`);
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        this.setState({
+                            data: result.data,
+                            loading: false,
+                            error: null
+                        });
+                    } else {
+                        throw new Error(result.message || 'Failed to load data');
+                    }
+                } catch (error) {
+                    console.error('Error loading dashboard data:', error);
+                    this.setState({
+                        error: error.message,
+                        loading: false
+                    });
+                }
+            }
+            
+            handleBCMessage(event) {
+                // Handle messages from Business Central
+                if (event.data && event.data.type === 'BC_REFRESH') {
+                    this.loadDashboardData();
+                }
+            }
+            
+            getStatusClass(status) {
+                switch (status?.toLowerCase()) {
+                    case 'approved': return 'bc-status-approved';
+                    case 'rejected': return 'bc-status-rejected';
+                    default: return 'bc-status-pending';
+                }
+            }
+            
+            formatDate(dateString) {
+                return new Date(dateString).toLocaleDateString();
+            }
+            
+            render() {
+                const { loading, data, error } = this.state;
+                
+                if (loading) {
+                    return React.createElement('div', { className: 'loading' }, 'Loading Parliament Fuel System...');
+                }
+                
+                if (error) {
+                    return React.createElement('div', { className: 'loading' }, `Error: ${error}`);
+                }
+                
+                if (!data) {
+                    return React.createElement('div', { className: 'loading' }, 'No data available');
+                }
+                
+                return React.createElement('div', { className: 'bc-dashboard' }, [
+                    // Header
+                    React.createElement('div', { key: 'header', className: 'bc-header' }, [
+                        React.createElement('h2', { key: 'title' }, 'Parliament Fuel Coupon System'),
+                        React.createElement('div', { key: 'sync' }, `Last updated: ${new Date().toLocaleTimeString()}`)
+                    ]),
+                    
+                    // Statistics
+                    React.createElement('div', { key: 'stats', className: 'bc-stats-grid' }, [
+                        React.createElement('div', { key: 'total', className: 'bc-stat-card' }, [
+                            React.createElement('div', { key: 'value', className: 'bc-stat-value' }, data.statistics.total_transactions),
+                            React.createElement('div', { key: 'label', className: 'bc-stat-label' }, 'Total Transactions')
+                        ]),
+                        React.createElement('div', { key: 'pending', className: 'bc-stat-card' }, [
+                            React.createElement('div', { key: 'value', className: 'bc-stat-value' }, data.statistics.pending_transactions),
+                            React.createElement('div', { key: 'label', className: 'bc-stat-label' }, 'Pending Approval')
+                        ]),
+                        React.createElement('div', { key: 'approved', className: 'bc-stat-card' }, [
+                            React.createElement('div', { key: 'value', className: 'bc-stat-value' }, data.statistics.approved_transactions),
+                            React.createElement('div', { key: 'label', className: 'bc-stat-label' }, 'Approved')
+                        ]),
+                        React.createElement('div', { key: 'rate', className: 'bc-stat-card' }, [
+                            React.createElement('div', { key: 'value', className: 'bc-stat-value' }, `${data.statistics.approval_rate}%`),
+                            React.createElement('div', { key: 'label', className: 'bc-stat-label' }, 'Approval Rate')
+                        ])
+                    ]),
+                    
+                    // Content Grid
+                    React.createElement('div', { key: 'content', className: 'bc-content-grid' }, [
+                        // Recent Transactions
+                        React.createElement('div', { key: 'transactions', className: 'bc-transactions' }, [
+                            React.createElement('div', { key: 'header', className: 'bc-card-header' }, 'Recent Transactions'),
+                            React.createElement('div', { key: 'body', className: 'bc-card-body' }, 
+                                data.recent_transactions.map((transaction, index) =>
+                                    React.createElement('div', { key: index, className: 'bc-transaction-item' }, [
+                                        React.createElement('div', { key: 'info', className: 'bc-transaction-info' }, [
+                                            React.createElement('div', { key: 'emp', className: 'bc-employee-no' }, transaction.employee_no),
+                                            React.createElement('div', { key: 'date', className: 'bc-transaction-date' }, 
+                                                `${this.formatDate(transaction.date)} - $${transaction.fuel_amount}`)
+                                        ]),
+                                        React.createElement('span', { 
+                                            key: 'status', 
+                                            className: `bc-status-badge ${this.getStatusClass(transaction.status)}` 
+                                        }, transaction.status)
+                                    ])
+                                )
+                            )
+                        ]),
+                        
+                        // Alerts
+                        React.createElement('div', { key: 'alerts', className: 'bc-alerts' }, [
+                            React.createElement('div', { key: 'header', className: 'bc-card-header' }, 'System Alerts'),
+                            React.createElement('div', { key: 'body', className: 'bc-card-body' },
+                                data.alerts.length > 0 ? 
+                                    data.alerts.map((alert, index) =>
+                                        React.createElement('div', { key: index, className: 'bc-alert-item' }, [
+                                            React.createElement('div', { key: 'title', className: 'bc-alert-title' }, alert.title),
+                                            React.createElement('div', { key: 'message', className: 'bc-alert-message' }, alert.message)
+                                        ])
+                                    ) :
+                                    React.createElement('div', { className: 'bc-alert-item' }, 'No active alerts')
+                            )
+                        ])
+                    ])
+                ]);
+            }
+        }
+        
+        // Mount the dashboard
+        const root = ReactDOM.createRoot(document.getElementById('bc-dashboard-root'));
+        root.render(React.createElement(BCDashboard));
+        
+        // BC Integration API
+        window.BCIntegration = {
+            refresh: function() {
+                // Trigger refresh
+                window.dispatchEvent(new CustomEvent('message', {
+                    detail: { type: 'BC_REFRESH' }
+                }));
+            },
+            
+            sendToDjango: function(data) {
+                // Send data to Django backend
+                fetch(`${window.BC_CONFIG.apiBaseUrl}/api/bc/webhook/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
+        };
+        
+        // Notify BC that the control is ready
+        if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({ type: 'ControlAddInReady' }, '*');
+        }
+    </script>
+</body>
+</html>

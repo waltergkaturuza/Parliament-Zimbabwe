@@ -1935,6 +1935,58 @@ class FuelTransaction(TimeStampedModel):
         help_text="User who recorded this transaction (e.g., a fuel station attendant or officer)"
     )
     notes = models.TextField(blank=True)
+    
+    # Business Central Integration Fields
+    bc_transaction_no = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Business Central transaction number"
+    )
+    employee_no = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Employee number from Business Central"
+    )
+    fuel_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Fuel amount in currency"
+    )
+    transaction_date = models.DateField(
+        auto_now_add=True,
+        help_text="Date of the transaction"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('PENDING', 'Pending'),
+            ('APPROVED', 'Approved'),
+            ('REJECTED', 'Rejected')
+        ],
+        default='PENDING',
+        help_text="Transaction approval status"
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_transactions',
+        help_text="User who approved the transaction"
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the transaction was approved"
+    )
+    created_by_bc = models.BooleanField(
+        default=False,
+        help_text="Whether this transaction was created by Business Central"
+    )
 
     class Meta:
         verbose_name = "Fuel Transaction"
@@ -1944,6 +1996,10 @@ class FuelTransaction(TimeStampedModel):
             models.Index(fields=['beneficiary']),
             models.Index(fields=['coupon']),
             models.Index(fields=['timestamp']),
+            models.Index(fields=['bc_transaction_no']),
+            models.Index(fields=['status']),
+            models.Index(fields=['employee_no']),
+            models.Index(fields=['transaction_date']),
         ]
 
     def __str__(self):

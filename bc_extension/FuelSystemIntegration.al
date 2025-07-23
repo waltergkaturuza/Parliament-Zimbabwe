@@ -11,7 +11,7 @@ controladdin "Parliament Fuel System"
     VerticalStretch = true;
     HorizontalStretch = true;
 
-    Scripts = 'https://fuel.parliament.gov.zw/static/js/bc-integration.js';
+    Scripts = 'https://parliament-fuel-system.azurewebsites.net/static/js/bc-integration.js';
 
     /// <summary>
     /// Fired when the control add-in is ready
@@ -69,8 +69,8 @@ page 50100 "Fuel System Dashboard"
                     BCContext: Text;
                     BaseUrl: Text;
                 begin
-                    // Set the Django app URL
-                    BaseUrl := 'https://fuel.parliament.gov.zw/bc/dashboard/';
+                    // Set the Django app URL - Production Azure
+                    BaseUrl := 'https://parliament-fuel-system.azurewebsites.net/bc/dashboard/';
 
                     // Build BC context
                     BCContext := BuildBCContext();
@@ -232,12 +232,12 @@ page 50100 "Fuel System Dashboard"
         ResponseText: Text;
         SyncUrl: Text;
     begin
-        // Call Django sync API
-        SyncUrl := 'https://fuel.parliament.gov.zw/bc/api/sync/';
+        // Call Django sync API - Production Azure
+        SyncUrl := 'https://parliament-fuel-system.azurewebsites.net/api/bc/webhook/';
 
         HttpRequestMessage.Method := 'POST';
         HttpRequestMessage.SetRequestUri(SyncUrl);
-        HttpRequestMessage.Content.WriteFrom('{"sync_type": "full"}');
+        HttpRequestMessage.Content.WriteFrom('{"eventType": "sync_request", "entityData": {"sync_type": "full"}}');
         HttpRequestMessage.Content.GetHeaders.Clear();
         HttpRequestMessage.Content.GetHeaders.Add('Content-Type', 'application/json');
 
@@ -376,8 +376,8 @@ page 50101 "Fuel Transactions"
 
                 trigger OnAction()
                 begin
-                    // Open the Django app dashboard
-                    Hyperlink('https://fuel.parliament.gov.zw/bc/dashboard/');
+                    // Open the Django app dashboard - Production Azure
+                    Hyperlink('https://parliament-fuel-system.azurewebsites.net/bc/dashboard/');
                 end;
             }
 
@@ -406,7 +406,7 @@ page 50101 "Fuel Transactions"
     begin
         // Build sync request
         RequestBody := BuildTransactionJson(FuelTransaction);
-        SyncUrl := 'https://fuel.parliament.gov.zw/bc/webhook/';
+        SyncUrl := 'https://parliament-fuel-system.azurewebsites.net/api/bc/webhook/';
 
         HttpRequestMessage.Method := 'POST';
         HttpRequestMessage.SetRequestUri(SyncUrl);
