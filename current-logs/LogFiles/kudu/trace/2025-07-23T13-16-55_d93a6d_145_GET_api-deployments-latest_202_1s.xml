@@ -1,0 +1,11 @@
+<step title="Incoming Request" date="2025-07-23T13:16:55.398" instance="d93a6d" url="/api/deployments/latest?deployer=OneDeploy&amp;time=2025-07-23_13-11-00Z" method="GET" type="request" pid="769,1,26" Host="parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" User-Agent="GITHUBACTIONS_DeployWebAppToAzure_3c0d692e8ad75a2346ab81939fdc10082f9019e76dffc1a13dc533c34f61ae5f" Authorization="Bea..." Content-Type="application/json; charset=utf-8" Cookie="ARRAffinity=d93a6dd9adfe613e2d2fd01c1017210e715ace5b2f0f2d4f627a2b9b4f10608e;Path=/;HttpOnly;Secure;Domain=parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net; ARRAffinitySameSite=d93a6dd9adfe613e2d2fd01c1017210e715ace5b2f0f2d4f627a2b9b4f10608e;Path=/;HttpOnly;SameSite=None;Secure;Domain=parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" Content-Length="0" X-ARR-LOG-ID="c4f20076-14fb-4a55-bb0c-a972880f5fad" CLIENT-IP="145.132.103.66:60354" X-SITE-DEPLOYMENT-ID="parliament-fuel-system" WAS-DEFAULT-HOSTNAME="parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/deployments/latest?deployer=OneDeploy&amp;time=2025-07-23_13-11-00Z" X-Client-IP="145.132.103.66" X-Client-Port="60354" >
+  <step title="Cleanup Xml Logs" date="2025-07-23T13:16:55.416" >
+    <step title="Cleanup Infos" date="2025-07-23T13:16:55.499" totalFiles="220" totalCleanup="60" /><!-- duration: 37ms -->
+  </step><!-- duration: 122ms -->
+  <step title="DeploymentService.GetResult" date="2025-07-23T13:16:55.579" >
+    <step title="DeploymentService.GetLatestDeployment" date="2025-07-23T13:16:55.597" >
+      <step title="DeploymentManager.GetResults" date="2025-07-23T13:16:55.598" /><!-- duration: 726ms -->
+    </step><!-- duration: 747ms -->
+  </step><!-- duration: 782ms -->
+  <step title="Outgoing response" date="2025-07-23T13:16:56.401" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 3ms -->
+</step><!-- duration: 1024ms -->

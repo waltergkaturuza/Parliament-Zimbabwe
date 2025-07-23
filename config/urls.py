@@ -5,6 +5,20 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView # 👈 Import these
 from fuel.views import LoginView
+from django.http import JsonResponse
+from django.views.generic import TemplateView
+
+def home_view(request):
+    """Simple home page view"""
+    return JsonResponse({
+        'message': 'Parliament Fuel Coupon System API',
+        'version': '1.0',
+        'endpoints': {
+            'admin': '/admin/',
+            'api': '/api/v1/',
+            'docs': '/api/schema/swagger-ui/'
+        }
+    })
 
 # JWT Token views
 from rest_framework_simplejwt.views import (
@@ -13,7 +27,9 @@ from rest_framework_simplejwt.views import (
 )
 
 urlpatterns = [
+    path('', home_view, name='home'),  # Add root URL
     path('admin/', admin.site.urls),
+    path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
     path('api/v1/', include('fuel.urls')),
     
     # Business Central Integration

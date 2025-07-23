@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>temp-0211a160</id>
+  <author>OneDeploy</author>
+  <deployer>OneDeploy</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>N/A</message>
+  <progress>Fetching changes.</progress>
+  <status>Pending</status>
+  <statusText>Receiving changes.</statusText>
+  <lastSuccessEndTime />
+  <receivedTime>2025-07-23T13:10:59.9800398Z</receivedTime>
+  <startTime>2025-07-23T13:10:59.9800398Z</startTime>
+  <endTime />
+  <complete>False</complete>
+  <is_temp>True</is_temp>
+  <is_readonly>False</is_readonly>
+  <buildSummary />
+</deployment>

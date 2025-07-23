@@ -1,0 +1,11 @@
+<step title="Incoming Request" date="2025-07-23T13:21:21.629" instance="d93a6d" url="/api/deployments/latest?deployer=OneDeploy&amp;time=2025-07-23_13-20-24Z" method="GET" type="request" pid="769,1,23" Host="parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" User-Agent="GITHUBACTIONS_DeployWebAppToAzure_3c0d692e8ad75a2346ab81939fdc10082f9019e76dffc1a13dc533c34f61ae5f" Authorization="Bea..." Content-Type="application/json; charset=utf-8" Cookie="ARRAffinity=d93a6dd9adfe613e2d2fd01c1017210e715ace5b2f0f2d4f627a2b9b4f10608e;Path=/;HttpOnly;Secure;Domain=parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net; ARRAffinitySameSite=d93a6dd9adfe613e2d2fd01c1017210e715ace5b2f0f2d4f627a2b9b4f10608e;Path=/;HttpOnly;SameSite=None;Secure;Domain=parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" Content-Length="0" X-ARR-LOG-ID="8a87d47e-ca3e-47d6-9790-90328c4f0c6e" CLIENT-IP="172.214.45.242:33809" X-SITE-DEPLOYMENT-ID="parliament-fuel-system" WAS-DEFAULT-HOSTNAME="parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/deployments/latest?deployer=OneDeploy&amp;time=2025-07-23_13-20-24Z" X-Client-IP="172.214.45.242" X-Client-Port="33809" >
+  <step title="Cleanup Xml Logs" date="2025-07-23T13:21:21.630" >
+    <step title="Cleanup Infos" date="2025-07-23T13:21:21.634" totalFiles="254" totalCleanup="94" /><!-- duration: 1ms -->
+  </step><!-- duration: 7ms -->
+  <step title="DeploymentService.GetResult" date="2025-07-23T13:21:21.640" >
+    <step title="DeploymentService.GetLatestDeployment" date="2025-07-23T13:21:21.640" >
+      <step title="DeploymentManager.GetResults" date="2025-07-23T13:21:21.642" /><!-- duration: 203ms -->
+    </step><!-- duration: 206ms -->
+  </step><!-- duration: 210ms -->
+  <step title="Outgoing response" date="2025-07-23T13:21:21.855" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 2ms -->
+</step><!-- duration: 229ms -->

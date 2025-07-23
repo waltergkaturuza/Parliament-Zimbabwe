@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>44b223f8-02d8-4ddb-9bfd-bba92ea7dd4b</id>
+  <author>N/A</author>
+  <deployer>OneDeploy</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>OneDeploy</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2025-07-23T13:09:04.3799779Z</lastSuccessEndTime>
+  <receivedTime>2025-07-23T13:00:02.884193Z</receivedTime>
+  <startTime>2025-07-23T13:00:04.4550333Z</startTime>
+  <endTime>2025-07-23T13:09:04.3799779Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>True</is_readonly>
+  <buildSummary>
+    <warning>
+      <message>Traceback (most recent call last):
+  File "/tmp/8ddc9e8d7c45fda/manage.py", line 22, in &lt;module&gt;
+    main()
+  File "/tmp/8ddc9e8d7c45fda/manage.py", line 18, in main
+    execute_from_command_line(sys.argv)
+  File "/tmp/8ddc9e8d7c45fda/antenv/lib/python3.11/site-packages/django/core/management/__init__.py", line 442, in execute_from_command_line
+    utility.execute()
+  File "/tmp/8ddc9e8d7c45fda/antenv/lib/python3.11/site-packages/django/core/management/__init__.py", line 436, in execute
+    self.fetch_command(subcommand).run_from_argv(self.argv)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/8ddc9e8d7c45fda/antenv/lib/python3.11/site-packages/django/core/management/__init__.py", line 262, in fetch_command
+    settings.INSTALLED_APPS
+  File "/tmp/8ddc9e8d7c45fda/antenv/lib/python3.11/site-packages/django/conf/__init__.py", line 89, in __getattr__
+    self._setup(name)
+  File "/tmp/8ddc9e8d7c45fda/antenv/lib/python3.11/site-packages/django/conf/__init__.py", line 76, in _setup
+    self._wrapped = Settings(settings_module)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/8ddc9e8d7c45fda/antenv/lib/python3.11/site-packages/django/conf/__init__.py", line 190, in __init__
+    mod = importlib.import_module(self.SETTINGS_MODULE)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/oryx/platforms/python/3.11.13/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "&lt;frozen importlib._bootstrap&gt;", line 1204, in _gcd_import
+  File "&lt;frozen importlib._bootstrap&gt;", line 1176, in _find_and_load
+  File "&lt;frozen importlib._bootstrap&gt;", line 1135, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'config.settings.production'; 'config.settings' is not a package </message>
+      <timestamp>2025-07-23 13:05:59</timestamp>
+      <exitCode>1</exitCode>
+      <recommendation>Please review message</recommendation>
+      <urlToGetMoreInformation>https://aka.ms/troubleshoot-python</urlToGetMoreInformation>
+    </warning>
+  </buildSummary>
+</deployment>

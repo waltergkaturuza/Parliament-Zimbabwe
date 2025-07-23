@@ -1,0 +1,17 @@
+<step title="Incoming Request" date="2025-07-23T11:05:31.510" instance="d93a6d" url="/api/publish?async=true&amp;deployer=GITHUB_ONE_DEPLOY&amp;type=zip&amp;message=%7B%22type%22%3A%22deployment%22%2C%22sha%22%3A%225def0ab61d2c3dcd7bdf0dc6988ba4328afe9a5a%22%2C%22repoName%22%3A%22waltergkaturuza%2FParliament-Zimbabwe%22%2C%22actor%22%3A%22waltergkaturuza%22%2C%22slotName%22%3A%22Production%22%2C%22commitMessage%22%3A%22Add%20or%20update%20the%20Azure%20App%20Service%20build%20and%20deployment%20workflow%20config%22%7D" method="POST" type="request" pid="768,1,7" Host="parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" User-Agent="GITHUBACTIONS_DeployWebAppToAzure_3c0d692e8ad75a2346ab81939fdc10082f9019e76dffc1a13dc533c34f61ae5f" Authorization="Bea..." Content-Type="application/octet-stream" Cookie="ARRAffinity=d93a6dd9adfe613e2d2fd01c1017210e715ace5b2f0f2d4f627a2b9b4f10608e;Path=/;HttpOnly;Secure;Domain=parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net; ARRAffinitySameSite=d93a6dd9adfe613e2d2fd01c1017210e715ace5b2f0f2d4f627a2b9b4f10608e;Path=/;HttpOnly;SameSite=None;Secure;Domain=parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" Transfer-Encoding="chunked" X-ARR-LOG-ID="8a2bdbfd-8183-41ad-9136-d6ab8201f983" CLIENT-IP="172.178.119.22:44032" X-SITE-DEPLOYMENT-ID="parliament-fuel-system" WAS-DEFAULT-HOSTNAME="parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/publish?async=true&amp;deployer=GITHUB_ONE_DEPLOY&amp;type=zip&amp;message=%7B%22type%22%3A%22deployment%22%2C%22sha%22%3A%225def0ab61d2c3dcd7bdf0dc6988ba4328afe9a5a%22%2C%22repoName%22%3A%22waltergkaturuza%2FParliament-Zimbabwe%22%2C%22actor%22%3A%22waltergkaturuza%22%2C%22slotName%22%3A%22Production%22%2C%22commitMessage%22%3A%22Add%20or%20update%20the%20Azure%20App%20Service%20build%20and%20deployment%20workflow%20config%22%7D" X-Client-IP="172.178.119.22" X-Client-Port="44032" >
+  <step title="Cleanup Xml Logs" date="2025-07-23T11:05:31.524" /><!-- duration: 2ms -->
+  <step title="OneDeploy" date="2025-07-23T11:05:31.792" >
+    <step title="None repository commit" date="2025-07-23T11:05:31.807" >
+      <step title="Commit id: 37299060-86e4-400e-82be-5ece04c108dd" date="2025-07-23T11:05:31.813" Message="N/A" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 1ms -->
+    </step><!-- duration: 8ms -->
+    <step title="Starting PushDeployAsync" date="2025-07-23T11:05:31.817" /><!-- duration: 1ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/1d48f082-8542-42bc-af70-8684ddc8ab6d.zip" date="2025-07-23T11:05:31.824" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/1d48f082-8542-42bc-af70-8684ddc8ab6d.zip" date="2025-07-23T11:05:31.826" /><!-- duration: 1ms -->
+    </step><!-- duration: 3041ms -->
+    <step title="Start deployment in the background" date="2025-07-23T11:05:34.955" >
+      <step title="Acquiring Deployment Lock" date="2025-07-23T11:05:35.098" /><!-- duration: 19ms -->
+      <step title="Acquired Deployment Lock" date="2025-07-23T11:05:35.430" /><!-- duration: 2ms -->
+    </step><!-- duration: 879ms -->
+  </step><!-- duration: 4113ms -->
+  <step title="Outgoing response" date="2025-07-23T11:05:35.966" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 9ms -->
+</step><!-- duration: 4466ms -->
