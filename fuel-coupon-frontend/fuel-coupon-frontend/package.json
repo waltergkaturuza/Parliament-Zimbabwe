@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "fuel-coupon-frontend": "file:.."
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0"
+  }
+}
