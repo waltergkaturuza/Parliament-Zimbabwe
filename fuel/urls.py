@@ -17,6 +17,10 @@ from .views import (
     
     # Subcenter management ViewSets
     PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
+)
+
+# Import CORS test views separately
+from .views.cors_test import cors_test, health_check
     
     # Dispatch and allocation ViewSets
     BookDispatchViewSet, CouponAllocationViewSet,
@@ -107,6 +111,10 @@ urlpatterns = [
     
     # Business Central integration
     path('business-central/test/', test_business_central_connection, name='test-business-central'),
+    
+    # CORS and health test endpoints
+    path('api/cors-test/', cors_test, name='cors-test'),
+    path('api/health/', health_check, name='health-check'),
     
     # Include router URLs 
     path('', include(router.urls)),
