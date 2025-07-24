@@ -358,7 +358,7 @@ page 50103 "Fuel System Setup"
             {
                 ApplicationArea = All;
                 Caption = 'Sync Now';
-                Image = Sync;
+                Image = Refresh;
                 PromotedCategory = Process;
                 Promoted = true;
 
@@ -373,7 +373,7 @@ page 50103 "Fuel System Setup"
                 ApplicationArea = All;
                 Caption = 'Open Dashboard';
                 Image = Web;
-                PromotedCategory = Navigate;
+                PromotedCategory = Navigation;
                 Promoted = true;
 
                 trigger OnAction()
@@ -442,6 +442,7 @@ page 50103 "Fuel System Setup"
         ResponseText: Text;
         SyncUrl: Text;
         RequestBody: Text;
+        Headers: HttpHeaders;
     begin
         Rec.TestField("Django Base URL");
 
@@ -451,8 +452,9 @@ page 50103 "Fuel System Setup"
         HttpRequestMessage.Method := 'POST';
         HttpRequestMessage.SetRequestUri(SyncUrl);
         HttpRequestMessage.Content.WriteFrom(RequestBody);
-        HttpRequestMessage.Content.GetHeaders.Clear();
-        HttpRequestMessage.Content.GetHeaders.Add('Content-Type', 'application/json');
+        HttpRequestMessage.Content.GetHeaders(Headers);
+        Headers.Clear();
+        Headers.Add('Content-Type', 'application/json');
 
         if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then begin
             HttpResponseMessage.Content.ReadAs(ResponseText);

@@ -192,8 +192,8 @@ page 50104 "Fuel Transaction Card"
             {
                 ApplicationArea = All;
                 Caption = 'Sync with Django';
-                Image = Sync;
-                PromotedCategory = Navigate;
+                Image = Refresh;
+                PromotedCategory = Navigation;
                 Promoted = true;
 
                 trigger OnAction()
@@ -207,7 +207,7 @@ page 50104 "Fuel Transaction Card"
                 ApplicationArea = All;
                 Caption = 'Open in Fuel System';
                 Image = Web;
-                PromotedCategory = Navigate;
+                PromotedCategory = Navigation;
                 Promoted = true;
 
                 trigger OnAction()

@@ -8,7 +8,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('fuel', '0007_fueltransaction_subcenterofficer_alter_book_options_and_more'),
+        ('fuel', '0001_initial'),
     ]
 
     operations = [

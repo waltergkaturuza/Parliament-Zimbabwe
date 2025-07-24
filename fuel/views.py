@@ -449,10 +449,131 @@ class BoxViewSet(viewsets.ModelViewSet):
                 'total_books': box.number_of_books,
                 'coupons_per_book': box.coupons_per_book,
                 'total_coupons': box.total_coupons,
-                'total_litres': box.total_litres
+                'denomination': box.denomination
             },
             'book_ranges': book_ranges
         })
+    
+    @action(detail=False, methods=['post'])
+    def create_petrotrade_box(self, request):
+        """
+        Create a box with PetroTrade coupon serial numbers
+        Expects: first_coupon, last_coupon, fuel_type, denomination, coupons_per_book
+        """
+        from .utils.petrotrade_serials import PetroTradeSerial
+        from .models import Box, Book
+        
+        try:
+            data = request.data
+            first_coupon = data.get('first_coupon')
+            last_coupon = data.get('last_coupon')
+            fuel_type = data.get('fuel_type', 'DIESEL')
+            denomination = data.get('denomination', 20)
+            coupons_per_book = data.get('coupons_per_book', 100)
+            create_coupons = data.get('create_coupons', True)
+            
+            # Validate required fields
+            if not first_coupon or not last_coupon:
+                return Response({
+                    'error': 'first_coupon and last_coupon are required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Parse and validate serials
+            first_info = PetroTradeSerial.parse_serial(first_coupon)
+            last_info = PetroTradeSerial.parse_serial(last_coupon)
+            
+            if not first_info['is_valid']:
+                return Response({
+                    'error': f'Invalid first coupon format: {first_coupon}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not last_info['is_valid']:
+                return Response({
+                    'error': f'Invalid last coupon format: {last_coupon}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if first_info['prefix'] != last_info['prefix']:
+                return Response({
+                    'error': 'First and last coupons must have the same prefix'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if first_info['number'] >= last_info['number']:
+                return Response({
+                    'error': 'Last coupon number must be greater than first coupon number'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Calculate totals
+            total_coupons = last_info['number'] - first_info['number'] + 1
+            total_books = (total_coupons + coupons_per_book - 1) // coupons_per_book  # Ceiling division
+            
+            with transaction.atomic():
+                # Create the box
+                box_code = f"PT{first_info['prefix']}{first_info['number']:06d}_{last_info['number']:06d}"
+                
+                box = Box.objects.create(
+                    box_code=box_code,
+                    fuel_type=fuel_type,
+                    denomination=denomination,
+                    first_coupon_number=first_coupon,
+                    last_coupon_number=last_coupon,
+                    number_of_books=total_books,
+                    coupons_per_book=coupons_per_book,
+                    received_by=request.user,
+                    received_date=timezone.now(),
+                    is_received=True
+                )
+                
+                # Split serials into books
+                book_ranges = PetroTradeSerial.split_into_books(
+                    first_coupon, last_coupon, coupons_per_book
+                )
+                
+                books_created = []
+                total_coupons_created = 0
+                
+                for book_idx, book_range in enumerate(book_ranges, 1):
+                    # Create the book
+                    book = Book.create_from_petrotrade_serials(
+                        box=box,
+                        book_number=f"Book {book_idx:02d}",
+                        first_serial=book_range['first_serial'],
+                        last_serial=book_range['last_serial']
+                    )
+                    books_created.append(book)
+                    
+                    if create_coupons:
+                        # Generate coupons for this book
+                        coupons = book.generate_petrotrade_coupons()
+                        total_coupons_created += len(coupons)
+                
+                return Response({
+                    'message': 'PetroTrade box created successfully',
+                    'box': {
+                        'id': box.id,
+                        'box_code': box.box_code,
+                        'fuel_type': box.fuel_type,
+                        'denomination': box.denomination,
+                        'first_coupon': box.first_coupon_number,
+                        'last_coupon': box.last_coupon_number,
+                        'total_books': len(books_created),
+                        'total_coupons': total_coupons,
+                        'coupons_created': total_coupons_created if create_coupons else 0
+                    },
+                    'books': [
+                        {
+                            'book_number': book.book_number,
+                            'first_coupon': book.first_coupon_number,
+                            'last_coupon': book.last_coupon_number,
+                            'coupon_count': book_range['coupon_count']
+                        }
+                        for book, book_range in zip(books_created, book_ranges)
+                    ]
+                }, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            return Response({
+                'error': f'Failed to create PetroTrade box: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     def generate_coupons(self, request, pk=None):

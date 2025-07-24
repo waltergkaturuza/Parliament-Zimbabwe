@@ -4,7 +4,7 @@ Business Central Production Integration Views
 Handles BC webhooks, data sync, and iframe embedding for production
 """
 
-from rest_framework.decorators import api_view, permission_classes, csrf_exempt
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.http import JsonResponse, HttpResponse

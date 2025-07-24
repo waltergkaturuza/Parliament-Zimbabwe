@@ -1,0 +1,15 @@
+{
+    "folders": [
+        {
+            "path": "./bc_extension"
+        }
+    ],
+    "settings": {
+        "al.enableCodeAnalysis": false,
+        "al.enableCodeCop": false,
+        "al.enablePerTenantExtensionCop": false,
+        "al.enableUICop": false,
+        "al.packageCachePath": "./bc_extension/.alpackages",
+        "al.enableCodeActions": false
+    }
+}

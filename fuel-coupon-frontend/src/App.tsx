@@ -1,28 +1,39 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import 'antd/dist/reset.css';
+// src/App.tsx
+import { RouterProvider } from 'react-router-dom';
+import router from './routes';
+import { AuthProvider } from './contexts/AuthContext';
+import './index.css';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 
-// Simple minimal components
-const queryClient = new QueryClient();
+const defaultTheme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+    background: {
+      default: '#f0f2f5',
+      paper: '#fff',
+    },
+  },
+  typography: {
+    fontFamily: 'Roboto, sans-serif',
+  },
+});
 
-const MinimalHome = () => (
-  <div style={{ padding: '20px' }}>
-    <h1>Parliament Fuel Coupon System</h1>
-    <p>System is being deployed. Please wait...</p>
-  </div>
-);
-
-const App: React.FC = () => {
+function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
-          <Route path="*" element={<MinimalHome />} />
-        </Routes>
-      </Router>
-    </QueryClientProvider>
+    <ThemeProvider theme={defaultTheme}>
+      <CssBaseline />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </ThemeProvider>
   );
-};
+}
 
 export default App;

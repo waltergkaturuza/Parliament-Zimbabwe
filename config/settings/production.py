@@ -12,6 +12,7 @@ ALLOWED_HOSTS = [
     'fuel.parliament.gov.zw',
     'parliament.gov.zw',
     'localhost',  # For local testing
+    '127.0.0.1',  # For local testing
 ]
 
 # Database - Azure PostgreSQL

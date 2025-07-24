@@ -15,6 +15,8 @@ codeunit 50110 "Fuel System Integration"
         RequestBody: Text;
         WebhookUrl: Text;
         Employee: Record Employee;
+        Headers: HttpHeaders;
+        RequestHeaders: HttpHeaders;
     begin
         // Get setup
         if not FuelSetup.Get() then
@@ -36,11 +38,14 @@ codeunit 50110 "Fuel System Integration"
         HttpRequestMessage.Method := 'POST';
         HttpRequestMessage.SetRequestUri(WebhookUrl);
         HttpRequestMessage.Content.WriteFrom(RequestBody);
-        HttpRequestMessage.Content.GetHeaders.Clear();
-        HttpRequestMessage.Content.GetHeaders.Add('Content-Type', 'application/json');
+        HttpRequestMessage.Content.GetHeaders(Headers);
+        Headers.Clear();
+        Headers.Add('Content-Type', 'application/json');
 
-        if FuelSetup."Webhook Secret" <> '' then
-            HttpRequestMessage.GetHeaders.Add('X-Webhook-Secret', FuelSetup."Webhook Secret");
+        if FuelSetup."Webhook Secret" <> '' then begin
+            HttpRequestMessage.GetHeaders(RequestHeaders);
+            RequestHeaders.Add('X-Webhook-Secret', FuelSetup."Webhook Secret");
+        end;
 
         if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then begin
             HttpResponseMessage.Content.ReadAs(ResponseText);
@@ -756,6 +761,64 @@ page 50101 "Fuel Transactions"
         EntityData.Add('status', Format(FuelTransaction.Status));
 
         exit(EntityData);
+    end;
+
+    // Additional procedures needed by Dashboard
+    local procedure GetStatusEnum(StatusText: Text): Enum "Fuel Transaction Status"
+    var
+        Status: Enum "Fuel Transaction Status";
+    begin
+        case StatusText of
+            'pending':
+                exit(Status::Pending);
+            'approved':
+                exit(Status::Approved);
+            'rejected':
+                exit(Status::Rejected);
+            else
+                exit(Status::Pending);
+        end;
+    end;
+
+    local procedure GetNextLineNo(var GenJournalLine: Record "Gen. Journal Line"): Integer
+    var
+        LastGenJournalLine: Record "Gen. Journal Line";
+        LineNo: Integer;
+    begin
+        LastGenJournalLine.SetRange("Journal Template Name", GenJournalLine."Journal Template Name");
+        LastGenJournalLine.SetRange("Journal Batch Name", GenJournalLine."Journal Batch Name");
+        if LastGenJournalLine.FindLast() then
+            LineNo := LastGenJournalLine."Line No." + 10000
+        else
+            LineNo := 10000;
+        exit(LineNo);
+    end;
+
+    local procedure HandleUserUpdate(JsonObject: JsonObject)
+    begin
+        // Handle user updates from Django if needed
+        // This can be extended based on requirements
+    end;
+
+    procedure TestConnection(): Boolean
+    var
+        FuelSetup: Record "Fuel System Setup";
+        HttpClient: HttpClient;
+        HttpRequestMessage: HttpRequestMessage;
+        HttpResponseMessage: HttpResponseMessage;
+        TestUrl: Text;
+    begin
+        if not FuelSetup.Get() then
+            exit(false);
+
+        TestUrl := FuelSetup."Django Base URL" + 'api/bc/health/';
+        HttpRequestMessage.Method := 'GET';
+        HttpRequestMessage.SetRequestUri(TestUrl);
+
+        if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then
+            exit(HttpResponseMessage.HttpStatusCode = 200)
+        else
+            exit(false);
     end;
 }
 

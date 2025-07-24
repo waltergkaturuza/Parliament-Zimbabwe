@@ -7,6 +7,7 @@ from model_utils.models import TimeStampedModel, SoftDeletableModel
 from decimal import Decimal
 import uuid
 from django.contrib.contenttypes.models import ContentType
+from .validators import validate_petrotrade_serial
 
 
 # --- Archive and Audit Managers ---
@@ -1080,6 +1081,93 @@ class Book(ArchivableModel):
             print(f"Error generating coupons for book {self.book_number}: {e}")
             return []
     
+    @classmethod
+    def create_from_petrotrade_serials(cls, box, book_number, first_serial, last_serial):
+        """
+        Create a book with PetroTrade serial numbers (e.g., PU006H355101 to PU006H355200)
+        """
+        from .utils.petrotrade_serials import PetroTradeSerial
+        
+        # Validate and parse serials
+        first_info = PetroTradeSerial.parse_serial(first_serial)
+        last_info = PetroTradeSerial.parse_serial(last_serial)
+        
+        if not first_info['is_valid'] or not last_info['is_valid']:
+            raise ValueError("Invalid PetroTrade serial format")
+        
+        if first_info['prefix'] != last_info['prefix']:
+            raise ValueError("First and last serials must have the same prefix")
+        
+        if first_info['number'] >= last_info['number']:
+            raise ValueError("Last serial number must be greater than first serial number")
+        
+        # Create the book
+        book = cls.objects.create(
+            box=box,
+            book_number=book_number,
+            first_coupon_number=first_serial,
+            last_coupon_number=last_serial
+        )
+        
+        # Generate coupons for this book
+        book.generate_petrotrade_coupons()
+        
+        return book
+    
+    def generate_petrotrade_coupons(self):
+        """
+        Generate coupons using PetroTrade serial format
+        """
+        from .utils.petrotrade_serials import PetroTradeSerial
+        
+        if not self.first_coupon_number or not self.last_coupon_number:
+            return []
+        
+        # Generate all serial numbers in the range
+        serials = PetroTradeSerial.generate_range(
+            self.first_coupon_number, 
+            self.last_coupon_number
+        )
+        
+        coupons_created = []
+        
+        for serial in serials:
+            # Check if coupon already exists
+            if not Coupon.objects.filter(coupon_number=serial).exists():
+                coupon = Coupon.objects.create(
+                    book=self,
+                    coupon_number=serial,
+                    litres=self.box.denomination,
+                    status='AVAILABLE'
+                )
+                coupons_created.append(coupon)
+        
+        return coupons_created
+    
+    def validate_petrotrade_range(self):
+        """
+        Validate that this book's serial range is valid PetroTrade format
+        """
+        from .utils.petrotrade_serials import PetroTradeSerial
+        
+        try:
+            first_info = PetroTradeSerial.parse_serial(self.first_coupon_number)
+            last_info = PetroTradeSerial.parse_serial(self.last_coupon_number)
+            
+            if not first_info['is_valid'] or not last_info['is_valid']:
+                return False, "Invalid PetroTrade serial format"
+            
+            if first_info['prefix'] != last_info['prefix']:
+                return False, "First and last serials must have the same prefix"
+            
+            if first_info['number'] >= last_info['number']:
+                return False, "Last serial number must be greater than first serial number"
+            
+            return True, "Valid PetroTrade serial range"
+            
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
+    
     def assign_to_beneficiary(self, beneficiary_user):
         """Assign this book to a parliament member"""
         if self.is_assigned:
@@ -1704,7 +1792,8 @@ class Coupon(ArchivableModel):
         max_length=50,
         unique=True,
         db_index=True,
-        help_text="Unique coupon number (e.g., PU00GH355101)"
+        validators=[validate_petrotrade_serial],
+        help_text="Unique coupon number (e.g., PU006H355101 - PetroTrade format)"
     )
     serial_number = models.CharField(
         max_length=50,
@@ -2267,6 +2356,23 @@ class BookDispatch(TimeStampedModel):
         related_name='dispatches',
         help_text="Books included in this dispatch"
     )
+    
+    # Serial Range Tracking
+    first_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="First coupon serial in this dispatch"
+    )
+    last_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Last coupon serial in this dispatch"
+    )
+    total_coupons = models.IntegerField(
+        default=0,
+        help_text="Total number of coupons in this dispatch"
+    )
+    
     dispatch_date = models.DateTimeField(auto_now_add=True)
     received_date = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
@@ -2291,6 +2397,96 @@ class BookDispatch(TimeStampedModel):
     @property
     def total_value_usd(self):
         return sum(book.total_value_usd for book in self.books.all())
+    
+    def calculate_serial_range(self):
+        """Calculate and update the first and last serials based on books"""
+        from .utils.serial_tracking import SerialRangeTracker
+        
+        books = self.books.all().order_by('first_coupon_number')
+        if not books:
+            return
+        
+        # Get all serial ranges from books
+        all_first_serials = []
+        all_last_serials = []
+        total_coupons = 0
+        
+        for book in books:
+            if book.first_coupon_number and book.last_coupon_number:
+                all_first_serials.append(book.first_coupon_number)
+                all_last_serials.append(book.last_coupon_number)
+                
+                # Calculate book's coupon count
+                range_info = SerialRangeTracker.calculate_range_info(
+                    book.first_coupon_number, book.last_coupon_number
+                )
+                if range_info['is_valid']:
+                    total_coupons += range_info['total_count']
+        
+        if all_first_serials and all_last_serials:
+            # Sort to find overall first and last
+            first_serials_parsed = []
+            last_serials_parsed = []
+            
+            for serial in all_first_serials:
+                parsed = SerialRangeTracker.parse_coupon_serial(serial)
+                if parsed['is_valid']:
+                    first_serials_parsed.append((parsed['number'], serial))
+            
+            for serial in all_last_serials:
+                parsed = SerialRangeTracker.parse_coupon_serial(serial)
+                if parsed['is_valid']:
+                    last_serials_parsed.append((parsed['number'], serial))
+            
+            if first_serials_parsed and last_serials_parsed:
+                first_serials_parsed.sort()
+                last_serials_parsed.sort()
+                
+                self.first_serial = first_serials_parsed[0][1]  # Lowest number
+                self.last_serial = last_serials_parsed[-1][1]   # Highest number
+                self.total_coupons = total_coupons
+                self.save()
+    
+    def get_serial_summary(self):
+        """Get comprehensive serial tracking summary"""
+        from .utils.serial_tracking import SerialRangeTracker, SerialAllocationTracker
+        
+        if not self.first_serial or not self.last_serial:
+            return {
+                'has_serial_tracking': False,
+                'message': 'Serial range not calculated'
+            }
+        
+        # Calculate overall range info
+        range_info = SerialRangeTracker.calculate_range_info(self.first_serial, self.last_serial)
+        
+        # Get book breakdown
+        books_data = []
+        for book in self.books.all().order_by('first_coupon_number'):
+            if book.first_coupon_number and book.last_coupon_number:
+                book_range = SerialRangeTracker.calculate_range_info(
+                    book.first_coupon_number, book.last_coupon_number
+                )
+                books_data.append({
+                    'book_number': book.book_number,
+                    'first_serial': book.first_coupon_number,
+                    'last_serial': book.last_coupon_number,
+                    'coupon_count': book_range['total_count'] if book_range['is_valid'] else 0
+                })
+        
+        return {
+            'has_serial_tracking': True,
+            'overall_range': {
+                'first_serial': self.first_serial,
+                'last_serial': self.last_serial,
+                'total_coupons': self.total_coupons,
+                'is_valid': range_info['is_valid']
+            },
+            'books': books_data,
+            'status': self.status,
+            'dispatch_date': self.dispatch_date,
+            'to_center': self.to_center.name if self.to_center else None
+        }
 
 
 class CouponAllocation(TimeStampedModel):
@@ -2373,6 +2569,187 @@ class CouponAllocation(TimeStampedModel):
         if self.book:
             return self.quantity * self.book.box.denomination
         return 0
+    
+    def validate_serial_range(self):
+        """Validate that the allocation's serial range is valid"""
+        from .utils.serial_tracking import SerialRangeTracker
+        
+        if not self.first_coupon_number or not self.last_coupon_number:
+            return False, "Missing serial range"
+        
+        is_valid, message = SerialRangeTracker.validate_serial_range(
+            self.first_coupon_number, self.last_coupon_number
+        )
+        
+        if not is_valid:
+            return False, message
+        
+        # Validate quantity matches range
+        range_info = SerialRangeTracker.calculate_range_info(
+            self.first_coupon_number, self.last_coupon_number
+        )
+        
+        if range_info['total_count'] != self.quantity:
+            return False, f"Quantity mismatch: range has {range_info['total_count']} coupons, but quantity is {self.quantity}"
+        
+        return True, "Valid serial range"
+    
+    def get_allocation_summary(self):
+        """Get comprehensive allocation summary with serial tracking"""
+        from .utils.serial_tracking import SerialRangeTracker
+        
+        summary = {
+            'allocation_id': self.id,
+            'beneficiary': {
+                'name': self.beneficiary.get_full_name(),
+                'email': self.beneficiary.email,
+                'role': self.beneficiary.role
+            },
+            'sub_center': self.sub_center.name,
+            'allocation_date': self.allocation_date,
+            'status': self.status,
+            'quantity': self.quantity,
+            'notes': self.notes
+        }
+        
+        if self.first_coupon_number and self.last_coupon_number:
+            range_info = SerialRangeTracker.calculate_range_info(
+                self.first_coupon_number, self.last_coupon_number
+            )
+            
+            summary['serial_range'] = {
+                'first_serial': self.first_coupon_number,
+                'last_serial': self.last_coupon_number,
+                'total_count': range_info['total_count'],
+                'is_valid': range_info['is_valid'],
+                'prefix': range_info.get('prefix', ''),
+                'format': range_info.get('format', 'UNKNOWN')
+            }
+            
+            # Generate list of serials if range is small
+            if range_info['is_valid'] and range_info['total_count'] <= 20:
+                try:
+                    serials = SerialRangeTracker.generate_serial_list(
+                        self.first_coupon_number, self.last_coupon_number
+                    )
+                    summary['serial_range']['serial_list'] = serials
+                except Exception:
+                    summary['serial_range']['serial_list'] = []
+        
+        if self.book:
+            summary['book'] = {
+                'book_number': self.book.book_number,
+                'box_code': self.book.box.box_code,
+                'denomination': self.book.box.denomination,
+                'total_litres': self.total_litres
+            }
+        
+        return summary
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate quantity if serial range is provided
+        if self.first_coupon_number and self.last_coupon_number and not self.quantity:
+            from .utils.serial_tracking import SerialRangeTracker
+            range_info = SerialRangeTracker.calculate_range_info(
+                self.first_coupon_number, self.last_coupon_number
+            )
+            if range_info['is_valid']:
+                self.quantity = range_info['total_count']
+        
+        super().save(*args, **kwargs)
+
+
+class SerialMovement(TimeStampedModel):
+    """
+    Comprehensive tracking of all coupon serial movements throughout the system.
+    This creates an audit trail of every serial allocation, dispatch, handover, and usage.
+    """
+    MOVEMENT_TYPES = [
+        ('BOX_RECEIVED', 'Box Received'),
+        ('BOOK_DISPATCH', 'Book Dispatched'),
+        ('BOOK_RECEIVED', 'Book Received'),
+        ('COUPON_ALLOCATED', 'Coupon Allocated'),
+        ('COUPON_HANDOVER', 'Coupon Handover'),
+        ('COUPON_USED', 'Coupon Used'),
+        ('COUPON_RETURNED', 'Coupon Returned'),
+        ('BOOK_TRANSFERRED', 'Book Transferred'),
+        ('EMERGENCY_ALLOCATION', 'Emergency Allocation'),
+    ]
+    
+    movement_type = models.CharField(
+        max_length=30,
+        choices=MOVEMENT_TYPES,
+        help_text="Type of serial movement"
+    )
+    
+    # Serial Range Information
+    first_serial = models.CharField(
+        max_length=50,
+        help_text="First serial in the movement"
+    )
+    last_serial = models.CharField(
+        max_length=50,
+        help_text="Last serial in the movement"
+    )
+    quantity = models.IntegerField(
+        help_text="Number of serials moved"
+    )
+    
+    # Movement Details
+    performed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='serial_movements_performed',
+        help_text="User who performed this movement"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this movement"
+    )
+    movement_date = models.DateTimeField(
+        help_text="When the movement occurred"
+    )
+    
+    class Meta:
+        ordering = ['-movement_date']
+        verbose_name = "Serial Movement"
+        verbose_name_plural = "Serial Movements"
+    
+    @classmethod
+    def create_movement(cls, movement_type, first_serial, last_serial, 
+                       from_entity_type=None, from_entity_id=None, from_entity_name=None,
+                       to_entity_type=None, to_entity_id=None, to_entity_name=None,
+                       performed_by=None, movement_date=None, notes="", **kwargs):
+        """
+        Create a new serial movement record with comprehensive tracking
+        """
+        from .utils.serial_tracking import SerialRangeTracker
+        
+        # Calculate quantity using SerialRangeTracker
+        range_info = SerialRangeTracker.calculate_range_info(first_serial, last_serial)
+        quantity = range_info['total_count']
+        
+        # Use current time if not provided
+        if movement_date is None:
+            from django.utils import timezone
+            movement_date = timezone.now()
+        
+        # Create movement record
+        movement = cls.objects.create(
+            movement_type=movement_type,
+            first_serial=first_serial,
+            last_serial=last_serial,
+            quantity=quantity,
+            performed_by=performed_by,
+            movement_date=movement_date,
+            notes=notes
+        )
+        
+        return movement
+    
+    def __str__(self):
+        return f"{self.get_movement_type_display()}: {self.first_serial}-{self.last_serial} ({self.quantity} coupons)"
 
 
 class FuelEntitlement(TimeStampedModel):
