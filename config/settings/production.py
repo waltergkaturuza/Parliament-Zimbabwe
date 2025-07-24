@@ -7,7 +7,6 @@ DEBUG = False
 
 # Azure App Service settings
 ALLOWED_HOSTS = [
-    'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'parliament-fuel-system.azurewebsites.net',
     'fuel.parliament.gov.zw',
     'parliament.gov.zw',
@@ -169,7 +168,6 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
-    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'https://parliament-fuel-system.azurewebsites.net',
     'https://parliament-fuel-frontend.azurestaticapps.net',
     'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
@@ -179,11 +177,15 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
+    'https://parliament-fuel-system.azurewebsites.net',
     'https://parliament-fuel-frontend.azurestaticapps.net',
     'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False  # Keep this False for security
+CORS_PREFLIGHT_MAX_AGE = 86400  # 1 day
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -194,6 +196,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cache-control',
+    'pragma',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -203,6 +207,12 @@ CORS_ALLOW_METHODS = [
     'PATCH',
     'POST',
     'PUT',
+]
+
+# Additional CORS settings for better compatibility
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-csrftoken',
 ]
 
 # Business Central Integration Settings
@@ -215,6 +225,10 @@ SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
 
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# Debug CORS issues (remove in production)
+if DEBUG or os.environ.get('ENABLE_CORS_DEBUG'):
+    MIDDLEWARE.insert(1, 'utils.cors_debug.CORSDebugMiddleware')
 
 # Time zone
 TIME_ZONE = 'Africa/Harare'
