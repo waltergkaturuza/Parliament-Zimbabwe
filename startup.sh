@@ -3,6 +3,9 @@
 # Azure App Service startup script for Django
 echo "Starting Parliament Fuel Coupon System..."
 
+# Set Django settings module
+export DJANGO_SETTINGS_MODULE=config.settings.production
+
 # Install dependencies
 pip install -r requirements.txt
 
@@ -17,5 +20,5 @@ echo "from django.contrib.auth.models import User; User.objects.create_superuser
 
 echo "Startup complete. Starting gunicorn..."
 
-# Start gunicorn
-gunicorn --bind=0.0.0.0:8000 --workers=4 config.wsgi:application
+# Start gunicorn with correct Azure App Service port binding
+gunicorn --bind=0.0.0.0:$PORT --workers=4 config.wsgi:application
