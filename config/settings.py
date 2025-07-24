@@ -10,8 +10,23 @@ from corsheaders.defaults import default_headers
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-1*p133x5+uzwh8&axhdhi41jq=%&p(9)pzmoyob$(a01)rcs&z')
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
-ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')]
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
+
+# Azure-specific hostname configuration
+AZURE_HOSTNAME = 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
+FRONTEND_HOSTNAME = 'jolly-ocean-0e0dee90f.2.azurestaticapps.net'
+
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost', 
+    'parliament-fuel-system.azurewebsites.net',  # Original planned hostname
+    AZURE_HOSTNAME,  # Actual Azure hostname
+]
+
+# Add environment variable support for additional hosts
+if os.environ.get('DJANGO_ALLOWED_HOSTS'):
+    additional_hosts = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')]
+    ALLOWED_HOSTS.extend(additional_hosts)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -54,6 +69,10 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    # Production URLs
+    f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
+    f"https://{AZURE_HOSTNAME}",     # Azure App Service
+    "https://parliament-fuel-system.azurewebsites.net",  # Original planned hostname
 ]
 
 # CORS settings
@@ -64,6 +83,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://localhost:8000",  # Django backend
     "http://127.0.0.1:8000",  # Django backend
+    # Production URLs
+    f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
+    f"https://{AZURE_HOSTNAME}",     # Azure App Service
+    "https://parliament-fuel-system.azurewebsites.net",  # Original planned hostname
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',
@@ -112,14 +135,26 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'fuel_db'),
-        'USER': os.environ.get('DATABASE_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'katuruza'),
-        'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
-        'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Override with PostgreSQL if environment variables are set
+if os.environ.get('DATABASE_URL'):
+    import dj_database_url
+    DATABASES['default'] = dj_database_url.parse(os.environ.get('DATABASE_URL'))
+elif os.environ.get('DATABASE_NAME'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DATABASE_NAME', 'fuel_db'),
+            'USER': os.environ.get('DATABASE_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'katuruza'),
+            'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
+            'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

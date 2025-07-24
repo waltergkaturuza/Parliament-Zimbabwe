@@ -13,19 +13,19 @@ page 50104 "Fuel Transaction Card"
             group(General)
             {
                 Caption = 'General';
-                
+
                 field("Transaction No."; Rec."Transaction No.")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Transaction number from Business Central';
                     Editable = false;
                 }
-                
+
                 field("Employee No."; Rec."Employee No.")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Employee number who requested fuel';
-                    
+
                     trigger OnValidate()
                     var
                         Employee: Record Employee;
@@ -36,7 +36,7 @@ page 50104 "Fuel Transaction Card"
                             EmployeeName := '';
                     end;
                 }
-                
+
                 field(EmployeeName; EmployeeName)
                 {
                     ApplicationArea = All;
@@ -44,24 +44,24 @@ page 50104 "Fuel Transaction Card"
                     ToolTip = 'Name of the employee';
                     Editable = false;
                 }
-                
+
                 field("Transaction Date"; Rec."Transaction Date")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Date of the fuel transaction';
                 }
-                
+
                 field("Fuel Amount"; Rec."Fuel Amount")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Amount of fuel in liters';
                 }
-                
+
                 field(Status; Rec.Status)
                 {
                     ApplicationArea = All;
                     ToolTip = 'Current status of the transaction';
-                    
+
                     trigger OnValidate()
                     begin
                         if Rec.Status = Rec.Status::Approved then
@@ -71,18 +71,18 @@ page 50104 "Fuel Transaction Card"
                     end;
                 }
             }
-            
+
             group(Integration)
             {
                 Caption = 'Django Integration';
-                
+
                 field("Django Transaction ID"; Rec."Django Transaction ID")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Transaction ID from Django system';
                     Editable = false;
                 }
-                
+
                 field("Created From Django"; Rec."Created From Django")
                 {
                     ApplicationArea = All;
@@ -90,25 +90,25 @@ page 50104 "Fuel Transaction Card"
                     Editable = false;
                 }
             }
-            
+
             group(Posting)
             {
                 Caption = 'Posting Information';
-                
+
                 field("Posted"; Rec."Posted")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Indicates if the transaction has been posted to G/L';
                     Editable = false;
                 }
-                
+
                 field("Posted Date"; Rec."Posted Date")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Date when the transaction was posted';
                     Editable = false;
                 }
-                
+
                 field(CalculatedAmount; CalculatedAmount)
                 {
                     ApplicationArea = All;
@@ -144,7 +144,7 @@ page 50104 "Fuel Transaction Card"
                     end;
                 end;
             }
-            
+
             action(Reject)
             {
                 ApplicationArea = All;
@@ -169,7 +169,7 @@ page 50104 "Fuel Transaction Card"
                     end;
                 end;
             }
-            
+
             action(PostTransaction)
             {
                 ApplicationArea = All;
@@ -187,7 +187,7 @@ page 50104 "Fuel Transaction Card"
                     end;
                 end;
             }
-            
+
             action(SyncWithDjango)
             {
                 ApplicationArea = All;
@@ -201,7 +201,7 @@ page 50104 "Fuel Transaction Card"
                     SyncTransactionWithDjango();
                 end;
             }
-            
+
             action(OpenInDjango)
             {
                 ApplicationArea = All;
@@ -224,11 +224,11 @@ page 50104 "Fuel Transaction Card"
             }
         }
     }
-    
+
     var
         EmployeeName: Text[100];
         CalculatedAmount: Decimal;
-    
+
     trigger OnAfterGetRecord()
     var
         Employee: Record Employee;
@@ -239,32 +239,32 @@ page 50104 "Fuel Transaction Card"
             EmployeeName := Employee."First Name" + ' ' + Employee."Last Name"
         else
             EmployeeName := '';
-        
+
         // Calculate amount
         if FuelSetup.Get() then
             CalculatedAmount := Rec."Fuel Amount" * FuelSetup."Fuel Rate per Liter"
         else
             CalculatedAmount := 0;
     end;
-    
+
     local procedure ProcessApproval()
     var
         FuelIntegration: Codeunit "Fuel System Integration";
     begin
         // Send approval to Django
         SendStatusUpdateToDjango('approved');
-        
+
         // Post to G/L if auto-posting is enabled
         if ShouldAutoPost() then
             PostFuelTransaction();
     end;
-    
+
     local procedure ProcessRejection()
     begin
         // Send rejection to Django
         SendStatusUpdateToDjango('rejected');
     end;
-    
+
     local procedure SendStatusUpdateToDjango(NewStatus: Text)
     var
         HttpClient: HttpClient;
@@ -282,20 +282,20 @@ page 50104 "Fuel Transaction Card"
         EntityData.Add('status', NewStatus);
         EntityData.Add('updated_by', UserId);
         EntityData.Add('updated_date', Format(CurrentDateTime, 0, 9));
-        
+
         JsonObject.Add('eventType', 'transaction_status_updated');
         JsonObject.Add('entityData', EntityData);
         JsonObject.WriteTo(RequestBody);
-        
+
         // Send to Django
         WebhookUrl := 'https://parliament-fuel-system.azurewebsites.net/api/bc/webhook/';
-        
+
         HttpRequestMessage.Method := 'POST';
         HttpRequestMessage.SetRequestUri(WebhookUrl);
         HttpRequestMessage.Content.WriteFrom(RequestBody);
         HttpRequestMessage.Content.GetHeaders.Clear();
         HttpRequestMessage.Content.GetHeaders.Add('Content-Type', 'application/json');
-        
+
         if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then begin
             HttpResponseMessage.Content.ReadAs(ResponseText);
             // Log success
@@ -303,7 +303,7 @@ page 50104 "Fuel Transaction Card"
             Message('Failed to sync status with Django system');
         end;
     end;
-    
+
     local procedure PostFuelTransaction()
     var
         FuelSetup: Record "Fuel System Setup";
@@ -315,7 +315,7 @@ page 50104 "Fuel Transaction Card"
     begin
         if Rec.Posted then
             exit;
-        
+
         // Get setup
         FuelSetup.Get();
         FuelSetup.TestField("Journal Template");
@@ -323,13 +323,13 @@ page 50104 "Fuel Transaction Card"
         FuelSetup.TestField("Fuel Expense Account");
         FuelSetup.TestField("Fuel Payable Account");
         FuelSetup.TestField("Fuel Rate per Liter");
-        
+
         // Calculate total amount
         TotalAmount := Rec."Fuel Amount" * FuelSetup."Fuel Rate per Liter";
-        
+
         // Get employee info
         Employee.Get(Rec."Employee No.");
-        
+
         // Get next line number
         GenJournalLine.SetRange("Journal Template Name", FuelSetup."Journal Template");
         GenJournalLine.SetRange("Journal Batch Name", FuelSetup."Journal Batch");
@@ -337,7 +337,7 @@ page 50104 "Fuel Transaction Card"
             LineNo := GenJournalLine."Line No." + 10000
         else
             LineNo := 10000;
-        
+
         // Create expense entry
         GenJournalLine.Init();
         GenJournalLine."Journal Template Name" := FuelSetup."Journal Template";
@@ -347,25 +347,25 @@ page 50104 "Fuel Transaction Card"
         GenJournalLine."Document No." := Rec."Transaction No.";
         GenJournalLine."Account Type" := GenJournalLine."Account Type"::"G/L Account";
         GenJournalLine."Account No." := FuelSetup."Fuel Expense Account";
-        GenJournalLine.Description := StrSubstNo('Fuel: %1 (%2L)', 
+        GenJournalLine.Description := StrSubstNo('Fuel: %1 (%2L)',
             Employee."First Name" + ' ' + Employee."Last Name", Rec."Fuel Amount");
         GenJournalLine.Amount := TotalAmount;
         GenJournalLine."Bal. Account Type" := GenJournalLine."Bal. Account Type"::"G/L Account";
         GenJournalLine."Bal. Account No." := FuelSetup."Fuel Payable Account";
         GenJournalLine.Insert();
-        
+
         // Post the journal line
         CODEUNIT.Run(CODEUNIT::"Gen. Jnl.-Post Line", GenJournalLine);
-        
+
         // Update transaction
         Rec.Posted := true;
         Rec."Posted Date" := Today;
         Rec.Modify();
-        
+
         // Update calculated amount
         CalculatedAmount := TotalAmount;
     end;
-    
+
     local procedure SyncTransactionWithDjango()
     var
         FuelIntegration: Codeunit "Fuel System Integration";
@@ -375,7 +375,7 @@ page 50104 "Fuel Transaction Card"
         else
             Message('Failed to sync transaction with Django');
     end;
-    
+
     local procedure ShouldAutoPost(): Boolean
     var
         FuelSetup: Record "Fuel System Setup";

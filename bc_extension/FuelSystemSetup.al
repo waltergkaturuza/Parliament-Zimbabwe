@@ -13,12 +13,12 @@ table 50110 "Fuel System Setup"
             Caption = 'Primary Key';
             DataClassification = SystemMetadata;
         }
-        
+
         field(10; "Django Base URL"; Text[250])
         {
             Caption = 'Django Base URL';
             DataClassification = CustomerContent;
-            
+
             trigger OnValidate()
             begin
                 if "Django Base URL" <> '' then begin
@@ -27,55 +27,55 @@ table 50110 "Fuel System Setup"
                 end;
             end;
         }
-        
+
         field(11; "Webhook Secret"; Text[100])
         {
             Caption = 'Webhook Secret';
             DataClassification = CustomerContent;
             ExtendedDatatype = Masked;
         }
-        
+
         field(12; "Integration Enabled"; Boolean)
         {
             Caption = 'Integration Enabled';
             DataClassification = CustomerContent;
         }
-        
+
         field(20; "Transaction Nos."; Code[20])
         {
             Caption = 'Transaction Nos.';
             DataClassification = CustomerContent;
             TableRelation = "No. Series";
         }
-        
+
         field(21; "Journal Template"; Code[10])
         {
             Caption = 'Journal Template';
             DataClassification = CustomerContent;
             TableRelation = "Gen. Journal Template";
         }
-        
+
         field(22; "Journal Batch"; Code[10])
         {
             Caption = 'Journal Batch';
             DataClassification = CustomerContent;
             TableRelation = "Gen. Journal Batch".Name WHERE("Journal Template Name" = FIELD("Journal Template"));
         }
-        
+
         field(30; "Fuel Expense Account"; Code[20])
         {
             Caption = 'Fuel Expense Account';
             DataClassification = CustomerContent;
             TableRelation = "G/L Account" WHERE("Account Type" = CONST(Posting));
         }
-        
+
         field(31; "Fuel Payable Account"; Code[20])
         {
             Caption = 'Fuel Payable Account';
             DataClassification = CustomerContent;
             TableRelation = "G/L Account" WHERE("Account Type" = CONST(Posting));
         }
-        
+
         field(32; "Fuel Rate per Liter"; Decimal)
         {
             Caption = 'Fuel Rate per Liter';
@@ -83,14 +83,14 @@ table 50110 "Fuel System Setup"
             DecimalPlaces = 2 : 5;
             MinValue = 0;
         }
-        
+
         field(40; "Last Sync Date"; DateTime)
         {
             Caption = 'Last Sync Date';
             DataClassification = CustomerContent;
             Editable = false;
         }
-        
+
         field(41; "Sync Status"; Option)
         {
             Caption = 'Sync Status';
@@ -108,7 +108,7 @@ table 50110 "Fuel System Setup"
             Clustered = true;
         }
     }
-    
+
     trigger OnInsert()
     begin
         "Primary Key" := '';
@@ -128,20 +128,20 @@ table 50111 "Fuel Transaction"
             Caption = 'Transaction No.';
             DataClassification = CustomerContent;
         }
-        
+
         field(10; "Employee No."; Code[20])
         {
             Caption = 'Employee No.';
             DataClassification = CustomerContent;
             TableRelation = Employee;
         }
-        
+
         field(11; "Transaction Date"; Date)
         {
             Caption = 'Transaction Date';
             DataClassification = CustomerContent;
         }
-        
+
         field(12; "Fuel Amount"; Decimal)
         {
             Caption = 'Fuel Amount';
@@ -149,33 +149,33 @@ table 50111 "Fuel Transaction"
             DecimalPlaces = 2 : 5;
             MinValue = 0;
         }
-        
+
         field(20; Status; Enum "Fuel Transaction Status")
         {
             Caption = 'Status';
             DataClassification = CustomerContent;
         }
-        
+
         field(30; "Django Transaction ID"; Text[50])
         {
             Caption = 'Django Transaction ID';
             DataClassification = CustomerContent;
         }
-        
+
         field(31; "Created From Django"; Boolean)
         {
             Caption = 'Created From Django';
             DataClassification = CustomerContent;
             Editable = false;
         }
-        
+
         field(40; "Posted"; Boolean)
         {
             Caption = 'Posted';
             DataClassification = CustomerContent;
             Editable = false;
         }
-        
+
         field(41; "Posted Date"; Date)
         {
             Caption = 'Posted Date';
@@ -197,7 +197,7 @@ table 50111 "Fuel Transaction"
         {
         }
     }
-    
+
     trigger OnInsert()
     var
         FuelSetup: Record "Fuel System Setup";
@@ -208,7 +208,7 @@ table 50111 "Fuel Transaction"
             FuelSetup.TestField("Transaction Nos.");
             "Transaction No." := NoSeriesManagement.GetNextNo(FuelSetup."Transaction Nos.", WorkDate(), true);
         end;
-        
+
         if "Transaction Date" = 0D then
             "Transaction Date" := WorkDate();
     end;
@@ -218,7 +218,7 @@ table 50111 "Fuel Transaction"
 enum 50110 "Fuel Transaction Status"
 {
     Extensible = true;
-    
+
     value(0; Pending)
     {
         Caption = 'Pending';
@@ -251,82 +251,82 @@ page 50103 "Fuel System Setup"
             group(General)
             {
                 Caption = 'General';
-                
+
                 field("Integration Enabled"; Rec."Integration Enabled")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Enable integration with Parliament Fuel System';
                 }
-                
+
                 field("Django Base URL"; Rec."Django Base URL")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Base URL for the Django application (e.g., https://parliament-fuel-system.azurewebsites.net/)';
                 }
-                
+
                 field("Webhook Secret"; Rec."Webhook Secret")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Secret key for webhook authentication';
                 }
             }
-            
+
             group(Numbering)
             {
                 Caption = 'Numbering';
-                
+
                 field("Transaction Nos."; Rec."Transaction Nos.")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Number series for fuel transactions';
                 }
             }
-            
+
             group(Posting)
             {
                 Caption = 'Posting Setup';
-                
+
                 field("Journal Template"; Rec."Journal Template")
                 {
                     ApplicationArea = All;
                     ToolTip = 'General journal template for posting fuel transactions';
                 }
-                
+
                 field("Journal Batch"; Rec."Journal Batch")
                 {
                     ApplicationArea = All;
                     ToolTip = 'General journal batch for posting fuel transactions';
                 }
-                
+
                 field("Fuel Expense Account"; Rec."Fuel Expense Account")
                 {
                     ApplicationArea = All;
                     ToolTip = 'G/L account for fuel expenses';
                 }
-                
+
                 field("Fuel Payable Account"; Rec."Fuel Payable Account")
                 {
                     ApplicationArea = All;
                     ToolTip = 'G/L account for fuel payables';
                 }
-                
+
                 field("Fuel Rate per Liter"; Rec."Fuel Rate per Liter")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Standard rate per liter for fuel calculations';
                 }
             }
-            
+
             group(Status)
             {
                 Caption = 'Sync Status';
-                
+
                 field("Last Sync Date"; Rec."Last Sync Date")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Last successful synchronization with Django';
                 }
-                
+
                 field("Sync Status"; Rec."Sync Status")
                 {
                     ApplicationArea = All;
@@ -353,7 +353,7 @@ page 50103 "Fuel System Setup"
                     TestDjangoConnection();
                 end;
             }
-            
+
             action(SyncNow)
             {
                 ApplicationArea = All;
@@ -367,7 +367,7 @@ page 50103 "Fuel System Setup"
                     SyncWithDjango();
                 end;
             }
-            
+
             action(OpenDashboard)
             {
                 ApplicationArea = All;
@@ -386,19 +386,19 @@ page 50103 "Fuel System Setup"
             }
         }
     }
-    
+
     trigger OnOpenPage()
     begin
         Rec.Reset();
         if not Rec.Get() then begin
             Rec.Init();
             Rec."Primary Key" := '';
-            Rec."Django Base URL" := 'https://parliament-fuel-system.azurewebsites.net/';
+            Rec."Django Base URL" := 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/';
             Rec."Integration Enabled" := true;
             Rec.Insert();
         end;
     end;
-    
+
     local procedure TestDjangoConnection()
     var
         HttpClient: HttpClient;
@@ -408,15 +408,15 @@ page 50103 "Fuel System Setup"
         TestUrl: Text;
     begin
         Rec.TestField("Django Base URL");
-        
+
         TestUrl := Rec."Django Base URL" + 'api/bc/health/';
-        
+
         HttpRequestMessage.Method := 'GET';
         HttpRequestMessage.SetRequestUri(TestUrl);
-        
+
         if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then begin
             HttpResponseMessage.Content.ReadAs(ResponseText);
-            
+
             if HttpResponseMessage.HttpStatusCode = 200 then begin
                 Rec."Sync Status" := Rec."Sync Status"::Connected;
                 Rec."Last Sync Date" := CurrentDateTime;
@@ -433,7 +433,7 @@ page 50103 "Fuel System Setup"
             Error('Failed to connect to Django application.');
         end;
     end;
-    
+
     local procedure SyncWithDjango()
     var
         HttpClient: HttpClient;
@@ -444,19 +444,19 @@ page 50103 "Fuel System Setup"
         RequestBody: Text;
     begin
         Rec.TestField("Django Base URL");
-        
+
         SyncUrl := Rec."Django Base URL" + 'api/bc/webhook/';
         RequestBody := '{"eventType": "sync_request", "entityData": {"sync_type": "full"}}';
-        
+
         HttpRequestMessage.Method := 'POST';
         HttpRequestMessage.SetRequestUri(SyncUrl);
         HttpRequestMessage.Content.WriteFrom(RequestBody);
         HttpRequestMessage.Content.GetHeaders.Clear();
         HttpRequestMessage.Content.GetHeaders.Add('Content-Type', 'application/json');
-        
+
         if HttpClient.Send(HttpRequestMessage, HttpResponseMessage) then begin
             HttpResponseMessage.Content.ReadAs(ResponseText);
-            
+
             if HttpResponseMessage.HttpStatusCode = 200 then begin
                 Rec."Sync Status" := Rec."Sync Status"::Connected;
                 Rec."Last Sync Date" := CurrentDateTime;

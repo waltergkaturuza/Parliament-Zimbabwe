@@ -11,7 +11,7 @@ controladdin "Parliament Fuel System"
     HorizontalStretch = true;
 
     // Reference to the BC integration JavaScript file
-    Scripts = 'https://parliament-fuel-system.azurewebsites.net/static/js/bc-integration.js';
+    Scripts = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/static/js/bc-integration.js';
 
     /// <summary>
     /// Fired when the control add-in is ready and initialized
