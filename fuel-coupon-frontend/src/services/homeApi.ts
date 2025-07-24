@@ -32,8 +32,9 @@ export interface ActivityItem {
   title: string;
   description: string;
   time: string;
-  time_display: string;
-  icon_type: string;
+  time_display?: string;
+  icon_type?: string;
+  icon?: React.ReactNode;
 }
 
 export interface SystemHealth {

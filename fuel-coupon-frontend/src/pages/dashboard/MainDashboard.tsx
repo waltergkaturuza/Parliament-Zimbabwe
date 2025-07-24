@@ -65,9 +65,9 @@ const MainDashboard = () => {
     }
 
     // Print axios API base URL
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const api = require('../../api/index').default;
-    console.log("Axios API baseURL is:", api.defaults.baseURL);
+    import('../api/index').then((module) => {
+      console.log("Axios API baseURL is:", module.default.defaults.baseURL);
+    });
 
     // Print localStorage token for debugging
     console.log("Token in localStorage is:", localStorage.getItem('authToken'));
