@@ -52,8 +52,13 @@ BUSINESS_CENTRAL_CONFIG = {
     'api_version': 'v2.0',
 }
 
-# Azure Application Insights (optional)
-if os.environ.get('APPINSIGHTS_INSTRUMENTATIONKEY'):
+# Azure Application Insights
+# Use the instrumentation key from your Azure portal
+APPINSIGHTS_INSTRUMENTATIONKEY = '8653e7a8-b8cc-497b-8ad8-ec60ed4bd8ef'
+APPINSIGHTS_CONNECTION_STRING = 'InstrumentationKey=8653e7a8-b8cc-497b-8ad8-ec60ed4bd8ef;IngestionEndpoint=https://southafricanorth-1.in.applicationinsights.azure.com/;LiveEndpoint=https://southafricanorth.livediagnostics.monitor.azure.com/;ApplicationId=b2c382b6-39f8-4d2d-a1da-66534477ad50'
+
+# Configure Application Insights for better monitoring
+if APPINSIGHTS_INSTRUMENTATIONKEY:
     try:
         import applicationinsights.django
         INSTALLED_APPS += [
@@ -61,14 +66,24 @@ if os.environ.get('APPINSIGHTS_INSTRUMENTATIONKEY'):
         ]
         
         APPLICATION_INSIGHTS = {
-            'ikey': os.environ.get('APPINSIGHTS_INSTRUMENTATIONKEY'),
+            'ikey': APPINSIGHTS_INSTRUMENTATIONKEY,
             'use_view_name': True,
             'record_view_arguments': True,
+            'record_dependency_data': True,
         }
 
         MIDDLEWARE = [
             'applicationinsights.django.ApplicationInsightsMiddleware',
         ] + MIDDLEWARE
+        
+        # Enhanced logging for production debugging
+        LOGGING['handlers']['appinsights'] = {
+            'class': 'applicationinsights.django.LoggingHandler',
+            'level': 'WARNING',
+        }
+        LOGGING['loggers']['django']['handlers'].append('appinsights')
+        LOGGING['loggers']['fuel']['handlers'].append('appinsights')
+        
     except ImportError:
         pass  # Application Insights not available
 
@@ -226,9 +241,14 @@ SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Debug CORS issues (remove in production)
-if DEBUG or os.environ.get('ENABLE_CORS_DEBUG'):
+# Debug CORS issues and enable detailed logging for troubleshooting
+DEBUG_PRODUCTION_ISSUES = os.environ.get('DEBUG_PRODUCTION_ISSUES', 'True').lower() == 'true'
+if DEBUG_PRODUCTION_ISSUES:
     MIDDLEWARE.insert(1, 'utils.cors_debug.CORSDebugMiddleware')
+    # Enable more detailed logging for production debugging
+    LOGGING['root']['level'] = 'DEBUG'
+    LOGGING['loggers']['django']['level'] = 'DEBUG'
+    LOGGING['loggers']['fuel']['level'] = 'DEBUG'
 
 # Time zone
 TIME_ZONE = 'Africa/Harare'
