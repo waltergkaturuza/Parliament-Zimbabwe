@@ -28,10 +28,10 @@ export interface HomeStats {
 }
 
 export interface ActivityItem {
-  type: string;
+  type?: string;
   title: string;
   description: string;
-  time: string;
+  time?: string;
   time_display?: string;
   icon_type?: string;
   icon?: React.ReactNode;

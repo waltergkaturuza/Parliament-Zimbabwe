@@ -49,8 +49,7 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-const QRCode = require('qrcode.react').default;
+import QRCode from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 import { format } from 'date-fns';
 
