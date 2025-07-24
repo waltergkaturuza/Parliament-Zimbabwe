@@ -172,6 +172,37 @@ CSRF_TRUSTED_ORIGINS = [
     'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'https://parliament-fuel-system.azurewebsites.net',
     'https://parliament-fuel-frontend.azurestaticapps.net',
+    'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
+]
+
+# CORS settings for production
+CORS_ALLOWED_ORIGINS = [
+    'https://fuel.parliament.gov.zw',
+    'https://parliament.gov.zw',
+    'https://parliament-fuel-frontend.azurestaticapps.net',
+    'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 # Business Central Integration Settings
