@@ -7,7 +7,7 @@ DEBUG = False
 
 # Azure App Service settings
 ALLOWED_HOSTS = [
-    'parliament-fuel-system.azurewebsites.net',
+    'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'fuel.parliament.gov.zw',
     'parliament.gov.zw',
     'localhost',  # For local testing
@@ -168,7 +168,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
-    'https://parliament-fuel-system.azurewebsites.net',
+    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'https://parliament-fuel-frontend.azurestaticapps.net',
     'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
 ]
@@ -177,7 +177,7 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
-    'https://parliament-fuel-system.azurewebsites.net',
+    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',
     'https://parliament-fuel-frontend.azurestaticapps.net',
     'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
 ]
@@ -221,7 +221,7 @@ BC_WEBHOOK_SECRET = os.environ.get('BC_WEBHOOK_SECRET', 'change-this-in-producti
 BC_API_TIMEOUT = 30  # seconds
 
 # Site URL for absolute URLs
-SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
+SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
 
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
