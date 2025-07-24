@@ -49,7 +49,7 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 import { format } from 'date-fns';
 
