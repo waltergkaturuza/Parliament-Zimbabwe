@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>Parliament Fuel System - CORS Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function logResult(message, isError = false) {
+            const p = document.createElement('p');
+            p.textContent = `${new Date().toISOString()}: ${message}`;
+            p.style.color = isError ? 'red' : 'green';
+            resultsDiv.appendChild(p);
+        }
+        
+        // Test multiple backend URLs
+        const backendUrls = [
+            'https://parliament-fuel-system.azurewebsites.net',
+            'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
+        ];
+        
+        async function testCORS() {
+            logResult('Starting CORS tests...');
+            
+            for (const baseUrl of backendUrls) {
+                logResult(`Testing backend: ${baseUrl}`);
+                
+                try {
+                    // Test health endpoint
+                    const healthResponse = await fetch(`${baseUrl}/api/health/`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (healthResponse.ok) {
+                        const healthData = await healthResponse.json();
+                        logResult(`✅ Health check successful for ${baseUrl}: ${JSON.stringify(healthData)}`);
+                    } else {
+                        logResult(`❌ Health check failed for ${baseUrl}: ${healthResponse.status}`, true);
+                    }
+                } catch (error) {
+                    logResult(`❌ Health check error for ${baseUrl}: ${error.message}`, true);
+                }
+                
+                try {
+                    // Test CORS endpoint
+                    const corsResponse = await fetch(`${baseUrl}/api/cors-test/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ test: 'CORS test from frontend' })
+                    });
+                    
+                    if (corsResponse.ok) {
+                        const corsData = await corsResponse.json();
+                        logResult(`✅ CORS test successful for ${baseUrl}: ${JSON.stringify(corsData)}`);
+                    } else {
+                        logResult(`❌ CORS test failed for ${baseUrl}: ${corsResponse.status}`, true);
+                    }
+                } catch (error) {
+                    logResult(`❌ CORS test error for ${baseUrl}: ${error.message}`, true);
+                }
+                
+                try {
+                    // Test login endpoint  
+                    const loginResponse = await fetch(`${baseUrl}/api/auth/login/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ 
+                            username: 'test', 
+                            password: 'test'
+                        })
+                    });
+                    
+                    // We expect this to fail with 400/401, but not CORS error
+                    logResult(`✅ Login endpoint reachable for ${baseUrl}: ${loginResponse.status}`);
+                    
+                } catch (error) {
+                    if (error.message.includes('CORS')) {
+                        logResult(`❌ Login CORS error for ${baseUrl}: ${error.message}`, true);
+                    } else {
+                        logResult(`✅ Login endpoint reachable for ${baseUrl} (non-CORS error): ${error.message}`);
+                    }
+                }
+                
+                logResult(`--- Finished testing ${baseUrl} ---`);
+            }
+            
+            logResult('All tests completed!');
+        }
+        
+        // Start tests
+        testCORS();
+    </script>
+</body>
+</html>

@@ -93,6 +93,11 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'content-type',
     'x-csrftoken',
     'x-requested-with',
+    'accept',
+    'accept-encoding',
+    'accept-language',
+    'access-control-request-headers',
+    'access-control-request-method',
 ]
 # Allow all methods for development
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only in development

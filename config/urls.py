@@ -31,6 +31,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
     path('api/v1/', include('fuel.urls')),
+    path('api/auth/', include('fuel.urls')),  # Add direct auth path for frontend compatibility
     
     # Business Central Integration
     path('bc/', include('fuel.urls_bc')),
