@@ -2465,3 +2465,43 @@ def test_business_central_connection(request):
             'message': f'Error testing Business Central connection: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# CORS Test Functions
+@csrf_exempt
+@api_view(['GET', 'POST', 'OPTIONS'])
+@permission_classes([AllowAny])
+def cors_test(request):
+    """
+    Simple endpoint to test CORS configuration
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"CORS Test - Method: {request.method}")
+    logger.info(f"CORS Test - Origin: {request.headers.get('Origin', 'No Origin')}")
+    logger.info(f"CORS Test - User-Agent: {request.headers.get('User-Agent', 'No User-Agent')}")
+    
+    response_data = {
+        'message': 'CORS test successful',
+        'method': request.method,
+        'origin': request.headers.get('Origin', 'No Origin'),
+        'timestamp': str(timezone.now()),
+        'headers': dict(request.headers),
+        'status': 'OK'
+    }
+    
+    return Response(response_data)
+
+@csrf_exempt  
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Simple health check endpoint
+    """
+    return Response({
+        'status': 'healthy',
+        'service': 'Parliament Fuel System',
+        'timestamp': str(timezone.now())
+    })
+

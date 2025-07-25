@@ -77,6 +77,28 @@ if APPINSIGHTS_INSTRUMENTATIONKEY:
             'applicationinsights.django.ApplicationInsightsMiddleware',
         ] + MIDDLEWARE
         
+        # Define LOGGING configuration if not already defined
+        if 'LOGGING' not in globals():
+            LOGGING = {
+                'version': 1,
+                'disable_existing_loggers': False,
+                'handlers': {
+                    'console': {
+                        'class': 'logging.StreamHandler',
+                    },
+                },
+                'loggers': {
+                    'django': {
+                        'handlers': ['console'],
+                        'level': 'INFO',
+                    },
+                    'fuel': {
+                        'handlers': ['console'],
+                        'level': 'INFO',
+                    },
+                },
+            }
+        
         # Enhanced logging for production debugging
         LOGGING['handlers']['appinsights'] = {
             'class': 'applicationinsights.django.LoggingHandler',

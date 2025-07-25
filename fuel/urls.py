@@ -17,10 +17,6 @@ from .views import (
     
     # Subcenter management ViewSets
     PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
-)
-
-# Import CORS test views separately
-from .views.cors_test import cors_test, health_check
     
     # Dispatch and allocation ViewSets
     BookDispatchViewSet, CouponAllocationViewSet,
@@ -31,8 +27,8 @@ from .views.cors_test import cors_test, health_check
     # Business Central integration
     test_business_central_connection,
     
-    # Legacy views (keeping for compatibility)
-    analytics_view,
+    # CORS test views
+    cors_test, health_check,
 )
 
 # Home page API views
