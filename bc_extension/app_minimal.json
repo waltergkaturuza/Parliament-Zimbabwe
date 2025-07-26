@@ -12,7 +12,7 @@
   "dependencies": [],
   "screenshots": [],
   "platform": "1.0.0.0",
-  "target": "OnPrem",
+  "application": "1.0.0.0",
   "idRanges": [
     {
       "from": 50100,
@@ -24,8 +24,9 @@
     "allowDownloadingSource": false,
     "includeSourceInSymbolFile": false
   },
-  "runtime": "13.0",
+  "runtime": "1.0",
   "features": [
     "NoImplicitWith"
-  ]
+  ],
+  "target": "Cloud"
 }

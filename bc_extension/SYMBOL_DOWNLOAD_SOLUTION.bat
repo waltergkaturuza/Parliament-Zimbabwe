@@ -9,7 +9,7 @@ echo.
 echo CURRENT STATUS:
 echo - Version 26.3.0.0: Internal Server Error (not available)
 echo - Version 24.0.0.0: Unauthorized (available but needs auth)
-echo - Your app.json is now configured for 25.0.0.0
+echo - Your app.json is now configured for 26.3.0.0
 echo.
 echo SOLUTION STEPS:
 echo.

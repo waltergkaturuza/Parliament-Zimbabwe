@@ -10,4 +10,3 @@ permissionset 50110 "Fuel System"
         tabledata "Fuel System Setup" = RIMD,
         tabledata "Fuel Transaction" = RIMD;
 }
-}

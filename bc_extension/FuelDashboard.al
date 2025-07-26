@@ -1,7 +1,12 @@
 // Parliament Fuel System Dashboard Page
 page 50106 "Parliament Fuel Dashboard"
 {
-    PageType = Card;
+    PageType                 ApplicationArea = All;
+                Caption = 'Setup';
+                Image = Setup;
+                RunObject = page 50111;
+                PromotedCategory = Process;
+                Promoted = true;;
     ApplicationArea = All;
     UsageCategory = Administration;
     Caption = 'Parliament Fuel System Dashboard';
@@ -23,8 +28,6 @@ page 50106 "Parliament Fuel Dashboard"
                     var
                         FuelSetup: Record "Fuel System Setup";
                         BCContext: Text;
-                        CompanyInfo: Record "Company Information";
-                        UserInfo: Record User;
                     begin
                         // Get setup
                         if not FuelSetup.Get() then begin
@@ -32,15 +35,8 @@ page 50106 "Parliament Fuel Dashboard"
                             exit;
                         end;
 
-                        // Get current user info
-                        UserInfo.SetRange("User Name", UserId);
-                        if UserInfo.FindFirst() then;
-
-                        // Get company info
-                        if CompanyInfo.Get() then;
-
-                        // Build BC context
-                        BCContext := BuildBCContext(UserInfo, CompanyInfo);
+                        // Build basic BC context
+                        BCContext := BuildBasicBCContext();
 
                         // Initialize the Django app
                         CurrPage.DjangoApp.InitializeApp(FuelSetup."Django Base URL", BCContext);
@@ -99,7 +95,7 @@ page 50106 "Parliament Fuel Dashboard"
                 Caption = 'View Transactions';
                 Image = List;
                 RunObject = page 50105;
-                PromotedCategory = Navigate;
+                PromotedCategory = Process;
                 Promoted = true;
             }
 
@@ -157,15 +153,13 @@ page 50106 "Parliament Fuel Dashboard"
         }
     }
 
-    local procedure BuildBCContext(UserInfo: Record User; CompanyInfo: Record "Company Information"): Text
+    local procedure BuildBasicBCContext(): Text
     var
         JsonObject: JsonObject;
         ResultText: Text;
     begin
         JsonObject.Add('userId', UserId);
         JsonObject.Add('companyName', CompanyName);
-        JsonObject.Add('userFullName', UserInfo."Full Name");
-        JsonObject.Add('companyDisplayName', CompanyInfo.Name);
         JsonObject.Add('bcVersion', 'Business Central Online');
         JsonObject.Add('integrationVersion', '1.0.0');
         JsonObject.Add('timestamp', Format(CurrentDateTime, 0, 9));

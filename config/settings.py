@@ -19,8 +19,8 @@ FRONTEND_HOSTNAME = 'jolly-ocean-0e0dee90f.2.azurestaticapps.net'
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost', 
-    'parliament-fuel-system.azurewebsites.net',  # Original planned hostname
     AZURE_HOSTNAME,  # Actual Azure hostname
+    'parliament-fuel-system.azurewebsites.net',  # Alternative hostname
 ]
 
 # Add environment variable support for additional hosts
@@ -72,7 +72,6 @@ CSRF_TRUSTED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
-    "https://parliament-fuel-system.azurewebsites.net",  # Original planned hostname
 ]
 
 # CORS settings
@@ -86,8 +85,12 @@ CORS_ALLOWED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
-    "https://parliament-fuel-system.azurewebsites.net",  # Original planned hostname
 ]
+
+# Additional CORS settings for proper preflight handling
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',
     'content-type',
