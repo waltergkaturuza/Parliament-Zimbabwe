@@ -2,7 +2,7 @@
 // This extension works without external symbol dependencies
 
 // Simple Fuel Transaction Table
-table 50201 "Fuel Transaction Lite"
+table 50110 "Fuel Transaction Lite"
 {
     Caption = 'Fuel Transaction';
     DataClassification = CustomerContent;
@@ -192,7 +192,7 @@ table 50201 "Fuel Transaction Lite"
 }
 
 // Simple Fuel Rates Setup Table
-table 50202 "Fuel Rates Setup"
+table 50111 "Fuel Rates Setup"
 {
     Caption = 'Fuel Rates Setup';
     DataClassification = CustomerContent;

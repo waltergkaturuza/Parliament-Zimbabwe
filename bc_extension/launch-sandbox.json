@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "BC Online Sandbox",
+            "request": "launch",
+            "type": "al",
+            "environmentType": "Sandbox",
+            "environmentName": "Sandbox",
+            "tenant": "086c4475-d0ef-4d2b-871c-4e078a083db5",
+            "startupObjectId": 50114,
+            "startupObjectType": "Page",
+            "breakOnError": false,
+            "launchBrowser": false
+        }
+    ]
+}

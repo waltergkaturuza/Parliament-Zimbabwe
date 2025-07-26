@@ -1,12 +1,12 @@
 // Fuel Transaction List Page
-page 50201 "Fuel Transactions Lite"
+page 50110 "Fuel Transaction List Lite"
 {
     PageType = List;
     ApplicationArea = All;
     UsageCategory = Lists;
     SourceTable = "Fuel Transaction Lite";
     Caption = 'Fuel Transactions';
-    CardPageId = 50202;
+    CardPageId = 50111;
     Editable = false;
 
     layout
@@ -197,7 +197,7 @@ page 50201 "Fuel Transactions Lite"
                 ApplicationArea = All;
                 Caption = 'Fuel Rates Setup';
                 Image = Setup;
-                RunObject = page 50203;
+                RunObject = page 50112;
                 Promoted = true;
                 PromotedCategory = Category4;
             }
@@ -206,7 +206,6 @@ page 50201 "Fuel Transactions Lite"
 
     local procedure ExportTransactionsToExcel()
     var
-        TempExcelBuffer: Record "Excel Buffer" temporary;
         FuelTransaction: Record "Fuel Transaction Lite";
         RowNo: Integer;
     begin
@@ -216,7 +215,7 @@ page 50201 "Fuel Transactions Lite"
 }
 
 // Fuel Transaction Card Page
-page 50202 "Fuel Transaction Card Lite"
+page 50111 "Fuel Transaction Card Lite"
 {
     PageType = Card;
     ApplicationArea = All;

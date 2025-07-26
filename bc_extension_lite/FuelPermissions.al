@@ -2,12 +2,13 @@
 entitlement "Fuel Manager"
 {
     Type = ConcurrentUserServicePlan;
+    GroupName = 'FuelManagers';
     Id = '00000000-0000-0000-0000-000000000001';
     ObjectEntitlements = "Fuel Manager Objects";
 }
 
 // Permission Set for Fuel Management
-permissionset 50200 "Fuel Manager Objects"
+permissionset 50110 "Fuel Manager Objects"
 {
     Access = Public;
     Assignable = true;
@@ -26,15 +27,6 @@ permissionset 50200 "Fuel Manager Objects"
         page "Fuel Transaction Activities" = X,
         codeunit "Fuel Integration Lite" = X,
         codeunit "Fuel System Install Lite" = X;
-}
-
-// User Group for easy assignment
-usergroup "Fuel Managers"
-{
-    Name = 'Fuel Managers';
-    DefaultProfileID = 'FUEL MANAGER';
-    
-    Permissions = "Fuel Manager Objects";
 }
 
 // Profile for Fuel Manager Role Center

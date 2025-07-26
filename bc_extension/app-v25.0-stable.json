@@ -1,0 +1,40 @@
+{
+  "id": "95e05e22-02d6-464d-a3d9-1c2bcd39dc82",
+  "name": "Parliament Fuel Coupon System",
+  "publisher": "Parliament IT Department",
+  "version": "1.0.0.0",
+  "brief": "Integration with Parliament Fuel Coupon Management System",
+  "description": "This extension provides seamless integration between Business Central and the Parliament Fuel Coupon Management System, enabling fuel transaction management, approval workflows, and financial posting.",
+  "dependencies": [
+    {
+      "id": "63ca2fa4-4f03-4f2b-a480-172fef340d3f",
+      "publisher": "Microsoft",
+      "name": "System Application",
+      "version": "25.0.0.0"
+    },
+    {
+      "id": "437dbf0e-84ff-417a-965d-ed2bb9650972",
+      "publisher": "Microsoft",
+      "name": "Base Application",
+      "version": "25.0.0.0"
+    }
+  ],
+  "platform": "25.0.0.0",
+  "application": "25.0.0.0",
+  "idRanges": [
+    {
+      "from": 50110,
+      "to": 50149
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": false,
+    "includeSourceInSymbolFile": false
+  },
+  "runtime": "12.0",
+  "features": [
+    "NoImplicitWith"
+  ],
+  "target": "Cloud"
+}
