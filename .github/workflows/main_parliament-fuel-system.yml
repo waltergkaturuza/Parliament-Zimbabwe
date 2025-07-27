@@ -67,5 +67,4 @@ jobs:
         id: deploy-to-webapp
         with:
           app-name: 'parliament-fuel-system'
-          slot-name: 'Production'
           
