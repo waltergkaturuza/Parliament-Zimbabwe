@@ -5,10 +5,16 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# ALLOWED_HOSTS - Read from environment if set, else use default list
+# Print all environment variables at startup for debug
 import logging
-_env_allowed_hosts = os.environ.get('ALLOWED_HOSTS')
-print(f"[DEBUG] Environment ALLOWED_HOSTS value: {repr(_env_allowed_hosts)}")
+print("[DEBUG] All environment variables:")
+for k, v in os.environ.items():
+    print(f"[DEBUG] ENV {k} = {v}")
+
+# ALLOWED_HOSTS - Read from DJANGO_ALLOWED_HOSTS or ALLOWED_HOSTS
+_env_allowed_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS') or os.environ.get('ALLOWED_HOSTS')
+print(f"[DEBUG] DJANGO_ALLOWED_HOSTS: {os.environ.get('DJANGO_ALLOWED_HOSTS')}")
+print(f"[DEBUG] ALLOWED_HOSTS: {os.environ.get('ALLOWED_HOSTS')}")
 if _env_allowed_hosts:
     ALLOWED_HOSTS = [h.strip() for h in _env_allowed_hosts.split(',') if h.strip()]
     print(f"[DEBUG] Parsed ALLOWED_HOSTS from env: {ALLOWED_HOSTS}")
@@ -22,8 +28,6 @@ else:
         '127.0.0.1',  # For local testing
     ]
     print(f"[DEBUG] Using default ALLOWED_HOSTS: {ALLOWED_HOSTS}")
-
-# Log ALLOWED_HOSTS at startup for Azure debugging
 logging.basicConfig(level=logging.INFO)
 logging.info(f"[Startup] ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
@@ -53,6 +57,8 @@ else:
 
 # Azure Key Vault for secrets
 _env_secret_key = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
+print(f"[DEBUG] DJANGO_SECRET_KEY: {os.environ.get('DJANGO_SECRET_KEY')}")
+print(f"[DEBUG] SECRET_KEY: {os.environ.get('SECRET_KEY')}")
 print(f"[DEBUG] Environment SECRET_KEY present: {bool(_env_secret_key)}")
 print(f"[DEBUG] Environment SECRET_KEY length: {len(_env_secret_key) if _env_secret_key else 0}")
 
