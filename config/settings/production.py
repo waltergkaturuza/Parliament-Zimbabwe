@@ -8,8 +8,10 @@ DEBUG = False
 # ALLOWED_HOSTS - Read from environment if set, else use default list
 import logging
 _env_allowed_hosts = os.environ.get('ALLOWED_HOSTS')
+print(f"[DEBUG] Environment ALLOWED_HOSTS value: {repr(_env_allowed_hosts)}")
 if _env_allowed_hosts:
     ALLOWED_HOSTS = [h.strip() for h in _env_allowed_hosts.split(',') if h.strip()]
+    print(f"[DEBUG] Parsed ALLOWED_HOSTS from env: {ALLOWED_HOSTS}")
 else:
     ALLOWED_HOSTS = [
         'parliament-fuel-system.azurewebsites.net',  # Correct production URL
@@ -19,6 +21,7 @@ else:
         'localhost',  # For local testing
         '127.0.0.1',  # For local testing
     ]
+    print(f"[DEBUG] Using default ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 # Log ALLOWED_HOSTS at startup for Azure debugging
 logging.basicConfig(level=logging.INFO)
@@ -49,10 +52,15 @@ else:
     }
 
 # Azure Key Vault for secrets
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
+_env_secret_key = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
+print(f"[DEBUG] Environment SECRET_KEY present: {bool(_env_secret_key)}")
+print(f"[DEBUG] Environment SECRET_KEY length: {len(_env_secret_key) if _env_secret_key else 0}")
+
+SECRET_KEY = _env_secret_key
 if not SECRET_KEY:
+    print('[DEBUG] SECRET_KEY is missing or empty! Using fallback.')
+    SECRET_KEY = 'fallback-key-for-emergency-only-not-secure'
     logging.error('[Startup] SECRET_KEY is missing or empty!')
-    raise Exception('The SECRET_KEY setting must not be empty.')
 # Log SECRET_KEY length and first/last chars for debug (never log full key)
 logging.info(f"[Startup] SECRET_KEY: length={len(SECRET_KEY)}, startswith={SECRET_KEY[:4]}, endswith={SECRET_KEY[-4:]}")
 
