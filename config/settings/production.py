@@ -6,15 +6,19 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# ALLOWED_HOSTS - Include the correct backend URL
-ALLOWED_HOSTS = [
-    'parliament-fuel-system.azurewebsites.net',  # Correct production URL
-    'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # Current deployment
-    'fuel.parliament.gov.zw',
-    'parliament.gov.zw',
-    'localhost',  # For local testing
-    '127.0.0.1',  # For local testing
-]
+# ALLOWED_HOSTS - Read from environment variable if present
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS')
+if ALLOWED_HOSTS:
+    ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS.split(',')]
+else:
+    ALLOWED_HOSTS = [
+        'parliament-fuel-system.azurewebsites.net',  # Correct production URL
+        'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # Current deployment
+        'fuel.parliament.gov.zw',
+        'parliament.gov.zw',
+        'localhost',  # For local testing
+        '127.0.0.1',  # For local testing
+    ]
 
 # Database - Azure PostgreSQL
 if os.environ.get('DB_PASSWORD'):
