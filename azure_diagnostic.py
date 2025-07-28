@@ -25,7 +25,7 @@ except ImportError as e:
     sys.exit(1)
 
 # Set Django settings
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.production')
 
 # Try to import settings module directly
 try:
