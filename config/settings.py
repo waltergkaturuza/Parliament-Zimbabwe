@@ -14,7 +14,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 # Azure-specific hostname configuration
 AZURE_HOSTNAME = 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
-FRONTEND_HOSTNAME = 'jolly-ocean-0e0dee90f.1.azurestaticapps.net'
+FRONTEND_HOSTNAME = 'jolly-ocean-0e0dee90f.2.azurestaticapps.net'
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
@@ -36,12 +36,16 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'django_extensions',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'corsheaders',
+    'model_utils',
 
     'fuel.apps.FuelConfig',   # Your app
+    'dynamics_integration.apps.DynamicsIntegrationConfig',  # Dynamics 365 Integration
 ]
 
 AUTH_USER_MODEL = 'fuel.User'
@@ -84,9 +88,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Additional CORS settings for proper preflight handling
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # False in production, True in development
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all origins in development
 CORS_ALLOW_CREDENTIALS = True
-CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',
     'content-type',
@@ -111,6 +115,12 @@ CORS_EXPOSE_HEADERS = [
     'content-type',
     'x-csrftoken',
 ]
+
+# Debug CORS configuration
+print(f"DEBUG: CORS_ALLOWED_ORIGINS = {CORS_ALLOWED_ORIGINS}")
+print(f"DEBUG: CORS_ALLOW_ALL_ORIGINS = {CORS_ALLOW_ALL_ORIGINS}")
+print(f"DEBUG: FRONTEND_HOSTNAME = {FRONTEND_HOSTNAME}")
+print(f"DEBUG: DEBUG mode = {DEBUG}")
 
 ROOT_URLCONF = 'config.urls'
 
