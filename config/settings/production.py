@@ -1,4 +1,5 @@
 # Production Django Settings for Azure
+# Last updated: 2025-07-28T09:46:00Z - ROOT_URLCONF fix deployment
 import os
 from .base import *
 
