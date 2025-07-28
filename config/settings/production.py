@@ -1,15 +1,15 @@
 # Production Django Settings for Azure
-# Last updated: 2025-07-28T09:46:00Z - ROOT_URLCONF fix deployment
 import os
 from .base import *
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# ALLOWED_HOSTS - Read from environment variable if present
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS')
-if ALLOWED_HOSTS:
-    ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS.split(',')]
+# ALLOWED_HOSTS - Read from environment if set, else use default list
+import logging
+_env_allowed_hosts = os.environ.get('ALLOWED_HOSTS')
+if _env_allowed_hosts:
+    ALLOWED_HOSTS = [h.strip() for h in _env_allowed_hosts.split(',') if h.strip()]
 else:
     ALLOWED_HOSTS = [
         'parliament-fuel-system.azurewebsites.net',  # Correct production URL
@@ -19,6 +19,10 @@ else:
         'localhost',  # For local testing
         '127.0.0.1',  # For local testing
     ]
+
+# Log ALLOWED_HOSTS at startup for Azure debugging
+logging.basicConfig(level=logging.INFO)
+logging.info(f"[Startup] ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 # Database - Azure PostgreSQL
 if os.environ.get('DB_PASSWORD'):
@@ -45,7 +49,12 @@ else:
     }
 
 # Azure Key Vault for secrets
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY') or 'fallback-secret-key-for-development-only'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    logging.error('[Startup] SECRET_KEY is missing or empty!')
+    raise Exception('The SECRET_KEY setting must not be empty.')
+# Log SECRET_KEY length and first/last chars for debug (never log full key)
+logging.info(f"[Startup] SECRET_KEY: length={len(SECRET_KEY)}, startswith={SECRET_KEY[:4]}, endswith={SECRET_KEY[-4:]}")
 
 # Business Central Settings (Production)
 BUSINESS_CENTRAL_CONFIG = {
