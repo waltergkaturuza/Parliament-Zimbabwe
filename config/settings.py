@@ -36,16 +36,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'django_extensions',
     'rest_framework',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'corsheaders',
-    'model_utils',
 
     'fuel.apps.FuelConfig',   # Your app
-    'dynamics_integration.apps.DynamicsIntegrationConfig',  # Dynamics 365 Integration
 ]
 
 AUTH_USER_MODEL = 'fuel.User'
