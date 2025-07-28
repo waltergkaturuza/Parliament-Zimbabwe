@@ -14,7 +14,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 # Azure-specific hostname configuration
 AZURE_HOSTNAME = 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
-FRONTEND_HOSTNAME = 'jolly-ocean-0e0dee90f.2.azurestaticapps.net'
+FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'jolly-ocean-0e0dee90f.2.azurestaticapps.net')
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
