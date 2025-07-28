@@ -53,6 +53,7 @@ AUTH_USER_MODEL = 'fuel.User'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # CORS should be as high as possible!
+    'config.cors_debug.CorsDebugMiddleware',  # CORS debugging
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
