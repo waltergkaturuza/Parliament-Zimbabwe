@@ -31,6 +31,9 @@ from .views import (
     cors_test, health_check,
 )
 
+# Import debug views
+from .views_debug import test_azure_database, health_check as debug_health_check
+
 # Home page API views
 from .views_home import (
     home_stats, recent_activity, system_health, quick_insights
@@ -111,6 +114,14 @@ urlpatterns = [
     # CORS and health test endpoints
     path('api/cors-test/', cors_test, name='cors-test'),
     path('api/health/', health_check, name='health-check'),
+    
+    # Debug endpoints for Azure testing
+    path('api/debug/azure-db/', test_azure_database, name='test-azure-database'),
+    path('api/debug/health/', debug_health_check, name='debug-health-check'),
+    
+    # Debug endpoints for Azure deployment testing
+    path('api/debug/test-db/', test_azure_database, name='test-azure-database'),
+    path('api/debug/health/', debug_health_check, name='debug-health-check'),
     
     # Include router URLs 
     path('', include(router.urls)),

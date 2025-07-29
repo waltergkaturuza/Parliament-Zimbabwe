@@ -143,25 +143,53 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-# Override with PostgreSQL if environment variables are set
+# Database Configuration - Azure PostgreSQL with fallbacks
 if os.environ.get('DATABASE_URL'):
+    # Parse DATABASE_URL if provided
     import dj_database_url
-    DATABASES['default'] = dj_database_url.parse(os.environ.get('DATABASE_URL'))
-elif os.environ.get('DATABASE_NAME'):
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'fuel_db'),
-        'USER': os.environ.get('DATABASE_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'katuruza'),
-        'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
-        'PORT': os.environ.get('DATABASE_PORT', '5432'),
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
+    }
+elif os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME'):
+    # Use environment variables for Azure PostgreSQL
+    db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME', 'fuel_db')
+    db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER', 'postgres')
+    db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', 'katuruza')
+    db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST', 'localhost')
+    db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
+    
+    # For Azure PostgreSQL, format username with @servername suffix if needed
+    if '@' not in db_user and 'azure.com' in db_host:
+        server_name = db_host.split('.')[0]  # Extract server name from FQDN
+        db_user = f"{db_user}@{server_name}"
+        print(f"DEBUG: Using Azure PostgreSQL user format: {db_user}")
+    
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': db_name,
+            'USER': db_user,
+            'PASSWORD': db_password,
+            'HOST': db_host,
+            'PORT': db_port,
+            'OPTIONS': {
+                'sslmode': 'require',  # Required for Azure PostgreSQL
+            },
+        }
+    }
+    
+    # Debug database configuration
+    print(f"DEBUG: Database NAME = {db_name}")
+    print(f"DEBUG: Database USER = {db_user}")
+    print(f"DEBUG: Database HOST = {db_host}")
+    print(f"DEBUG: Database PORT = {db_port}")
+else:
+    # Default SQLite for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
 
 AUTH_PASSWORD_VALIDATORS = [

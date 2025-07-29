@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Load base URL from environment or fallback to localhost
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -23,6 +23,8 @@ apiClient.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
       console.log('Added Authorization header');
     }
+    // Always allow credentials for CORS
+    config.withCredentials = true;
     return config;
   },
   (error) => {
@@ -48,15 +50,31 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('access_token');
         window.location.href = '/login';
       }
-      // You may also want to toast or log the error here
-      console.error('API Response Error:', error.response);
-    } else {
-      // Network or server error
+      // Optionally show a toast or notification for all API errors
+      // window.alert('API Error: ' + (error.response.data?.detail || error.response.statusText));
+    } else if (error.request) {
+      // Network or CORS error
       console.error('API Error (no response):', error);
+      // Optionally show a toast or notification for network errors
+      // window.alert('Network error: Could not reach backend API.');
+    } else {
+      // Other errors
+      console.error('API Error:', error.message);
     }
     return Promise.reject(error);
   }
 );
+
+// Health check utility for backend connectivity (can be used in all pages)
+export async function checkBackendHealth() {
+  try {
+    const resp = await apiClient.get('/api/health/');
+    return resp.data;
+  } catch (err) {
+    console.error('Backend health check failed:', err);
+    return null;
+  }
+}
 
 export default apiClient;
 

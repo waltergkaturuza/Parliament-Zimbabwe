@@ -31,29 +31,63 @@ else:
 logging.basicConfig(level=logging.INFO)
 logging.info(f"[Startup] ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
-# Database - Azure PostgreSQL
-if os.environ.get('DB_PASSWORD'):
+# Database - Azure PostgreSQL (NO SQLite fallback in production)
+import dj_database_url
+
+# First try DATABASE_URL (preferred method)
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=os.environ.get("DATABASE_URL")
+        )
+    }
+    print(f"[DEBUG] Using DATABASE_URL connection")
+else:
+    # Use individual environment variables
+    # These MUST be set in Azure App Service configuration
+    db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME')
+    db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER')
+    db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD')
+    db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST')
+    db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
+    
+    print(f"[DEBUG] DB_NAME: {db_name}")
+    print(f"[DEBUG] DB_USER: {db_user}")
+    print(f"[DEBUG] DB_HOST: {db_host}")
+    
+    if not all([db_name, db_user, db_password, db_host]):
+        raise ValueError(
+            "Missing required database environment variables. "
+            "Set DATABASE_URL or all of: DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST"
+        )
+    
+    # Format username for Azure PostgreSQL (user@server format)
+    if '@' not in db_user and 'azure.com' in db_host:
+        server_name = db_host.split('.')[0]  # Extract server name from FQDN
+        db_user = f"{db_user}@{server_name}"
+        print(f"[DEBUG] Using Azure PostgreSQL user format: {db_user}")
+    
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'postgres'),
-            'USER': os.environ.get('DB_USER', 'yekrzopkqr'),
-            'PASSWORD': os.environ.get('DB_PASSWORD'),
-            'HOST': os.environ.get('DB_HOST', 'parliament-fuel-postgres.postgres.database.azure.com'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
+            'NAME': db_name,
+            'USER': db_user,
+            'PASSWORD': db_password,
+            'HOST': db_host,
+            'PORT': db_port,
             'OPTIONS': {
-                'sslmode': 'require',
+                'sslmode': 'require',  # Required for Azure PostgreSQL
             },
         }
     }
-else:
-    # Fallback to SQLite for initial testing
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+
+# Debug database configuration
+print(f"[DEBUG] Final DATABASES config:")
+print(f"[DEBUG] ENGINE: {DATABASES['default']['ENGINE']}")
+print(f"[DEBUG] NAME: {DATABASES['default']['NAME']}")
+print(f"[DEBUG] USER: {DATABASES['default']['USER']}")
+print(f"[DEBUG] HOST: {DATABASES['default']['HOST']}")
+print(f"[DEBUG] PORT: {DATABASES['default']['PORT']}")
 
 # Azure Key Vault for secrets
 _env_secret_key = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
@@ -62,12 +96,22 @@ print(f"[DEBUG] SECRET_KEY: {os.environ.get('SECRET_KEY')}")
 print(f"[DEBUG] Environment SECRET_KEY present: {bool(_env_secret_key)}")
 print(f"[DEBUG] Environment SECRET_KEY length: {len(_env_secret_key) if _env_secret_key else 0}")
 
-SECRET_KEY = _env_secret_key
-if not SECRET_KEY:
+# Ensure SECRET_KEY is never empty
+if _env_secret_key and _env_secret_key.strip():
+    SECRET_KEY = _env_secret_key.strip()
+    print(f'[DEBUG] Using environment SECRET_KEY')
+else:
     print('[DEBUG] SECRET_KEY is missing or empty! Using fallback.')
-    SECRET_KEY = 'fallback-key-for-emergency-only-not-secure'
+    SECRET_KEY = 'fallback-key-for-emergency-only-not-secure-django-insecure-1234567890'
     logging.error('[Startup] SECRET_KEY is missing or empty!')
+
+# Validate SECRET_KEY is not empty
+if not SECRET_KEY:
+    SECRET_KEY = 'emergency-fallback-key-for-development-only-1234567890abcdef'
+    print('[DEBUG] Emergency fallback SECRET_KEY applied!')
+
 # Log SECRET_KEY length and first/last chars for debug (never log full key)
+print(f"[DEBUG] Final SECRET_KEY length: {len(SECRET_KEY)}")
 logging.info(f"[Startup] SECRET_KEY: length={len(SECRET_KEY)}, startswith={SECRET_KEY[:4]}, endswith={SECRET_KEY[-4:]}")
 
 # Business Central Settings (Production)
