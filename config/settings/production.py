@@ -210,17 +210,33 @@ else:
     STATIC_URL = '/static/'
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Security settings for production
+# Security settings for production (Azure App Service compatible)
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SECURE_HSTS_SECONDS = 31536000  # 1 year
+
+# Azure App Service handles HTTPS termination, so we need to be careful with SSL settings
+# Only enable HSTS and SSL redirect if we have a custom domain with proper SSL setup
+USE_HTTPS = os.environ.get('USE_HTTPS', 'False').lower() == 'true'
+
+if USE_HTTPS:
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+else:
+    # For Azure App Service without custom domain, disable SSL redirect to prevent loops
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    print("[DEBUG] SSL redirect disabled for Azure App Service compatibility")
+
 SECURE_REDIRECT_EXEMPT = []
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
 X_FRAME_OPTIONS = 'DENY'
+
+# Trust the Azure load balancer's headers for HTTPS detection
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Logging configuration (Azure-compatible)
 LOGGING = {
