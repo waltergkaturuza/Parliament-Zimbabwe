@@ -34,38 +34,20 @@ logging.info(f"[Startup] ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 # Database - Azure PostgreSQL (NO SQLite fallback in production)
 import dj_database_url
 
-# First try DATABASE_URL (preferred method)
-if os.environ.get('DATABASE_URL'):
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=os.environ.get("DATABASE_URL")
-        )
-    }
-    print(f"[DEBUG] Using DATABASE_URL connection")
-else:
-    # Use individual environment variables
-    # These MUST be set in Azure App Service configuration
-    db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME')
-    db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER')
-    db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD')
-    db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST')
-    db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
-    
+# Priority: Use individual environment variables if available (better for Azure PostgreSQL)
+# These avoid URL encoding issues with usernames containing @ symbol
+db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME')
+db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER')
+db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD')
+db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST')
+db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
+
+# Check if individual variables are available (preferred for Azure)
+if all([db_name, db_user, db_password, db_host]):
+    print(f"[DEBUG] Using individual environment variables")
     print(f"[DEBUG] DB_NAME: {db_name}")
     print(f"[DEBUG] DB_USER: {db_user}")
     print(f"[DEBUG] DB_HOST: {db_host}")
-    
-    if not all([db_name, db_user, db_password, db_host]):
-        raise ValueError(
-            "Missing required database environment variables. "
-            "Set DATABASE_URL or all of: DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST"
-        )
-    
-    # Format username for Azure PostgreSQL (user@server format)
-    if '@' not in db_user and 'azure.com' in db_host:
-        server_name = db_host.split('.')[0]  # Extract server name from FQDN
-        db_user = f"{db_user}@{server_name}"
-        print(f"[DEBUG] Using Azure PostgreSQL user format: {db_user}")
     
     DATABASES = {
         'default': {
@@ -80,6 +62,20 @@ else:
             },
         }
     }
+# Fallback to DATABASE_URL if individual variables not available
+elif os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=os.environ.get("DATABASE_URL")
+        )
+    }
+    print(f"[DEBUG] Using DATABASE_URL connection")
+else:
+    # This should never happen in production
+    raise ValueError(
+        "Missing required database environment variables. "
+        "Set DATABASE_URL or all of: DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST"
+    )
 
 # Debug database configuration
 print(f"[DEBUG] Final DATABASES config:")

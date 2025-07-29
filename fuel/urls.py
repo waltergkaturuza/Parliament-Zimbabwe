@@ -34,6 +34,9 @@ from .views import (
 # Import debug views
 from .views_debug import test_azure_database, health_check as debug_health_check
 
+# Import setup views
+from .views_setup import create_superuser_api, database_status_api
+
 # Home page API views
 from .views_home import (
     home_stats, recent_activity, system_health, quick_insights
@@ -118,6 +121,10 @@ urlpatterns = [
     # Debug endpoints for Azure testing
     path('api/debug/azure-db/', test_azure_database, name='test-azure-database'),
     path('api/debug/health/', debug_health_check, name='debug-health-check'),
+    
+    # Setup endpoints for initial deployment
+    path('api/setup/database-status/', database_status_api, name='database-status'),
+    path('api/setup/create-superuser/', create_superuser_api, name='create-superuser'),
     
     # Debug endpoints for Azure deployment testing
     path('api/debug/test-db/', test_azure_database, name='test-azure-database'),
