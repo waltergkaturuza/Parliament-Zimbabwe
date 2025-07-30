@@ -41,7 +41,7 @@ async function getStatistics(): Promise<StatisticsData> {
 // Fetch all coupons (permissions based on user role on the backend)
 export const fetchCoupons = async (): Promise<Coupon[]> => {
   try {
-    const response = await apiClient.get<Coupon[]>('/coupons/');
+    const response = await apiClient.get<Coupon[]>('/api/v1/coupons/');
     return response.data;
   } catch (error: any) {
     console.error('Error fetching coupons:', error);

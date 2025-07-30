@@ -11,9 +11,12 @@ echo.
 echo Step 1: Activating virtual environment...
 cd /d "C:\Users\Administrator\Documents\POZ\fuel_coupon_system"
 
-if exist "venv\Scripts\activate.bat" (
+if exist ".venv\Scripts\activate.bat" (
+    call .venv\Scripts\activate.bat
+    echo ✅ Virtual environment activated (.venv)
+) else if exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
-    echo ✅ Virtual environment activated
+    echo ✅ Virtual environment activated (venv)
 ) else if exist "source\Scripts\activate.bat" (
     call source\Scripts\activate.bat
     echo ✅ Virtual environment activated (source folder)

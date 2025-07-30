@@ -1,0 +1,12 @@
+[
+  {
+    "model": "fuel.fueldata",
+    "pk": 1,
+    "fields": {
+      "petrol_price_usd": "1.45",
+      "diesel_price_usd": "1.38",
+      "usd_zwg_exchange_rate": "25.50",
+      "timestamp": "2025-07-29T10:00:00Z"
+    }
+  }
+]
