@@ -1,0 +1,81 @@
+{
+  "$schema": "https://github.com/Azure/data-api-builder/releases/latest/download/dab.draft.schema.json",
+  "data-source": {
+    "database-type": "postgresql",
+    "connection-string": "@env('DATABASE_CONNECTION_STRING')",
+    "options": {
+      "set-session-context": false
+    }
+  },
+  "runtime": {
+    "rest": {
+      "enabled": true,
+      "path": "/api"
+    },
+    "graphql": {
+      "enabled": true,
+      "path": "/graphql",
+      "allow-introspection": true
+    },
+    "host": {
+      "cors": {
+        "origins": [
+          "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",
+          "http://localhost:3000",
+          "http://localhost:5173"
+        ],
+        "allow-credentials": false
+      },
+      "authentication": {
+        "provider": "StaticWebApps"
+      }
+    }
+  },
+  "entities": {
+    "User": {
+      "source": "auth_user",
+      "permissions": [
+        {
+          "role": "authenticated",
+          "actions": ["read"]
+        }
+      ]
+    },
+    "FuelTransaction": {
+      "source": "fuel_fueltransaction",
+      "permissions": [
+        {
+          "role": "authenticated",
+          "actions": ["create", "read", "update"]
+        }
+      ]
+    },
+    "FuelData": {
+      "source": "fuel_fueldata",
+      "permissions": [
+        {
+          "role": "authenticated",
+          "actions": ["read"]
+        }
+      ]
+    },
+    "Book": {
+      "source": "fuel_book",
+      "permissions": [
+        {
+          "role": "authenticated",
+          "actions": ["read"]
+        }
+      ]
+    },
+    "CouponDistribution": {
+      "source": "fuel_coupondistribution",
+      "permissions": [
+        {
+          "role": "authenticated",
+          "actions": ["create", "read", "update"]
+        }
+      ]
+    }
+  }
+}
