@@ -27,3 +27,4 @@ msal==1.28.0
 requests==2.31.0
 applicationinsights==0.11.10
 dj-database-url==2.1.0
+whitenoise==6.9.0
