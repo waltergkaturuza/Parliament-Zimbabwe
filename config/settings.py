@@ -152,10 +152,10 @@ if os.environ.get('DATABASE_URL'):
     }
 elif os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME'):
     # Use environment variables for Azure PostgreSQL
-    db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME', 'fuel_db')
-    db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER', 'postgres')
-    db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', 'katuruza')
-    db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST', 'localhost')
+    db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME', 'parliament-fuel-db')
+    db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER', 'yalezopkar')
+    db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', 'MyNewSecurePass123')
+    db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST', 'parliament-fuel-postgres.postgres.database.azure.com')
     db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
     
     # For Azure PostgreSQL, format username with @servername suffix if needed
