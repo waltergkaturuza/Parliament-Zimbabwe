@@ -27,7 +27,7 @@ from .views import (
     # Business Central integration
     test_business_central_connection,
     
-    # CORS test views
+    # CORS test views - now in main views.py
     cors_test, health_check,
 )
 
