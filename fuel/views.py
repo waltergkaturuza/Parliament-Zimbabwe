@@ -21,10 +21,8 @@ from .views_main import (
     BoxViewSet,
     BookViewSet,
     CouponViewSet,
-    CouponDistributionViewSet,
-    FuelDataViewSet,
+    CouponAllocationViewSet,  # This is the correct name, not CouponDistributionViewSet
     FuelTransactionViewSet,
-    HandoverViewSet,
     
     # Parliament-specific ViewSets
     BeneficiaryCategoryViewSet,
@@ -47,6 +45,10 @@ from .views_main import (
     # System ViewSets
     SystemAlertViewSet,
     AuditLogViewSet,
+    
+    # Missing ViewSets - Added
+    FuelDataViewSet,
+    CouponDistributionViewSet,
     
     # Admin views
     admin_dashboard,
