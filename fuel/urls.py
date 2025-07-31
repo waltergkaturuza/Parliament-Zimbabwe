@@ -8,7 +8,8 @@ from .views import (
     admin_dashboard, fuel_statistics, analytics_view,
     
     # Existing ViewSets
-    UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
+    UserViewSet, SubCenterViewSet, SubCenterOfficerViewSet, BoxViewSet, BookViewSet, CouponViewSet,
+    FuelTransactionViewSet,
     
     # New Parliament-specific ViewSets
     BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
@@ -23,6 +24,9 @@ from .views import (
     
     # System management ViewSets
     SystemAlertViewSet, AuditLogViewSet,
+    
+    # Missing ViewSets - Added
+    FuelDataViewSet, CouponDistributionViewSet,
     
     # Business Central integration
     test_business_central_connection,
@@ -54,11 +58,13 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'subcenters', SubCenterViewSet, basename='subcenter')
 router.register(r'sub-centers', SubCenterViewSet, basename='subcenter-alias')  # Alias for frontend compatibility
+router.register(r'subcenter-officers', SubCenterOfficerViewSet, basename='subcenter-officer')
 
 # Coupon management
 router.register(r'boxes', BoxViewSet, basename='box')
 router.register(r'books', BookViewSet, basename='book')
 router.register(r'coupons', CouponViewSet, basename='coupon')
+router.register(r'fuel-transactions', FuelTransactionViewSet, basename='fuel-transaction')
 
 # Dispatch and allocation management
 router.register(r'dispatches', BookDispatchViewSet, basename='dispatch')
@@ -81,6 +87,10 @@ router.register(r'vehicle-assignments', VehicleAssignmentViewSet, basename='vehi
 # System management
 router.register(r'system-alerts', SystemAlertViewSet, basename='system-alert')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
+
+# Data management - Missing ViewSets Added
+router.register(r'fuel-data', FuelDataViewSet, basename='fuel-data')
+router.register(r'coupon-distributions', CouponDistributionViewSet, basename='coupon-distribution')
 
 # Programs and attendance (legacy)
 # router.register(r'programs', ProgramViewSet, basename='program')  # TODO: Implement Program model

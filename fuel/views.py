@@ -5,10 +5,6 @@ This file imports all views from the modular view files for easy access.
 """
 
 # Import all views from the main views module
-from .views_main import *  # This includes all the main ViewSets and authentication views
-from .views_bc import *    # This includes Business Central integration views
-
-# Import specific views that might be needed elsewhere
 from .views_main import (
     # Authentication views
     RegisterView,
@@ -40,7 +36,6 @@ from .views_main import (
     
     # Dispatch ViewSets
     BookDispatchViewSet,
-    CouponAllocationViewSet,
     
     # System ViewSets
     SystemAlertViewSet,
@@ -52,6 +47,19 @@ from .views_main import (
     
     # Admin views
     admin_dashboard,
+    fuel_statistics,
+    analytics_view,
+    
+    # CORS and health check views
+    cors_test,
+    health_check,
+    
+    # Business Central test view
+    test_business_central_connection,
+)
+
+# Import Business Central views
+from .views_bc import *    # This includes Business Central integration views
     fuel_statistics,
     analytics_view,
     

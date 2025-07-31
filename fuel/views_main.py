@@ -33,7 +33,7 @@ from .serializers import (
     BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer,
     ParliamentSessionSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
     BulkCouponAllocationSerializer,
-    BookDispatchSerializer, CouponAllocationSerializer,
+    BookDispatchSerializer, CouponAllocationSerializer, CouponDistributionSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer
 )
@@ -2414,6 +2414,180 @@ class SessionAttendanceViewSet(viewsets.ModelViewSet):
                 'total_fuel_received': float(total_fuel_received)
             },
             'recent_attendances': serializer.data
+        })
+
+
+# ================================================================================================
+# Missing ViewSets - Added to complete the system
+# ================================================================================================
+
+class FuelDataViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing fuel price data and statistics
+    """
+    queryset = FuelData.objects.all()
+    serializer_class = FuelStatsSerializer
+    permission_classes = [IsAuthenticated & (MainCenterPermission | AdminPermission | AuditorPermission)]
+    ordering = ['-timestamp']
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # Filter by date range if provided
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if start_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(timestamp__date__gte=start_date)
+            except ValueError:
+                pass
+                
+        if end_date:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(timestamp__date__lte=end_date)
+            except ValueError:
+                pass
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def latest(self, request):
+        """Get the latest fuel data entry"""
+        try:
+            latest_data = self.get_queryset().latest('timestamp')
+            serializer = self.get_serializer(latest_data)
+            return Response(serializer.data)
+        except FuelData.DoesNotExist:
+            return Response({'error': 'No fuel data available'}, status=404)
+    
+    @action(detail=False, methods=['get'])
+    def price_trends(self, request):
+        """Get fuel price trends over time"""
+        queryset = self.get_queryset().order_by('timestamp')
+        
+        # Get data for the last 30 days by default
+        days = int(request.query_params.get('days', 30))
+        since_date = timezone.now() - timedelta(days=days)
+        queryset = queryset.filter(timestamp__gte=since_date)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'period_days': days,
+            'data_points': len(serializer.data),
+            'trends': serializer.data
+        })
+
+
+class CouponDistributionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing coupon distributions to beneficiaries
+    """
+    queryset = CouponDistribution.objects.all()
+    serializer_class = CouponDistributionSerializer
+    permission_classes = [IsAuthenticated & (MainCenterPermission | SubCenterPermission | AdminPermission)]
+    ordering = ['-distribution_date']
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # Filter based on user role
+        if user.role == 'SUB_CENTER':
+            # Sub-center officers can only see distributions they made or for their center
+            if hasattr(user, 'sub_center_officer') and user.sub_center_officer.sub_center:
+                sub_center = user.sub_center_officer.sub_center
+                queryset = queryset.filter(
+                    models.Q(distributed_by=user) |
+                    models.Q(coupon__book__box__current_location=sub_center)
+                )
+            else:
+                queryset = queryset.filter(distributed_by=user)
+        elif user.role == 'BENEFICIARY':
+            # Beneficiaries can only see their own distributions
+            queryset = queryset.filter(beneficiary=user)
+        
+        # Filter by beneficiary if requested
+        beneficiary_id = self.request.query_params.get('beneficiary')
+        if beneficiary_id:
+            queryset = queryset.filter(beneficiary_id=beneficiary_id)
+        
+        # Filter by date range if provided
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if start_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(distribution_date__date__gte=start_date)
+            except ValueError:
+                pass
+                
+        if end_date:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(distribution_date__date__lte=end_date)
+            except ValueError:
+                pass
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Set the distributed_by field to the current user"""
+        serializer.save(distributed_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def by_beneficiary(self, request):
+        """Get distribution summary by beneficiary"""
+        queryset = self.get_queryset()
+        
+        # Aggregate distributions by beneficiary
+        beneficiary_stats = queryset.values(
+            'beneficiary__id',
+            'beneficiary__first_name',
+            'beneficiary__last_name',
+            'beneficiary__username'
+        ).annotate(
+            total_distributions=Count('id'),
+            latest_distribution=models.Max('distribution_date')
+        ).order_by('-total_distributions')
+        
+        return Response({
+            'beneficiary_statistics': list(beneficiary_stats),
+            'total_beneficiaries': len(beneficiary_stats)
+        })
+    
+    @action(detail=False, methods=['get'])
+    def distribution_summary(self, request):
+        """Get overall distribution statistics"""
+        queryset = self.get_queryset()
+        
+        # Overall statistics
+        total_distributions = queryset.count()
+        today_distributions = queryset.filter(
+            distribution_date__date=timezone.now().date()
+        ).count()
+        this_week_distributions = queryset.filter(
+            distribution_date__gte=timezone.now() - timedelta(days=7)
+        ).count()
+        this_month_distributions = queryset.filter(
+            distribution_date__gte=timezone.now() - timedelta(days=30)
+        ).count()
+        
+        # Recent distributions
+        recent_distributions = queryset[:10]
+        serializer = self.get_serializer(recent_distributions, many=True)
+        
+        return Response({
+            'statistics': {
+                'total_distributions': total_distributions,
+                'today_distributions': today_distributions,
+                'this_week_distributions': this_week_distributions,
+                'this_month_distributions': this_month_distributions
+            },
+            'recent_distributions': serializer.data
         })
 
 
