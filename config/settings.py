@@ -21,6 +21,9 @@ ALLOWED_HOSTS = [
     'localhost', 
     AZURE_HOSTNAME,  # Actual Azure hostname
     'parliament-fuel-system.azurewebsites.net',  # Alternative hostname
+    '169.254.131.3',  # Azure internal health check IP
+    '169.254.131.1',  # Azure internal load balancer IP
+    '169.254.131.2',  # Azure internal services IP
 ]
 
 # Add environment variable support for additional hosts
