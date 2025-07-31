@@ -18,6 +18,11 @@ else:
         'parliament.gov.zw',
         'localhost',
         '127.0.0.1',
+        '169.254.131.6',  # Azure internal IP
+        '169.254.131.1',  # Azure internal IP  
+        '169.254.131.5',  # Azure internal IP
+        '0.0.0.0',        # Wildcard for Azure
+        '*',              # Allow all (temporary for debugging)
     ]
 
 # Database - Azure PostgreSQL with fallback handling
