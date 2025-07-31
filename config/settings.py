@@ -76,6 +76,7 @@ CSRF_TRUSTED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
+    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Explicit frontend URL
 ]
 
 # CORS settings
@@ -89,10 +90,11 @@ CORS_ALLOWED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
+    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Explicit frontend URL
 ]
 
 # Additional CORS settings for proper preflight handling
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all origins in development
+CORS_ALLOW_ALL_ORIGINS = False  # Disable for production security
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_ALLOW_HEADERS = list(default_headers) + [
