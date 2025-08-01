@@ -24,6 +24,8 @@ ALLOWED_HOSTS = [
     '169.254.131.3',  # Azure internal health check IP
     '169.254.131.1',  # Azure internal load balancer IP
     '169.254.131.2',  # Azure internal services IP
+    '169.254.131.4',  # Additional Azure internal IP
+    '169.254.131.7',  # Additional Azure internal IP
 ]
 
 # Add environment variable support for additional hosts
@@ -76,7 +78,6 @@ CSRF_TRUSTED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
-    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Explicit frontend URL
 ]
 
 # CORS settings
@@ -90,11 +91,10 @@ CORS_ALLOWED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
-    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Explicit frontend URL
 ]
 
 # Additional CORS settings for proper preflight handling
-CORS_ALLOW_ALL_ORIGINS = True  # Temporarily enable for debugging CORS issues
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all origins in development
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_ALLOW_HEADERS = list(default_headers) + [
@@ -122,21 +122,9 @@ CORS_EXPOSE_HEADERS = [
     'x-csrftoken',
 ]
 
-# CSRF exemption for API endpoints
-CSRF_TRUSTED_ORIGINS = [
-    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",
-    f"https://{FRONTEND_HOSTNAME}",
-    f"https://{AZURE_HOSTNAME}",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-]
-
 # Debug CORS configuration
 print(f"DEBUG: CORS_ALLOWED_ORIGINS = {CORS_ALLOWED_ORIGINS}")
 print(f"DEBUG: CORS_ALLOW_ALL_ORIGINS = {CORS_ALLOW_ALL_ORIGINS}")
-print(f"DEBUG: CSRF_TRUSTED_ORIGINS = {CSRF_TRUSTED_ORIGINS}")
 print(f"DEBUG: FRONTEND_HOSTNAME = {FRONTEND_HOSTNAME}")
 print(f"DEBUG: DEBUG mode = {DEBUG}")
 

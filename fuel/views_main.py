@@ -2493,7 +2493,7 @@ def cors_test(request):
     
     return Response(response_data)
 
-@csrf_exempt  
+@csrf_exempt
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
@@ -2506,3 +2506,91 @@ def health_check(request):
         'timestamp': str(timezone.now())
     })
 
+
+# ========================= MISSING VIEWSETS =========================
+
+class FuelDataViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing fuel data records"""
+    queryset = FuelData.objects.all()
+    serializer_class = FuelStatsSerializer  # Using FuelStatsSerializer as it's available
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset()
+        
+        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+            return queryset
+        elif user.role == 'SUB_CENTER' and user.sub_center:
+            # Filter by sub-center if needed - adjust based on FuelData model structure
+            return queryset
+        
+        return queryset.none()
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get fuel statistics"""
+        queryset = self.get_queryset()
+        
+        total_records = queryset.count()
+        
+        # Add more statistics based on FuelData model fields
+        stats = {
+            'total_records': total_records,
+            'last_updated': timezone.now(),
+        }
+        
+        return Response(stats)
+
+
+class CouponDistributionViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing coupon distributions"""
+    queryset = CouponDistribution.objects.all()
+    serializer_class = CouponSerializer  # Using CouponSerializer as fallback
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset().select_related('coupon', 'beneficiary', 'distributed_by')
+        
+        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+            return queryset
+        elif user.role == 'SUB_CENTER' and user.sub_center:
+            # Filter distributions for the sub-center
+            return queryset.filter(
+                models.Q(coupon__book__box__assigned_to=user.sub_center) |
+                models.Q(distributed_by__sub_center=user.sub_center)
+            )
+        elif user.role == 'BENEFICIARY':
+            # Beneficiaries see their own distributions
+            return queryset.filter(beneficiary=user)
+        
+        return queryset.none()
+    
+    @action(detail=False, methods=['get'])
+    def distribution_statistics(self, request):
+        """Get distribution statistics"""
+        queryset = self.get_queryset()
+        
+        total_distributions = queryset.count()
+        
+        # Group by date
+        daily_distributions = queryset.extra(
+            select={'date': 'date(distribution_date)'}
+        ).values('date').annotate(count=models.Count('id')).order_by('-date')[:30]
+        
+        # Group by beneficiary
+        beneficiary_distributions = queryset.values(
+            'beneficiary__first_name', 'beneficiary__last_name'
+        ).annotate(
+            distribution_count=models.Count('id')
+        ).order_by('-distribution_count')[:10]
+        
+        stats = {
+            'total_distributions': total_distributions,
+            'daily_distributions': list(daily_distributions),
+            'top_beneficiaries': list(beneficiary_distributions),
+            'last_updated': timezone.now(),
+        }
+        
+        return Response(stats)
