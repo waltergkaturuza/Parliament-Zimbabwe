@@ -381,7 +381,8 @@ if DEBUG_PRODUCTION_ISSUES:
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOWED_ORIGINS = []  # Clear specific origins when allowing all
     
-    MIDDLEWARE.insert(1, 'utils.cors_debug.CORSDebugMiddleware')
+    # Remove the debug middleware insertion since it doesn't exist
+    # MIDDLEWARE.insert(1, 'utils.cors_debug.CORSDebugMiddleware')
     # Enable more detailed logging for production debugging
     LOGGING['root']['level'] = 'DEBUG'
     LOGGING['loggers']['django']['level'] = 'DEBUG'

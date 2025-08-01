@@ -7,6 +7,10 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView # ð
 from fuel.views import LoginView
 from django.http import JsonResponse
 from django.views.generic import TemplateView
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.utils.decorators import method_decorator
+from django.views import View
 
 def home_view(request):
     """Simple home page view"""
@@ -20,6 +24,30 @@ def home_view(request):
         }
     })
 
+@csrf_exempt
+@require_http_methods(["GET", "POST", "OPTIONS"])
+def cors_test_view(request):
+    """Test endpoint to verify CORS headers"""
+    from django.conf import settings
+    
+    response_data = {
+        'method': request.method,
+        'cors_allow_all_origins': getattr(settings, 'CORS_ALLOW_ALL_ORIGINS', False),
+        'cors_allowed_origins': getattr(settings, 'CORS_ALLOWED_ORIGINS', []),
+        'settings_module': getattr(settings, 'SETTINGS_MODULE', 'unknown'),
+        'message': 'CORS test endpoint working'
+    }
+    
+    response = JsonResponse(response_data)
+    
+    # Manual CORS headers for testing
+    response['Access-Control-Allow-Origin'] = '*'
+    response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response['Access-Control-Max-Age'] = '86400'
+    
+    return response
+
 # JWT Token views
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
@@ -28,6 +56,7 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     path('', home_view, name='home'),  # Add root URL
+    path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
     path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
     path('api/v1/', include('fuel.urls')),
