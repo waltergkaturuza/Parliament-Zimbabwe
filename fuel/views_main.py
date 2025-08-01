@@ -84,7 +84,16 @@ class LoginView(APIView):
     # If you defined CustomTokenObtainPairSerializer, you might use it here
     # serializer_class = CustomTokenObtainPairSerializer
 
-    # Remove manual CORS headers; let django-cors-headers handle OPTIONS
+    def options(self, request, *args, **kwargs):
+        """Manual OPTIONS handler as fallback for CORS"""
+        from django.http import HttpResponse
+        response = HttpResponse()
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+        response['Access-Control-Max-Age'] = '86400'
+        response.status_code = 200
+        return response
 
     def post(self, request):
         print(f"Login attempt - Method: {request.method}")
