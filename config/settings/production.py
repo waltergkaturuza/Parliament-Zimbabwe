@@ -8,14 +8,14 @@ DEBUG = False
 print("[PRODUCTION SETTINGS] Using config/settings/production.py file")
 print(f"[PRODUCTION SETTINGS] CORS_ALLOW_ALL_ORIGINS will be set to True for debugging")
 
-# Override MIDDLEWARE to disable CSRF for debugging
+# Override MIDDLEWARE to enable proper CORS handling
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',  # Temporarily disabled for CORS debugging
+    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enable CSRF protection
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'auth.middleware.RequestLoggingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -324,7 +324,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True  # Enable for debugging CORS issues
+CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
 CORS_PREFLIGHT_MAX_AGE = 86400  # 1 day
 
 # More comprehensive CORS headers
@@ -374,18 +374,12 @@ SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Debug CORS issues and enable detailed logging for troubleshooting
+# Debug CORS issues - Fixed configuration
 DEBUG_PRODUCTION_ISSUES = os.environ.get('DEBUG_PRODUCTION_ISSUES', 'True').lower() == 'true'
 if DEBUG_PRODUCTION_ISSUES:
-    # Temporarily allow all origins for debugging
-    CORS_ALLOW_ALL_ORIGINS = True
-    CORS_ALLOWED_ORIGINS = []  # Clear specific origins when allowing all
-    
-    # Remove the debug middleware insertion since it doesn't exist
-    # MIDDLEWARE.insert(1, 'utils.cors_debug.CORSDebugMiddleware')
     # Enable more detailed logging for production debugging
     LOGGING['root']['level'] = 'DEBUG'
-    LOGGING['loggers']['django']['level'] = 'DEBUG'
+    LOGGING['loggers']['django']['level'] = 'DEBUG' 
     LOGGING['loggers']['fuel']['level'] = 'DEBUG'
 
 # Time zone

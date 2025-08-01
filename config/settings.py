@@ -60,7 +60,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',  # Temporarily disable CSRF for debugging
+    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enable CSRF protection
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -93,7 +93,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Additional CORS settings for proper preflight handling
-CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins for testing
+CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
 CORS_ALLOW_CREDENTIALS = True
 CORS_REPLACE_HTTPS_REFERER = True  # Important for Azure deployments
 CORS_PREFLIGHT_MAX_AGE = 86400
