@@ -52,7 +52,6 @@ User = get_user_model()
 
 # --- Authentication Views (Keeping as they were provided, added user detail in login) ---
 
-@method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
@@ -78,22 +77,10 @@ class RegisterView(generics.CreateAPIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     permission_classes = [AllowAny]
     # If you defined CustomTokenObtainPairSerializer, you might use it here
     # serializer_class = CustomTokenObtainPairSerializer
-
-    def options(self, request, *args, **kwargs):
-        """Manual OPTIONS handler as fallback for CORS"""
-        from django.http import HttpResponse
-        response = HttpResponse()
-        response['Access-Control-Allow-Origin'] = '*'
-        response['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
-        response['Access-Control-Max-Age'] = '86400'
-        response.status_code = 200
-        return response
 
     def post(self, request):
         print(f"Login attempt - Method: {request.method}")
