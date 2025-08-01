@@ -94,8 +94,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Additional CORS settings for proper preflight handling
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for testing
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_ALL_ORIGINS = False  # Only allow listed origins in production
+CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',

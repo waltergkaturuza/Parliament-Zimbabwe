@@ -84,14 +84,7 @@ class LoginView(APIView):
     # If you defined CustomTokenObtainPairSerializer, you might use it here
     # serializer_class = CustomTokenObtainPairSerializer
 
-    def options(self, request, *args, **kwargs):
-        """Handle CORS preflight requests"""
-        response = Response(status=status.HTTP_200_OK)
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
-        response["Access-Control-Max-Age"] = "86400"
-        return response
+    # Remove manual CORS headers; let django-cors-headers handle OPTIONS
 
     def post(self, request):
         print(f"Login attempt - Method: {request.method}")
@@ -122,10 +115,6 @@ class LoginView(APIView):
                         'status': 'pending'
                     }, status=status.HTTP_403_FORBIDDEN)
                 
-                # Add CORS headers to error responses
-                response["Access-Control-Allow-Origin"] = "*"
-                response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
-                response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
                 return response
 
             refresh = RefreshToken.for_user(user)
@@ -150,20 +139,12 @@ class LoginView(APIView):
                 'user': SimpleUserSerializer(user).data, # Include user details in login response
             }, status=status.HTTP_200_OK)
             
-            # Add CORS headers to response
-            response["Access-Control-Allow-Origin"] = "*"
-            response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
-            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
             return response
         else:
             print(f"Authentication failed for username: {username}")
             # Use a consistent error response format
             response = Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
             
-            # Add CORS headers to error response
-            response["Access-Control-Allow-Origin"] = "*"
-            response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
-            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
             return response
 
 
