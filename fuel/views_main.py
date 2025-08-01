@@ -86,11 +86,11 @@ class LoginView(APIView):
 
     def options(self, request, *args, **kwargs):
         """Handle CORS preflight requests"""
-        response = Response()
+        response = Response(status=status.HTTP_200_OK)
         response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
+        response["Access-Control-Max-Age"] = "86400"
         return response
 
     def post(self, request):
@@ -111,16 +111,22 @@ class LoginView(APIView):
             # Check if user is approved
             if not getattr(user, 'is_approved', True):  # Use getattr for backwards compatibility
                 if getattr(user, 'rejection_reason', None):
-                    return Response({
+                    response = Response({
                         'detail': 'Your registration has been rejected.',
                         'reason': user.rejection_reason,
                         'status': 'rejected'
                     }, status=status.HTTP_403_FORBIDDEN)
                 else:
-                    return Response({
+                    response = Response({
                         'detail': 'Your registration is pending approval. Please wait for an administrator to approve your account.',
                         'status': 'pending'
                     }, status=status.HTTP_403_FORBIDDEN)
+                
+                # Add CORS headers to error responses
+                response["Access-Control-Allow-Origin"] = "*"
+                response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
+                response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
+                return response
 
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
@@ -138,15 +144,27 @@ class LoginView(APIView):
             access_token = str(access_token_obj.access_token)
 
             print(f"Login successful for user: {user.username}")
-            return Response({
+            response = Response({
                 'refresh': refresh_token_string,
                 'access': access_token,
                 'user': SimpleUserSerializer(user).data, # Include user details in login response
             }, status=status.HTTP_200_OK)
+            
+            # Add CORS headers to response
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
+            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
+            return response
         else:
             print(f"Authentication failed for username: {username}")
             # Use a consistent error response format
-            return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            response = Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Add CORS headers to error response
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
+            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
+            return response
 
 
 # --- Existing ViewSets (Updated Permissions and Querysets) ---
