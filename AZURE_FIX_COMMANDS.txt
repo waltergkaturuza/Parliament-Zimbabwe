@@ -1,0 +1,22 @@
+# Manual Azure Console Commands to Fix Migration Issue
+# Run these commands one by one in the Azure App Service SSH console
+
+# 1. Reset to the last working migration
+python manage.py migrate fuel 0022 --fake
+
+# 2. Check if there are any conflicting migration files
+ls -la fuel/migrations/*0023*
+
+# 3. Apply our corrected migration
+python manage.py migrate
+
+# 4. Verify everything worked
+python manage.py showmigrations fuel
+
+# 5. Test the system
+python manage.py check
+
+# 6. Create a superuser if needed (optional)
+# python manage.py createsuperuser --noinput --username admin --email admin@parliament.gov.zw
+
+echo "✅ Migration fix complete - the system should now work!"

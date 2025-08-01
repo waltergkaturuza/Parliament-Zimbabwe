@@ -122,9 +122,21 @@ CORS_EXPOSE_HEADERS = [
     'x-csrftoken',
 ]
 
+# CSRF exemption for API endpoints
+CSRF_TRUSTED_ORIGINS = [
+    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",
+    f"https://{FRONTEND_HOSTNAME}",
+    f"https://{AZURE_HOSTNAME}",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+
 # Debug CORS configuration
 print(f"DEBUG: CORS_ALLOWED_ORIGINS = {CORS_ALLOWED_ORIGINS}")
 print(f"DEBUG: CORS_ALLOW_ALL_ORIGINS = {CORS_ALLOW_ALL_ORIGINS}")
+print(f"DEBUG: CSRF_TRUSTED_ORIGINS = {CSRF_TRUSTED_ORIGINS}")
 print(f"DEBUG: FRONTEND_HOSTNAME = {FRONTEND_HOSTNAME}")
 print(f"DEBUG: DEBUG mode = {DEBUG}")
 

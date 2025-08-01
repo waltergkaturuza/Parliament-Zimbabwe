@@ -84,14 +84,6 @@ class LoginView(APIView):
     # If you defined CustomTokenObtainPairSerializer, you might use it here
     # serializer_class = CustomTokenObtainPairSerializer
 
-    def options(self, request, *args, **kwargs):
-        """Handle CORS preflight requests"""
-        response = Response()
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
     def post(self, request):
         print(f"Login attempt - Method: {request.method}")
         print(f"Headers: {dict(request.headers)}")
