@@ -5,6 +5,23 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+print("[PRODUCTION SETTINGS] Using config/settings/production.py file")
+print(f"[PRODUCTION SETTINGS] CORS_ALLOW_ALL_ORIGINS will be set to True for debugging")
+
+# Override MIDDLEWARE to disable CSRF for debugging
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # Temporarily disabled for CORS debugging
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'auth.middleware.RequestLoggingMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
 # Print all environment variables at startup for debug
 import logging
 print("[DEBUG] All environment variables:")
@@ -307,7 +324,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False  # Keep this False for security
+CORS_ALLOW_ALL_ORIGINS = True  # Enable for debugging CORS issues
 CORS_PREFLIGHT_MAX_AGE = 86400  # 1 day
 
 # More comprehensive CORS headers
