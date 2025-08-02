@@ -1,85 +1,104 @@
 #!/usr/bin/env python3
 """
-Quick test script to check if the Azure backend is working
+Test script to check if the Parliament Fuel System backend is accessible
 """
 import requests
-import time
+import sys
 
-# Azure backend URL
-BACKEND_URL = "https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net"
+def test_backend_endpoints():
+    base_url = "https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net"
+    
+    endpoints_to_test = [
+        "/",
+        "/health/",
+        "/api/",
+        "/api/health/",
+        "/auth/login/",
+        "/admin/",
+    ]
+    
+    print(f"🔍 Testing backend accessibility: {base_url}")
+    print("=" * 60)
+    
+    for endpoint in endpoints_to_test:
+        full_url = f"{base_url}{endpoint}"
+        try:
+            print(f"Testing: {full_url}")
+            response = requests.get(full_url, timeout=10)
+            print(f"  ✅ Status: {response.status_code}")
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', 'unknown')
+                print(f"  📄 Content-Type: {content_type}")
+                if len(response.text) < 200:
+                    print(f"  📝 Response: {response.text[:100]}...")
+                else:
+                    print(f"  📝 Response length: {len(response.text)} chars")
+            elif response.status_code == 404:
+                print(f"  ⚠️  Endpoint not found")
+            elif response.status_code >= 500:
+                print(f"  ❌ Server error")
+            else:
+                print(f"  ℹ️  Other status")
+                
+        except requests.exceptions.ConnectTimeout:
+            print(f"  ❌ Connection timeout")
+        except requests.exceptions.ConnectionError:
+            print(f"  ❌ Connection error - server not reachable")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
+        
+        print()
 
-def test_health_endpoint():
-    """Test the health check endpoint"""
+def test_login_endpoint():
+    """Test the specific login endpoint that's failing"""
+    login_url = "https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/auth/login/"
+    
+    print("🔐 Testing login endpoint specifically...")
+    print("=" * 60)
+    
+    # Test OPTIONS request (preflight)
     try:
-        print(f"Testing health endpoint: {BACKEND_URL}/api/health/")
-        response = requests.get(f"{BACKEND_URL}/api/health/", timeout=10)
-        print(f"Status Code: {response.status_code}")
-        print(f"Response: {response.json()}")
-        return response.status_code == 200
+        print("Testing OPTIONS (preflight) request...")
+        options_response = requests.options(
+            login_url,
+            headers={
+                'Origin': 'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'content-type,authorization'
+            },
+            timeout=10
+        )
+        print(f"  ✅ OPTIONS Status: {options_response.status_code}")
+        print(f"  📄 Headers: {dict(options_response.headers)}")
+        
     except Exception as e:
-        print(f"Health check failed: {e}")
-        return False
-
-def test_api_v1_endpoint():
-    """Test the API v1 endpoint"""
+        print(f"  ❌ OPTIONS Error: {e}")
+    
+    print()
+    
+    # Test actual POST request
     try:
-        print(f"\nTesting API v1 endpoint: {BACKEND_URL}/api/v1/")
-        response = requests.get(f"{BACKEND_URL}/api/v1/", timeout=10)
-        print(f"Status Code: {response.status_code}")
-        if response.status_code == 200:
-            print(f"Response: {response.json()}")
-        else:
-            print(f"Response Text: {response.text[:500]}")
-        return response.status_code == 200
+        print("Testing POST request...")
+        post_response = requests.post(
+            login_url,
+            json={
+                'username': 'test',
+                'password': 'test'
+            },
+            headers={
+                'Origin': 'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',
+                'Content-Type': 'application/json'
+            },
+            timeout=10
+        )
+        print(f"  ✅ POST Status: {post_response.status_code}")
+        print(f"  📄 Headers: {dict(post_response.headers)}")
+        print(f"  📝 Response: {post_response.text[:200]}...")
+        
     except Exception as e:
-        print(f"API v1 test failed: {e}")
-        return False
-
-def test_admin_endpoint():
-    """Test the admin endpoint"""
-    try:
-        print(f"\nTesting admin endpoint: {BACKEND_URL}/admin/")
-        response = requests.get(f"{BACKEND_URL}/admin/", timeout=10)
-        print(f"Status Code: {response.status_code}")
-        # Admin should redirect to login, so 302 or 200 is good
-        return response.status_code in [200, 302]
-    except Exception as e:
-        print(f"Admin test failed: {e}")
-        return False
+        print(f"  ❌ POST Error: {e}")
 
 if __name__ == "__main__":
-    print("🔍 Testing Parliament Fuel System Backend...")
-    print("=" * 50)
-    
-    # Wait a moment for Azure to deploy
-    print("⏳ Waiting 15 seconds for Azure deployment...")
-    time.sleep(15)
-    
-    tests_passed = 0
-    total_tests = 3
-    
-    if test_health_endpoint():
-        tests_passed += 1
-        print("✅ Health check PASSED")
-    else:
-        print("❌ Health check FAILED")
-    
-    if test_api_v1_endpoint():
-        tests_passed += 1
-        print("✅ API v1 endpoint PASSED")
-    else:
-        print("❌ API v1 endpoint FAILED")
-    
-    if test_admin_endpoint():
-        tests_passed += 1
-        print("✅ Admin endpoint PASSED")
-    else:
-        print("❌ Admin endpoint FAILED")
-    
-    print("\n" + "=" * 50)
-    print(f"🎯 Test Results: {tests_passed}/{total_tests} tests passed")
-    
-    if tests_passed == total_tests:
-        print("🎉 All tests passed! Backend is working correctly.")
-    else:
-        print(f"⚠️  {total_tests - tests_passed} tests failed. Backend may need more time to deploy.")
+    test_backend_endpoints()
+    print("\n" + "=" * 60 + "\n")
+    test_login_endpoint()
