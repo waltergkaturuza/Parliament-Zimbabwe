@@ -4,7 +4,6 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView # 👈 Import these
-from fuel.views import LoginView
 from django.http import JsonResponse
 from django.views.generic import TemplateView
 from django.views.decorators.csrf import csrf_exempt
