@@ -11,6 +11,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorPage from '@/pages/ErrorPage';
 import UserFormDialog from '@/components/UserFormDialog';
 import ParliamentLogo from '@/components/ParliamentLogo';
+import { ExportButtons, ViewButton } from '@/components/ui/export-buttons';
 
 const UserManagement = () => {
   const queryClient = useQueryClient();
@@ -58,14 +59,30 @@ const UserManagement = () => {
   return (
     <div>
       {/* Header with Parliament Logo */}
-      <div className="flex items-center gap-4 mb-6 pb-4 border-b">
-        <ParliamentLogo size="xs" showText={true} />
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+      <div className="flex items-center justify-between mb-6 pb-4 border-b">
+        <div className="flex items-center gap-4">
+          <ParliamentLogo size="xs" showText={true} />
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+        </div>
+        <div className="flex gap-2">
+          <ExportButtons 
+            entityType="users" 
+            showPrint={true}
+            showView={false}
+            showTemplate={true}
+            className="flex-shrink-0"
+          />
+        </div>
       </div>
       
-      <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => handleOpenForm()}>
-        Add New User
-      </Button>
+      <div className="flex justify-between items-center mb-4">
+        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => handleOpenForm()}>
+          Add New User
+        </Button>
+        <div className="text-sm text-gray-600">
+          Total Users: {users?.length || 0}
+        </div>
+      </div>
 
       <TableContainer component={Paper} sx={{ mt: 2 }}>
         <Table>
@@ -92,8 +109,17 @@ const UserManagement = () => {
                 <TableCell>{user.role}</TableCell>
                 <TableCell>{user.is_active ? 'Yes' : 'No'}</TableCell>
                 <TableCell align="right">
-                  <IconButton onClick={() => handleOpenForm(user)}><EditIcon /></IconButton>
-                  <IconButton color="error" onClick={() => setDeleteConfirm({ open: true, user })}><DeleteIcon /></IconButton>
+                  <div className="flex gap-1">
+                    <ViewButton 
+                      data={user} 
+                      title={`User Details: ${user.username}`}
+                      className="p-1 min-w-0"
+                    >
+                      <span className="text-xs">View</span>
+                    </ViewButton>
+                    <IconButton size="small" onClick={() => handleOpenForm(user)}><EditIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, user })}><DeleteIcon fontSize="small" /></IconButton>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

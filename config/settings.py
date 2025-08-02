@@ -149,12 +149,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration - Azure PostgreSQL with fallbacks
+import dj_database_url
+
 if os.environ.get('DATABASE_URL'):
     # Parse DATABASE_URL if provided
-    import dj_database_url
     DATABASES = {
         'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
     }
+    print(f"DEBUG: Using DATABASE_URL = {os.environ.get('DATABASE_URL')[:50]}...")
 elif os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME'):
     # Use environment variables for Azure PostgreSQL
     db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME', 'parliament-fuel-db')
@@ -196,6 +198,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+    print("DEBUG: Using SQLite database for local development")
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

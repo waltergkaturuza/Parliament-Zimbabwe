@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import styles from './Dashboard.module.css'; // Import CSS module
 import ParliamentLogo from '@/components/ParliamentLogo';
+import { ExportButtons, QuickExportButton } from '../components/ui/export-buttons';
 import type { Role } from '@/types/models';
 
 interface StatsData {
@@ -132,7 +133,17 @@ const Dashboard: React.FC = () => {
                 </ul>
             </nav>
             <div className={styles.mainContent}>
-                <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-bold">Dashboard</h1>
+                    <div className="flex gap-2">
+                        <ExportButtons 
+                            entityType="dashboard" 
+                            showPrint={true}
+                            showView={false}
+                            className="flex-shrink-0"
+                        />
+                    </div>
+                </div>
                 {user && <p className="text-gray-600 mb-4">Logged in as: {user.username} ({user.role})</p>}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
