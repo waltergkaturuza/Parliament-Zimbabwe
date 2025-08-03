@@ -1,35 +1,66 @@
+# Django Core Requirements - Compatible with Django 5.0
 Django==5.0.7
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.0
+
+# Database
 psycopg2-binary==2.9.9
 dj-database-url==2.1.0
+
+# Django Extensions and Utilities
 django-cors-headers==4.3.1
 django-model-utils==4.5.1
 django-extensions==3.2.3
 drf-spectacular==0.27.2
+
+# Caching and Background Tasks
 redis==5.0.1
+celery==5.3.4
+django-celery-beat==2.6.0
+
+# Forms and UI
 django-crispy-forms==2.1
 crispy-bootstrap5==2024.2
-pillow==10.4.0
-reportlab==4.2.2
-qrcode==7.4.2
-python-decouple==3.8
+
+# Authentication and Authorization
 django-allauth==0.57.0
 django-filter==23.5
+
+# File Handling and Images
+pillow==10.4.0
+
+# PDF and Report Generation
+reportlab==4.2.2
+qrcode==7.4.2
+
+# Configuration
+python-decouple==3.8
 python-dateutil==2.9.0
+
+# Communication
 twilio==9.2.3
+
+# WebSocket Support
 channels==4.1.0
 channels-redis==4.2.0
 daphne==4.1.2
+
+# Environment and Configuration
 django-environ==0.11.2
+
+# Production Server
 gunicorn==21.2.0
 uvicorn==0.24.0
+
+# Azure and Microsoft Integration
 msal==1.28.0
 requests==2.31.0
 applicationinsights==0.11.10
+
+# Static Files
 whitenoise==6.9.0
 
-# Export and reporting functionality
+# Export and Reporting
 openpyxl==3.1.2
 pandas==2.2.2
 xlsxwriter==3.2.0
@@ -37,8 +68,8 @@ fpdf2==2.7.9
 WeasyPrint==61.2
 jinja2==3.1.4
 
-# Additional production dependencies
-celery==5.3.4
-django-celery-beat==2.6.0
+# Monitoring and Error Tracking
 sentry-sdk==1.40.6
+
+# Environment Variables
 python-dotenv==1.0.0
