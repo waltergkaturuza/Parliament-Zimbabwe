@@ -2,15 +2,21 @@
 import os
 from .base import *
 
-# Load environment variables from .env.local
-from dotenv import load_dotenv
-load_dotenv(os.path.join(BASE_DIR, '.env.local'))
+# Try to load environment variables from .env.local if it exists
+try:
+    from dotenv import load_dotenv
+    env_file = os.path.join(BASE_DIR, '.env.local')
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+except ImportError:
+    # If dotenv is not available, skip loading .env file
+    pass
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 # ALLOWED_HOSTS for local development
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
 
 # Database - SQLite for local development
 DATABASES = {

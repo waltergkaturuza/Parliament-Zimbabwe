@@ -1,6 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
+
+# Import directly from views_main to avoid circular import issues
+from .views_main import (
     # Authentication views
     RegisterView, LoginView,
     
@@ -24,10 +26,10 @@ from .views import (
     # System management ViewSets
     SystemAlertViewSet, AuditLogViewSet,
     
-    # Business Central integration
+    # Business Central integration - moved from views_bc to views_main
     test_business_central_connection,
     
-    # CORS test views - now in main views.py
+    # CORS test views
     cors_test, health_check,
 )
 
@@ -47,14 +49,15 @@ from .views_home import (
 
 # Business Central production integration views
 from .views_bc_production import (
-    bc_webhook, bc_dashboard_data, BCDashboardView, 
+    bc_webhook, bc_dashboard_data, BCDashboardView,
+    bc_transaction_approve, bc_health_check
+)
 
 # Export and print views
 from .views_export import (
     export_coupons, export_transactions, export_users, export_beneficiaries,
     export_books, print_coupon, print_handover_report, export_dashboard_data,
     download_template
-    bc_transaction_approve, bc_health_check
 )
 
 router = DefaultRouter()

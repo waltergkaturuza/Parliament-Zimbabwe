@@ -17,7 +17,7 @@ import json
 from .models import (
     Coupon, SubCenter, Book, Box, User, FuelData, CouponDistribution, 
     FuelTransaction, SubCenterOfficer, BeneficiaryProfile, AuditLog,
-    HandoverData, BookDispatch, CouponAllocation, FuelEntitlement
+    BookDispatch, CouponAllocation, FuelEntitlement
 )
 from .utils.export_utils import ExportManager, CouponPrintManager
 from .permissions import IsAuthenticated

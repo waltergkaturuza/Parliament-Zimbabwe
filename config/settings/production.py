@@ -6,7 +6,12 @@ from .base import *
 DEBUG = False
 
 print("[PRODUCTION SETTINGS] Using config/settings/production.py file")
-print(f"[PRODUCTION SETTINGS] CORS_ALLOW_ALL_ORIGINS will be set to True for debugging")
+print(f"[PRODUCTION SETTINGS] DEBUG_PRODUCTION_ISSUES will be checked")
+
+# Print Django version and environment
+import django
+print(f"[PRODUCTION SETTINGS] Django version: {django.get_version()}")
+print(f"[PRODUCTION SETTINGS] Python environment variables loaded")
 
 # Override MIDDLEWARE to enable proper CORS handling
 MIDDLEWARE = [
@@ -368,16 +373,22 @@ BC_INTEGRATION_ENABLED = os.environ.get('BC_INTEGRATION_ENABLED', 'True').lower(
 BC_WEBHOOK_SECRET = os.environ.get('BC_WEBHOOK_SECRET', 'change-this-in-production')
 BC_API_TIMEOUT = 30  # seconds
 
-# Site URL for absolute URLs - Use the correct backend URL
-SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
+# Site URL for absolute URLs - Use the actual backend URL
+SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
 
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Debug CORS issues - Fixed configuration
+# Debug CORS issues - Temporary debugging enabled
 DEBUG_PRODUCTION_ISSUES = os.environ.get('DEBUG_PRODUCTION_ISSUES', 'True').lower() == 'true'
 if DEBUG_PRODUCTION_ISSUES:
-    # Enable more detailed logging for production debugging
+    # Temporarily enable more permissive CORS for debugging
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_CREDENTIALS = False  # Must be False when CORS_ALLOW_ALL_ORIGINS is True
+    print("[DEBUG] CORS_ALLOW_ALL_ORIGINS enabled for debugging")
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOW_CREDENTIALS = True
     LOGGING['root']['level'] = 'DEBUG'
     LOGGING['loggers']['django']['level'] = 'DEBUG' 
     LOGGING['loggers']['fuel']['level'] = 'DEBUG'

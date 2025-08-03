@@ -10,15 +10,18 @@ from corsheaders.defaults import default_headers
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-1*p133x5+uzwh8&axhdhi41jq=%&p(9)pzmoyob$(a01)rcs&z')
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
+
+# Enable DEBUG mode for local development
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() == 'true'
 
 # Azure-specific hostname configuration
-AZURE_HOSTNAME = 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
-FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'jolly-ocean-0e0dee90f.2.azurestaticapps.net')
+AZURE_HOSTNAME = os.environ.get('AZURE_HOSTNAME', 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net')
+FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'parliament-fuel-system.azurewebsites.net')
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost', 
+    '0.0.0.0',  # Allow all interfaces for local development
     AZURE_HOSTNAME,  # Actual Azure hostname
     'parliament-fuel-system.azurewebsites.net',  # Alternative hostname
     '169.254.131.3',  # Azure internal health check IP
@@ -27,6 +30,14 @@ ALLOWED_HOSTS = [
     '169.254.131.4',  # Additional Azure internal IP
     '169.254.131.7',  # Additional Azure internal IP
 ]
+
+# For local development, allow all hosts if DEBUG is True
+if DEBUG:
+    ALLOWED_HOSTS.append('*')
+
+# For local development, allow all hosts if DEBUG is True
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
 
 # Add environment variable support for additional hosts
 if os.environ.get('DJANGO_ALLOWED_HOSTS'):
