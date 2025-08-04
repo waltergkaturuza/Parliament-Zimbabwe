@@ -1,0 +1,24 @@
+# AZURE APP SERVICE STARTUP COMMANDS
+# Copy and paste ONE of these commands into the Azure Portal Configuration > Startup Command
+
+# Option 1: Minimal startup (RECOMMENDED)
+python -m gunicorn --bind=0.0.0.0:$PORT --timeout=600 config.wsgi:application
+
+# Option 2: With migrations
+python manage.py migrate --noinput; python -m gunicorn --bind=0.0.0.0:$PORT --timeout=600 config.wsgi:application
+
+# Option 3: Full startup with static files
+python manage.py collectstatic --noinput; python manage.py migrate --noinput; python -m gunicorn --bind=0.0.0.0:$PORT --workers=2 --timeout=600 config.wsgi:application
+
+# Option 4: Use startup script (if the script exists)
+bash startup_simple.sh
+
+# CURRENT RECOMMENDED COMMAND FOR AZURE:
+# python -m gunicorn --bind=0.0.0.0:$PORT --timeout=600 --workers=2 config.wsgi:application
+
+# TROUBLESHOOTING COMMANDS:
+# Test Django setup:
+# python -c "import django; django.setup(); print('Django OK')"
+
+# Check if config.wsgi exists:
+# python -c "from config.wsgi import application; print('WSGI OK')"
