@@ -379,19 +379,19 @@ SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Debug CORS issues - Temporary debugging enabled
+# Debug CORS issues - Fixed configuration
 DEBUG_PRODUCTION_ISSUES = os.environ.get('DEBUG_PRODUCTION_ISSUES', 'True').lower() == 'true'
 if DEBUG_PRODUCTION_ISSUES:
-    # Temporarily enable more permissive CORS for debugging
-    CORS_ALLOW_ALL_ORIGINS = True
-    CORS_ALLOW_CREDENTIALS = False  # Must be False when CORS_ALLOW_ALL_ORIGINS is True
-    print("[DEBUG] CORS_ALLOW_ALL_ORIGINS enabled for debugging")
-else:
+    # Enable debug logging but keep CORS secure
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOW_CREDENTIALS = True
     LOGGING['root']['level'] = 'DEBUG'
     LOGGING['loggers']['django']['level'] = 'DEBUG' 
     LOGGING['loggers']['fuel']['level'] = 'DEBUG'
+    print("[DEBUG] CORS debugging enabled with secure configuration")
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOW_CREDENTIALS = True
 
 # Time zone
 TIME_ZONE = 'Africa/Harare'
