@@ -11,6 +11,7 @@ echo "=================================================="
 export DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-"config.settings.production"}
 export PYTHONPATH=${PYTHONPATH:-"/home/site/wwwroot"}
 export PORT=${PORT:-8000}
+export WEBSITES_PORT=${WEBSITES_PORT:-8000}
 
 # Print environment info
 echo "🔧 Environment Configuration:"

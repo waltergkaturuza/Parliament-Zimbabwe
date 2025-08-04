@@ -34,10 +34,19 @@ python manage.py collectstatic --noinput --clear
 echo "✅ Starting server..."
 echo "Admin: https://parliament-fuel-system.azurewebsites.net/admin/"
 
-# Start gunicorn
-exec gunicorn config.wsgi:application \
-    --bind=0.0.0.0:8000 \
-    --workers=2 \
-    --timeout=300 \
-    --access-logfile=- \
-    --error-logfile=-
+#!/bin/bash
+
+# Emergency minimal startup for immediate Azure fix
+echo "=== MINIMAL STARTUP SCRIPT ==="
+echo "Time: $(date)"
+echo "Working dir: $(pwd)"
+
+# Start gunicorn directly with minimal config
+echo "Starting gunicorn server..."
+exec gunicorn config.wsgi:application 
+    --bind=0.0.0.0:8000 
+    --workers=1 
+    --timeout=60 
+    --access-logfile=- 
+    --error-logfile=- 
+    --log-level=info

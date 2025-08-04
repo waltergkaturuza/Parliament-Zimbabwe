@@ -16,7 +16,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() == 'true'
 
 # Azure-specific hostname configuration
 AZURE_HOSTNAME = os.environ.get('AZURE_HOSTNAME', 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net')
-FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'parliament-fuel-system.azurewebsites.net')
+FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'jolly-ocean-0e0dee90f.2.azurestaticapps.net')
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
@@ -88,6 +88,8 @@ CSRF_TRUSTED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
+    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Current frontend deployment
+    "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
 ]
 
 # CORS settings
@@ -101,6 +103,8 @@ CORS_ALLOWED_ORIGINS = [
     # Production URLs
     f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
+    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Current frontend deployment
+    "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
 ]
 
 # Additional CORS settings for proper preflight handling
