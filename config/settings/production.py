@@ -41,13 +41,15 @@ if _env_allowed_hosts:
     ALLOWED_HOSTS = [h.strip() for h in _env_allowed_hosts.split(',') if h.strip()]
     print(f"[DEBUG] Parsed ALLOWED_HOSTS from env: {ALLOWED_HOSTS}")
 else:
+    # ALLOWED_HOSTS - Use the ACTUAL deployment URL
     ALLOWED_HOSTS = [
-        'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # CORRECT current deployment
-        'parliament-fuel-system.azurewebsites.net',  # Backup short URL (if configured)
+        'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # ACTUAL BACKEND URL
+        'parliament-fuel-system.azurewebsites.net',  # Custom domain (if configured)
+        'jolly-ocean-0e0dee90f.2.azurestaticapps.net',
         'fuel.parliament.gov.zw',
         'parliament.gov.zw',
-        'localhost',  # For local testing
-        '127.0.0.1',  # For local testing
+        'localhost',
+        '127.0.0.1',
     ]
     print(f"[DEBUG] Using default ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 logging.basicConfig(level=logging.INFO)
@@ -65,7 +67,7 @@ db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST')
 db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
 
 # Check if individual variables are available (preferred for Azure)
-if all([db_name, db_user, db_password, db_host]):
+if all([db_name, db_user, db_password, db_host]):               
     print(f"[DEBUG] Using individual environment variables")
     print(f"[DEBUG] DB_NAME: {db_name}")
     print(f"[DEBUG] DB_USER: {db_user}")
@@ -311,26 +313,24 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 3600 * 8  # 8 hours
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# CSRF settings - Must match CORS origins
+# CSRF settings - Must match frontend URL
 CSRF_TRUSTED_ORIGINS = [
-    'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
-    'https://parliament-fuel-frontend.azurestaticapps.net',
+    'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend
+    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # ACTUAL BACKEND URL
+    'https://parliament-fuel-system.azurewebsites.net',  # Custom domain (if configured)
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
-    'https://parliament-fuel-system.azurewebsites.net',  # Correct backend URL
-    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # Current deployment
 ]
 
-# CORS settings for production - More permissive for debugging
+# CORS settings - Fixed for production
 CORS_ALLOWED_ORIGINS = [
-    'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend deployment
-    'https://parliament-fuel-frontend.azurestaticapps.net',
+    'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
-    'http://localhost:3000',  # For local development
-    'http://127.0.0.1:3000',  # For local development
-    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net',  # SCM domain for SSH console
 ]
+
+# Site URL - Use the PRIMARY backend URL
+SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
@@ -377,7 +377,7 @@ BC_INTEGRATION_ENABLED = os.environ.get('BC_INTEGRATION_ENABLED', 'True').lower(
 BC_WEBHOOK_SECRET = os.environ.get('BC_WEBHOOK_SECRET', 'change-this-in-production')
 BC_API_TIMEOUT = 30  # seconds
 
-# Site URL for absolute URLs - Use the actual backend URL
+# Site URL for absolute URLs - Use the ACTUAL backend URL
 SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
 
 # X-Frame-Options for BC iframe embedding
