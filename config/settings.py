@@ -68,6 +68,7 @@ AUTH_USER_MODEL = 'fuel.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
+    'cors_debug_middleware.CORSDebugMiddleware',  # Temporary CORS debugging
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -105,6 +106,8 @@ CORS_ALLOWED_ORIGINS = [
     f"https://{AZURE_HOSTNAME}",     # Azure App Service
     "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Current frontend deployment
     "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
+    # Add alternative backend URLs that might be referenced
+    "https://parliament-fuel-system.azurewebsites.net",  # Alternative backend URL
 ]
 
 # Additional CORS settings for proper preflight handling

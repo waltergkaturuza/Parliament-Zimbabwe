@@ -108,24 +108,27 @@ print(f"[DEBUG] HOST: {DATABASES['default']['HOST']}")
 print(f"[DEBUG] PORT: {DATABASES['default']['PORT']}")
 
 # Azure Key Vault for secrets
-_env_secret_key = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
-print(f"[DEBUG] DJANGO_SECRET_KEY: {os.environ.get('DJANGO_SECRET_KEY')}")
-print(f"[DEBUG] SECRET_KEY: {os.environ.get('SECRET_KEY')}")
-print(f"[DEBUG] Environment SECRET_KEY present: {bool(_env_secret_key)}")
-print(f"[DEBUG] Environment SECRET_KEY length: {len(_env_secret_key) if _env_secret_key else 0}")
+_env_secret_key = os.environ.get('SECRET_KEY')
+_django_secret_key = os.environ.get('DJANGO_SECRET_KEY')
 
-# Ensure SECRET_KEY is never empty
+print(f"[DEBUG] DJANGO_SECRET_KEY: {_django_secret_key}")
+print(f"[DEBUG] SECRET_KEY: {_env_secret_key}")
+
+# Use the full SECRET_KEY from environment, preferring SECRET_KEY over DJANGO_SECRET_KEY
 if _env_secret_key and _env_secret_key.strip():
     SECRET_KEY = _env_secret_key.strip()
-    print(f'[DEBUG] Using environment SECRET_KEY')
+    print('[DEBUG] Using SECRET_KEY environment variable')
+elif _django_secret_key and _django_secret_key.strip():
+    SECRET_KEY = _django_secret_key.strip()
+    print('[DEBUG] Using DJANGO_SECRET_KEY environment variable')
 else:
-    print('[DEBUG] SECRET_KEY is missing or empty! Using fallback.')
-    SECRET_KEY = 'fallback-key-for-emergency-only-not-secure-django-insecure-1234567890'
+    print('[DEBUG] No valid SECRET_KEY found! Using secure fallback.')
+    SECRET_KEY = 'django-insecure-fallback-key-for-production-emergency-only-please-set-proper-secret-key-12345678901234567890'
     logging.error('[Startup] SECRET_KEY is missing or empty!')
 
-# Validate SECRET_KEY is not empty
-if not SECRET_KEY:
-    SECRET_KEY = 'emergency-fallback-key-for-development-only-1234567890abcdef'
+# Validate SECRET_KEY is not empty and is long enough
+if not SECRET_KEY or len(SECRET_KEY) < 20:
+    SECRET_KEY = 'django-insecure-emergency-fallback-key-for-production-emergency-only-1234567890abcdefghij'
     print('[DEBUG] Emergency fallback SECRET_KEY applied!')
 
 # Log SECRET_KEY length and first/last chars for debug (never log full key)
@@ -326,6 +329,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://parliament.gov.zw',
     'http://localhost:3000',  # For local development
     'http://127.0.0.1:3000',  # For local development
+    'https://parliament-fuel-system-d0bvbjfrdbepdrfh.scm.southafricanorth-01.azurewebsites.net',  # SCM domain for SSH console
 ]
 
 CORS_ALLOW_CREDENTIALS = True
