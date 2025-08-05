@@ -42,8 +42,8 @@ if _env_allowed_hosts:
     print(f"[DEBUG] Parsed ALLOWED_HOSTS from env: {ALLOWED_HOSTS}")
 else:
     ALLOWED_HOSTS = [
-        'parliament-fuel-system.azurewebsites.net',  # Correct production URL
-        'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # Current deployment
+        'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # CORRECT current deployment
+        'parliament-fuel-system.azurewebsites.net',  # Backup short URL (if configured)
         'fuel.parliament.gov.zw',
         'parliament.gov.zw',
         'localhost',  # For local testing

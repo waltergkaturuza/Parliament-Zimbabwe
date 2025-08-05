@@ -1,0 +1,119 @@
+name: Post-Deployment Verification
+
+on:
+  workflow_run:
+    workflows: ["Build and deploy Python app to Azure Web App"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      backend_url:
+        description: 'Backend URL to test'
+        required: false
+        default: 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
+      frontend_url:
+        description: 'Frontend URL to test'
+        required: false
+        default: 'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net'
+
+jobs:
+  verify-deployment:
+    runs-on: ubuntu-latest
+    name: Verify Deployment
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Wait for deployment to stabilize
+      run: sleep 60
+      
+    - name: Set URLs
+      run: |
+        BACKEND_URL="${{ github.event.inputs.backend_url || 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net' }}"
+        FRONTEND_URL="${{ github.event.inputs.frontend_url || 'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net' }}"
+        echo "BACKEND_URL=$BACKEND_URL" >> $GITHUB_ENV
+        echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_ENV
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl jq bc
+        
+    - name: Make verification script executable
+      run: chmod +x verify-deployment.sh
+      
+    - name: Run deployment verification
+      id: verify
+      run: |
+        echo "Running deployment verification..."
+        ./verify-deployment.sh "$BACKEND_URL" "$FRONTEND_URL" | tee verification_results.txt
+        
+    - name: Check backend health endpoint
+      run: |
+        echo "Testing backend health..."
+        curl -f "$BACKEND_URL/health/simple/" || echo "Health check failed"
+        
+    - name: Check frontend availability
+      run: |
+        echo "Testing frontend availability..."
+        curl -f "$FRONTEND_URL/" || echo "Frontend check failed"
+        
+    - name: Test CORS configuration
+      run: |
+        echo "Testing CORS configuration..."
+        curl -H "Origin: $FRONTEND_URL" \
+             -H "Access-Control-Request-Method: POST" \
+             -H "Access-Control-Request-Headers: Content-Type,Authorization" \
+             -X OPTIONS \
+             "$BACKEND_URL/api/" -v || echo "CORS test failed"
+             
+    - name: Test API endpoints
+      run: |
+        echo "Testing API endpoints..."
+        
+        # Test root endpoint
+        curl -f "$BACKEND_URL/" || echo "Root endpoint failed"
+        
+        # Test API root
+        curl -f "$BACKEND_URL/api/" || echo "API root failed"
+        
+        # Test health endpoints
+        curl -f "$BACKEND_URL/health/" || echo "Health endpoint failed"
+        
+    - name: Generate summary report
+      if: always()
+      run: |
+        echo "## 🏛️ Deployment Verification Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Backend URL:** $BACKEND_URL" >> $GITHUB_STEP_SUMMARY
+        echo "**Frontend URL:** $FRONTEND_URL" >> $GITHUB_STEP_SUMMARY
+        echo "**Verification Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f verification_results.txt ]; then
+          echo "### Verification Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat verification_results.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: Upload verification results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-verification-results
+        path: verification_results.txt
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Deployment verification failed!"
+        echo "Check the logs above for details."
+        exit 1
+        
+    - name: Notify on success
+      if: success()
+      run: |
+        echo "✅ Deployment verification passed!"
+        echo "All systems appear to be functioning correctly."

@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
+from .health_check import health_check, simple_health
 
 def home_view(request):
     """Simple home page view"""
@@ -55,6 +56,8 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     path('', home_view, name='home'),  # Add root URL
+    path('health/', health_check, name='health-check'),  # Health check endpoint
+    path('health/simple/', simple_health, name='simple-health'),  # Simple health check
     path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
     path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
