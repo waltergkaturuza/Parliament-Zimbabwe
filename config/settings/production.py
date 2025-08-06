@@ -320,7 +320,6 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend
     'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net',  # ACTUAL BACKEND URL
-    'https://parliament-fuel-system.azurewebsites.net',  # Custom domain (if configured)
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
 ]
@@ -332,8 +331,8 @@ CORS_ALLOWED_ORIGINS = [
     'https://parliament.gov.zw',
 ]
 
-# Site URL - Use the PRIMARY backend URL
-SITE_URL = 'https://parliament-fuel-system.azurewebsites.net'
+# Site URL - Use the ACTUAL DEPLOYED backend URL
+SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
@@ -379,9 +378,6 @@ CORS_EXPOSE_HEADERS = [
 BC_INTEGRATION_ENABLED = os.environ.get('BC_INTEGRATION_ENABLED', 'True').lower() == 'true'
 BC_WEBHOOK_SECRET = os.environ.get('BC_WEBHOOK_SECRET', 'change-this-in-production')
 BC_API_TIMEOUT = 30  # seconds
-
-# Site URL for absolute URLs - Use the ACTUAL backend URL
-SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
 
 # X-Frame-Options for BC iframe embedding
 X_FRAME_OPTIONS = 'SAMEORIGIN'
