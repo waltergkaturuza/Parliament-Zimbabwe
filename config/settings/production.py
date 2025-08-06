@@ -83,6 +83,9 @@ if all([db_name, db_user, db_password, db_host]):
             'PORT': db_port,
             'OPTIONS': {
                 'sslmode': 'require',  # Required for Azure PostgreSQL
+                # Additional connection options for stability
+                'connect_timeout': 10,
+                'application_name': 'parliament-fuel-system',
             },
         }
     }
