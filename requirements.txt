@@ -24,6 +24,12 @@ msal==1.28.0
 requests==2.31.0
 python-decouple==3.8
 django-model-utils==4.5.1
+setuptools>=69.0.0
+pandas==2.1.4
+openpyxl==3.1.2
+reportlab==4.0.7
+qrcode==7.4.2
+Pillow==10.2.0
 
 # API documentation
 drf-spectacular==0.27.2
