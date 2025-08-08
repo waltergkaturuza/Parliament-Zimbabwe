@@ -29,8 +29,10 @@ ALLOWED_HOSTS = [
     '169.254.131.2',  # Azure internal services IP
     '169.254.131.4',  # Additional Azure internal IP
     '169.254.131.7',  # Additional Azure internal IP
-    '169.254.130.3',  # Azure internal IP from logs
-    '169.254.130.4',  # Azure internal IP from logs
+    '169.254.130.5',  # Azure internal IP from logs
+    '169.254.130.7',  # Azure internal IP from logs
+    '169.254.130.1',  # Additional Azure internal range
+    '169.254.130.10', # Additional Azure internal range
 ]
 
 # For local development, allow all hosts if DEBUG is True
@@ -246,7 +248,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',  # Use this for all JWT APIs
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Temporarily allow unauthenticated access for development
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 

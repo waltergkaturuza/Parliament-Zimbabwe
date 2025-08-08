@@ -1,4 +1,4 @@
-# fuel/views.py - Updated for Azure deployment refresh
+# fuel/views.py
 from rest_framework import viewsets, generics, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
@@ -49,6 +49,15 @@ from .permissions import (
 from rest_framework.views import APIView # Ensure this import is present
 
 User = get_user_model()
+
+# Compatibility import for profile views
+try:
+    from .views_profile import user_profile_view
+except ImportError:
+    # If views_profile doesn't exist or user_profile_view is not available, create a placeholder
+    def user_profile_view(*args, **kwargs):
+        from rest_framework.response import Response
+        return Response({'error': 'Profile view not implemented'}, status=501)
 
 # --- Authentication Views (Keeping as they were provided, added user detail in login) ---
 
@@ -436,8 +445,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
 class BoxViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Box management with coupon generation"""
     serializer_class = BoxSerializer
-    # permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]  # Temporarily disabled for testing
-    permission_classes = [AllowAny]  # TEMPORARY: Allow all access for testing
+    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
     
     def get_queryset(self):
         user = self.request.user

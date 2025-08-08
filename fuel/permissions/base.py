@@ -58,3 +58,28 @@ class CenterAccessMixin:
         if user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
             return sub_center is None or user.sub_center == sub_center
         return False
+
+
+class IsOwnerOrAdmin(permissions.BasePermission):
+    """
+    Permission that allows access to object owners or admin users.
+    Used for profile and user-specific resource access.
+    """
+    
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+    
+    def has_object_permission(self, request, view, obj):
+        # Admin users have full access
+        if request.user.role in ['SUPERUSER', 'ADMIN']:
+            return True
+        
+        # Check if the user is the owner of the object
+        if hasattr(obj, 'user'):
+            return obj.user == request.user
+        elif hasattr(obj, 'owner'):
+            return obj.owner == request.user
+        elif obj == request.user:  # For User model itself
+            return True
+        
+        return False

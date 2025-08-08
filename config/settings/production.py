@@ -48,23 +48,16 @@ else:
         'jolly-ocean-0e0dee90f.2.azurestaticapps.net',
         'fuel.parliament.gov.zw',
         'parliament.gov.zw',
-        'localhost',
-        '127.0.0.1',
-        # Azure internal IPs for load balancer and health checks
-        '169.254.130.1',
-        '169.254.130.2',
-        '169.254.130.3',
-        '169.254.130.4',
-        '169.254.130.5',
-        '169.254.130.6',
-        '169.254.130.7',
-        '169.254.131.1',
-        '169.254.131.2',
-        '169.254.131.3',
+        # Azure internal network IPs
+        '169.254.130.5',  # Azure internal load balancer
+        '169.254.130.7',  # Azure internal middleware
+        '169.254.131.2',  # Azure container internal IPs
         '169.254.131.4',
         '169.254.131.5',
         '169.254.131.6',
         '169.254.131.7',
+        'localhost',
+        '127.0.0.1',
     ]
     print(f"[DEBUG] Using default ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 logging.basicConfig(level=logging.INFO)

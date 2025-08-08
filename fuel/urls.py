@@ -132,9 +132,6 @@ urlpatterns = [
     # Users endpoints with role filtering
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
     
-    # User Profile endpoints
-    path('', include('fuel.urls_profile')),
-    
     # Audit endpoints
     path('audit-logs/', AuditLogViewSet.as_view({'get': 'list'}), name='audit-logs'),
     path('audit-logs/filter-options/', AuditLogViewSet.as_view({'get': 'filter_options'}), name='audit-filter-options'),
@@ -181,6 +178,9 @@ urlpatterns = [
     # Print endpoints
     path('api/print/coupon/', print_coupon, name='print-coupon'),
     path('api/print/handover/', print_handover_report, name='print-handover'),
+    
+    # Include profile URLs 
+    path('', include('fuel.urls_profile')),
     
     # Include router URLs 
     path('', include(router.urls)),

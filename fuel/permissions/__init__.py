@@ -10,6 +10,7 @@ from .base import (
     AdminPermissionMixin,
     ApproverPermissionMixin,
     CenterAccessMixin,
+    IsOwnerOrAdmin,
 )
 
 # Role-specific permissions
@@ -51,6 +52,7 @@ __all__ = [
     'AdminPermissionMixin',
     'ApproverPermissionMixin',
     'CenterAccessMixin',
+    'IsOwnerOrAdmin',
     
     # Role permissions
     'SuperUserPermission',
