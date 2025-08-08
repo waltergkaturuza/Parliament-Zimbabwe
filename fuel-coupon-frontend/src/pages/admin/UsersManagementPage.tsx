@@ -97,33 +97,73 @@ const UsersManagementPage: React.FC = () => {
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['admin-users', searchText, selectedRole, selectedStatus],
     queryFn: async () => {
-      try {
-        // TODO: Replace with actual API call
-        // const response = await apiClient.get('/admin/users', {
-        //   params: { search: searchText, role: selectedRole, status: selectedStatus }
-        // });
-        // return response.data;
-        
-        // Return empty data for now
-        return {
-          users: [],
-          stats: {
-            total_users: 0,
-            active_users: 0,
-            new_users_today: 0,
-            users_by_role: {
-              'ADMIN': 0,
-              'MAIN_CENTER': 0,
-              'SUB_CENTER': 0,
-              'AUDITOR': 0,
-              'BENEFICIARY': 0
-            }
-          } as UserStats
-        };
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        throw error;
-      }
+      // Mock data for now - replace with actual API call
+      const mockUsers: User[] = [
+        {
+          id: 1,
+          username: 'admin_user',
+          email: 'admin@parliament.gov.zw',
+          first_name: 'System',
+          last_name: 'Administrator',
+          role: 'ADMIN',
+          is_active: true,
+          date_joined: '2024-01-01T00:00:00Z',
+          last_login: '2025-07-06T10:00:00Z',
+          phone: '+263712345678'
+        },
+        {
+          id: 2,
+          username: 'maincenter_test',
+          email: 'maincenter@parliament.gov.zw',
+          first_name: 'Main',
+          last_name: 'Center Officer',
+          role: 'MAIN_CENTER',
+          is_active: true,
+          date_joined: '2024-02-01T00:00:00Z',
+          last_login: '2025-07-06T09:30:00Z',
+          phone: '+263712345679'
+        },
+        {
+          id: 3,
+          username: 'subcenter_user',
+          email: 'subcenter@parliament.gov.zw',
+          first_name: 'Sub',
+          last_name: 'Center Officer',
+          role: 'SUB_CENTER',
+          is_active: true,
+          date_joined: '2024-03-01T00:00:00Z',
+          last_login: '2025-07-05T14:30:00Z',
+          sub_center: { id: 1, name: 'Bulawayo Regional Office' }
+        }
+      ];
+
+      return {
+        users: mockUsers.filter(user => {
+          const matchesSearch = !searchText || 
+            user.username.toLowerCase().includes(searchText.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchText.toLowerCase()) ||
+            `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchText.toLowerCase());
+          
+          const matchesRole = !selectedRole || user.role === selectedRole;
+          const matchesStatus = !selectedStatus || 
+            (selectedStatus === 'active' && user.is_active) ||
+            (selectedStatus === 'inactive' && !user.is_active);
+          
+          return matchesSearch && matchesRole && matchesStatus;
+        }),
+        stats: {
+          total_users: mockUsers.length,
+          active_users: mockUsers.filter(u => u.is_active).length,
+          new_users_today: 0,
+          users_by_role: {
+            'ADMIN': 1,
+            'MAIN_CENTER': 1,
+            'SUB_CENTER': 1,
+            'AUDITOR': 0,
+            'BENEFICIARY': 0
+          }
+        } as UserStats
+      };
     }
   });
 

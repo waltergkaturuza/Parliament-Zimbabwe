@@ -107,7 +107,7 @@ export const updateCoupon = async (id: number, couponData: Omit<Coupon, 'id' | '
 // Bulk allocate coupons to beneficiaries
 async function bulkAllocate(data: { coupon_numbers: string[]; beneficiary_id: number }): Promise<any> {
   try {
-    const response = await apiClient.post('/api/v1/coupons/bulk-allocate/', data, { headers: authHeader() });
+    const response = await apiClient.post('/coupons/bulk-allocate/', data, { headers: authHeader() });
     return response.data;
   } catch (error: any) {
     console.error('Error bulk allocating coupons:', error.message);

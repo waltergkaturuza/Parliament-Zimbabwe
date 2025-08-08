@@ -4,7 +4,7 @@ import qrcode
 import io
 import base64
 from barcode import Code128
-# from barcode.writer import ImageWriter  # Temporarily commented out - requires Pillow
+from barcode.writer import ImageWriter
 
 
 class Command(BaseCommand):
@@ -53,13 +53,12 @@ class Command(BaseCommand):
                     self.stdout.write(f'QR code generation failed for {serial_number}: {e}')
                     qr_code = f"QR_{serial_number}"
                 
-                # Generate barcode - TEMPORARILY DISABLED (requires Pillow)
+                # Generate barcode
                 try:
-                    # barcode_obj = Code128(serial_number, writer=ImageWriter())
-                    # barcode_buffer = io.BytesIO()
-                    # barcode_obj.write(barcode_buffer)
-                    # barcode = base64.b64encode(barcode_buffer.getvalue()).decode()
-                    barcode = f"BC_{serial_number}"  # Fallback text barcode
+                    barcode_obj = Code128(serial_number, writer=ImageWriter())
+                    barcode_buffer = io.BytesIO()
+                    barcode_obj.write(barcode_buffer)
+                    barcode = base64.b64encode(barcode_buffer.getvalue()).decode()
                 except Exception as e:
                     self.stdout.write(f'Barcode generation failed for {serial_number}: {e}')
                     barcode = f"BC_{serial_number}"

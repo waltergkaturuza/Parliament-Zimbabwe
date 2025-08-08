@@ -47,7 +47,7 @@ export const SubCenterService = {
     page?: number;
     page_size?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/subcenters/', { params });
+    const response = await apiClient.get('/subcenters/', { params });
     return response.data;
   },
 
@@ -59,7 +59,7 @@ export const SubCenterService = {
 
   // Create a new sub-center
   createSubCenter: async (subCenterData: CreateSubCenterData) => {
-    const response = await apiClient.post('/api/v1/subcenters/', subCenterData);
+    const response = await apiClient.post('/subcenters/', subCenterData);
     return response.data;
   },
 
@@ -83,7 +83,7 @@ export const SubCenterService = {
 
   // Get sub-center statistics
   getSubCenterStats: async () => {
-    const response = await apiClient.get('/api/v1/subcenters/stats/');
+    const response = await apiClient.get('/subcenters/stats/');
     return response.data;
   },
 

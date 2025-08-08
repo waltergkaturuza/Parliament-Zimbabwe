@@ -78,38 +78,75 @@ const ReportsAnalyticsPage: React.FC = () => {
   const { data: reportData, isLoading } = useQuery({
     queryKey: ['reports-analytics', dateRange, reportType],
     queryFn: async () => {
-      try {
-        // TODO: Replace with actual API call
-        // const response = await apiClient.get('/admin/reports/analytics');
-        // return response.data;
-        
-        // Return empty data structure for now
-        return {
-          fuel_consumption: {
-            daily: [],
-            monthly: [],
-            by_subcenter: []
-          },
-          user_activity: {
-            registrations: [],
-            logins: [],
-            by_role: []
-          },
-          system_performance: {
-            response_times: [],
-            error_rates: [],
-            uptime: 0
-          },
-          financial: {
-            fuel_costs: [],
-            savings: [],
-            budget_utilization: 0
-          }
-        } as ReportData;
-      } catch (error) {
-        console.error('Error fetching report data:', error);
-        throw error;
-      }
+      // Mock data for now - replace with actual API call
+      return {
+        fuel_consumption: {
+          daily: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            petrol: Math.floor(Math.random() * 500) + 200,
+            diesel: Math.floor(Math.random() * 300) + 150,
+            total: 0 // Will be calculated
+          })).map(item => ({ ...item, total: item.petrol + item.diesel })),
+          monthly: Array.from({ length: 12 }, (_, i) => ({
+            month: dayjs().subtract(11 - i, 'months').format('MMM YYYY'),
+            petrol: Math.floor(Math.random() * 15000) + 8000,
+            diesel: Math.floor(Math.random() * 10000) + 5000,
+            total: 0
+          })).map(item => ({ ...item, total: item.petrol + item.diesel })),
+          by_subcenter: [
+            { subcenter: 'Bulawayo Regional Office', total: 12500, percentage: 35 },
+            { subcenter: 'Harare Main Center', total: 10800, percentage: 30 },
+            { subcenter: 'Gweru District Office', total: 7200, percentage: 20 },
+            { subcenter: 'Mutare Regional Office', total: 5400, percentage: 15 }
+          ]
+        },
+        user_activity: {
+          registrations: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            count: Math.floor(Math.random() * 10) + 1
+          })),
+          logins: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            count: Math.floor(Math.random() * 50) + 20
+          })),
+          by_role: [
+            { role: 'BENEFICIARY', count: 245, percentage: 60 },
+            { role: 'SUB_CENTER', count: 89, percentage: 22 },
+            { role: 'MAIN_CENTER', count: 45, percentage: 11 },
+            { role: 'ADMIN', count: 18, percentage: 4 },
+            { role: 'AUDITOR', count: 12, percentage: 3 }
+          ]
+        },
+        system_performance: {
+          response_times: [
+            { endpoint: '/api/v1/auth/login', avg_time: 245, count: 1240 },
+            { endpoint: '/api/v1/coupons/', avg_time: 180, count: 890 },
+            { endpoint: '/api/v1/allocations/', avg_time: 320, count: 450 },
+            { endpoint: '/api/v1/admin/dashboard/', avg_time: 420, count: 120 }
+          ],
+          error_rates: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            errors: Math.floor(Math.random() * 10),
+            total: Math.floor(Math.random() * 500) + 200,
+            rate: 0
+          })).map(item => ({ ...item, rate: (item.errors / item.total) * 100 })),
+          uptime: 99.87
+        },
+        financial: {
+          fuel_costs: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            usd_cost: Math.floor(Math.random() * 5000) + 2000,
+            zwg_cost: Math.floor(Math.random() * 137500) + 55000
+          })),
+          savings: [
+            { category: 'Efficient Distribution', amount: 12500, percentage: 8.5 },
+            { category: 'Reduced Waste', amount: 8900, percentage: 6.1 },
+            { category: 'Digital Processing', amount: 5400, percentage: 3.7 },
+            { category: 'Automated Allocation', amount: 3200, percentage: 2.2 }
+          ],
+          budget_utilization: 78.5
+        }
+      } as ReportData;
     }
   });
 

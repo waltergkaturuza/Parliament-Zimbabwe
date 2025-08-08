@@ -134,7 +134,7 @@ const BoxReceiptManagement: FC = () => {
   const fetchBoxReceipts = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/boxes/');
+      const response = await apiClient.get('/boxes/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -335,7 +335,7 @@ const BoxReceiptManagement: FC = () => {
         }
       } else {
         // Create new box
-        const response = await apiClient.post('/api/v1/boxes/', boxData);
+        const response = await apiClient.post('/boxes/', boxData);
         if (response.status === 201) {
           const newBox: BoxReceipt = {
             id: String(response.data.id),
@@ -409,7 +409,7 @@ const BoxReceiptManagement: FC = () => {
       
       if (selectedBox) {
         // Call archive API
-        const response = await apiClient.post('/api/v1/archive/record/', {
+        const response = await apiClient.post('/archive/record/', {
           content_type_id: 1, // Box content type ID (you'd get this from a content types API)
           object_id: selectedBox.id,
           reason: values.reason
@@ -434,7 +434,7 @@ const BoxReceiptManagement: FC = () => {
 
   const handleUnarchiveBox = async (box: BoxReceipt) => {
     try {
-      const response = await apiClient.post('/api/v1/archive/unarchive/', {
+      const response = await apiClient.post('/archive/unarchive/', {
         content_type_id: 1, // Box content type ID
         object_id: box.id,
         reason: 'Restored by user'
@@ -579,7 +579,7 @@ const BoxReceiptManagement: FC = () => {
   const loadArchivedRecords = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/archive/records/');
+      const response = await apiClient.get('/archive/records/');
       
       if (response.status === 200) {
         // Transform archived data to match BoxReceipt interface

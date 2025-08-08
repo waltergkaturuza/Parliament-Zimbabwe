@@ -3,25 +3,6 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocDocument, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.graphics.barcode import code128, qr
-from reportlab.graphics.shapes import Drawing
-from django.conf import settings
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-from io import BytesIO
-import qrcode
-import json
-from datetime import datetime
-# Note: PIL/Pillow temporarily commented out for fast deployment
-
-
-class PDFGenerator:
-    """Service for generating various PDF documents""".py
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.graphics.barcode import code128, qr
 from reportlab.graphics.shapes import Drawing

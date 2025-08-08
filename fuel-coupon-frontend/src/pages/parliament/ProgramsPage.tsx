@@ -90,9 +90,9 @@ const ProgramsPage: FC = () => {
       
       // Load programs
       const [programsResponse, subCentersResponse, organizersResponse] = await Promise.all([
-        apiClient.get('/api/v1/programs/'),
-        apiClient.get('/api/v1/sub-centers/'),
-        apiClient.get('/api/v1/users/?role__in=MAIN_CENTER,SUB_CENTER')
+        apiClient.get('/programs/'),
+        apiClient.get('/sub-centers/'),
+        apiClient.get('/users/?role__in=MAIN_CENTER,SUB_CENTER')
       ]);
 
       const programData = programsResponse.data.results || programsResponse.data;
@@ -184,7 +184,7 @@ const ProgramsPage: FC = () => {
         await apiClient.put(`/programs/${editingProgram.id}/`, payload);
         message.success('Program updated successfully');
       } else {
-        await apiClient.post('/api/v1/programs/', payload);
+        await apiClient.post('/programs/', payload);
         message.success('Program created successfully');
       }
 

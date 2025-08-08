@@ -354,8 +354,8 @@ const UnifiedLayout: React.FC = () => {
         {
           key: 'subcenters',
           icon: <EnvironmentOutlined />,
-          label: 'Sub Centers',
-          path: '/admin/subcenters',
+          label: 'Sub Centers Config',
+          path: '/dashboard/subcenters',
         },
         {
           key: 'subcenter-management',

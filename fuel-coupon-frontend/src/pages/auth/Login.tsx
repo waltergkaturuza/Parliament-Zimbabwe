@@ -26,7 +26,6 @@ import {
 } from '@ant-design/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginUser } from '@/api/auth';
-import { testAdminAuth } from '@/utils/testAuth';
 import { motion } from 'framer-motion';
 
 const { Title, Text } = Typography;
@@ -96,25 +95,6 @@ const Login = () => {
       } else {
         setError(errorMessage);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAdminLogin = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const success = await testAdminAuth();
-      if (success) {
-        // Auth context will handle the redirection via the login function
-        navigate('/dashboard', { replace: true });
-      } else {
-        setError('Admin login failed. Please try manual login.');
-      }
-    } catch (err: any) {
-      setError('Admin login failed: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -266,7 +246,7 @@ const Login = () => {
                       </div>
                     </Form.Item>
 
-                    <Form.Item className="mb-6">
+                    <Form.Item className="mb-0">
                       <Button
                         type="primary"
                         htmlType="submit"
@@ -281,24 +261,6 @@ const Login = () => {
                         {loading ? 'Signing In...' : 'Sign In'}
                       </Button>
                     </Form.Item>
-
-                    {/* Development/Testing Admin Login */}
-                    {process.env.NODE_ENV === 'development' && (
-                      <Form.Item className="mb-0">
-                        <Button
-                          type="default"
-                          onClick={handleAdminLogin}
-                          loading={loading}
-                          className="w-full h-10 rounded-lg"
-                          style={{
-                            borderColor: '#d9d9d9',
-                            color: '#666',
-                          }}
-                        >
-                          Quick Admin Login (Dev)
-                        </Button>
-                      </Form.Item>
-                    )}
                   </Form>
 
                   <Divider>

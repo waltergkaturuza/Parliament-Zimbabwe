@@ -39,9 +39,9 @@ const FuelAllocations: FC = () => {
     try {
       setLoading(true);
       const [entitlementsResponse, beneficiariesResponse, vehicleCategoriesResponse] = await Promise.all([
-        apiClient.get('/api/v1/fuel-entitlements/'),
-        apiClient.get('/api/v1/beneficiary-profiles/'),
-        apiClient.get('/api/v1/vehicle-categories/')
+        apiClient.get('/fuel-entitlements/'),
+        apiClient.get('/beneficiary-profiles/'),
+        apiClient.get('/vehicle-categories/')
       ]);
 
       const entitlementData = entitlementsResponse.data.results || entitlementsResponse.data;
@@ -83,10 +83,10 @@ const FuelAllocations: FC = () => {
       };
 
       if (editingEntitlement) {
-        await apiClient.put(`/api/v1/fuel-entitlements/${editingEntitlement.id}/`, entitlementData);
+        await apiClient.put(`/fuel-entitlements/${editingEntitlement.id}/`, entitlementData);
         message.success('Fuel entitlement updated successfully');
       } else {
-        await apiClient.post('/api/v1/fuel-entitlements/', entitlementData);
+        await apiClient.post('/fuel-entitlements/', entitlementData);
         message.success('Fuel entitlement created successfully');
       }
 
@@ -123,7 +123,7 @@ const FuelAllocations: FC = () => {
       cancelText: 'No',
       onOk: async () => {
         try {
-          await apiClient.delete(`/api/v1/fuel-entitlements/${entitlementId}/`);
+          await apiClient.delete(`/fuel-entitlements/${entitlementId}/`);
           message.success('Fuel entitlement deleted successfully');
           loadData();
         } catch (error) {

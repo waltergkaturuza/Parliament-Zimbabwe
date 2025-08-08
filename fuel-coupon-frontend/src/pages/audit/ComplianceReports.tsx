@@ -75,7 +75,7 @@ const ComplianceReports: React.FC = () => {
   const generateReport = async (type: string) => {
     try {
       setLoading(true);
-      const response = await apiClient.post('/api/v1/audit/generate-compliance-report/', {
+      const response = await apiClient.post('/audit/generate-compliance-report/', {
         type,
         period: selectedPeriod,
       });
