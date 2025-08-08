@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import apiClient from './index';
 
 export interface PetroTradeBoxRequest {
   first_coupon: string;

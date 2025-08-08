@@ -42,7 +42,6 @@ import {
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import SystemAlertsService, { type SystemAlert, type AlertFilters } from '@/api/systemAlerts';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -95,87 +94,39 @@ const SystemAlertsPage: React.FC = () => {
   const { data: alertsData, isLoading } = useQuery({
     queryKey: ['system-alerts', selectedType, selectedStatus, selectedPriority],
     queryFn: async () => {
-      const filters: AlertFilters = {};
-      
-      if (selectedType) filters.alert_type = selectedType;
-      if (selectedStatus) filters.status = selectedStatus;
-      if (selectedPriority) filters.priority = selectedPriority;
-      
-      return await SystemAlertsService.getAlerts(filters);
-        {
-          id: 1,
-          title: 'Low Fuel Stock Alert',
-          message: 'Fuel stock levels are running low. Current stock: 150 coupons remaining.',
-          alert_type: 'WARNING',
-          status: 'ACTIVE',
-          created: '2025-07-06T08:00:00Z',
-          priority: 'HIGH',
-          category: 'INVENTORY',
-          created_by: {
-            id: 1,
-            username: 'system',
-            first_name: 'System',
-            last_name: 'Administrator'
-          },
-          affected_systems: ['Inventory Management', 'Distribution']
-        },
-        {
-          id: 2,
-          title: 'System Maintenance Completed',
-          message: 'Scheduled system maintenance has been completed successfully. All services are now operational.',
-          alert_type: 'SUCCESS',
-          status: 'ACTIVE',
-          created: '2025-07-06T06:00:00Z',
-          priority: 'MEDIUM',
-          category: 'MAINTENANCE',
-          created_by: {
-            id: 1,
-            username: 'admin_user',
-            first_name: 'System',
-            last_name: 'Administrator'
-          }
-        },
-        {
-          id: 3,
-          title: 'Failed Login Attempts',
-          message: 'Multiple failed login attempts detected from IP: 192.168.1.100. Security review recommended.',
-          alert_type: 'CRITICAL',
-          status: 'RESOLVED',
-          created: '2025-07-05T22:30:00Z',
-          resolved_at: '2025-07-06T09:00:00Z',
-          priority: 'URGENT',
-          category: 'SECURITY',
-          created_by: {
-            id: 2,
-            username: 'security_system',
-            first_name: 'Security',
-            last_name: 'System'
-          },
-          resolved_by: {
-            id: 1,
-            username: 'admin_user',
-            first_name: 'System',
-            last_name: 'Administrator'
-          },
-          affected_systems: ['Authentication', 'Security']
-        },
-        {
-          id: 4,
-          title: 'Database Backup Completed',
-          message: 'Daily database backup completed successfully. Backup size: 2.1 GB',
-          alert_type: 'INFO',
-          status: 'DISMISSED',
-          created: '2025-07-06T02:00:00Z',
-          resolved_at: '2025-07-06T08:30:00Z',
-          priority: 'LOW',
-          category: 'BACKUP',
-          created_by: {
-            id: 3,
-            username: 'backup_system',
-            first_name: 'Backup',
-            last_name: 'System'
-          }
-        }
+      try {
+        // TODO: Replace with actual API call when backend endpoint is ready
+        // const response = await apiClient.get('/api/v1/system-alerts/', {
+        //   params: {
+        //     alert_type: selectedType,
+        //     status: selectedStatus,
+        //     priority: selectedPriority
+        //   }
+        // });
+        // return response.data;
+        
+        // For now, return empty data until API is implemented
+        return {
+          alerts: [],
+          stats: {
+            total_alerts: 0,
+            active_alerts: 0,
+            critical_alerts: 0,
+            resolved_today: 0
+          } as AlertStats
+        };
+      } catch (error) {
+        console.error('Error fetching alerts:', error);
+        return {
+          alerts: [],
+          stats: {
+            total_alerts: 0,
+            active_alerts: 0,
+            critical_alerts: 0,
+            resolved_today: 0
+          } as AlertStats
+        };
+      }
     }
   });
 
