@@ -1,5 +1,5 @@
 // src/api/beneficiaries.ts
-import apiClient from './apiClient';
+import apiClient from './index';
 
 export interface Beneficiary {
   id: string;
@@ -27,87 +27,88 @@ export interface Beneficiary {
     yearToDate: number;
     totalUsed: number;
   };
-  lastActivity?: string;
+  vehicles: Array<{
+    id: string;
+    registration: string;
+    make: string;
+    model: string;
+    year: number;
+    fuelType: 'PETROL' | 'DIESEL';
+  }>;
+  lastActivity: string;
   createdAt: string;
 }
 
-export interface BeneficiaryFilters {
+export interface BeneficiaryParams {
   search?: string;
   category?: string;
   status?: string;
   constituency?: string;
   party?: string;
+  page?: number;
+  page_size?: number;
 }
 
-export interface CreateBeneficiaryRequest {
-  parliamentaryId: string;
-  name: string;
-  title: string;
-  category: 'MP' | 'SENATOR' | 'STAFF' | 'OFFICIAL';
-  constituency?: string;
-  party: string;
-  phoneNumber: string;
-  email: string;
-  address: string;
-  dateOfBirth: string;
-  nationalId: string;
-  profilePhoto?: string;
-  entitlements: {
-    monthlyAllocation: number;
-    maxPerTransaction: number;
-    vehicleCount: number;
-  };
-}
+const BeneficiaryService = {
+  getBeneficiaries: async (params: BeneficiaryParams = {}): Promise<Beneficiary[]> => {
+    try {
+      console.log('BeneficiaryService.getBeneficiaries called with:', params);
+      const response = await apiClient.get<{results: Beneficiary[]}>('/api/v1/beneficiaries/', { params });
+      console.log('BeneficiaryService.getBeneficiaries response:', response.status, response.data);
+      return response.data?.results || [];
+    } catch (error: any) {
+      console.error('BeneficiaryService.getBeneficiaries error:', error);
+      return [];
+    }
+  },
 
-export class BeneficiaryService {
-  static async getAll(filters?: BeneficiaryFilters): Promise<Beneficiary[]> {
-    const response = await apiClient.get('/beneficiaries/', { params: filters });
-    return response.data.results || response.data;
-  }
+  getBeneficiary: async (id: string): Promise<Beneficiary | null> => {
+    try {
+      console.log('BeneficiaryService.getBeneficiary called with id:', id);
+      const response = await apiClient.get<Beneficiary>(`/api/v1/beneficiaries/${id}/`);
+      console.log('BeneficiaryService.getBeneficiary response:', response.status, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('BeneficiaryService.getBeneficiary error:', error);
+      return null;
+    }
+  },
 
-  static async getById(id: string): Promise<Beneficiary> {
-    const response = await apiClient.get(`/beneficiaries/${id}/`);
-    return response.data;
-  }
+  createBeneficiary: async (data: Partial<Beneficiary>): Promise<Beneficiary | null> => {
+    try {
+      console.log('BeneficiaryService.createBeneficiary called with:', data);
+      const response = await apiClient.post<Beneficiary>('/api/v1/beneficiaries/', data);
+      console.log('BeneficiaryService.createBeneficiary response:', response.status, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('BeneficiaryService.createBeneficiary error:', error);
+      throw error;
+    }
+  },
 
-  static async create(data: CreateBeneficiaryRequest): Promise<Beneficiary> {
-    const response = await apiClient.post('/beneficiaries/', data);
-    return response.data;
-  }
+  updateBeneficiary: async (id: string, data: Partial<Beneficiary>): Promise<Beneficiary | null> => {
+    try {
+      console.log('BeneficiaryService.updateBeneficiary called with:', id, data);
+      const response = await apiClient.patch<Beneficiary>(`/api/v1/beneficiaries/${id}/`, data);
+      console.log('BeneficiaryService.updateBeneficiary response:', response.status, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('BeneficiaryService.updateBeneficiary error:', error);
+      throw error;
+    }
+  },
 
-  static async update(id: string, data: Partial<CreateBeneficiaryRequest>): Promise<Beneficiary> {
-    const response = await apiClient.patch(`/beneficiaries/${id}/`, data);
-    return response.data;
+  deleteBeneficiary: async (id: string): Promise<boolean> => {
+    try {
+      console.log('BeneficiaryService.deleteBeneficiary called with id:', id);
+      await apiClient.delete(`/api/v1/beneficiaries/${id}/`);
+      console.log('BeneficiaryService.deleteBeneficiary success');
+      return true;
+    } catch (error: any) {
+      console.error('BeneficiaryService.deleteBeneficiary error:', error);
+      throw error;
+    }
   }
+};
 
-  static async delete(id: string): Promise<void> {
-    await apiClient.delete(`/beneficiaries/${id}/`);
-  }
-
-  static async bulkUpdate(ids: string[], data: Partial<CreateBeneficiaryRequest>): Promise<void> {
-    await apiClient.post('/beneficiaries/bulk-update/', { ids, data });
-  }
-
-  static async bulkDelete(ids: string[]): Promise<void> {
-    await apiClient.post('/beneficiaries/bulk-delete/', { ids });
-  }
-
-  static async uploadAvatar(id: string, file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append('avatar', file);
-    const response = await apiClient.post(`/beneficiaries/${id}/upload-avatar/`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    return response.data.avatar_url;
-  }
-
-  static async getFuelUsageHistory(id: string): Promise<any[]> {
-    const response = await apiClient.get(`/beneficiaries/${id}/fuel-usage/`);
-    return response.data;
-  }
-
-  static async getTransactionHistory(id: string): Promise<any[]> {
-    const response = await apiClient.get(`/beneficiaries/${id}/transactions/`);
-    return response.data;
-  }
-}
+export default BeneficiaryService;
