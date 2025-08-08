@@ -1,4 +1,4 @@
-# fuel/views.py
+# fuel/views.py - Updated for Azure deployment refresh
 from rest_framework import viewsets, generics, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission

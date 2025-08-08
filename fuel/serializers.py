@@ -32,6 +32,91 @@ class SimpleUserSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'first_name', 'last_name', 'role') # Include basic user info
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Detailed user profile serializer"""
+    profile_picture_url = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
+    profile_completion = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
+    sub_center_name = serializers.CharField(source='sub_center.name', read_only=True)
+    full_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
+            'display_name', 'role', 'phone', 'date_of_birth', 'age',
+            'address', 'national_id', 'employee_id', 'department', 'position',
+            'bio', 'preferred_language', 'timezone', 'profile_picture',
+            'profile_picture_url', 'profile_completion', 'sub_center',
+            'sub_center_name', 'notification_preferences', 'emergency_contact_name',
+            'emergency_contact_phone', 'last_activity', 'date_joined',
+            'is_approved', 'approved_at'
+        ]
+        read_only_fields = ['id', 'username', 'date_joined', 'last_activity', 'is_approved', 'approved_at']
+
+    def get_profile_picture_url(self, obj):
+        return obj.get_profile_picture_url()
+
+    def get_age(self, obj):
+        return obj.get_age()
+
+    def get_profile_completion(self, obj):
+        return obj.get_profile_completion_percentage()
+
+    def get_display_name(self, obj):
+        return obj.get_display_name()
+    
+    def get_full_name(self, obj):
+        return obj.get_full_name()
+
+
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile (excludes sensitive fields)"""
+    
+    class Meta:
+        model = User
+        fields = [
+            'first_name', 'last_name', 'email', 'phone', 'date_of_birth',
+            'address', 'national_id', 'employee_id', 'department', 'position',
+            'bio', 'preferred_language', 'timezone', 'profile_picture',
+            'notification_preferences', 'emergency_contact_name',
+            'emergency_contact_phone'
+        ]
+
+    def validate_email(self, value):
+        """Ensure email uniqueness"""
+        if value:
+            user = self.instance
+            if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+                raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_national_id(self, value):
+        """Ensure national ID uniqueness"""
+        if value:
+            user = self.instance
+            if User.objects.filter(national_id=value).exclude(pk=user.pk).exists():
+                raise serializers.ValidationError("A user with this national ID already exists.")
+        return value
+
+    def validate_employee_id(self, value):
+        """Ensure employee ID uniqueness"""
+        if value:
+            user = self.instance
+            if User.objects.filter(employee_id=value).exclude(pk=user.pk).exists():
+                raise serializers.ValidationError("A user with this employee ID already exists.")
+        return value
+
+
+class UserAvatarSerializer(serializers.ModelSerializer):
+    """Serializer specifically for avatar upload"""
+    
+    class Meta:
+        model = User
+        fields = ['profile_picture']
+
+
 class SimpleSubCenterSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubCenter

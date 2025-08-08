@@ -139,6 +139,88 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True) # Make email optional
     last_activity = models.DateTimeField(auto_now=True)
     
+    # Profile fields
+    profile_picture = models.ImageField(
+        upload_to='profile_pictures/',
+        blank=True,
+        null=True,
+        help_text="User's profile picture"
+    )
+    date_of_birth = models.DateField(
+        blank=True,
+        null=True,
+        help_text="User's date of birth"
+    )
+    address = models.TextField(
+        blank=True,
+        null=True,
+        help_text="User's physical address"
+    )
+    national_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="National ID number"
+    )
+    employee_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Employee ID for staff members"
+    )
+    department = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Department or division"
+    )
+    position = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Job position or title"
+    )
+    bio = models.TextField(
+        blank=True,
+        null=True,
+        max_length=500,
+        help_text="Short biography or description"
+    )
+    preferred_language = models.CharField(
+        max_length=10,
+        choices=[
+            ('en', 'English'),
+            ('sn', 'Shona'),
+            ('nd', 'Ndebele'),
+        ],
+        default='en',
+        help_text="Preferred language for the interface"
+    )
+    timezone = models.CharField(
+        max_length=50,
+        default='Africa/Harare',
+        help_text="User's timezone"
+    )
+    notification_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="User's notification preferences"
+    )
+    emergency_contact_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Emergency contact person's name"
+    )
+    emergency_contact_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="Emergency contact phone number"
+    )
+    
     # User approval fields
     is_approved = models.BooleanField(
         default=False,
@@ -179,6 +261,62 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.get_role_display()})"
+
+    def get_profile_picture_url(self):
+        """Get the URL for the user's profile picture"""
+        if self.profile_picture:
+            return self.profile_picture.url
+        return None
+
+    def get_age(self):
+        """Calculate user's age from date of birth"""
+        if self.date_of_birth:
+            from datetime import date
+            today = date.today()
+            return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
+        return None
+
+    def get_profile_completion_percentage(self):
+        """Calculate profile completion percentage"""
+        fields_to_check = [
+            'first_name', 'last_name', 'email', 'phone', 'date_of_birth',
+            'address', 'national_id', 'department', 'position', 'bio'
+        ]
+        completed_fields = 0
+        total_fields = len(fields_to_check)
+        
+        for field in fields_to_check:
+            value = getattr(self, field, None)
+            if value and str(value).strip():
+                completed_fields += 1
+        
+        if self.profile_picture:
+            completed_fields += 1
+            total_fields += 1
+            
+        return int((completed_fields / total_fields) * 100)
+
+    def get_display_name(self):
+        """Get the best display name for the user"""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        elif self.first_name:
+            return self.first_name
+        elif self.last_name:
+            return self.last_name
+        else:
+            return self.username
+
+    def get_notification_preference(self, key, default=True):
+        """Get a specific notification preference"""
+        return self.notification_preferences.get(key, default)
+
+    def set_notification_preference(self, key, value):
+        """Set a specific notification preference"""
+        if not self.notification_preferences:
+            self.notification_preferences = {}
+        self.notification_preferences[key] = value
+        self.save(update_fields=['notification_preferences'])
 
     def is_main_center_officer(self):
         return self.role == 'MAIN_CENTER'

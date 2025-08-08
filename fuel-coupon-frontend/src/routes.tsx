@@ -84,6 +84,9 @@ const SubCenterManagement = lazy(() => import('@/pages/subcenter/SubCenterManage
 const SystemSettings = lazy(() => import('@/pages/admin/SystemSettings'));
 const AuditLogs = lazy(() => import('@/pages/admin/AuditLogs'));
 
+// User Profile
+const UserProfilePage = lazy(() => import('@/pages/UserProfilePage'));
+
 // New admin pages
 const SystemSettingsPage = lazy(() => import('@/pages/admin/SystemSettingsPage'));
 const UsersManagementPage = lazy(() => import('@/pages/admin/UsersManagementPage'));
@@ -236,6 +239,9 @@ const router = createBrowserRouter(
         <Route path="sub" element={<Suspense fallback={<LoadingSpinner />}> <SubCenterDashboardPage /></Suspense>} />
         <Route path="admin" element={<Suspense fallback={<LoadingSpinner />}> <AdminDashboard /></Suspense>} />
         <Route path="approvals" element={<Suspense fallback={<LoadingSpinner />}> <ApprovalDashboardPage /></Suspense>} />
+        
+        {/* User Profile Route */}
+        <Route path="profile" element={<Suspense fallback={<LoadingSpinner />}><UserProfilePage /></Suspense>} />
       </Route>
 
       {/* Fuel Management Routes */}
