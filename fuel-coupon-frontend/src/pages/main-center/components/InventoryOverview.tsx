@@ -1,5 +1,5 @@
-// src/pages/main-center/components/InventoryOverviewSimple.tsx
-import { useState } from 'react';
+// src/pages/main-center/components/InventoryOverview.tsx
+import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import {
   Card,
@@ -16,6 +16,7 @@ import {
   Typography,
   Alert,
   Tooltip,
+  Spin,
 } from 'antd';
 import {
   InboxOutlined,
@@ -28,6 +29,7 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
+import apiClient from '../../../api/apiClient';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -54,71 +56,115 @@ interface InventoryItem {
 }
 
 const InventoryOverview: FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [searchText, setSearchText] = useState('');
   const [filterFuelType, setFilterFuelType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
-  // Sample data - replace with API call
-  const inventoryData: InventoryItem[] = [
-    {
-      id: '1',
-      boxId: 'BOX-2024-001',
-      fuelType: 'PETROL',
-      couponAmount: 20,
-      totalBooks: 20,
-      booksDispatched: 15,
-      booksRemaining: 5,
-      totalCoupons: 400,
-      couponsUsed: 280,
-      couponsRemaining: 120,
-      totalLitres: 8000,
-      litresUsed: 5600,
-      litresRemaining: 2400,
-      monetaryValue: 1600000,
-      status: 'PARTIAL',
-      lastUpdated: '2024-07-04 14:30',
-      location: 'Warehouse A-1',
-    },
-    {
-      id: '2',
-      boxId: 'BOX-2024-002',
-      fuelType: 'DIESEL',
-      couponAmount: 5,
-      totalBooks: 20,
-      booksDispatched: 2,
-      booksRemaining: 18,
-      totalCoupons: 400,
-      couponsUsed: 40,
-      couponsRemaining: 360,
-      totalLitres: 2000,
-      litresUsed: 200,
-      litresRemaining: 1800,
-      monetaryValue: 380000,
-      status: 'FULL',
-      lastUpdated: '2024-07-04 09:15',
-      location: 'Warehouse A-2',
-    },
-    {
-      id: '3',
-      boxId: 'BOX-2024-003',
-      fuelType: 'PETROL',
-      couponAmount: 5,
-      totalBooks: 20,
-      booksDispatched: 18,
-      booksRemaining: 2,
-      totalCoupons: 400,
-      couponsUsed: 360,
-      couponsRemaining: 40,
-      totalLitres: 2000,
-      litresUsed: 1800,
-      litresRemaining: 200,
-      monetaryValue: 400000,
-      status: 'LOW_STOCK',
-      lastUpdated: '2024-07-04 12:45',
-      location: 'Warehouse B-1',
-    },
-  ];
+  // Export function
+  const handleExportInventory = () => {
+    try {
+      const headers = ['Box ID', 'Fuel Type', 'Coupon Amount', 'Total Books', 'Books Remaining', 'Total Coupons', 'Coupons Remaining', 'Total Litres', 'Litres Remaining', 'Monetary Value', 'Status', 'Location'];
+      const csvContent = [
+        headers.join(','),
+        ...inventoryData.map(item => [
+          item.boxId,
+          item.fuelType,
+          item.couponAmount,
+          item.totalBooks,
+          item.booksRemaining,
+          item.totalCoupons,
+          item.couponsRemaining,
+          item.totalLitres,
+          item.litresRemaining,
+          item.monetaryValue,
+          item.status,
+          item.location
+        ].join(','))
+      ].join('\n');
 
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `inventory_report_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Export error:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadInventoryData();
+  }, []);
+
+  const loadInventoryData = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get('/boxes/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const boxes = data.results || data;
+      
+      if (Array.isArray(boxes)) {
+        // Map backend data to frontend format
+        const mappedInventory = boxes.map((box: any) => {
+          const totalBooks = box.books?.length || 0;
+          const booksDispatched = 0; // Calculate from actual dispatches
+          const booksRemaining = totalBooks - booksDispatched;
+          const totalCoupons = totalBooks * 10; // Estimate 10 coupons per book
+          const couponsUsed = 0; // Calculate from actual usage
+          const couponsRemaining = totalCoupons - couponsUsed;
+          const totalLitres = box.total_litres || 0;
+          const litresUsed = 0; // Calculate from actual usage
+          const litresRemaining = totalLitres - litresUsed;
+          
+          // Determine status based on remaining resources
+          let status: 'FULL' | 'PARTIAL' | 'EMPTY' | 'LOW_STOCK' = 'FULL';
+          if (booksRemaining === 0) status = 'EMPTY';
+          else if (booksRemaining < 5) status = 'LOW_STOCK';
+          else if (booksRemaining < totalBooks) status = 'PARTIAL';
+          
+          return {
+            id: String(box.id),
+            boxId: box.box_code || `FCB-${String(box.id).padStart(4, '0')}`,
+            fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
+            couponAmount: 20 as const, // Default coupon amount
+            totalBooks,
+            booksDispatched,
+            booksRemaining,
+            totalCoupons,
+            couponsUsed,
+            couponsRemaining,
+            totalLitres,
+            litresUsed,
+            litresRemaining,
+            monetaryValue: totalLitres * 37.95, // Calculate based on current fuel price
+            status,
+            lastUpdated: box.received_at || new Date().toISOString(),
+            location: 'Main Warehouse', // Default location
+          };
+        });
+        
+        setInventoryData(mappedInventory);
+      } else {
+        console.warn('No inventory data received from API');
+        setInventoryData([]);
+      }
+    } catch (error) {
+      console.error('Error loading inventory data:', error);
+      setInventoryData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Table columns definition
   const columns: ColumnsType<InventoryItem> = [
     {
       title: 'Box ID',
@@ -247,6 +293,15 @@ const InventoryOverview: FC = () => {
   const totalLitres = inventoryData.reduce((sum, item) => sum + item.totalLitres, 0);
   const litresRemaining = inventoryData.reduce((sum, item) => sum + item.litresRemaining, 0);
   const lowStockBoxes = inventoryData.filter(item => item.status === 'LOW_STOCK' || item.booksRemaining < 5).length;
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+        <p>Loading inventory data...</p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -399,7 +454,10 @@ const InventoryOverview: FC = () => {
                 <Option value="LOW_STOCK">Low Stock</Option>
                 <Option value="EMPTY">Empty</Option>
               </Select>
-              <Button icon={<DownloadOutlined />}>
+              <Button 
+                icon={<DownloadOutlined />}
+                onClick={handleExportInventory}
+              >
                 Export
               </Button>
             </Space>

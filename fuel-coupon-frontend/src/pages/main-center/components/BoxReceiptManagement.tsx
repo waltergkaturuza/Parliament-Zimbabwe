@@ -48,6 +48,11 @@ import {
   DeleteOutlined,
   SendOutlined,
   AlertOutlined,
+  DownloadOutlined,
+  ExportOutlined,
+  ImportOutlined,
+  FolderOutlined,
+  FolderOpenOutlined,
   CarOutlined,
   FolderOutlined,
   FolderOpenOutlined,
@@ -120,105 +125,8 @@ const BoxReceiptManagement: FC = () => {
   const [archiveModalVisible, setArchiveModalVisible] = useState(false);
   const [archiveForm] = Form.useForm();
 
-  // Sample data - enhanced with all required fields
-  const sampleBoxReceipts: BoxReceipt[] = [
-    {
-      id: '1',
-      boxId: 'FCB-2025-0021',
-      barcode: '1234567890123',
-      supplier: 'Petrotrade Zimbabwe',
-      receivedDate: '2025-07-06',
-      receivedTime: '14:30',
-      receivedBy: 'John Mukamuri',
-      receivedBySignature: 'data:image/base64...',
-      fuelType: 'DIESEL',
-      couponAmount: 20,
-      numberOfBooks: 10,
-      couponsPerBook: 10,
-      totalCoupons: 100,
-      totalLitres: 2000,
-      firstCouponId: 'PU00GH355101',
-      lastCouponId: 'PU00GH355200',
-      monetaryValueUSD: 2760.00, // 2000L * $1.38/L
-      fuelPricePerLitreUSD: 1.38,
-      exchangeRate: 27.50,
-      monetaryValue: 75900, // For backward compatibility (USD * exchange rate)
-      fuelPricePerLitre: 37.95, // For backward compatibility
-      status: 'VERIFIED',
-      verificationNotes: 'All books intact, seals verified, barcode scanned successfully. Sequential numbering verified.',
-      invoiceNumber: 'PTZ-INV-2025-0021',
-      deliveryNote: 'PTZ-DN-2025-0021',
-      qrCodeData: JSON.stringify({
-        boxId: 'FCB-2025-0021',
-        fuelType: 'DIESEL',
-        amount: 20,
-        totalLitres: 2000,
-        supplier: 'Petrotrade Zimbabwe',
-        date: '2025-07-06',
-        firstCoupon: 'PU00GH355101',
-        lastCoupon: 'PU00GH355200'
-      }),
-      notes: 'All books intact, sequential coupon numbering verified (PU00GH355101-PU00GH355200)',
-    },
-    {
-      id: '2',
-      boxId: 'FCB-2025-0022',
-      barcode: '1234567890124',
-      supplier: 'Petrotrade Zimbabwe',
-      receivedDate: '2025-07-06',
-      receivedTime: '09:15',
-      receivedBy: 'Mary Chigwamba',
-      fuelType: 'PETROL',
-      couponAmount: 20,
-      numberOfBooks: 15,
-      couponsPerBook: 10,
-      totalCoupons: 150,
-      totalLitres: 3000,
-      firstCouponId: 'PU00GH355201',
-      lastCouponId: 'PU00GH355350',
-      monetaryValueUSD: 4350.00, // 3000L * $1.45/L
-      fuelPricePerLitreUSD: 1.45,
-      exchangeRate: 27.50,
-      monetaryValue: 108750000, // For backward compatibility
-      fuelPricePerLitre: 36250, // For backward compatibility
-      status: 'RECEIVED',
-      invoiceNumber: 'PTZ-INV-2025-0022',
-      deliveryNote: 'PTZ-DN-2025-0022',
-      notes: 'Pending verification - sequential numbering to be verified',
-    },
-    {
-      id: '3',
-      boxId: 'FCB-2025-0023',
-      barcode: '1234567890125',
-      supplier: 'Petrotrade Zimbabwe',
-      receivedDate: '2025-07-05',
-      receivedTime: '16:45',
-      receivedBy: 'James Mpofu',
-      fuelType: 'DIESEL',
-      couponAmount: 50,
-      numberOfBooks: 8,
-      couponsPerBook: 10,
-      totalCoupons: 80,
-      totalLitres: 4000,
-      firstCouponId: 'PU00GH355351',
-      lastCouponId: 'PU00GH355430',
-      monetaryValueUSD: 5520.00, // 4000L * $1.38/L
-      fuelPricePerLitreUSD: 1.38,
-      exchangeRate: 27.50,
-      monetaryValue: 138000000, // For backward compatibility
-      fuelPricePerLitre: 34500, // For backward compatibility
-      status: 'DISPATCHED',
-      verificationNotes: 'Verified and dispatched to Harare Central',
-      invoiceNumber: 'PTZ-INV-2024-0003',
-      deliveryNote: 'PTZ-DN-2024-0003',
-      notes: 'Fully processed and dispatched',
-    },
-  ];
-
   // Fetch data on component mount
   useEffect(() => {
-    // Initialize with sample data immediately to prevent undefined errors
-    setBoxReceipts(sampleBoxReceipts);
     fetchBoxReceipts();
     generateNextBoxNumber();
   }, []);
@@ -226,51 +134,51 @@ const BoxReceiptManagement: FC = () => {
   const fetchBoxReceipts = async () => {
     setLoading(true);
     try {
-      // Replace with actual API call
-      const response = await fetch('/api/v1/boxes/');
-      if (response.ok) {
-        const data = await response.json();
-        // Normalize data to ensure all required fields are present
-        const normalizedData = Array.isArray(data) ? data.map((item: any) => ({
-          id: item.id || '',
-          boxId: item.boxId || '',
-          barcode: item.barcode || '',
-          supplier: item.supplier || '',
-          receivedDate: item.receivedDate || '',
-          receivedTime: item.receivedTime || '',
-          receivedBy: item.receivedBy || '',
-          receivedBySignature: item.receivedBySignature,
-          fuelType: item.fuelType || 'PETROL',
-          couponAmount: item.couponAmount || 20,
-          numberOfBooks: item.numberOfBooks || 0,
-          couponsPerBook: item.couponsPerBook || 10,
-          totalCoupons: item.totalCoupons || (item.numberOfBooks || 0) * (item.couponsPerBook || 10),
-          totalLitres: item.totalLitres || 0,
-          firstCouponId: item.firstCouponId || '',
-          lastCouponId: item.lastCouponId || '',
-          monetaryValueUSD: item.monetaryValueUSD || item.monetaryValue_usd || 0,
-          fuelPricePerLitreUSD: item.fuelPricePerLitreUSD || item.fuel_price_per_litre_usd || 0,
-          exchangeRate: item.exchangeRate || item.exchange_rate || 27.50,
-          // Backward compatibility
-          monetaryValue: item.monetaryValue || (item.monetaryValueUSD || 0) * (item.exchangeRate || 27.50),
-          fuelPricePerLitre: item.fuelPricePerLitre || (item.fuelPricePerLitreUSD || 0) * (item.exchangeRate || 27.50),
-          status: item.status || 'PENDING',
-          verificationNotes: item.verificationNotes,
-          damageReport: item.damageReport,
-          booksGenerated: item.booksGenerated,
-          qrCodeData: item.qrCodeData,
-          deliveryNote: item.deliveryNote,
-          invoiceNumber: item.invoiceNumber,
-          notes: item.notes,
-        })) : sampleBoxReceipts;
-        setBoxReceipts(normalizedData);
+      const response = await apiClient.get('/boxes/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const boxes = data.results || data;
+      
+      if (Array.isArray(boxes)) {
+        // Map backend data to frontend format
+        const mappedBoxes = boxes.map((box: any) => ({
+          id: String(box.id),
+          boxId: box.box_code || `FCB-${String(box.id).padStart(4, '0')}`,
+          barcode: box.barcode || '',
+          supplier: 'Petrotrade Zimbabwe', // Default supplier
+          receivedDate: box.received_at ? new Date(box.received_at).toISOString().split('T')[0] : '',
+          receivedTime: box.received_at ? new Date(box.received_at).toTimeString().split(' ')[0] : '',
+          receivedBy: box.received_by?.first_name && box.received_by?.last_name 
+            ? `${box.received_by.first_name} ${box.received_by.last_name}` 
+            : 'System User',
+          fuelType: 'DIESEL', // Default - backend doesn't have this field yet
+          couponAmount: 20, // Default coupon amount
+          numberOfBooks: box.books?.length || 0,
+          couponsPerBook: 10, // Standard coupons per book
+          totalCoupons: (box.books?.length || 0) * 10,
+          totalLitres: box.total_litres || 0,
+          firstCouponId: box.first_coupon_number || '',
+          lastCouponId: box.last_coupon_number || '',
+          monetaryValueUSD: 0, // Calculate based on litres and price
+          fuelPricePerLitreUSD: 1.40, // Current fuel price
+          exchangeRate: 27.50,
+          status: 'RECEIVED', // Default status
+          verificationNotes: '',
+          invoiceNumber: '',
+          deliveryNote: '',
+          notes: '',
+        }));
+        
+        setBoxReceipts(mappedBoxes);
       } else {
-        // Use sample data if API fails
-        setBoxReceipts(sampleBoxReceipts);
+        console.warn('No boxes data received from API');
+        setBoxReceipts([]);
       }
     } catch (error) {
       console.error('Error fetching box receipts:', error);
-      setBoxReceipts(sampleBoxReceipts);
+      // Show empty state instead of sample data
+      setBoxReceipts([]);
     } finally {
       setLoading(false);
     }
@@ -333,6 +241,7 @@ const BoxReceiptManagement: FC = () => {
   // Form handlers
   const handleAddBox = () => {
     setCurrentStep(0);
+    setSelectedBox(null); // Clear any selected box for editing
     form.resetFields();
     generateNextBoxNumber();
     setIsModalVisible(true);
@@ -394,66 +303,59 @@ const BoxReceiptManagement: FC = () => {
            : new Date().toTimeString().slice(0, 5))
         : new Date().toTimeString().slice(0, 5);
 
-      const newBox: BoxReceipt = {
-        id: Date.now().toString(),
-        boxId: nextBoxNumber,
-        barcode: values.barcode,
-        supplier: values.supplier,
-        receivedDate,
-        receivedTime,
-        receivedBy: values.receivedBy,
-        receivedBySignature: values.signature,
-        fuelType: values.fuelType,
-        couponAmount: values.couponAmount,
-        numberOfBooks: values.numberOfBooks,
-        couponsPerBook: values.couponsPerBook || 10,
-        totalCoupons: (values.numberOfBooks || 0) * (values.couponsPerBook || 10),
-        totalLitres: values.totalLitres,
-        firstCouponId: values.firstCouponId,
-        lastCouponId: values.lastCouponId,
-        monetaryValueUSD: values.monetaryValueUSD || 0,
-        fuelPricePerLitreUSD: values.fuelPricePerLitreUSD || 0,
-        exchangeRate: values.exchangeRate || 27.50,
-        // Backward compatibility
-        monetaryValue: values.monetaryValue || ((values.monetaryValueUSD || 0) * (values.exchangeRate || 27.50)),
-        fuelPricePerLitre: values.fuelPricePerLitre || ((values.fuelPricePerLitreUSD || 0) * (values.exchangeRate || 27.50)),
+      const boxData = {
+        box_code: values.boxId,
+        barcode: values.barcode || '',
+        fuel_type: values.fuelType,
+        coupon_amount: values.couponAmount,
+        number_of_books: values.numberOfBooks,
+        coupons_per_book: values.couponsPerBook || 10,
+        total_litres: values.totalLitres,
+        monetary_value_usd: values.monetaryValueUSD,
+        fuel_price_per_litre_usd: values.fuelPriceUSD,
+        exchange_rate: values.exchangeRate,
+        first_coupon_id: values.firstCouponId,
+        last_coupon_id: values.lastCouponId,
         status: 'RECEIVED',
-        invoiceNumber: values.invoiceNumber,
-        deliveryNote: values.deliveryNote,
-        notes: values.notes,
-        booksGenerated: calculatedBooks,
-        qrCodeData: JSON.stringify({
-          boxId: nextBoxNumber,
-          fuelType: values.fuelType,
-          amount: values.couponAmount,
-          totalLitres: values.totalLitres,
-          supplier: values.supplier,
-          date: receivedDate
-        }),
+        received_at: `${receivedDate}T${receivedTime}:00Z`,
+        notes: values.notes || ''
       };
 
-      // API call to save box
-      try {
-        const response = await apiClient.post('/api/v1/boxes/', newBox);
-
-        if (response.status === 200 || response.status === 201) {
-          setBoxReceipts([newBox, ...boxReceipts]);
-          message.success('Box receipt recorded successfully!');
-        } else {
-          throw new Error('API call failed');
+      if (selectedBox) {
+        // Edit existing box
+        const response = await apiClient.put(`/boxes/${selectedBox.id}/`, boxData);
+        if (response.status === 200) {
+          // Update local state
+          setBoxReceipts(prev => prev.map(box => 
+            box.id === selectedBox.id 
+              ? { ...selectedBox, ...values, receivedDate, receivedTime }
+              : box
+          ));
+          message.success('Box updated successfully!');
         }
-      } catch (apiError) {
-        console.error('API Error:', apiError);
-        // Fallback: add to local state but show appropriate message
-        setBoxReceipts([newBox, ...boxReceipts]);
-        message.warning('Box saved locally. Please check network connection and sync later.');
+      } else {
+        // Create new box
+        const response = await apiClient.post('/boxes/', boxData);
+        if (response.status === 201) {
+          const newBox: BoxReceipt = {
+            id: String(response.data.id),
+            ...values,
+            receivedDate,
+            receivedTime,
+            status: 'RECEIVED' as const,
+          };
+          setBoxReceipts(prev => [newBox, ...prev]);
+          message.success('Box received successfully!');
+        }
       }
 
       setIsModalVisible(false);
+      setSelectedBox(null);
+      form.resetFields();
       generateNextBoxNumber();
     } catch (error) {
-      console.error('Error submitting box receipt:', error);
-      message.error('Failed to record box receipt');
+      console.error('Error saving box:', error);
+      message.error('Failed to save box receipt');
     } finally {
       setLoading(false);
     }
@@ -552,6 +454,128 @@ const BoxReceiptManagement: FC = () => {
     }
   };
 
+  // Export functions
+  const handleExportData = () => {
+    try {
+      // Convert data to CSV format
+      const headers = ['Box ID', 'Supplier', 'Fuel Type', 'Coupon Amount', 'Number of Books', 'Total Litres', 'Monetary Value USD', 'Status', 'Received Date', 'Received By'];
+      const csvContent = [
+        headers.join(','),
+        ...boxReceipts.map(box => [
+          box.boxId,
+          box.supplier,
+          box.fuelType,
+          box.couponAmount,
+          box.numberOfBooks,
+          box.totalLitres || 0,
+          box.monetaryValueUSD || 0,
+          box.status,
+          box.receivedDate,
+          box.receivedBy
+        ].join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `box_receipts_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      message.success('Data exported successfully');
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error('Failed to export data');
+    }
+  };
+
+  const handleImportData = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const csvData = e.target?.result as string;
+        const lines = csvData.split('\n');
+        const headers = lines[0].split(',');
+        
+        // Process CSV data here
+        message.info('Import functionality will process the uploaded file');
+        console.log('Imported data:', { headers, lines: lines.length - 1 });
+      } catch (error) {
+        console.error('Import error:', error);
+        message.error('Failed to import data');
+      }
+    };
+    reader.readAsText(file);
+    return false; // Prevent default upload behavior
+  };
+
+  const handlePrintReport = () => {
+    // Create printable content
+    const printContent = `
+      <html>
+        <head>
+          <title>Box Receipt Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .summary { margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Parliament of Zimbabwe - Fuel Coupon System</h1>
+            <h2>Box Receipt Report</h2>
+            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+          </div>
+          <div class="summary">
+            <p><strong>Total Boxes:</strong> ${boxReceipts.length}</p>
+            <p><strong>Total Value:</strong> $${boxReceipts.reduce((sum, box) => sum + (box.monetaryValueUSD || 0), 0).toLocaleString()}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Box ID</th>
+                <th>Supplier</th>
+                <th>Fuel Type</th>
+                <th>Total Litres</th>
+                <th>Value (USD)</th>
+                <th>Status</th>
+                <th>Received Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${boxReceipts.map(box => `
+                <tr>
+                  <td>${box.boxId}</td>
+                  <td>${box.supplier}</td>
+                  <td>${box.fuelType}</td>
+                  <td>${box.totalLitres || 0}</td>
+                  <td>$${(box.monetaryValueUSD || 0).toLocaleString()}</td>
+                  <td>${box.status}</td>
+                  <td>${box.receivedDate}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
   const loadArchivedRecords = async () => {
     try {
       setLoading(true);
@@ -585,8 +609,8 @@ const BoxReceiptManagement: FC = () => {
     if (!showArchived) {
       loadArchivedRecords();
     } else {
-      // Load regular records (you'd replace this with actual API call)
-      setBoxReceipts(sampleBoxReceipts);
+      // Load regular records
+      fetchBoxReceipts();
     }
   };
 
@@ -769,6 +793,24 @@ const BoxReceiptManagement: FC = () => {
               }}
             />
           </Tooltip>
+
+          {record.status === 'PENDING' && (
+            <Tooltip title="Edit Box">
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setSelectedBox(record);
+                  form.setFieldsValue({
+                    ...record,
+                    receivedDate: record.receivedDate ? dayjs(record.receivedDate) : null,
+                    receivedTime: record.receivedTime ? dayjs(record.receivedTime, 'HH:mm') : null,
+                  });
+                  setIsModalVisible(true);
+                }}
+              />
+            </Tooltip>
+          )}
           
           {!showArchived && record.status !== 'ARCHIVED' && (
             <Tooltip title="Archive Box">
@@ -856,6 +898,27 @@ const BoxReceiptManagement: FC = () => {
               }}
             >
               Scan Barcode
+            </Button>
+            <Button
+              icon={<ExportOutlined />}
+              onClick={handleExportData}
+            >
+              Export Data
+            </Button>
+            <Upload
+              beforeUpload={handleImportData}
+              showUploadList={false}
+              accept=".csv,.xlsx"
+            >
+              <Button icon={<ImportOutlined />}>
+                Import Data
+              </Button>
+            </Upload>
+            <Button
+              icon={<PrinterOutlined />}
+              onClick={handlePrintReport}
+            >
+              Print Report
             </Button>
           </Space>
         </Col>
@@ -1147,7 +1210,7 @@ const BoxReceiptManagement: FC = () => {
         title={
           <Space>
             <InboxOutlined />
-            Receive New Box from Petrotrade
+            {selectedBox ? 'Edit Box Receipt' : 'Receive New Box from Petrotrade'}
           </Space>
         }
         open={isModalVisible}

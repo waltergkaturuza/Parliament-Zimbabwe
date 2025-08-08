@@ -297,18 +297,55 @@ const BookDispatchManagement: FC = () => {
   const fetchDispatches = async () => {
     setLoading(true);
     try {
-      // Replace with actual API call
-      const response = await fetch('/api/v1/dispatches/');
-      if (response.ok) {
-        const data = await response.json();
-        setDispatches(data);
+      const response = await apiClient.get('/dispatches/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const dispatches = data.results || data;
+      
+      if (Array.isArray(dispatches)) {
+        // Map backend data to frontend format
+        const mappedDispatches = dispatches.map((dispatch: any) => ({
+          id: String(dispatch.id),
+          dispatchId: `DSP-${new Date(dispatch.dispatch_date).getFullYear()}-${String(new Date(dispatch.dispatch_date).getMonth() + 1).padStart(2, '0')}-${String(dispatch.id).padStart(4, '0')}`,
+          subCenterId: dispatch.to_center?.id || '',
+          subCenterName: dispatch.to_center?.name || 'Unknown Center',
+          dispatchedBy: dispatch.dispatched_by?.first_name && dispatch.dispatched_by?.last_name 
+            ? `${dispatch.dispatched_by.first_name} ${dispatch.dispatched_by.last_name}` 
+            : 'System User',
+          dispatchedDate: new Date(dispatch.dispatch_date).toISOString().split('T')[0],
+          dispatchedTime: new Date(dispatch.dispatch_date).toTimeString().split(' ')[0],
+          books: dispatch.books?.map((book: any) => ({
+            id: String(book.id),
+            bookId: book.book_number || `BK-${book.id}`,
+            boxId: book.box?.box_code || 'Unknown Box',
+            fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
+            couponAmount: 20 as const, // Default
+            firstCouponId: book.first_coupon_number || '',
+            lastCouponId: book.last_coupon_number || '',
+            numberOfCoupons: 10, // Default coupons per book
+            value: 10 * 37.95, // Calculate based on current fuel price
+            pricePerLitre: 37.95,
+          })) || [],
+          totalBooks: dispatch.book_count || 0,
+          totalCoupons: (dispatch.book_count || 0) * 10,
+          totalValue: (dispatch.book_count || 0) * 10 * 37.95,
+          status: dispatch.status === 'PENDING' ? 'PENDING' : 
+                  dispatch.status === 'DISPATCHED' ? 'DISPATCHED' :
+                  dispatch.status === 'RECEIVED' ? 'RECEIVED' : 'PENDING',
+          receivedDate: dispatch.received_date ? new Date(dispatch.received_date).toISOString().split('T')[0] : undefined,
+          notes: dispatch.notes || '',
+          trackingNumber: `TRK-${new Date().getFullYear()}-${String(dispatch.id).padStart(6, '0')}`,
+        }));
+        
+        setDispatches(mappedDispatches);
       } else {
-        // Use sample data if API fails
-        setDispatches(sampleDispatches);
+        console.warn('No dispatches data received from API');
+        setDispatches([]);
       }
     } catch (error) {
       console.error('Error fetching dispatches:', error);
-      setDispatches(sampleDispatches);
+      setDispatches([]);
     } finally {
       setLoading(false);
     }
@@ -316,31 +353,69 @@ const BookDispatchManagement: FC = () => {
 
   const fetchAvailableBooks = async () => {
     try {
-      const response = await fetch('/api/v1/books/available/');
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableBooks(data);
+      const response = await apiClient.get('/books/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const books = data.results || data;
+      
+      if (Array.isArray(books)) {
+        // Filter for available books and map to frontend format
+        const availableBooks = books.filter((book: any) => !book.is_assigned).map((book: any) => ({
+          key: String(book.id),
+          bookId: book.book_number || `BK-${book.id}`,
+          boxId: book.box?.box_code || 'Unknown Box',
+          fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
+          couponAmount: 20 as const, // Default
+          firstCouponId: book.first_coupon_number || '',
+          lastCouponId: book.last_coupon_number || '',
+          numberOfCoupons: 10, // Default coupons per book
+          value: 10 * 37.95, // Calculate based on current fuel price
+          pricePerLitre: 37.95,
+          status: 'AVAILABLE' as const,
+        }));
+        
+        setAvailableBooks(availableBooks);
       } else {
-        setAvailableBooks(sampleAvailableBooks);
+        console.warn('No books data received from API');
+        setAvailableBooks([]);
       }
     } catch (error) {
       console.error('Error fetching available books:', error);
-      setAvailableBooks(sampleAvailableBooks);
+      setAvailableBooks([]);
     }
   };
 
   const fetchSubCenters = async () => {
     try {
-      const response = await fetch('/api/v1/subcenters/');
-      if (response.ok) {
-        const data = await response.json();
-        setSubCenters(data);
+      const response = await apiClient.get('/subcenters/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const subcenters = data.results || data;
+      
+      if (Array.isArray(subcenters)) {
+        // Map backend data to frontend format
+        const mappedSubCenters = subcenters.map((subcenter: any) => ({
+          id: String(subcenter.id),
+          name: subcenter.name,
+          location: subcenter.location || 'Unknown Location',
+          officerName: subcenter.officer_in_charge?.first_name && subcenter.officer_in_charge?.last_name 
+            ? `${subcenter.officer_in_charge.first_name} ${subcenter.officer_in_charge.last_name}` 
+            : 'Unknown Officer',
+          phone: subcenter.contact_phone || '',
+          email: subcenter.contact_email || '',
+          status: 'ACTIVE' as const, // Default status
+        }));
+        
+        setSubCenters(mappedSubCenters);
       } else {
-        setSubCenters(sampleSubCenters);
+        console.warn('No subcenters data received from API');
+        setSubCenters([]);
       }
     } catch (error) {
       console.error('Error fetching sub centers:', error);
-      setSubCenters(sampleSubCenters);
+      setSubCenters([]);
     }
   };
 
