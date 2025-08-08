@@ -365,17 +365,6 @@ const SubCenterMonitoring: FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate summary statistics
-  // Calculate statistics
-  const totalCenters = subCenters.length;
-  const activeCenters = subCenters.filter(c => c.status === 'ACTIVE').length;
-  const totalAlerts = subCenters.reduce((sum, c) => sum + c.alerts, 0);
-  const avgPerformance = totalCenters > 0 ? 
-    subCenters.reduce((sum, c) => sum + c.performanceScore, 0) / totalCenters : 0;
-  const lowInventoryCenters = subCenters.filter(c => 
-    c.totalBooks > 0 && (c.booksRemaining / c.totalBooks) < 0.2
-  ).length;
-
   return (
     <Spin spinning={loading}>
       <div>

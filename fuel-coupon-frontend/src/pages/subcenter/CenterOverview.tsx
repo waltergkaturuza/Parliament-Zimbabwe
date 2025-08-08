@@ -330,4 +330,7 @@ const CenterOverview: FC = () => {
         )}
       </Card>
     </div>
+  );
+};
+
 export default CenterOverview;

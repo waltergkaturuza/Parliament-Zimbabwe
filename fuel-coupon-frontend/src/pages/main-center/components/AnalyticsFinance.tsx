@@ -417,65 +417,6 @@ const AnalyticsFinance: FC = () => {
       </Card>
     </div>
   );
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
-                <Tooltip formatter={(value: number) => [`ZWG ${value.toLocaleString()}`, '']} />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stackId="1"
-                  stroke="#1890ff"
-                  fill="#1890ff"
-                  name="Revenue"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="profit"
-                  stackId="2"
-                  stroke="#52c41a"
-                  fill="#52c41a"
-                  name="Profit"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-
-        {/* Yearly Comparison */}
-        <Col xs={24} lg={12}>
-          <Card title="Year-over-Year Comparison" extra={<BarChartOutlined />}>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyComparison}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`} />
-                <Tooltip formatter={(value: number) => [`ZWG ${value.toLocaleString()}`, '']} />
-                <Bar dataKey="thisYear" fill="#1890ff" name="2024" />
-                <Bar dataKey="lastYear" fill="#d9d9d9" name="2023" />
-                <Legend />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {/* Sub Center Distribution */}
-        <Col xs={24} lg={12}>
-          <Card title="Revenue by Sub Center" extra={<PieChartOutlined />}>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={consumptionBySubCenter}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {consumptionBySubCenter.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
+};
 
 export default AnalyticsFinance;
