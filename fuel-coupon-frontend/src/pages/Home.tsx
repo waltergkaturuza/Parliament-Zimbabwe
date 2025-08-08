@@ -193,7 +193,32 @@ const Home = () => {
     }
   ];
 
-  const recentActivityDisplay = recentActivity.length > 0 ? recentActivity : [];
+  const recentActivityDisplay = recentActivity.length > 0 ? recentActivity : [
+    {
+      icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+      title: "System Update Completed",
+      description: "Latest security patches installed successfully",
+      time_display: "2 hours ago"
+    },
+    {
+      icon: <TeamOutlined style={{ color: '#1890ff' }} />,
+      title: "New Sub-Center Added",
+      description: "Chitungwiza East sub-center is now operational",
+      time_display: "1 day ago"
+    },
+    {
+      icon: <BarChartOutlined style={{ color: '#faad14' }} />,
+      title: "Monthly Report Generated",
+      description: "June 2025 distribution report available",
+      time_display: "3 days ago"
+    },
+    {
+      icon: <SafetyCertificateOutlined style={{ color: '#722ed1' }} />,
+      title: "Security Audit Passed",
+      description: "Annual security compliance review completed",
+      time_display: "1 week ago"
+    }
+  ];
 
   const fadeInUp = {
     initial: { opacity: 0, y: 60 },

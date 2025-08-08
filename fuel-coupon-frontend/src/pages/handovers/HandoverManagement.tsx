@@ -18,7 +18,6 @@ import {
   Steps,
   Upload,
   message,
-  Select,
 } from 'antd';
 import {
   SwapOutlined,
@@ -28,15 +27,27 @@ import {
   EyeOutlined,
   UploadOutlined,
   DownloadOutlined,
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
 } from '@ant-design/icons';
-import { HandoverService, type HandoverRecord, type CreateHandoverRequest } from '@/api/handovers';
 import { ColumnsType } from 'antd/es/table';
 
 const { Title, Text } = Typography;
 const { Step } = Steps;
+
+interface HandoverRecord {
+  id: string;
+  handoverNumber: string;
+  fromCenter: string;
+  toCenter: string;
+  bookCount: number;
+  couponCount: number;
+  fuelType: 'PETROL' | 'DIESEL';
+  status: 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'CONFIRMED';
+  createdDate: string;
+  deliveryDate?: string;
+  confirmedDate?: string;
+  driverName: string;
+  vehicleNumber: string;
+}
 
 const HandoverManagement: FC = () => {
   const [handovers, setHandovers] = useState<HandoverRecord[]>([]);
@@ -51,13 +62,40 @@ const HandoverManagement: FC = () => {
 
   const fetchHandovers = async () => {
     try {
-      setLoading(true);
-      const data = await HandoverService.getAll();
-      setHandovers(data);
+      // Replace with actual API call
+      const mockData: HandoverRecord[] = [
+        {
+          id: '1',
+          handoverNumber: 'HO-2024-001',
+          fromCenter: 'Main Center',
+          toCenter: 'Harare South',
+          bookCount: 20,
+          couponCount: 400,
+          fuelType: 'PETROL',
+          status: 'PENDING',
+          createdDate: '2024-07-04',
+          driverName: 'John Mukamuri',
+          vehicleNumber: 'ABC-123Z',
+        },
+        {
+          id: '2',
+          handoverNumber: 'HO-2024-002',
+          fromCenter: 'Main Center',
+          toCenter: 'Harare South',
+          bookCount: 15,
+          couponCount: 75,
+          fuelType: 'DIESEL',
+          status: 'DELIVERED',
+          createdDate: '2024-07-02',
+          deliveryDate: '2024-07-03',
+          driverName: 'Peter Chivanga',
+          vehicleNumber: 'XYZ-456Z',
+        },
+      ];
+      setHandovers(mockData);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching handovers:', error);
-      message.error('Failed to load handovers');
-    } finally {
       setLoading(false);
     }
   };
@@ -173,8 +211,7 @@ const HandoverManagement: FC = () => {
 
   const viewHandover = (handover: HandoverRecord) => {
     setSelectedHandover(handover);
-    // Could implement a detailed view modal or navigation to detail page
-    message.info('Viewing handover details');
+    // Open view modal or navigate to details page
   };
 
   const confirmHandover = (handover: HandoverRecord) => {
@@ -183,24 +220,12 @@ const HandoverManagement: FC = () => {
   };
 
   const handleConfirmSubmit = async (values: any) => {
-    if (!selectedHandover) return;
-    
     try {
-      // Update handover status to CONFIRMED
-      await HandoverService.update(selectedHandover.id, {
-        status: 'CONFIRMED',
-        receivedQuantity: values.receivedQuantity,
-        notes: values.notes,
-        confirmedDate: new Date().toISOString()
-      });
-      
+      // API call to confirm handover
       message.success('Handover confirmed successfully');
       setConfirmModalVisible(false);
-      setSelectedHandover(null);
-      form.resetFields();
       fetchHandovers(); // Refresh data
     } catch (error) {
-      console.error('Error confirming handover:', error);
       message.error('Failed to confirm handover');
     }
   };

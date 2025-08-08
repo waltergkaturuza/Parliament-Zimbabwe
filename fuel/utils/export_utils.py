@@ -3,9 +3,9 @@ import io
 import csv
 from datetime import datetime
 from typing import List, Dict, Any
-# import pandas as pd  # Temporarily commented out for Azure deployment
-# from openpyxl import Workbook  # Temporarily commented out for Azure deployment
-# from openpyxl.styles import Font, Alignment, PatternFill  # Temporarily commented out for Azure deployment
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -38,62 +38,59 @@ class ExportManager:
         
         return response
     
-    # @staticmethod
-    # def export_to_excel(data: List[Dict[str, Any]], filename: str = None, sheet_name: str = "Data") -> HttpResponse:
-    #     """Export data to Excel format with styling - Temporarily disabled for Azure deployment"""
-    #     # This function requires openpyxl which is not available in Azure environment
-    #     raise NotImplementedError("Excel export is temporarily disabled for Azure deployment")
+    @staticmethod
+    def export_to_excel(data: List[Dict[str, Any]], filename: str = None, sheet_name: str = "Data") -> HttpResponse:
+        """Export data to Excel format with styling"""
+        if not filename:
+            filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         
-    #     if not filename:
-    #         filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    #     
-    #     # Create workbook and worksheet
-    #     wb = Workbook()
-    #     ws = wb.active
-    #     ws.title = sheet_name
-    #     
-    #     if not data:
-    #         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    #         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    #         wb.save(response)
-    #         return response
-    #     
-    #     # Add headers
-    #     headers = list(data[0].keys())
-    #     for col, header in enumerate(headers, 1):
-    #         cell = ws.cell(row=1, column=col, value=header.replace('_', ' ').title())
-    #         cell.font = Font(bold=True, color="FFFFFF")
-    #         cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    #         cell.alignment = Alignment(horizontal="center")
-    #     
-    #     # Add data rows
-    #     for row, item in enumerate(data, 2):
-    #         for col, header in enumerate(headers, 1):
-    #             value = item.get(header, '')
-    #             # Format dates
-    #             if isinstance(value, datetime):
-    #                 value = value.strftime('%Y-%m-%d %H:%M:%S')
-    #             ws.cell(row=row, column=col, value=value)
-    #     
-    #     # Auto-adjust column widths
-    #     for column in ws.columns:
-    #         max_length = 0
-    #         column = [cell for cell in column]
-    #         for cell in column:
-    #             try:
-    #                 if len(str(cell.value)) > max_length:
-    #                     max_length = len(str(cell.value))
-    #             except:
-    #                 pass
-    #         adjusted_width = min(max_length + 2, 50)
-    #         ws.column_dimensions[column[0].column_letter].width = adjusted_width
-    #     
-    #     # Save to response
-    #     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    #     response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    #     wb.save(response)
-    #     
-    #     return response
+        # Create workbook and worksheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = sheet_name
+        
+        if not data:
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            wb.save(response)
+            return response
+        
+        # Add headers
+        headers = list(data[0].keys())
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header.replace('_', ' ').title())
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        # Add data rows
+        for row, item in enumerate(data, 2):
+            for col, header in enumerate(headers, 1):
+                value = item.get(header, '')
+                # Format dates
+                if isinstance(value, datetime):
+                    value = value.strftime('%Y-%m-%d %H:%M:%S')
+                ws.cell(row=row, column=col, value=value)
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+        
+        # Save to response
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        
+        return response
     
     @staticmethod
     def export_to_pdf(data: List[Dict[str, Any]], filename: str = None, title: str = "Export Report") -> HttpResponse:

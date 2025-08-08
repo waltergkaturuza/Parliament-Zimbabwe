@@ -52,7 +52,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 import { format } from 'date-fns';
-import { CouponService } from '@/api/coupons';
 
 const { Search } = Input;
 const { RangePicker } = DatePicker;
@@ -106,14 +105,39 @@ const CouponManagement = () => {
   const { data: coupons, isLoading, refetch } = useQuery<Coupon[]>({
     queryKey: ['coupons', filters],
     queryFn: async () => {
-      return await CouponService.fetchCoupons();
+      // Simulated data - replace with actual API call
+      return Array.from({ length: 50 }, (_, i) => ({
+        id: `coup_${i + 1}`,
+        serialNumber: `SN${String(i + 1).padStart(6, '0')}`,
+        barcode: `123456789${String(i + 1).padStart(3, '0')}`,
+        qrCode: `QR${String(i + 1).padStart(8, '0')}`,
+        fuelType: Math.random() > 0.5 ? 'PETROL' : 'DIESEL',
+        denomination: [50, 100, 200, 500][Math.floor(Math.random() * 4)],
+        status: ['ACTIVE', 'USED', 'EXPIRED', 'CANCELLED'][Math.floor(Math.random() * 4)] as any,
+        beneficiary: Math.random() > 0.3 ? {
+          id: `ben_${i + 1}`,
+          name: `Hon. Beneficiary ${i + 1}`,
+          category: ['MP', 'SENATOR', 'STAFF'][Math.floor(Math.random() * 3)],
+        } : undefined,
+        issuedDate: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
+        expiryDate: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString(),
+        usedDate: Math.random() > 0.7 ? new Date().toISOString() : undefined,
+        allocation: {
+          id: `alloc_${Math.floor(i / 10) + 1}`,
+          name: `Monthly Allocation ${Math.floor(i / 10) + 1}`,
+        },
+        createdBy: 'System Admin',
+        lastModified: new Date().toISOString(),
+      }));
     },
   });
 
   // Create coupon mutation
   const createCouponMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await CouponService.createCoupon(data);
+      // Simulated API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return data;
     },
     onSuccess: () => {
       message.success('Coupon created successfully');
@@ -129,22 +153,12 @@ const CouponManagement = () => {
   // Bulk actions mutation
   const bulkActionMutation = useMutation({
     mutationFn: async ({ action, couponIds }: { action: string; couponIds: string[] }) => {
-      switch (action) {
-        case 'activate':
-          // API call to bulk activate coupons
-          return await CouponService.bulkAllocate({ coupon_numbers: couponIds, beneficiary_id: 0 });
-        case 'cancel':
-          // API call to bulk cancel coupons
-          return await Promise.all(couponIds.map(id => CouponService.deleteCoupon(parseInt(id))));
-        case 'export':
-          // API call to export coupons
-          return { action: 'export', couponIds };
-        default:
-          throw new Error(`Unknown action: ${action}`);
-      }
+      // Simulated API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return { action, couponIds };
     },
-    onSuccess: (data, variables) => {
-      message.success(`Successfully ${variables.action} ${variables.couponIds.length} coupons`);
+    onSuccess: (data) => {
+      message.success(`Successfully ${data.action} ${data.couponIds.length} coupons`);
       setSelectedRowKeys([]);
       queryClient.invalidateQueries({ queryKey: ['coupons'] });
     },

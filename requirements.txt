@@ -26,12 +26,12 @@ python-decouple==3.8
 django-model-utils==4.5.1
 setuptools>=69.0.0
 
-# Data processing (commented out temporarily to speed up deployment)
-# pandas==2.0.3
-# openpyxl==3.1.2
-# reportlab==4.0.9
-# qrcode[pil]==7.4.2
-# Pillow==10.0.1
+# Data processing and export - Python 3.13 compatible versions
+pandas==2.2.0
+openpyxl==3.1.2
+reportlab==4.2.2
+qrcode==7.4.2
+Pillow==10.2.0
 
 # API documentation
 drf-spectacular==0.27.2
