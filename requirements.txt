@@ -3,9 +3,9 @@ Django==5.0.7
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.0
 
-# Database (Azure PostgreSQL) - Python 3.13 compatible (using pre-compiled wheels)
-psycopg[binary]==3.2.3 --only-binary=all
-psycopg2-binary==2.9.10 --only-binary=all
+# Database (Azure PostgreSQL) - Python 3.13 compatible
+psycopg[binary]==3.2.3
+psycopg2-binary==2.9.10
 dj-database-url==2.1.0
 
 # Production server & middleware
@@ -13,12 +13,12 @@ gunicorn==21.2.0
 whitenoise==6.9.0
 django-cors-headers==4.3.1
 
-# Azure specific (using pre-compiled wheels)
-applicationinsights==0.11.10 --only-binary=all
+# Azure specific
+applicationinsights==0.11.10
 
-# Security & auth (using pre-compiled wheels where beneficial)
-django-allauth==0.57.0 --only-binary=all
-msal==1.28.0 --only-binary=all
+# Security & auth
+django-allauth==0.57.0
+msal==1.28.0
 
 # Essential utilities
 requests==2.31.0
@@ -26,12 +26,12 @@ python-decouple==3.8
 django-model-utils==4.5.1
 setuptools>=69.0.0
 
-# Data processing and export - Python 3.13 compatible versions (using pre-compiled wheels)
-# pandas==2.2.0 --only-binary=all  # Temporarily commented out - causing 60+ min deployment times
-openpyxl==3.1.2 --only-binary=all
-reportlab==4.2.2 --only-binary=all
-qrcode==7.4.2 --only-binary=all
-# Pillow==10.2.0 --only-binary=all  # Temporarily commented out - heavy image processing package
+# Data processing and export - Python 3.13 compatible versions
+pandas==2.2.0
+openpyxl==3.1.2
+reportlab==4.2.2
+qrcode==7.4.2
+Pillow==10.2.0
 
 # API documentation
 drf-spectacular==0.27.2

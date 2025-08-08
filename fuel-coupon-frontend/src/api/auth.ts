@@ -74,7 +74,7 @@ export const AuthService = {
 
   refreshToken: async (refreshToken: string): Promise<{ success: boolean; access?: string; message?: string }> => {
     try {
-      const response = await apiClient.post<{ access: string }>('/api/token/refresh/', { refresh: refreshToken });
+      const response = await apiClient.post<{ access: string }>('/api/v1/auth/refresh/', { refresh: refreshToken });
       return { success: true, access: response.data.access };
     } catch (error: any) {
       const message =
