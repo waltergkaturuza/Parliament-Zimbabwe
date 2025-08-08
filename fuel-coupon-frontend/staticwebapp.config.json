@@ -1,10 +1,6 @@
 {
   "routes": [
     {
-      "route": "/api/*",
-      "allowedRoles": ["authenticated", "anonymous"]
-    },
-    {
       "route": "/bc/*",
       "allowedRoles": ["authenticated", "anonymous"]
     },
@@ -16,7 +12,7 @@
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/static/*", "/api/*", "/bc/*"]
+    "exclude": ["/static/*", "/bc/*"]
   },
   "mimeTypes": {
     ".json": "application/json",
