@@ -77,7 +77,7 @@ const AnalyticsFinance: FC = () => {
     setLoading(true);
     try {
       const [startDate, endDate] = dateRange;
-      const response = await apiClient.get('/financial-analytics/', {
+      const response = await apiClient.get('/api/v1/financial-analytics/', {
         params: {
           start_date: startDate.format('YYYY-MM-DD'),
           end_date: endDate.format('YYYY-MM-DD'),

@@ -16,7 +16,7 @@ from .views_main import (
     # New Parliament-specific ViewSets
     BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
     ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
-    FuelEntitlementViewSet,
+    FuelEntitlementViewSet, FuelTransactionViewSet,
     
     # Subcenter management ViewSets
     PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
@@ -32,6 +32,10 @@ from .views_main import (
     
     # CORS test views
     cors_test, health_check,
+    
+    # New API endpoints for frontend integration
+    user_profile_view, audit_compliance_stats, audit_compliance_reports,
+    audit_transaction_stats, programs_view, financial_analytics_view, fuel_prices_view,
 )
 
 # Import debug views
@@ -84,7 +88,11 @@ router.register(r'vehicle-categories', VehicleCategoryViewSet, basename='vehicle
 router.register(r'parliament-sessions', ParliamentSessionViewSet, basename='parliament-session')
 router.register(r'session-attendances', SessionAttendanceViewSet, basename='session-attendance')
 router.register(r'beneficiary-profiles', BeneficiaryProfileViewSet, basename='beneficiary-profile')
+router.register(r'beneficiaries', BeneficiaryProfileViewSet, basename='beneficiary-alias')  # Alias for /api/v1/beneficiaries/
 router.register(r'fuel-entitlements', FuelEntitlementViewSet, basename='fuel-entitlement')
+
+# Transactions
+router.register(r'transactions', FuelTransactionViewSet, basename='transaction')
 
 # Subcenter management
 router.register(r'pool-vehicles', PoolVehicleViewSet, basename='pool-vehicle')
@@ -123,16 +131,19 @@ urlpatterns = [
     
     # Analytics endpoints
     path('analytics/', analytics_view, name='analytics-view'),
-    path('financial-analytics/', analytics_view, name='financial-analytics'),
+    path('financial-analytics/', financial_analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
     
     # Fuel pricing endpoints
-    path('fuel-prices/', fuel_statistics, name='fuel-prices'),
+    path('fuel-prices/', fuel_prices_view, name='fuel-prices'),
     
     # Users endpoints with role filtering
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
     
-    # Audit endpoints
+    # Programs endpoint 
+    path('programs/', programs_view, name='programs'),
+    
+    # Audit endpoints with proper view connections
     path('audit-logs/', AuditLogViewSet.as_view({'get': 'list'}), name='audit-logs'),
     path('audit-logs/filter-options/', AuditLogViewSet.as_view({'get': 'filter_options'}), name='audit-filter-options'),
     path('audit/compliance-stats/', AuditLogViewSet.as_view({'get': 'compliance_stats'}), name='audit-compliance-stats'),

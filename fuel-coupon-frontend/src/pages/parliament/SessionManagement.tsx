@@ -38,7 +38,7 @@ const SessionManagement: FC = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/parliament-sessions/');
+      const response = await apiClient.get('/api/v1/parliament-sessions/');
       const sessionData = response.data.results || response.data;
       setSessions(sessionData);
 
@@ -74,7 +74,7 @@ const SessionManagement: FC = () => {
         await apiClient.put(`/parliament-sessions/${editingSession.id}/`, sessionData);
         message.success('Session updated successfully');
       } else {
-        await apiClient.post('/parliament-sessions/', sessionData);
+        await apiClient.post('/api/v1/parliament-sessions/', sessionData);
         message.success('Session created successfully');
       }
 

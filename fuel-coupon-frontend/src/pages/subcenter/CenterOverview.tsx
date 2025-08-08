@@ -82,7 +82,7 @@ const CenterOverview: FC = () => {
 
   const fetchCenterData = async () => {
     try {
-      const response = await apiClient.get('/subcenter/overview/');
+      const response = await apiClient.get('/api/v1/subcenter/overview/');
       const data = response.data;
       
       setCenterData({
@@ -108,7 +108,7 @@ const CenterOverview: FC = () => {
 
   const fetchRecentActivities = async () => {
     try {
-      const response = await apiClient.get('/subcenter/activities/');
+      const response = await apiClient.get('/api/v1/subcenter/activities/');
       const activities = response.data.map((item: any) => ({
         id: item.id,
         type: item.activity_type || 'unknown',

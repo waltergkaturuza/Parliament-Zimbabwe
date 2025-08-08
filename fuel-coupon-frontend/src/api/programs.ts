@@ -63,7 +63,7 @@ export const ProgramService = {
     page?: number;
     page_size?: number;
   }) => {
-    const response = await apiClient.get('/programs/', { params });
+    const response = await apiClient.get('/api/v1/programs/', { params });
     return response.data;
   },
 
@@ -75,7 +75,7 @@ export const ProgramService = {
 
   // Create a new program
   createProgram: async (programData: CreateProgramData) => {
-    const response = await apiClient.post('/programs/', programData);
+    const response = await apiClient.post('/api/v1/programs/', programData);
     return response.data;
   },
 
@@ -99,7 +99,7 @@ export const ProgramService = {
 
   // Get program statistics
   getProgramStats: async () => {
-    const response = await apiClient.get('/programs/stats/');
+    const response = await apiClient.get('/api/v1/programs/stats/');
     return response.data;
   },
 

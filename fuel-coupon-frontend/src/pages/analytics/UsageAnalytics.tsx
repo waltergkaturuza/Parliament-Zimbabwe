@@ -97,7 +97,7 @@ const UsageAnalytics: FC = () => {
 
   const loadSubCenters = async () => {
     try {
-      const response = await apiClient.get('/subcenters/');
+      const response = await apiClient.get('/api/v1/subcenters/');
       const subCenterData = response.data.results || response.data;
       setSubCenters(subCenterData);
     } catch (error) {
@@ -114,7 +114,7 @@ const UsageAnalytics: FC = () => {
         sub_center: selectedSubCenter !== 'all' ? selectedSubCenter : undefined
       };
 
-      const response = await apiClient.get('/analytics/', { params });
+      const response = await apiClient.get('/api/v1/analytics/', { params });
       
       // Mock data for demonstration - replace with actual API response
       const mockData: UsageData = {

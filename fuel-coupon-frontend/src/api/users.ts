@@ -54,13 +54,13 @@ export const UserService = {
     page?: number;
     page_size?: number;
   }) => {
-    const response = await apiClient.get('/users/', { params });
+    const response = await apiClient.get('/api/v1/users/', { params });
     return response.data;
   },
 
   // Get users by specific role
   getUsersByRole: async (role: string) => {
-    const response = await apiClient.get('/users/', { params: { role } });
+    const response = await apiClient.get('/api/v1/users/', { params: { role } });
     return response.data;
   },
 
@@ -72,7 +72,7 @@ export const UserService = {
 
   // Create a new user
   createUser: async (userData: CreateUserData) => {
-    const response = await apiClient.post('/users/', userData);
+    const response = await apiClient.post('/api/v1/users/', userData);
     return response.data;
   },
 
@@ -102,7 +102,7 @@ export const UserService = {
 
   // Get user statistics
   getUserStats: async () => {
-    const response = await apiClient.get('/users/stats/');
+    const response = await apiClient.get('/api/v1/users/stats/');
     return response.data;
   },
 };

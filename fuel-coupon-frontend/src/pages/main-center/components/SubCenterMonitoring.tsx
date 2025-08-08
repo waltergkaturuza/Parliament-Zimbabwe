@@ -95,7 +95,7 @@ const SubCenterMonitoring: FC = () => {
   const loadSubCenters = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/subcenters/');
+      const response = await apiClient.get('/api/v1/subcenters/');
       const data = response.data;
       
       // Handle both paginated and direct array responses

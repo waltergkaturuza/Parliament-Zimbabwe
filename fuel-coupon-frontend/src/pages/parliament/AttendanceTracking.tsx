@@ -49,8 +49,8 @@ const AttendanceTracking: FC = () => {
     try {
       setLoading(true);
       const [sessionsResponse, beneficiariesResponse] = await Promise.all([
-        apiClient.get('/parliament-sessions/'),
-        apiClient.get('/beneficiary-profiles/')
+        apiClient.get('/api/v1/parliament-sessions/'),
+        apiClient.get('/api/v1/beneficiary-profiles/')
       ]);
 
       const sessionData = sessionsResponse.data.results || sessionsResponse.data;
@@ -76,7 +76,7 @@ const AttendanceTracking: FC = () => {
     if (!selectedSession || !selectedDate) return;
 
     try {
-      const response = await apiClient.get('/session-attendances/', {
+      const response = await apiClient.get('/api/v1/session-attendances/', {
         params: {
           session: selectedSession,
           date: selectedDate.format('YYYY-MM-DD')
@@ -123,7 +123,7 @@ const AttendanceTracking: FC = () => {
         await apiClient.put(`/session-attendances/${editingRecord.id}/`, attendanceData);
         message.success('Attendance record updated successfully');
       } else {
-        await apiClient.post('/session-attendances/', attendanceData);
+        await apiClient.post('/api/v1/session-attendances/', attendanceData);
         message.success('Attendance record created successfully');
       }
 
@@ -158,7 +158,7 @@ const AttendanceTracking: FC = () => {
         status_write: status // Use status_write field for backend
       };
 
-      await apiClient.post('/session-attendances/', attendanceData);
+      await apiClient.post('/api/v1/session-attendances/', attendanceData);
       message.success(`Marked ${status}`);
       loadAttendanceRecords();
     } catch (error) {

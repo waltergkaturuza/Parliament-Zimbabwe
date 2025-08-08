@@ -297,7 +297,7 @@ const BookDispatchManagement: FC = () => {
   const fetchDispatches = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/dispatches/');
+      const response = await apiClient.get('/api/v1/dispatches/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -353,7 +353,7 @@ const BookDispatchManagement: FC = () => {
 
   const fetchAvailableBooks = async () => {
     try {
-      const response = await apiClient.get('/books/');
+      const response = await apiClient.get('/api/v1/books/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -388,7 +388,7 @@ const BookDispatchManagement: FC = () => {
 
   const fetchSubCenters = async () => {
     try {
-      const response = await apiClient.get('/subcenters/');
+      const response = await apiClient.get('/api/v1/subcenters/');
       const data = response.data;
       
       // Handle both paginated and direct array responses

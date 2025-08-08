@@ -50,7 +50,7 @@ export const petrotradeApi = {
    * Create a new PetroTrade box with sequential coupon serials
    */
   createBox: async (data: PetroTradeBoxRequest): Promise<PetroTradeBoxResponse> => {
-    const response = await apiClient.post('/boxes/create_petrotrade_box/', data);
+    const response = await apiClient.post('/api/v1/boxes/create_petrotrade_box/', data);
     return response.data;
   },
 

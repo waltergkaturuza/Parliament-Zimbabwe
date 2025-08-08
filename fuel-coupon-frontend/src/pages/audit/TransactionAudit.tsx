@@ -89,7 +89,7 @@ const TransactionAudit: React.FC = () => {
 
   const fetchAuditStats = async () => {
     try {
-      const response = await apiClient.get('/audit/transaction-stats/');
+      const response = await apiClient.get('/api/v1/audit/transaction-stats/');
       setAuditStats(response.data || {});
     } catch (error) {
       console.error('Failed to fetch audit stats:', error);

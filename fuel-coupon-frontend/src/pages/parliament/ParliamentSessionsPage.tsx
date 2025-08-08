@@ -91,7 +91,7 @@ const ParliamentSessionsPage: FC = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/parliament-sessions/');
+      const response = await apiClient.get('/api/v1/parliament-sessions/');
       const sessionData = response.data.results || response.data;
       setSessions(sessionData);
 
@@ -127,7 +127,7 @@ const ParliamentSessionsPage: FC = () => {
   const loadUsers = async () => {
     try {
       setUsersLoading(true);
-      const response = await apiClient.get('/users/?role=MAIN_CENTER,SUB_CENTER');
+      const response = await apiClient.get('/api/v1/users/?role=MAIN_CENTER,SUB_CENTER');
       setUsers(response.data.results || response.data);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -140,7 +140,7 @@ const ParliamentSessionsPage: FC = () => {
   const loadSubcenters = async () => {
     try {
       setSubcentersLoading(true);
-      const response = await apiClient.get('/subcenters/');
+      const response = await apiClient.get('/api/v1/subcenters/');
       setSubcenters(response.data.results || response.data);
     } catch (error) {
       console.error('Error loading subcenters:', error);
@@ -210,7 +210,7 @@ const ParliamentSessionsPage: FC = () => {
         await apiClient.put(`/parliament-sessions/${editingSession.id}/`, payload);
         message.success('Parliament session updated successfully');
       } else {
-        await apiClient.post('/parliament-sessions/', payload);
+        await apiClient.post('/api/v1/parliament-sessions/', payload);
         message.success('Parliament session created successfully');
       }
 
