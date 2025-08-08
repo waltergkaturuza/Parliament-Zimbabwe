@@ -3,7 +3,7 @@ import io
 import csv
 from datetime import datetime
 from typing import List, Dict, Any
-import pandas as pd
+# import pandas as pd  # Temporarily commented out for Azure deployment
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from reportlab.lib import colors
