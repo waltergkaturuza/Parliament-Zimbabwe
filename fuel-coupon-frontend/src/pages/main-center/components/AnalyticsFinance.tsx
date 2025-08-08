@@ -1,5 +1,5 @@
 // src/pages/main-center/components/AnalyticsFinance.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import {
   Card,
@@ -15,6 +15,8 @@ import {
   Tag,
   Progress,
   Divider,
+  Spin,
+  message,
 } from 'antd';
 import {
   DollarOutlined,
@@ -24,6 +26,7 @@ import {
   FileTextOutlined,
   DownloadOutlined,
   PieChartOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import {
   AreaChart,
@@ -43,10 +46,19 @@ import {
   Legend,
 } from 'recharts';
 import dayjs from 'dayjs';
+import apiClient from '../../../api/index';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+
+interface FinancialData {
+  date: string;
+  revenueUSD: number;
+  costsUSD: number;
+  profitUSD: number;
+  coupons: number;
+}
 
 const AnalyticsFinance: FC = () => {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
@@ -54,201 +66,357 @@ const AnalyticsFinance: FC = () => {
     dayjs(),
   ]);
   const [selectedMetric, setSelectedMetric] = useState('revenue');
+  const [loading, setLoading] = useState(true);
+  const [financialData, setFinancialData] = useState<FinancialData[]>([]);
 
-  // Sample data
-  const financialData = [
-    { date: '01/07', revenue: 2400000, costs: 1800000, profit: 600000, coupons: 12000 },
-    { date: '02/07', revenue: 2600000, costs: 1950000, profit: 650000, coupons: 13000 },
-    { date: '03/07', revenue: 2800000, costs: 2100000, profit: 700000, coupons: 14000 },
-    { date: '04/07', revenue: 3000000, costs: 2250000, profit: 750000, coupons: 15000 },
-  ];
+  useEffect(() => {
+    loadFinancialData();
+  }, [dateRange]);
 
-  const consumptionBySubCenter = [
-    { name: 'Harare Central', value: 35, amount: 2800000, color: '#1890ff' },
-    { name: 'Bulawayo North', value: 25, amount: 2000000, color: '#52c41a' },
-    { name: 'Mutare East', value: 20, amount: 1600000, color: '#faad14' },
-    { name: 'Gweru South', value: 15, amount: 1200000, color: '#f5222d' },
-    { name: 'Others', value: 5, amount: 400000, color: '#722ed1' },
-  ];
+  const loadFinancialData = async () => {
+    setLoading(true);
+    try {
+      const [startDate, endDate] = dateRange;
+      const response = await apiClient.get('/financial-analytics/', {
+        params: {
+          start_date: startDate.format('YYYY-MM-DD'),
+          end_date: endDate.format('YYYY-MM-DD'),
+        }
+      });
+      
+      const data = response.data;
+      
+      if (data && Array.isArray(data.daily_data)) {
+        const mappedData = data.daily_data.map((item: any) => ({
+          date: dayjs(item.date).format('DD/MM'),
+          revenueUSD: item.revenue_usd || 0,
+          costsUSD: item.costs_usd || 0,
+          profitUSD: (item.revenue_usd || 0) - (item.costs_usd || 0),
+          coupons: item.coupons_issued || 0,
+        }));
+        setFinancialData(mappedData);
+      } else {
+        setFinancialData([]);
+      }
+    } catch (error) {
+      console.error('Error loading financial data:', error);
+      message.error('Failed to load financial analytics');
+      setFinancialData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const fuelTypeDistribution = [
-    { name: 'Petrol 20L', value: 45, amount: 3600000, color: '#1890ff' },
-    { name: 'Petrol 5L', value: 30, amount: 600000, color: '#52c41a' },
-    { name: 'Diesel 20L', value: 20, amount: 1520000, color: '#faad14' },
-    { name: 'Diesel 5L', value: 5, amount: 95000, color: '#f5222d' },
-  ];
+  // Export function
+  const handleExportData = () => {
+    try {
+      const headers = ['Date', 'Revenue USD', 'Costs USD', 'Profit USD', 'Coupons Issued'];
+      const csvContent = [
+        headers.join(','),
+        ...financialData.map(item => [
+          item.date,
+          item.revenueUSD,
+          item.costsUSD,
+          item.profitUSD,
+          item.coupons
+        ].join(','))
+      ].join('\n');
 
-  const monthlyComparison = [
-    { month: 'Jan', thisYear: 18000000, lastYear: 15000000 },
-    { month: 'Feb', thisYear: 19500000, lastYear: 16200000 },
-    { month: 'Mar', thisYear: 21000000, lastYear: 17800000 },
-    { month: 'Apr', thisYear: 22500000, lastYear: 19000000 },
-    { month: 'May', thisYear: 24000000, lastYear: 20500000 },
-    { month: 'Jun', thisYear: 25500000, lastYear: 22000000 },
-    { month: 'Jul', thisYear: 12000000, lastYear: 11500000 },
-  ];
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `financial_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error('Failed to export data');
+    }
+  };
 
   // Calculate totals and percentages
-  const totalRevenue = financialData.reduce((sum, item) => sum + item.revenue, 0);
-  const totalCosts = financialData.reduce((sum, item) => sum + item.costs, 0);
-  const totalProfit = totalRevenue - totalCosts;
-  const profitMargin = (totalProfit / totalRevenue) * 100;
+  const totalRevenueUSD = financialData.reduce((sum, item) => sum + item.revenueUSD, 0);
+  const totalCostsUSD = financialData.reduce((sum, item) => sum + item.costsUSD, 0);
+  const totalProfitUSD = totalRevenueUSD - totalCostsUSD;
+  const profitMargin = totalRevenueUSD > 0 ? (totalProfitUSD / totalRevenueUSD) * 100 : 0;
   const totalCoupons = financialData.reduce((sum, item) => sum + item.coupons, 0);
 
   // Growth calculations
   const revenueGrowth = financialData.length > 1 
-    ? ((financialData[financialData.length - 1].revenue - financialData[0].revenue) / financialData[0].revenue) * 100
+    ? ((financialData[financialData.length - 1].revenueUSD - financialData[0].revenueUSD) / (financialData[0].revenueUSD || 1)) * 100
     : 0;
 
-  const topPerformers = [
-    { subCenter: 'Harare Central', revenue: 2800000, growth: 15.2, coupons: 14000 },
-    { subCenter: 'Bulawayo North', revenue: 2000000, growth: 12.8, coupons: 10000 },
-    { subCenter: 'Mutare East', revenue: 1600000, growth: 8.5, coupons: 8000 },
-  ];
+  // Chart colors
+  const chartColors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1'];
 
   const columns = [
     {
-      title: 'Sub Center',
-      dataIndex: 'subCenter',
-      key: 'subCenter',
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
     },
     {
-      title: 'Revenue (ZWG)',
-      dataIndex: 'revenue',
-      key: 'revenue',
-      render: (value: number) => value.toLocaleString(),
-    },
-    {
-      title: 'Growth',
-      dataIndex: 'growth',
-      key: 'growth',
+      title: 'Revenue (USD)',
+      dataIndex: 'revenueUSD',
+      key: 'revenueUSD',
       render: (value: number) => (
-        <Text style={{ color: value > 0 ? '#52c41a' : '#ff4d4f' }}>
-          {value > 0 ? <RiseOutlined /> : <FallOutlined />}
-          {' '}{Math.abs(value).toFixed(1)}%
-        </Text>
+        <Space>
+          <DollarOutlined style={{ color: '#52c41a' }} />
+          <Text strong>${value.toLocaleString()}</Text>
+        </Space>
       ),
     },
     {
-      title: 'Coupons Used',
-      dataIndex: 'coupons',
-      key: 'coupons',
-      render: (value: number) => value.toLocaleString(),
+      title: 'Costs (USD)',
+      dataIndex: 'costsUSD',
+      key: 'costsUSD',
+      render: (value: number) => (
+        <Space>
+          <DollarOutlined style={{ color: '#f5222d' }} />
+          <Text>${value.toLocaleString()}</Text>
+        </Space>
+      ),
     },
     {
-      title: 'Performance',
-      key: 'performance',
-      render: (_: any, record: any) => {
-        const performance = (record.growth / 20) * 100; // Assume 20% is excellent
-        return (
-          <Progress
-            percent={Math.min(performance, 100)}
-            size="small"
-            status={performance > 80 ? 'success' : performance > 50 ? 'active' : 'exception'}
-          />
-        );
-      },
+      title: 'Profit (USD)',
+      dataIndex: 'profitUSD',
+      key: 'profitUSD',
+      render: (value: number) => (
+        <Space>
+          <DollarOutlined style={{ color: value >= 0 ? '#52c41a' : '#f5222d' }} />
+          <Text type={value >= 0 ? 'success' : 'danger'} strong>
+            ${value.toLocaleString()}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Coupons',
+      dataIndex: 'coupons',
+      key: 'coupons',
+      render: (value: number) => <Text>{value.toLocaleString()}</Text>,
     },
   ];
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+        <div style={{ marginTop: 16 }}>Loading financial analytics...</div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      {/* Header with Controls */}
+      {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
         <Col>
-          <Title level={4}>Analytics & Finance</Title>
-          <Text type="secondary">Financial insights and consumption analytics</Text>
+          <Title level={3}>
+            <BarChartOutlined /> Financial Analytics
+          </Title>
         </Col>
         <Col>
           <Space>
             <RangePicker
               value={dateRange}
-              onChange={(dates) => setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
+              onChange={(dates) => {
+                if (dates && dates[0] && dates[1]) {
+                  setDateRange([dates[0], dates[1]]);
+                }
+              }}
+              format="DD/MM/YYYY"
             />
-            <Select value={selectedMetric} onChange={setSelectedMetric} style={{ width: 120 }}>
+            <Select
+              value={selectedMetric}
+              onChange={setSelectedMetric}
+              style={{ width: 120 }}
+            >
               <Option value="revenue">Revenue</Option>
               <Option value="profit">Profit</Option>
-              <Option value="coupons">Coupons</Option>
+              <Option value="costs">Costs</Option>
             </Select>
-            <Button icon={<DownloadOutlined />}>Export</Button>
+            <Button 
+              icon={<ExportOutlined />} 
+              onClick={handleExportData}
+              type="primary"
+            >
+              Export
+            </Button>
           </Space>
         </Col>
       </Row>
 
       {/* Key Metrics */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Revenue"
-              value={totalRevenue}
-              prefix="ZWG"
-              valueStyle={{ color: '#1890ff' }}
-              formatter={(value) => value?.toLocaleString()}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Text style={{ color: revenueGrowth > 0 ? '#52c41a' : '#ff4d4f', fontSize: '12px' }}>
-                {revenueGrowth > 0 ? '↑' : '↓'} {Math.abs(revenueGrowth).toFixed(1)}% from last period
-              </Text>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Profit"
-              value={totalProfit}
-              prefix="ZWG"
+              value={totalRevenueUSD}
+              prefix={<DollarOutlined />}
+              suffix="USD"
+              precision={0}
               valueStyle={{ color: '#52c41a' }}
-              formatter={(value) => value?.toLocaleString()}
             />
             <div style={{ marginTop: 8 }}>
-              <Text style={{ fontSize: '12px' }}>
-                Margin: {profitMargin.toFixed(1)}%
-              </Text>
+              <Tag color={revenueGrowth >= 0 ? 'green' : 'red'}>
+                {revenueGrowth >= 0 ? <RiseOutlined /> : <FallOutlined />}
+                {Math.abs(revenueGrowth).toFixed(1)}%
+              </Tag>
             </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Coupons Processed"
+              title="Total Costs"
+              value={totalCostsUSD}
+              prefix={<DollarOutlined />}
+              suffix="USD"
+              precision={0}
+              valueStyle={{ color: '#f5222d' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Net Profit"
+              value={totalProfitUSD}
+              prefix={<DollarOutlined />}
+              suffix="USD"
+              precision={0}
+              valueStyle={{ color: totalProfitUSD >= 0 ? '#52c41a' : '#f5222d' }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Progress
+                percent={Math.abs(profitMargin)}
+                status={profitMargin >= 0 ? 'success' : 'exception'}
+                showInfo={false}
+                size="small"
+              />
+              <Text type="secondary">{profitMargin.toFixed(1)}% margin</Text>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Coupons Issued"
               value={totalCoupons}
-              valueStyle={{ color: '#722ed1' }}
-              formatter={(value) => value?.toLocaleString()}
+              suffix="coupons"
+              valueStyle={{ color: '#1890ff' }}
             />
-            <div style={{ marginTop: 8 }}>
-              <Text style={{ fontSize: '12px' }}>
-                Avg: {(totalCoupons / financialData.length).toLocaleString()} per day
-              </Text>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Operational Costs"
-              value={totalCosts}
-              prefix="ZWG"
-              valueStyle={{ color: '#faad14' }}
-              formatter={(value) => value?.toLocaleString()}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Text style={{ fontSize: '12px' }}>
-                {((totalCosts / totalRevenue) * 100).toFixed(1)}% of revenue
-              </Text>
-            </div>
           </Card>
         </Col>
       </Row>
 
       {/* Charts Section */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {/* Revenue Trend */}
-        <Col xs={24} lg={12}>
-          <Card title="Revenue & Profit Trend" extra={<FileTextOutlined />}>
+        <Col xs={24} lg={16}>
+          <Card title="Financial Trends (USD)" extra={<BarChartOutlined />}>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={financialData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`} />
+                <Tooltip 
+                  formatter={(value: number, name: string) => [
+                    `$${value.toLocaleString()}`,
+                    name === 'revenueUSD' ? 'Revenue' : 
+                    name === 'costsUSD' ? 'Costs' : 'Profit'
+                  ]}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="revenueUSD"
+                  stackId="1"
+                  stroke="#52c41a"
+                  fill="#52c41a"
+                  fillOpacity={0.6}
+                  name="Revenue USD"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="costsUSD"
+                  stackId="2"
+                  stroke="#f5222d"
+                  fill="#f5222d"
+                  fillOpacity={0.6}
+                  name="Costs USD"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="profitUSD"
+                  stackId="3"
+                  stroke="#1890ff"
+                  fill="#1890ff"
+                  fillOpacity={0.6}
+                  name="Profit USD"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Card>
+        </Col>
+        <Col xs={24} lg={8}>
+          <Card title="Performance Metrics" extra={<PieChartOutlined />}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>Profit Margin</Text>
+                <div>
+                  <Progress
+                    type="circle"
+                    percent={Math.abs(profitMargin)}
+                    status={profitMargin >= 0 ? 'success' : 'exception'}
+                    format={(percent) => `${percent?.toFixed(1)}%`}
+                  />
+                </div>
+              </div>
+              <Divider />
+              <div>
+                <Text strong>Cost Efficiency</Text>
+                <div style={{ marginTop: 8 }}>
+                  <Progress
+                    percent={totalCostsUSD > 0 ? (totalProfitUSD / totalCostsUSD) * 100 : 0}
+                    status="active"
+                    format={(percent) => `${percent?.toFixed(1)}%`}
+                  />
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Data Table */}
+      <Card 
+        title="Financial Details" 
+        extra={
+          <Button icon={<DownloadOutlined />} onClick={handleExportData}>
+            Export CSV
+          </Button>
+        }
+      >
+        <Table
+          columns={columns}
+          dataSource={financialData}
+          rowKey="date"
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) =>
+              `${range[0]}-${range[1]} of ${total} records`,
+          }}
+        />
+      </Card>
+    </div>
+  );
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
@@ -309,125 +477,5 @@ const AnalyticsFinance: FC = () => {
                   {consumptionBySubCenter.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                </Pie>
-                <Tooltip formatter={(value: number, name: string, props: any) => [
-                  `${value}% (ZWG ${props.payload.amount.toLocaleString()})`,
-                  name
-                ]} />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-
-        {/* Fuel Type Distribution */}
-        <Col xs={24} lg={12}>
-          <Card title="Revenue by Fuel Type" extra={<PieChartOutlined />}>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={fuelTypeDistribution}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {fuelTypeDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number, name: string, props: any) => [
-                  `${value}% (ZWG ${props.payload.amount.toLocaleString()})`,
-                  name
-                ]} />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Performance Table */}
-      <Card title="Sub Center Performance Rankings">
-        <Table
-          columns={columns}
-          dataSource={topPerformers}
-          rowKey="subCenter"
-          pagination={false}
-          size="small"
-        />
-      </Card>
-
-      <Divider />
-
-      {/* Additional Insights */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}>
-          <Card title="Top Insights" size="small">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div>
-                <Text strong>Peak Revenue Day</Text>
-                <br />
-                <Text>04/07/2024 - ZWG 3,000,000</Text>
-              </div>
-              <div>
-                <Text strong>Best Performing Center</Text>
-                <br />
-                <Text>Harare Central (+15.2%)</Text>
-              </div>
-              <div>
-                <Text strong>Most Popular Fuel</Text>
-                <br />
-                <Text>Petrol 20L (45% of sales)</Text>
-              </div>
-            </Space>
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card title="Cost Breakdown" size="small">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div>
-                <Text>Fuel Procurement: 75%</Text>
-                <Progress percent={75} size="small" />
-              </div>
-              <div>
-                <Text>Operations: 15%</Text>
-                <Progress percent={15} size="small" />
-              </div>
-              <div>
-                <Text>Distribution: 8%</Text>
-                <Progress percent={8} size="small" />
-              </div>
-              <div>
-                <Text>Administration: 2%</Text>
-                <Progress percent={2} size="small" />
-              </div>
-            </Space>
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card title="Key Ratios" size="small">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div>
-                <Text strong>Profit Margin</Text>
-                <br />
-                <Text style={{ color: '#52c41a' }}>{profitMargin.toFixed(1)}%</Text>
-              </div>
-              <div>
-                <Text strong>Revenue per Coupon</Text>
-                <br />
-                <Text>ZWG {(totalRevenue / totalCoupons).toFixed(0)}</Text>
-              </div>
-              <div>
-                <Text strong>Daily Average Revenue</Text>
-                <br />
-                <Text>ZWG {(totalRevenue / financialData.length).toLocaleString()}</Text>
-              </div>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
-    </div>
-  );
-};
 
 export default AnalyticsFinance;

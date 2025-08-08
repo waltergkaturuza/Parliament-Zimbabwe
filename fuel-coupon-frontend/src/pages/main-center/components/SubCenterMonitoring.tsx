@@ -1,5 +1,5 @@
 // src/pages/main-center/components/SubCenterMonitoring.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import {
   Card,
@@ -19,6 +19,8 @@ import {
   Select,
   Input,
   Tooltip,
+  Spin,
+  message,
 } from 'antd';
 import {
   EnvironmentOutlined,
@@ -32,6 +34,8 @@ import {
   WarningOutlined,
   DashboardOutlined,
   BarChartOutlined,
+  ExportOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import {
@@ -49,6 +53,7 @@ import {
   Cell,
 } from 'recharts';
 import dayjs from 'dayjs';
+import apiClient from '../../../api/index';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -66,10 +71,11 @@ interface SubCenter {
   totalBooks: number;
   booksUsed: number;
   booksRemaining: number;
-  totalValue: number;
+  totalValueUSD: number;
+  totalValueZWG: number;
   lastActivity: string;
   performanceScore: number;
-  monthlyConsumption: number;
+  monthlyConsumptionUSD: number;
   alerts: number;
   coordinates?: { lat: number; lng: number };
 }
@@ -79,94 +85,114 @@ const SubCenterMonitoring: FC = () => {
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
 
-  // Sample data
-  const subCenters: SubCenter[] = [
-    {
-      id: '1',
-      name: 'Harare Central',
-      code: 'HC001',
-      location: 'Harare CBD',
-      manager: 'John Mukamuri',
-      contact: '+263 77 123 4567',
-      email: 'john.mukamuri@parliament.gov.zw',
-      status: 'ACTIVE',
-      totalBooks: 150,
-      booksUsed: 125,
-      booksRemaining: 25,
-      totalValue: 3000000,
-      lastActivity: '2024-07-04 14:30',
-      performanceScore: 95,
-      monthlyConsumption: 2800000,
-      alerts: 1,
-    },
-    {
-      id: '2',
-      name: 'Bulawayo North',
-      code: 'BN002',
-      location: 'Bulawayo Industrial',
-      manager: 'Mary Chigwamba',
-      contact: '+263 77 234 5678',
-      email: 'mary.chigwamba@parliament.gov.zw',
-      status: 'ACTIVE',
-      totalBooks: 120,
-      booksUsed: 85,
-      booksRemaining: 35,
-      totalValue: 2400000,
-      lastActivity: '2024-07-04 12:15',
-      performanceScore: 87,
-      monthlyConsumption: 2000000,
-      alerts: 0,
-    },
-    {
-      id: '3',
-      name: 'Mutare East',
-      code: 'ME003',
-      location: 'Mutare Commercial',
-      manager: 'Peter Zimunya',
-      contact: '+263 77 345 6789',
-      email: 'peter.zimunya@parliament.gov.zw',
-      status: 'ACTIVE',
-      totalBooks: 100,
-      booksUsed: 95,
-      booksRemaining: 5,
-      totalValue: 2000000,
-      lastActivity: '2024-07-04 10:45',
-      performanceScore: 78,
-      monthlyConsumption: 1600000,
-      alerts: 2,
-    },
-    {
-      id: '4',
-      name: 'Gweru South',
-      code: 'GS004',
-      location: 'Gweru Town',
-      manager: 'Sarah Moyo',
-      contact: '+263 77 456 7890',
-      email: 'sarah.moyo@parliament.gov.zw',
-      status: 'INACTIVE',
-      totalBooks: 80,
-      booksUsed: 60,
-      booksRemaining: 20,
-      totalValue: 1600000,
-      lastActivity: '2024-07-02 16:20',
-      performanceScore: 65,
-      monthlyConsumption: 1200000,
-      alerts: 3,
-    },
-  ];
+  useEffect(() => {
+    loadSubCenters();
+  }, []);
 
-  const consumptionTrend = [
-    { date: '01/07', harare: 450000, bulawayo: 320000, mutare: 280000, gweru: 180000 },
-    { date: '02/07', harare: 480000, bulawayo: 340000, mutare: 290000, gweru: 190000 },
-    { date: '03/07', harare: 510000, bulawayo: 360000, mutare: 300000, gweru: 200000 },
-    { date: '04/07', harare: 520000, bulawayo: 380000, mutare: 310000, gweru: 210000 },
-  ];
+  const loadSubCenters = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get('/subcenters/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const centers = data.results || data;
+      
+      if (Array.isArray(centers)) {
+        const mappedCenters = centers.map((center: any) => ({
+          id: String(center.id),
+          name: center.name || 'Unnamed Center',
+          code: center.code || `SC${String(center.id).padStart(3, '0')}`,
+          location: center.location || 'Not specified',
+          manager: center.manager_name || 'Not assigned',
+          contact: center.contact_number || 'Not provided',
+          email: center.email || 'Not provided',
+          status: (center.status?.toUpperCase() || 'ACTIVE') as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
+          totalBooks: center.total_books || 0,
+          booksUsed: center.books_used || 0,
+          booksRemaining: (center.total_books || 0) - (center.books_used || 0),
+          totalValueUSD: center.total_value_usd || 0,
+          totalValueZWG: center.total_value_zwg || (center.total_value_usd || 0) * 27.5,
+          lastActivity: center.last_activity || new Date().toISOString(),
+          performanceScore: center.performance_score || 0,
+          monthlyConsumptionUSD: center.monthly_consumption_usd || 0,
+          alerts: center.alerts_count || 0,
+          coordinates: center.coordinates ? {
+            lat: center.coordinates.lat,
+            lng: center.coordinates.lng
+          } : undefined,
+        }));
+        setSubCenters(mappedCenters);
+      } else {
+        setSubCenters([]);
+      }
+    } catch (error) {
+      console.error('Error loading sub-centers:', error);
+      message.error('Failed to load sub-center data');
+      setSubCenters([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Export function
+  const handleExportData = () => {
+    try {
+      const headers = ['Code', 'Name', 'Location', 'Manager', 'Contact', 'Status', 'Total Books', 'Books Used', 'Books Remaining', 'Total Value USD', 'Performance Score'];
+      const csvContent = [
+        headers.join(','),
+        ...subCenters.map(center => [
+          center.code,
+          center.name,
+          center.location,
+          center.manager,
+          center.contact,
+          center.status,
+          center.totalBooks,
+          center.booksUsed,
+          center.booksRemaining,
+          center.totalValueUSD,
+          center.performanceScore
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `subcenter_monitoring_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error('Failed to export data');
+    }
+  };
+
+  // Filter data
+  const filteredData = subCenters.filter(center => {
+    const matchesSearch = center.name.toLowerCase().includes(searchText.toLowerCase()) ||
+                         center.code.toLowerCase().includes(searchText.toLowerCase()) ||
+                         center.location.toLowerCase().includes(searchText.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || center.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalActiveSubCenters = subCenters.filter(c => c.status === 'ACTIVE').length;
+  const totalValueUSD = subCenters.reduce((sum, c) => sum + c.totalValueUSD, 0);
+  const averagePerformance = subCenters.length > 0 ? 
+    subCenters.reduce((sum, c) => sum + c.performanceScore, 0) / subCenters.length : 0;
+  const totalAlerts = subCenters.reduce((sum, c) => sum + c.alerts, 0);
 
   const performanceData = subCenters.map(center => ({
     name: center.code,
     performance: center.performanceScore,
-    consumption: center.monthlyConsumption / 1000000, // Convert to millions
+    consumption: center.monthlyConsumptionUSD, // In USD
   }));
 
   const columns: ColumnsType<SubCenter> = [
@@ -256,11 +282,16 @@ const SubCenterMonitoring: FC = () => {
       ),
     },
     {
-      title: 'Monthly Value',
-      dataIndex: 'monthlyConsumption',
-      key: 'monthlyConsumption',
-      width: 120,
-      render: (value) => `ZWG ${(value / 1000000).toFixed(1)}M`,
+      title: 'Monthly Value (USD)',
+      dataIndex: 'monthlyConsumptionUSD',
+      key: 'monthlyConsumptionUSD',
+      width: 140,
+      render: (value) => (
+        <Space>
+          <DollarOutlined style={{ color: '#52c41a' }} />
+          <Text>${(value || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+        </Space>
+      ),
     },
     {
       title: 'Last Activity',
@@ -335,41 +366,52 @@ const SubCenterMonitoring: FC = () => {
   });
 
   // Calculate summary statistics
+  // Calculate statistics
   const totalCenters = subCenters.length;
   const activeCenters = subCenters.filter(c => c.status === 'ACTIVE').length;
   const totalAlerts = subCenters.reduce((sum, c) => sum + c.alerts, 0);
-  const avgPerformance = subCenters.reduce((sum, c) => sum + c.performanceScore, 0) / totalCenters;
-  const lowInventoryCenters = subCenters.filter(c => (c.booksRemaining / c.totalBooks) < 0.2).length;
+  const avgPerformance = totalCenters > 0 ? 
+    subCenters.reduce((sum, c) => sum + c.performanceScore, 0) / totalCenters : 0;
+  const lowInventoryCenters = subCenters.filter(c => 
+    c.totalBooks > 0 && (c.booksRemaining / c.totalBooks) < 0.2
+  ).length;
 
   return (
-    <div>
-      {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4}>Sub Center Monitoring</Title>
-          <Text type="secondary">Monitor and manage all sub centers across the country</Text>
-        </Col>
-        <Col>
-          <Space>
-            <Search
-              placeholder="Search centers..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 200 }}
-            />
-            <Select
-              value={filterStatus}
-              onChange={setFilterStatus}
-              style={{ width: 120 }}
-            >
-              <Option value="all">All Status</Option>
-              <Option value="ACTIVE">Active</Option>
-              <Option value="INACTIVE">Inactive</Option>
-              <Option value="SUSPENDED">Suspended</Option>
-            </Select>
-          </Space>
-        </Col>
-      </Row>
+    <Spin spinning={loading}>
+      <div>
+        {/* Header */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+          <Col>
+            <Title level={4}>Sub Center Monitoring</Title>
+            <Text type="secondary">Monitor and manage all sub centers across the country</Text>
+          </Col>
+          <Col>
+            <Space>
+              <Search
+                placeholder="Search centers..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: 200 }}
+              />
+              <Select
+                value={filterStatus}
+                onChange={setFilterStatus}
+                style={{ width: 120 }}
+              >
+                <Option value="all">All Status</Option>
+                <Option value="ACTIVE">Active</Option>
+                <Option value="INACTIVE">Inactive</Option>
+                <Option value="SUSPENDED">Suspended</Option>
+              </Select>
+              <Button
+                icon={<ExportOutlined />}
+                onClick={handleExportData}
+              >
+                Export
+              </Button>
+            </Space>
+          </Col>
+        </Row>
 
       {/* Summary Statistics */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -418,12 +460,12 @@ const SubCenterMonitoring: FC = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="Monthly Total"
-              value={subCenters.reduce((sum, c) => sum + c.monthlyConsumption, 0) / 1000000}
-              precision={1}
-              suffix="M ZWG"
-              prefix="$"
+              title="Total Value (USD)"
+              value={totalValueUSD}
+              precision={2}
+              prefix={<DollarOutlined />}
               valueStyle={{ color: '#722ed1' }}
+              formatter={(value) => `$${(value || 0).toLocaleString()}`}
             />
           </Card>
         </Col>
@@ -590,7 +632,8 @@ const SubCenterMonitoring: FC = () => {
           background-color: #fff7d3 !important;
         }
       `}</style>
-    </div>
+      </div>
+    </Spin>
   );
 };
 

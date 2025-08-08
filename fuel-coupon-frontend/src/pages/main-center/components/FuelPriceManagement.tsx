@@ -1,5 +1,5 @@
 // src/pages/main-center/components/FuelPriceManagement.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import {
   Card,
@@ -19,6 +19,8 @@ import {
   Alert,
   Typography,
   notification,
+  Spin,
+  message,
 } from 'antd';
 import {
   EditOutlined,
@@ -29,9 +31,13 @@ import {
   CarOutlined,
   RiseOutlined,
   FallOutlined,
+  ExportOutlined,
+  ImportOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import apiClient from '../../../api/index';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -39,63 +45,70 @@ const { Option } = Select;
 interface PriceHistory {
   id: string;
   fuelType: 'PETROL' | 'DIESEL';
-  price: number;
-  previousPrice: number;
-  changeAmount: number;
+  priceUSD: number;
+  priceZWG: number;
+  previousPriceUSD: number;
+  changeAmountUSD: number;
   changePercentage: number;
   effectiveDate: string;
   updatedBy: string;
   status: 'ACTIVE' | 'SCHEDULED' | 'EXPIRED';
   reason: string;
+  exchangeRate: number;
 }
 
 const FuelPriceManagement: FC = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingPrice, setEditingPrice] = useState<PriceHistory | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
   const [form] = Form.useForm();
 
-  // Sample data - replace with API call
-  const priceHistory: PriceHistory[] = [
-    {
-      id: '1',
-      fuelType: 'PETROL',
-      price: 200,
-      previousPrice: 180,
-      changeAmount: 20,
-      changePercentage: 11.11,
-      effectiveDate: '2024-07-01',
-      updatedBy: 'Admin User',
-      status: 'ACTIVE',
-      reason: 'Global fuel price increase',
-    },
-    {
-      id: '2',
-      fuelType: 'DIESEL',
-      price: 180,
-      previousPrice: 170,
-      changeAmount: 10,
-      changePercentage: 5.88,
-      effectiveDate: '2024-07-01',
-      updatedBy: 'Admin User',
-      status: 'ACTIVE',
-      reason: 'Market adjustment',
-    },
-    {
-      id: '3',
-      fuelType: 'PETROL',
-      price: 210,
-      previousPrice: 200,
-      changeAmount: 10,
-      changePercentage: 5.0,
-      effectiveDate: '2024-07-15',
-      updatedBy: 'Admin User',
-      status: 'SCHEDULED',
-      reason: 'Scheduled price review',
-    },
-  ];
+  useEffect(() => {
+    loadPriceHistory();
+  }, []);
 
-  const currentPetrolPrice = priceHistory.find(p => p.fuelType === 'PETROL' && p.status === 'ACTIVE')?.price || 0;
-  const currentDieselPrice = priceHistory.find(p => p.fuelType === 'DIESEL' && p.status === 'ACTIVE')?.price || 0;
+  const loadPriceHistory = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get('/fuel-prices/');
+      const data = response.data;
+      
+      // Handle both paginated and direct array responses
+      const prices = data.results || data;
+      
+      if (Array.isArray(prices)) {
+        const mappedPrices = prices.map((price: any) => ({
+          id: String(price.id),
+          fuelType: price.fuel_type?.toUpperCase() || 'DIESEL',
+          priceUSD: price.price_usd || 0,
+          priceZWG: price.price_zwg || (price.price_usd * (price.exchange_rate || 27.5)),
+          previousPriceUSD: price.previous_price_usd || 0,
+          changeAmountUSD: (price.price_usd || 0) - (price.previous_price_usd || 0),
+          changePercentage: price.previous_price_usd ? 
+            (((price.price_usd || 0) - (price.previous_price_usd || 0)) / (price.previous_price_usd || 1)) * 100 : 0,
+          effectiveDate: price.effective_date || new Date().toISOString().split('T')[0],
+          updatedBy: price.updated_by?.first_name && price.updated_by?.last_name ? 
+            `${price.updated_by.first_name} ${price.updated_by.last_name}` : 'System User',
+          status: price.status?.toUpperCase() || 'ACTIVE',
+          reason: price.reason || 'Price update',
+          exchangeRate: price.exchange_rate || 27.5,
+        }));
+        setPriceHistory(mappedPrices);
+      } else {
+        setPriceHistory([]);
+      }
+    } catch (error) {
+      console.error('Error loading price history:', error);
+      message.error('Failed to load fuel prices');
+      setPriceHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentPetrolPrice = priceHistory.find(p => p.fuelType === 'PETROL' && p.status === 'ACTIVE')?.priceUSD || 0;
+  const currentDieselPrice = priceHistory.find(p => p.fuelType === 'DIESEL' && p.status === 'ACTIVE')?.priceUSD || 0;
 
   const columns: ColumnsType<PriceHistory> = [
     {
@@ -110,24 +123,38 @@ const FuelPriceManagement: FC = () => {
       ),
     },
     {
-      title: 'Current Price (ZWG)',
-      dataIndex: 'price',
-      key: 'price',
+      title: 'Current Price (USD)',
+      dataIndex: 'priceUSD',
+      key: 'priceUSD',
+      width: 150,
+      render: (price) => (
+        <Space>
+          <DollarOutlined style={{ color: '#52c41a' }} />
+          <Text strong style={{ fontSize: '16px' }}>
+            ${price.toFixed(4)}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Price (ZWG)',
+      dataIndex: 'priceZWG',
+      key: 'priceZWG',
       width: 120,
       render: (price) => (
-        <Text strong style={{ fontSize: '16px' }}>
-          {price.toFixed(2)}
+        <Text type="secondary">
+          ZWG {price.toFixed(2)}
         </Text>
       ),
     },
     {
-      title: 'Previous Price',
-      dataIndex: 'previousPrice',
-      key: 'previousPrice',
-      width: 120,
+      title: 'Previous Price (USD)',
+      dataIndex: 'previousPriceUSD',
+      key: 'previousPriceUSD',
+      width: 140,
       render: (price) => (
         <Text type="secondary">
-          {price.toFixed(2)}
+          ${price.toFixed(4)}
         </Text>
       ),
     },
@@ -136,11 +163,11 @@ const FuelPriceManagement: FC = () => {
       key: 'change',
       width: 150,
       render: (_, record) => {
-        const isIncrease = record.changeAmount > 0;
+        const isIncrease = record.changeAmountUSD > 0;
         return (
           <Space>
             <Text style={{ color: isIncrease ? '#cf1322' : '#52c41a' }}>
-              {isIncrease ? '+' : ''}{record.changeAmount.toFixed(2)}
+              {isIncrease ? '+' : ''}${record.changeAmountUSD.toFixed(4)}
             </Text>
             <Text style={{ color: isIncrease ? '#cf1322' : '#52c41a' }}>
               ({isIncrease ? '+' : ''}{record.changePercentage.toFixed(1)}%)
@@ -149,6 +176,13 @@ const FuelPriceManagement: FC = () => {
           </Space>
         );
       },
+    },
+    {
+      title: 'Exchange Rate',
+      dataIndex: 'exchangeRate',
+      key: 'exchangeRate',
+      width: 120,
+      render: (rate) => `1:${rate}`,
     },
     {
       title: 'Effective Date',
@@ -260,9 +294,34 @@ const FuelPriceManagement: FC = () => {
             <Statistic
               title="Current Petrol Price"
               value={currentPetrolPrice}
-              prefix={<CarOutlined />}
-              suffix="ZWG/L"
+              prefix={<DollarOutlined />}
+              suffix="USD/L"
+              precision={4}
               valueStyle={{ color: '#1890ff', fontSize: '24px' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card>
+            <Statistic
+              title="Current Diesel Price"
+              value={currentDieselPrice}
+              prefix={<DollarOutlined />}
+              suffix="USD/L"
+              precision={4}
+              valueStyle={{ color: '#faad14', fontSize: '24px' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card>
+            <Statistic
+              title="Exchange Rate"
+              value={priceHistory.find(p => p.status === 'ACTIVE')?.exchangeRate || 27.5}
+              prefix="1 USD ="
+              suffix="ZWG"
+              precision={2}
+              valueStyle={{ color: '#52c41a', fontSize: '24px' }}
             />
           </Card>
         </Col>

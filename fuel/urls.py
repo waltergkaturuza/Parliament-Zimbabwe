@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 
 # Import directly from views_main to avoid circular import issues
 from .views_main import (
@@ -53,12 +54,12 @@ from .views_bc_production import (
     bc_transaction_approve, bc_health_check
 )
 
-# Export and print views (temporarily disabled for deployment)
-# from .views_export import (
-#     export_coupons, export_transactions, export_users, export_beneficiaries,
-#     export_books, print_coupon, print_handover_report, export_dashboard_data,
-#     download_template
-# )
+# Export and print views
+from .views_export import (
+    export_coupons, export_transactions, export_users, export_beneficiaries,
+    export_books, print_coupon, print_handover_report, export_dashboard_data,
+    download_template
+)
 
 router = DefaultRouter()
 
@@ -102,16 +103,46 @@ urlpatterns = [
     # Authentication
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
+    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     
     # CORS bypass endpoints for debugging
     path('auth/login-bypass/', cors_bypass_login, name='login-bypass'),
     path('cors-test/', cors_test_endpoint, name='cors-test-endpoint'),
     
-    # Home page APIs
-    path('api/home/stats/', home_stats, name='home-stats'),
+    # Home page APIs - Updated paths to match frontend expectations
+    path('home/stats/', home_stats, name='home-stats'),
+    path('home/health/', system_health, name='home-health'),
+    path('api/home/stats/', home_stats, name='home-stats-api'),
     path('api/home/activity/', recent_activity, name='home-activity'),
-    path('api/home/health/', system_health, name='home-health'),
+    path('api/home/health/', system_health, name='home-health-api'),
     path('api/home/insights/', quick_insights, name='home-insights'),
+    
+    # Admin dashboard endpoints - Updated paths
+    path('api/v1/admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
+    path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
+    
+    # Analytics endpoints
+    path('analytics/', analytics_view, name='analytics-view'),
+    path('financial-analytics/', analytics_view, name='financial-analytics'),
+    path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
+    
+    # Fuel pricing endpoints
+    path('fuel-prices/', fuel_statistics, name='fuel-prices'),
+    
+    # Users endpoints with role filtering
+    path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
+    
+    # Audit endpoints
+    path('audit-logs/', AuditLogViewSet.as_view({'get': 'list'}), name='audit-logs'),
+    path('audit-logs/filter-options/', AuditLogViewSet.as_view({'get': 'filter_options'}), name='audit-filter-options'),
+    path('audit/compliance-stats/', AuditLogViewSet.as_view({'get': 'compliance_stats'}), name='audit-compliance-stats'),
+    path('audit/compliance-reports/', AuditLogViewSet.as_view({'get': 'compliance_reports'}), name='audit-compliance-reports'),
+    path('audit/transaction-stats/', AuditLogViewSet.as_view({'get': 'transaction_stats'}), name='audit-transaction-stats'),
+    path('audit/transactions/', AuditLogViewSet.as_view({'get': 'transactions'}), name='audit-transactions'),
+    
+    # Subcenter endpoints
+    path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview'),
+    path('subcenter/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
     
     # Business Central Production Integration
     path('api/bc/webhook/', bc_webhook, name='bc-webhook'),
@@ -119,13 +150,6 @@ urlpatterns = [
     path('api/bc/transaction/<int:transaction_id>/approve/', bc_transaction_approve, name='bc-transaction-approve'),
     path('api/bc/health/', bc_health_check, name='bc-health-check'),
     path('bc/dashboard/', BCDashboardView.as_view(), name='bc-dashboard'),
-    
-    # Admin endpoints
-    path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
-    path('fuel-stats/', fuel_statistics, name='fuel-statistics'),
-    
-    # Analytics
-    path('analytics/', analytics_view, name='analytics-view'),
     
     # Business Central integration
     path('business-central/test/', test_business_central_connection, name='test-business-central'),
@@ -142,25 +166,19 @@ urlpatterns = [
     path('api/setup/database-status/', database_status_api, name='database-status'),
     path('api/setup/create-superuser/', create_superuser_api, name='create-superuser'),
     
-    # Debug endpoints for Azure deployment testing
-    path('api/debug/test-db/', test_azure_database, name='test-azure-database'),
-    path('api/debug/health/', debug_health_check, name='debug-health-check'),
+    # Export and Download endpoints
+    path('api/export/coupons/', export_coupons, name='export-coupons'),
+    path('api/export/transactions/', export_transactions, name='export-transactions'),
+    path('api/export/users/', export_users, name='export-users'),
+    path('api/export/beneficiaries/', export_beneficiaries, name='export-beneficiaries'),
+    path('api/export/books/', export_books, name='export-books'),
+    path('api/export/dashboard/', export_dashboard_data, name='export-dashboard'),
+    path('api/export/template/', download_template, name='download-template'),
     
-    # Export and Download endpoints (temporarily disabled)
-    # path('api/export/coupons/', export_coupons, name='export-coupons'),
-    # path('api/export/transactions/', export_transactions, name='export-transactions'),
-    # path('api/export/users/', export_users, name='export-users'),
-    # path('api/export/beneficiaries/', export_beneficiaries, name='export-beneficiaries'),
-    # path('api/export/books/', export_books, name='export-books'),
-    # path('api/export/dashboard/', export_dashboard_data, name='export-dashboard'),
-    # path('api/export/template/', download_template, name='download-template'),
-    
-    # Print endpoints (temporarily disabled)
-    # path('api/print/coupon/', print_coupon, name='print-coupon'),
-    # path('api/print/handover/', print_handover_report, name='print-handover'),
+    # Print endpoints
+    path('api/print/coupon/', print_coupon, name='print-coupon'),
+    path('api/print/handover/', print_handover_report, name='print-handover'),
     
     # Include router URLs 
     path('', include(router.urls)),
-    
-    # TODO: Add missing views for analytics, dashboard, audit functions, etc.
 ]
