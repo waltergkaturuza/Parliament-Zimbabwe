@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 5px; padding: 10px 15px; }
+        #results { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Django Backend Authentication Test</h1>
+    
+    <div class="test-section">
+        <h3>Admin Login Test</h3>
+        <button onclick="testAdminLogin()">Test Admin Login</button>
+        <button onclick="testTokenRefresh()">Test Token Refresh</button>
+        <button onclick="testBoxAPI()">Test Box API (Authenticated)</button>
+        <button onclick="clearTokens()">Clear Tokens</button>
+        <button onclick="checkStoredTokens()">Check Stored Tokens</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://fuel-coupan-backend-pnz.azurewebsites.net/api/v1';
+        const ADMIN_USERNAME = 'admin';
+        const ADMIN_PASSWORD = 'Admin@123';
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        async function testAdminLogin() {
+            log('Testing admin login...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: ADMIN_USERNAME,
+                        password: ADMIN_PASSWORD
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.access && data.refresh) {
+                    // Store tokens
+                    localStorage.setItem('auth_token', data.access);
+                    localStorage.setItem('refresh_token', data.refresh);
+                    localStorage.setItem('user_role', data.user?.role || 'UNKNOWN');
+                    
+                    log(`✅ Admin login successful! Role: ${data.user?.role}`, 'success');
+                    log(`Access token stored (${data.access.substring(0, 20)}...)`, 'success');
+                    log(`Refresh token stored (${data.refresh.substring(0, 20)}...)`, 'success');
+                } else {
+                    log(`❌ Login failed: ${data.detail || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testTokenRefresh() {
+            log('Testing token refresh...', 'info');
+            
+            const refreshToken = localStorage.getItem('refresh_token');
+            if (!refreshToken) {
+                log('❌ No refresh token found. Please login first.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/refresh/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        refresh: refreshToken
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.access) {
+                    localStorage.setItem('auth_token', data.access);
+                    log(`✅ Token refresh successful!`, 'success');
+                    log(`New access token: ${data.access.substring(0, 20)}...`, 'success');
+                } else {
+                    log(`❌ Token refresh failed: ${data.detail || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Refresh error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBoxAPI() {
+            log('Testing authenticated Box API...', 'info');
+            
+            const authToken = localStorage.getItem('auth_token');
+            if (!authToken) {
+                log('❌ No auth token found. Please login first.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/boxes/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ Box API call successful! Found ${data.results?.length || 0} boxes`, 'success');
+                } else if (response.status === 401) {
+                    log(`❌ Unauthorized (401). Token may be expired.`, 'error');
+                } else if (response.status === 403) {
+                    log(`❌ Forbidden (403). User may not have proper permissions.`, 'error');
+                } else {
+                    log(`❌ Box API failed: ${response.status} - ${data.detail || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Box API error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearTokens() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user_role');
+            log('🗑️ All tokens cleared from localStorage', 'info');
+        }
+
+        function checkStoredTokens() {
+            const authToken = localStorage.getItem('auth_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+            const userRole = localStorage.getItem('user_role');
+            
+            log('📋 Current localStorage state:', 'info');
+            log(`Auth token: ${authToken ? authToken.substring(0, 30) + '...' : 'Not found'}`, authToken ? 'success' : 'error');
+            log(`Refresh token: ${refreshToken ? refreshToken.substring(0, 30) + '...' : 'Not found'}`, refreshToken ? 'success' : 'error');
+            log(`User role: ${userRole || 'Not found'}`, userRole ? 'success' : 'error');
+        }
+
+        // Check tokens on page load
+        window.onload = function() {
+            log('🚀 Authentication test page loaded', 'info');
+            checkStoredTokens();
+        };
+    </script>
+</body>
+</html>
