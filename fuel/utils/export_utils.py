@@ -3,7 +3,7 @@ import io
 import csv
 from datetime import datetime
 from typing import List, Dict, Any
-import pandas as pd
+# import pandas as pd  # Temporarily commented out - causing 60+ min deployment times
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from reportlab.lib import colors
@@ -14,7 +14,7 @@ from reportlab.lib.units import inch
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 import qrcode
-from PIL import Image
+# from PIL import Image  # Temporarily commented out - heavy package
 
 
 class ExportManager:
@@ -91,6 +91,7 @@ class ExportManager:
         wb.save(response)
         
         return response
+    
     
     @staticmethod
     def export_to_pdf(data: List[Dict[str, Any]], filename: str = None, title: str = "Export Report") -> HttpResponse:

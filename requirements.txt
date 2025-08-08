@@ -27,11 +27,11 @@ django-model-utils==4.5.1
 setuptools>=69.0.0
 
 # Data processing and export - Python 3.13 compatible versions (using pre-compiled wheels)
-pandas==2.2.0 --only-binary=all
+# pandas==2.2.0 --only-binary=all  # Temporarily commented out - causing 60+ min deployment times
 openpyxl==3.1.2 --only-binary=all
 reportlab==4.2.2 --only-binary=all
 qrcode==7.4.2 --only-binary=all
-Pillow==10.2.0 --only-binary=all
+# Pillow==10.2.0 --only-binary=all  # Temporarily commented out - heavy image processing package
 
 # API documentation
 drf-spectacular==0.27.2
