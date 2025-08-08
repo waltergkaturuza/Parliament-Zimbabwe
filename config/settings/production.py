@@ -51,6 +51,8 @@ else:
         # Azure internal network IPs
         '169.254.130.5',  # Azure internal load balancer
         '169.254.130.7',  # Azure internal middleware
+        '169.254.130.9',  # Azure worker container
+        '169.254.130.11', # Azure worker middleware
         '169.254.131.2',  # Azure container internal IPs
         '169.254.131.4',
         '169.254.131.5',
