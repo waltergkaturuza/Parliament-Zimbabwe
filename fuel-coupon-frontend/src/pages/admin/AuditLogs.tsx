@@ -3,32 +3,12 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Table, Button, Input, Select, DatePicker, Tag, Space, Typography, Row, Col, message, Spin, Modal } from 'antd';
 import { SearchOutlined, DownloadOutlined, EyeOutlined, FilterOutlined, ReloadOutlined } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import { AuditService, type AuditLog, type AuditFilters } from '@/api/audit';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-
-interface AuditLog {
-  id: string;
-  timestamp: string;
-  user: {
-    id: string;
-    username: string;
-    first_name: string;
-    last_name: string;
-    role: string;
-  };
-  action: string;
-  resource_type: string;
-  resource_id: string;
-  ip_address: string;
-  user_agent: string;
-  changes: any;
-  status: 'success' | 'failed' | 'warning';
-  details: string;
-}
 
 const AuditLogs: FC = () => {
   const [loading, setLoading] = useState(true);
@@ -66,136 +46,33 @@ const AuditLogs: FC = () => {
     try {
       setLoading(true);
       
-      // Mock audit logs data - replace with actual API call
-      const mockLogs: AuditLog[] = [
-        {
-          id: '1',
-          timestamp: dayjs().subtract(1, 'hour').toISOString(),
-          user: {
-            id: '1',
-            username: 'admin',
-            first_name: 'John',
-            last_name: 'Doe',
-            role: 'admin'
-          },
-          action: 'CREATE',
-          resource_type: 'COUPON',
-          resource_id: 'COUP-001',
-          ip_address: '192.168.1.100',
-          user_agent: 'Mozilla/5.0...',
-          changes: { status: 'active', allocated_to: 'beneficiary_123' },
-          status: 'success',
-          details: 'Created new fuel coupon for beneficiary'
-        },
-        {
-          id: '2',
-          timestamp: dayjs().subtract(2, 'hour').toISOString(),
-          user: {
-            id: '2',
-            username: 'officer_1',
-            first_name: 'Jane',
-            last_name: 'Smith',
-            role: 'main_center_officer'
-          },
-          action: 'UPDATE',
-          resource_type: 'FUEL_PRICE',
-          resource_id: 'PRICE-PETROL',
-          ip_address: '192.168.1.101',
-          user_agent: 'Mozilla/5.0...',
-          changes: { old_price: 1.75, new_price: 1.80 },
-          status: 'success',
-          details: 'Updated petrol price'
-        },
-        {
-          id: '3',
-          timestamp: dayjs().subtract(3, 'hour').toISOString(),
-          user: {
-            id: '3',
-            username: 'sub_officer',
-            first_name: 'Mike',
-            last_name: 'Johnson',
-            role: 'subcenter_officer'
-          },
-          action: 'DELETE',
-          resource_type: 'BOX',
-          resource_id: 'BOX-001',
-          ip_address: '192.168.1.102',
-          user_agent: 'Mozilla/5.0...',
-          changes: { status: 'deleted' },
-          status: 'failed',
-          details: 'Failed to delete box - contains active books'
-        },
-        {
-          id: '4',
-          timestamp: dayjs().subtract(4, 'hour').toISOString(),
-          user: {
-            id: '1',
-            username: 'admin',
-            first_name: 'John',
-            last_name: 'Doe',
-            role: 'admin'
-          },
-          action: 'LOGIN',
-          resource_type: 'USER_SESSION',
-          resource_id: 'SESSION-001',
-          ip_address: '192.168.1.100',
-          user_agent: 'Mozilla/5.0...',
-          changes: { login_time: dayjs().subtract(4, 'hour').toISOString() },
-          status: 'success',
-          details: 'User logged in successfully'
-        },
-        {
-          id: '5',
-          timestamp: dayjs().subtract(5, 'hour').toISOString(),
-          user: {
-            id: '4',
-            username: 'beneficiary_1',
-            first_name: 'Alice',
-            last_name: 'Brown',
-            role: 'beneficiary'
-          },
-          action: 'VIEW',
-          resource_type: 'HANDOVER',
-          resource_id: 'HAND-001',
-          ip_address: '192.168.1.103',
-          user_agent: 'Mozilla/5.0...',
-          changes: {},
-          status: 'warning',
-          details: 'Attempted to view restricted handover details'
-        }
-      ];
-
-      // Simulate API delay
-      setTimeout(() => {
-        setLogs(mockLogs);
-        setLoading(false);
-      }, 1000);
+      const filters: AuditFilters = {
+        start_date: dateRange[0].format('YYYY-MM-DD'),
+        end_date: dateRange[1].format('YYYY-MM-DD')
+      };
+      
+      const auditLogs = await AuditService.getAuditLogs(filters);
+      setLogs(auditLogs);
     } catch (error) {
       console.error('Error loading audit logs:', error);
       message.error('Failed to load audit logs');
+    } finally {
       setLoading(false);
     }
   };
 
   const loadFilterOptions = async () => {
     try {
-      // Extract unique values for filters
-      const uniqueActions = ['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT'];
-      const uniqueResources = ['USER', 'COUPON', 'BOX', 'BOOK', 'HANDOVER', 'FUEL_PRICE', 'USER_SESSION'];
-      
-      // Mock users data
-      const mockUsers = [
-        { id: '1', username: 'admin', first_name: 'John', last_name: 'Doe' },
-        { id: '2', username: 'officer_1', first_name: 'Jane', last_name: 'Smith' },
-        { id: '3', username: 'sub_officer', first_name: 'Mike', last_name: 'Johnson' },
-        { id: '4', username: 'beneficiary_1', first_name: 'Alice', last_name: 'Brown' }
-      ];
-
-      setActions(uniqueActions);
-      setResources(uniqueResources);
-      setUsers(mockUsers);
+      const filterOptions = await AuditService.getFilterOptions();
+      setActions(filterOptions.actions);
+      setResources(filterOptions.resources);
+      setUsers(filterOptions.users);
     } catch (error) {
       console.error('Error loading filter options:', error);
+      // Fallback to basic options if API fails
+      setActions(['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT']);
+      setResources(['USER', 'COUPON', 'BOX', 'BOOK', 'HANDOVER', 'FUEL_PRICE', 'USER_SESSION']);
+      setUsers([]);
     }
   };
 
@@ -252,9 +129,33 @@ const AuditLogs: FC = () => {
     setDateRange([dayjs().subtract(7, 'day'), dayjs()]);
   };
 
-  const exportLogs = () => {
-    // Mock export functionality
-    message.success('Audit logs exported successfully');
+  const exportLogs = async () => {
+    try {
+      const filters: AuditFilters = {
+        search: searchText || undefined,
+        action: selectedAction !== 'all' ? selectedAction : undefined,
+        resource_type: selectedResource !== 'all' ? selectedResource : undefined,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        user_id: selectedUser !== 'all' ? selectedUser : undefined,
+        start_date: dateRange[0].format('YYYY-MM-DD'),
+        end_date: dateRange[1].format('YYYY-MM-DD')
+      };
+
+      const blob = await AuditService.exportAuditLogs(filters);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit-logs-${dayjs().format('YYYY-MM-DD')}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Audit logs exported successfully');
+    } catch (error) {
+      console.error('Error exporting audit logs:', error);
+      message.error('Failed to export audit logs');
+    }
   };
 
   const showLogDetails = (log: AuditLog) => {

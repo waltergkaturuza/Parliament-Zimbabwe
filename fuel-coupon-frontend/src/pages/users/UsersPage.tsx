@@ -72,38 +72,8 @@ const UsersPage = () => {
         setUsers(response.results || response);
       } catch (error) {
         console.error('Failed to load users:', error);
-        message.error('Failed to load users');
-        // Fallback to mock data for demo
-        setUsers([
-          {
-            id: '1',
-            username: 'admin',
-            email: 'admin@parliament.gov.zw',
-            first_name: 'System',
-            last_name: 'Administrator',
-            role: 'ADMIN',
-            phone: '+263771234567',
-            is_active: true,
-            is_staff: true,
-            date_joined: '2024-01-01T00:00:00Z',
-            last_login: '2024-07-04T14:00:00Z',
-            last_activity: '2024-07-04T14:30:00Z'
-          },
-          {
-            id: '2',
-            username: 'john.doe',
-            email: 'john.doe@parliament.gov.zw',
-            first_name: 'John',
-            last_name: 'Doe',
-            role: 'MAIN_CENTER',
-            phone: '+263772345678',
-            is_active: true,
-            is_staff: true,
-            date_joined: '2024-02-15T00:00:00Z',
-            last_login: '2024-07-04T13:45:00Z',
-            last_activity: '2024-07-04T14:15:00Z'
-          }
-        ]);
+        message.error('Failed to load users. Please check your connection and try again.');
+        setUsers([]); // Set empty array instead of fallback data
       } finally {
         setLoading(false);
       }
@@ -364,7 +334,9 @@ const UsersPage = () => {
   ];
 
   const handleView = (user: ApiUser) => {
+    // Navigate to user detail page or show detailed modal
     message.info(`Viewing profile for: ${user.first_name} ${user.last_name}`);
+    // TODO: Implement user detail view
   };
 
   const handleEdit = (user: ApiUser) => {
@@ -376,39 +348,58 @@ const UsersPage = () => {
     setIsModalVisible(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     Modal.confirm({
       title: 'Are you sure you want to delete this user?',
       content: 'This action cannot be undone.',
       okText: 'Yes, Delete',
       okType: 'danger',
       cancelText: 'Cancel',
-      onOk() {
-        setUsers(users.filter(u => u.id !== id));
-        message.success('User deleted successfully');
+      async onOk() {
+        try {
+          await UserService.deleteUser(id);
+          setUsers(users.filter(u => u.id !== id));
+          message.success('User deleted successfully');
+        } catch (error) {
+          console.error('Failed to delete user:', error);
+          message.error('Failed to delete user. Please try again.');
+        }
       },
     });
   };
 
-  const handleToggleStatus = (id: string, isActive: boolean) => {
-    setUsers(users.map(user => 
-      user.id === id ? { ...user, is_active: isActive } : user
-    ));
-    message.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`);
+  const handleToggleStatus = async (id: string, isActive: boolean) => {
+    try {
+      await UserService.toggleUserStatus(id, isActive);
+      setUsers(users.map(user => 
+        user.id === id ? { ...user, is_active: isActive } : user
+      ));
+      message.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`);
+    } catch (error) {
+      console.error('Failed to toggle user status:', error);
+      message.error('Failed to update user status. Please try again.');
+    }
   };
 
-  const handleResetPassword = (id: string) => {
+  const handleResetPassword = async (id: string) => {
     Modal.confirm({
       title: 'Reset user password?',
       content: 'A new temporary password will be sent to the user\'s email.',
-      onOk() {
-        message.success('Password reset email sent successfully');
+      async onOk() {
+        try {
+          await UserService.resetPassword(id);
+          message.success('Password reset email sent successfully');
+        } catch (error) {
+          console.error('Failed to reset password:', error);
+          message.error('Failed to reset password. Please try again.');
+        }
       },
     });
   };
 
-  const handleModalOk = () => {
-    form.validateFields().then((values) => {
+  const handleModalOk = async () => {
+    try {
+      const values = await form.validateFields();
       const userData = {
         ...values,
         date_joined: values.date_joined.toISOString(),
@@ -416,19 +407,17 @@ const UsersPage = () => {
       
       if (editingUser) {
         // Update existing user
+        const updatedUser = await UserService.updateUser(editingUser.id, userData);
         setUsers(users.map(u => 
-          u.id === editingUser.id ? { ...u, ...userData } : u
+          u.id === editingUser.id ? updatedUser : u
         ));
         message.success('User updated successfully');
       } else {
         // Create new user
-        const newUser: ApiUser = {
-          id: Date.now().toString(),
+        const newUser = await UserService.createUser({
           ...userData,
-          is_active: true,
-          is_staff: values.role !== 'BENEFICIARY',
-          last_activity: new Date().toISOString(),
-        };
+          password: 'tempPassword123!' // TODO: Generate secure temporary password
+        });
         setUsers([newUser, ...users]);
         message.success('User created successfully');
       }
@@ -436,7 +425,10 @@ const UsersPage = () => {
       setIsModalVisible(false);
       setEditingUser(null);
       form.resetFields();
-    });
+    } catch (error) {
+      console.error('Failed to save user:', error);
+      message.error('Failed to save user. Please check the form and try again.');
+    }
   };
 
   const filteredUsers = users.filter(user => {

@@ -56,6 +56,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
+import BeneficiaryService from '@/api/beneficiaries';
 
 const { Search } = Input;
 const { Title, Text } = Typography;
@@ -122,9 +123,14 @@ const BeneficiaryManagement = () => {
   const { data: beneficiaries, isLoading, refetch } = useQuery<Beneficiary[]>({
     queryKey: ['beneficiaries', filters],
     queryFn: async () => {
-      // Simulated data - replace with actual API call
-      return Array.from({ length: 200 }, (_, i) => ({
-        id: `ben_${i + 1}`,
+      const params: any = {};
+      if (filters.search) params.search = filters.search;
+      if (filters.status) params.status = filters.status;
+      if (filters.category) params.category = filters.category;
+      
+      return await BeneficiaryService.getBeneficiaries(params);
+    }
+  });
         parliamentaryId: `MP${String(i + 1).padStart(4, '0')}`,
         name: `Hon. ${['John', 'Jane', 'Michael', 'Sarah', 'David', 'Mary'][i % 6]} ${['Smith', 'Johnson', 'Williams', 'Brown', 'Davis', 'Miller'][i % 6]}`,
         title: ['Honorable', 'Right Honorable', 'Dr.', 'Prof.'][i % 4],

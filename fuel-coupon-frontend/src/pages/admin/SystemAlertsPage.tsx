@@ -42,6 +42,7 @@ import {
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
+import SystemAlertsService, { type SystemAlert, type AlertFilters } from '@/api/systemAlerts';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -94,8 +95,13 @@ const SystemAlertsPage: React.FC = () => {
   const { data: alertsData, isLoading } = useQuery({
     queryKey: ['system-alerts', selectedType, selectedStatus, selectedPriority],
     queryFn: async () => {
-      // Mock data for now - replace with actual API call
-      const mockAlerts: SystemAlert[] = [
+      const filters: AlertFilters = {};
+      
+      if (selectedType) filters.alert_type = selectedType;
+      if (selectedStatus) filters.status = selectedStatus;
+      if (selectedPriority) filters.priority = selectedPriority;
+      
+      return await SystemAlertsService.getAlerts(filters);
         {
           id: 1,
           title: 'Low Fuel Stock Alert',
@@ -170,25 +176,6 @@ const SystemAlertsPage: React.FC = () => {
             last_name: 'System'
           }
         }
-      ];
-
-      return {
-        alerts: mockAlerts.filter(alert => {
-          const matchesType = !selectedType || alert.alert_type === selectedType;
-          const matchesStatus = !selectedStatus || alert.status === selectedStatus;
-          const matchesPriority = !selectedPriority || alert.priority === selectedPriority;
-          
-          return matchesType && matchesStatus && matchesPriority;
-        }),
-        stats: {
-          total_alerts: mockAlerts.length,
-          active_alerts: mockAlerts.filter(a => a.status === 'ACTIVE').length,
-          critical_alerts: mockAlerts.filter(a => a.alert_type === 'CRITICAL' && a.status === 'ACTIVE').length,
-          resolved_today: mockAlerts.filter(a => 
-            a.resolved_at && dayjs(a.resolved_at).isSame(dayjs(), 'day')
-          ).length
-        } as AlertStats
-      };
     }
   });
 

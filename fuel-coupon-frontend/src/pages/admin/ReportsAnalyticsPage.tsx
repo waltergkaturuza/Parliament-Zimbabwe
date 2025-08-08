@@ -1,6 +1,14 @@
 // src/pages/admin/ReportsAnalyticsPage.tsx
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import {        },
+        user_a        },
+        financial: {
+          fuel_costs: analyticsData.financial_data?.fuel_costs || [],
+          savings: analyticsData.financial_data?.savings || [],
+          budget_utilization: analyticsData.financial_data?.budget_utilization || 75.3        registrations: analyticsData.user_registrations || [],
+          logins: analyticsData.user_logins || [],
+          by_role: analyticsData.users_by_role || []'@tanstack/react-query';
+import { AnalyticsService } from '@/api/analytics';
 import {
   Card,
   Row,
@@ -17,7 +25,8 @@ import {
   Tabs,
   Empty,
   Tooltip,
-  Divider
+  Divider,
+  message
 } from 'antd';
 import {
   BarChartOutlined,
@@ -37,7 +46,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
-import { adminService } from '@/api/admin';
+import { ReportsService, type ReportFilters } from '@/api/reports';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -78,73 +87,34 @@ const ReportsAnalyticsPage: React.FC = () => {
   const { data: reportData, isLoading } = useQuery({
     queryKey: ['reports-analytics', dateRange, reportType],
     queryFn: async () => {
-      // Mock data for now - replace with actual API call
+      const params = {
+        start_date: dateRange[0].format('YYYY-MM-DD'),
+        end_date: dateRange[1].format('YYYY-MM-DD')
+      };
+      
+      // Get real analytics data from backend
+      const analyticsData = await AnalyticsService.getUsageAnalytics(params);
+      
       return {
         fuel_consumption: {
-          daily: Array.from({ length: 30 }, (_, i) => ({
-            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            petrol: Math.floor(Math.random() * 500) + 200,
-            diesel: Math.floor(Math.random() * 300) + 150,
-            total: 0 // Will be calculated
-          })).map(item => ({ ...item, total: item.petrol + item.diesel })),
-          monthly: Array.from({ length: 12 }, (_, i) => ({
-            month: dayjs().subtract(11 - i, 'months').format('MMM YYYY'),
-            petrol: Math.floor(Math.random() * 15000) + 8000,
-            diesel: Math.floor(Math.random() * 10000) + 5000,
-            total: 0
-          })).map(item => ({ ...item, total: item.petrol + item.diesel })),
-          by_subcenter: [
-            { subcenter: 'Bulawayo Regional Office', total: 12500, percentage: 35 },
-            { subcenter: 'Harare Main Center', total: 10800, percentage: 30 },
-            { subcenter: 'Gweru District Office', total: 7200, percentage: 20 },
-            { subcenter: 'Mutare Regional Office', total: 5400, percentage: 15 }
-          ]
+          daily: analyticsData.daily_consumption || [],
+          monthly: analyticsData.monthly_consumption || [],
+          by_subcenter: analyticsData.consumption_by_subcenter || []
         },
         user_activity: {
-          registrations: Array.from({ length: 30 }, (_, i) => ({
-            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            count: Math.floor(Math.random() * 10) + 1
-          })),
-          logins: Array.from({ length: 30 }, (_, i) => ({
-            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            count: Math.floor(Math.random() * 50) + 20
-          })),
-          by_role: [
-            { role: 'BENEFICIARY', count: 245, percentage: 60 },
-            { role: 'SUB_CENTER', count: 89, percentage: 22 },
-            { role: 'MAIN_CENTER', count: 45, percentage: 11 },
-            { role: 'ADMIN', count: 18, percentage: 4 },
-            { role: 'AUDITOR', count: 12, percentage: 3 }
-          ]
+          registrations: analyticsData.user_registrations || [],
+          logins: analyticsData.user_logins || [],
+          by_role: analyticsData.users_by_role || []
         },
         system_performance: {
-          response_times: [
-            { endpoint: '/api/v1/auth/login', avg_time: 245, count: 1240 },
-            { endpoint: '/api/v1/coupons/', avg_time: 180, count: 890 },
-            { endpoint: '/api/v1/allocations/', avg_time: 320, count: 450 },
-            { endpoint: '/api/v1/admin/dashboard/', avg_time: 420, count: 120 }
-          ],
-          error_rates: Array.from({ length: 30 }, (_, i) => ({
-            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            errors: Math.floor(Math.random() * 10),
-            total: Math.floor(Math.random() * 500) + 200,
-            rate: 0
-          })).map(item => ({ ...item, rate: (item.errors / item.total) * 100 })),
-          uptime: 99.87
+          response_times: analyticsData.api_response_times || [],
+          error_rates: analyticsData.error_rates || [],
+          uptime: analyticsData.system_uptime || 99.9
         },
         financial: {
-          fuel_costs: Array.from({ length: 30 }, (_, i) => ({
-            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            usd_cost: Math.floor(Math.random() * 5000) + 2000,
-            zwg_cost: Math.floor(Math.random() * 137500) + 55000
-          })),
-          savings: [
-            { category: 'Efficient Distribution', amount: 12500, percentage: 8.5 },
-            { category: 'Reduced Waste', amount: 8900, percentage: 6.1 },
-            { category: 'Digital Processing', amount: 5400, percentage: 3.7 },
-            { category: 'Automated Allocation', amount: 3200, percentage: 2.2 }
-          ],
-          budget_utilization: 78.5
+          fuel_costs: analyticsData.financial_data?.fuel_costs || [],
+          savings: analyticsData.financial_data?.savings || [],
+          budget_utilization: analyticsData.financial_data?.budget_utilization || 75.3
         }
       } as ReportData;
     }

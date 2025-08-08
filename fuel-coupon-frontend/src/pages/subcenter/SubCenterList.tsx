@@ -39,65 +39,33 @@ import {
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import SubcentersService, { type SubCenter } from '@/api/subcenters';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-interface SubCenter {
-  id: string;
-  code: string;
-  name: string;
-  location: string;
-  is_active: boolean;
-  managed_by?: {
-    id: string;
-    username: string;
-    first_name: string;
-    last_name: string;
-  };
-  created: string;
-  modified: string;
-  users_count?: number;
-  active_programs?: number;
-  distributed_coupons?: number;
-  capacity?: number;
-}
-
 const SubCenterList = () => {
-  const [subcenters, setSubcenters] = useState<SubCenter[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingSubCenter, setEditingSubCenter] = useState<SubCenter | null>(null);
   const [form] = Form.useForm();
 
-  // Mock data for demonstration
-  useEffect(() => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSubcenters([
-        {
-          id: '1',
-          code: 'SC-HRE-001',
-          name: 'Harare Central Sub-Center',
-          location: 'Corner 2nd Street and Nelson Mandela Avenue, Harare',
-          is_active: true,
-          managed_by: {
-            id: '2',
-            username: 'john.doe',
-            first_name: 'John',
-            last_name: 'Doe'
-          },
-          created: '2024-01-15T00:00:00Z',
-          modified: '2024-07-01T10:30:00Z',
-          users_count: 45,
-          active_programs: 3,
-          distributed_coupons: 1250,
-          capacity: 50
-        },
+  // Fetch subcenters data
+  const { data: subcenters = [], isLoading: loading } = useQuery({
+    queryKey: ['subcenters', searchText, selectedStatus],
+    queryFn: async () => {
+      const params: any = {};
+      if (searchText) params.search = searchText;
+      if (selectedStatus) params.is_active = selectedStatus === 'active';
+      
+      return await SubcentersService.getSubcenters(params);
+    }
+  });
+  const getStatusTag = (subcenter: SubCenter) => {
         {
           id: '2',
           code: 'SC-CHI-002',

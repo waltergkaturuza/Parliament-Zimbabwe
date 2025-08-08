@@ -16,7 +16,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import apiClient from '@/api/apiClient';
+import { AnalyticsService, type UsageData } from '@/api/analytics';
 import dayjs from 'dayjs';
 
 // Register Chart.js components
@@ -35,37 +35,6 @@ ChartJS.register(
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-
-interface UsageData {
-  totalCouponsIssued: number;
-  totalCouponsUsed: number;
-  totalFuelLiters: number;
-  totalCostUSD: number;
-  usageRate: number;
-  dailyUsage: Array<{
-    date: string;
-    coupons: number;
-    liters: number;
-    cost: number;
-  }>;
-  subCenterUsage: Array<{
-    subCenter: string;
-    coupons: number;
-    liters: number;
-    cost: number;
-  }>;
-  beneficiaryUsage: Array<{
-    beneficiary: string;
-    coupons: number;
-    liters: number;
-    cost: number;
-  }>;
-  fuelTypeBreakdown: Array<{
-    type: string;
-    value: number;
-    percentage: number;
-  }>;
-}
 
 const UsageAnalytics: FC = () => {
   const [loading, setLoading] = useState(true);
@@ -114,41 +83,8 @@ const UsageAnalytics: FC = () => {
         sub_center: selectedSubCenter !== 'all' ? selectedSubCenter : undefined
       };
 
-      const response = await apiClient.get('/analytics/', { params });
-      
-      // Mock data for demonstration - replace with actual API response
-      const mockData: UsageData = {
-        totalCouponsIssued: 2500,
-        totalCouponsUsed: 1875,
-        totalFuelLiters: 18750,
-        totalCostUSD: 23437.50,
-        usageRate: 75,
-        dailyUsage: Array.from({ length: 30 }, (_, i) => ({
-          date: dayjs().subtract(29 - i, 'day').format('YYYY-MM-DD'),
-          coupons: Math.floor(Math.random() * 100) + 50,
-          liters: Math.floor(Math.random() * 1000) + 500,
-          cost: Math.floor(Math.random() * 1250) + 625
-        })),
-        subCenterUsage: [
-          { subCenter: 'Parliament Main', coupons: 650, liters: 6500, cost: 8125 },
-          { subCenter: 'Ministry Block A', coupons: 425, liters: 4250, cost: 5312.50 },
-          { subCenter: 'Ministry Block B', coupons: 380, liters: 3800, cost: 4750 },
-          { subCenter: 'Government House', coupons: 420, liters: 4200, cost: 5250 }
-        ],
-        beneficiaryUsage: [
-          { beneficiary: 'Hon. John Doe', coupons: 85, liters: 850, cost: 1062.50 },
-          { beneficiary: 'Hon. Jane Smith', coupons: 78, liters: 780, cost: 975 },
-          { beneficiary: 'Hon. Peter Jones', coupons: 72, liters: 720, cost: 900 },
-          { beneficiary: 'Hon. Mary Brown', coupons: 69, liters: 690, cost: 862.50 },
-          { beneficiary: 'Hon. David Wilson', coupons: 65, liters: 650, cost: 812.50 }
-        ],
-        fuelTypeBreakdown: [
-          { type: 'Petrol', value: 11250, percentage: 60 },
-          { type: 'Diesel', value: 7500, percentage: 40 }
-        ]
-      };
-
-      setData(mockData);
+      const analyticsData = await AnalyticsService.getUsageAnalytics(params);
+      setData(analyticsData);
     } catch (error) {
       console.error('Error loading analytics data:', error);
       message.error('Failed to load analytics data');
@@ -157,9 +93,29 @@ const UsageAnalytics: FC = () => {
     }
   };
 
-  const exportData = () => {
-    // Mock export functionality
-    message.success('Analytics data exported successfully');
+  const exportData = async () => {
+    try {
+      const params = {
+        start_date: dateRange[0].format('YYYY-MM-DD'),
+        end_date: dateRange[1].format('YYYY-MM-DD'),
+        sub_center: selectedSubCenter !== 'all' ? selectedSubCenter : undefined
+      };
+
+      const blob = await AnalyticsService.exportAnalytics(params);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `analytics-report-${dayjs().format('YYYY-MM-DD')}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Analytics data exported successfully');
+    } catch (error) {
+      console.error('Error exporting analytics data:', error);
+      message.error('Failed to export analytics data');
+    }
   };
 
   // Chart configurations using Chart.js format
