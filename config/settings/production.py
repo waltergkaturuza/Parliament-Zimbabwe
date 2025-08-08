@@ -50,6 +50,14 @@ else:
         'parliament.gov.zw',
         'localhost',
         '127.0.0.1',
+        # Azure internal IPs (both ranges)
+        '169.254.131.2',
+        '169.254.131.4', 
+        '169.254.131.5',
+        '169.254.131.6',
+        '169.254.131.7',
+        '169.254.130.3',
+        '169.254.130.4',
     ]
     print(f"[DEBUG] Using default ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 logging.basicConfig(level=logging.INFO)

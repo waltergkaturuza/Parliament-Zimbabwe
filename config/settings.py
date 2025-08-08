@@ -29,6 +29,8 @@ ALLOWED_HOSTS = [
     '169.254.131.2',  # Azure internal services IP
     '169.254.131.4',  # Additional Azure internal IP
     '169.254.131.7',  # Additional Azure internal IP
+    '169.254.130.3',  # Azure internal IP from logs
+    '169.254.130.4',  # Azure internal IP from logs
 ]
 
 # For local development, allow all hosts if DEBUG is True
