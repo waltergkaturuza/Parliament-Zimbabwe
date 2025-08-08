@@ -131,43 +131,6 @@ const BeneficiaryManagement = () => {
       return await BeneficiaryService.getBeneficiaries(params);
     }
   });
-        parliamentaryId: `MP${String(i + 1).padStart(4, '0')}`,
-        name: `Hon. ${['John', 'Jane', 'Michael', 'Sarah', 'David', 'Mary'][i % 6]} ${['Smith', 'Johnson', 'Williams', 'Brown', 'Davis', 'Miller'][i % 6]}`,
-        title: ['Honorable', 'Right Honorable', 'Dr.', 'Prof.'][i % 4],
-        category: ['MP', 'SENATOR', 'STAFF', 'OFFICIAL'][i % 4] as any,
-        constituency: i % 4 === 0 ? `Constituency ${i + 1}` : undefined,
-        party: ['ZANU-PF', 'MDC', 'CCC', 'Independent'][i % 4],
-        phoneNumber: `+263 ${Math.floor(Math.random() * 900000) + 100000}`,
-        email: `beneficiary${i + 1}@parliament.gov.zw`,
-        address: `${Math.floor(Math.random() * 999) + 1} ${['Main', 'Second', 'Third'][i % 3]} Street, Harare`,
-        dateOfBirth: new Date(1960 + Math.random() * 40, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString(),
-        nationalId: `${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 900000) + 100000}Z${Math.floor(Math.random() * 90) + 10}`,
-        profilePhoto: Math.random() > 0.7 ? 'https://via.placeholder.com/150' : undefined,
-        status: ['ACTIVE', 'INACTIVE', 'SUSPENDED'][Math.floor(Math.random() * 3)] as any,
-        entitlements: {
-          monthlyAllocation: [500, 750, 1000, 1500][Math.floor(Math.random() * 4)],
-          maxPerTransaction: [200, 300, 400, 500][Math.floor(Math.random() * 4)],
-          vehicleCount: Math.floor(Math.random() * 3) + 1,
-        },
-        fuelUsage: {
-          currentMonth: Math.floor(Math.random() * 400) + 100,
-          lastMonth: Math.floor(Math.random() * 400) + 100,
-          yearToDate: Math.floor(Math.random() * 4000) + 1000,
-          totalUsed: Math.floor(Math.random() * 10000) + 5000,
-        },
-        vehicles: Array.from({ length: Math.floor(Math.random() * 3) + 1 }, (_, v) => ({
-          id: `veh_${i}_${v}`,
-          registration: `ABC ${Math.floor(Math.random() * 900) + 100}GP`,
-          make: ['Toyota', 'Honda', 'Nissan', 'Ford', 'BMW'][Math.floor(Math.random() * 5)],
-          model: ['Camry', 'Civic', 'Altima', 'Focus', '320i'][Math.floor(Math.random() * 5)],
-          year: 2015 + Math.floor(Math.random() * 9),
-          fuelType: Math.random() > 0.5 ? 'PETROL' : 'DIESEL',
-        })),
-        lastActivity: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
-      }));
-    },
-  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
