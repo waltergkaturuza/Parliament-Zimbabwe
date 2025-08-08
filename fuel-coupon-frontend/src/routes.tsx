@@ -89,6 +89,7 @@ const SystemSettingsPage = lazy(() => import('@/pages/admin/SystemSettingsPage')
 const UsersManagementPage = lazy(() => import('@/pages/admin/UsersManagementPage'));
 const SystemAlertsPage = lazy(() => import('@/pages/admin/SystemAlertsPage'));
 const ReportsAnalyticsPage = lazy(() => import('@/pages/admin/ReportsAnalyticsPage'));
+const SubCentersManagement = lazy(() => import('@/pages/admin/SubCentersManagement'));
 
 // Test pages
 const BookDispatchTest = lazy(() => import('@/pages/test/BookDispatchTest'));
@@ -260,6 +261,7 @@ const router = createBrowserRouter(
       >
         <Route path="settings" element={<Suspense fallback={<LoadingSpinner />}><SystemSettingsPage /></Suspense>} />
         <Route path="users" element={<Suspense fallback={<LoadingSpinner />}><UsersManagementPage /></Suspense>} />
+        <Route path="subcenters" element={<Suspense fallback={<LoadingSpinner />}><SubCentersManagement /></Suspense>} />
         <Route path="alerts" element={<Suspense fallback={<LoadingSpinner />}><SystemAlertsPage /></Suspense>} />
         <Route path="reports" element={<Suspense fallback={<LoadingSpinner />}><ReportsAnalyticsPage /></Suspense>} />
         <Route path="audit-logs" element={<Suspense fallback={<LoadingSpinner />}><AuditLogs /></Suspense>} />
