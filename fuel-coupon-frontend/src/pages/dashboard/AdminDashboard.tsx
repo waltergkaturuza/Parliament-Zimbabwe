@@ -258,28 +258,28 @@ const SystemHealth: React.FC<{ healthData?: any }> = ({ healthData }) => {
   const healthItems = [
     {
       name: 'API Response',
-      value: 95,
+      value: healthData?.api_response || 0,
       status: 'excellent',
       icon: <CheckCircleOutlined />,
       unit: '%'
     },
     {
       name: 'Database',
-      value: 88,
+      value: healthData?.database || 0,
       status: 'good',
       icon: <FileTextOutlined />,
       unit: '%'
     },
     {
       name: 'Uptime',
-      value: 0,
+      value: healthData?.uptime || 0,
       status: 'excellent',
       icon: <CheckCircleOutlined />,
       unit: '%'
     },
     {
       name: 'Security',
-      value: 92,
+      value: healthData?.security || 0,
       status: 'good',
       icon: <SecurityScanOutlined />,
       unit: '%'
@@ -1145,57 +1145,36 @@ const AdminDashboard: React.FC = () => {
               {/* Recent Activity */}
               <Card title="Recent System Activity" size="small">
                 <Row gutter={[16, 16]}>
-                  {[
-                    {
-                      title: 'User Registration',
-                      description: 'New user "john_doe" registered',
-                      time: '2 hours ago',
-                      type: 'success',
-                      icon: <UserOutlined />
-                    },
-                    {
-                      title: 'Coupon Distribution',
-                      description: '100 coupons distributed to Harare Sub-center',
-                      time: '4 hours ago',
-                      type: 'info',
-                      icon: <FileTextOutlined />
-                    },
-                    {
-                      title: 'System Maintenance',
-                      description: 'Scheduled maintenance completed',
-                      time: '1 day ago',
-                      type: 'warning',
-                      icon: <SettingOutlined />
-                    },
-                    {
-                      title: 'Security Scan',
-                      description: 'Weekly security scan completed successfully',
-                      time: '2 days ago',
-                      type: 'success',
-                      icon: <SecurityScanOutlined />
-                    }
-                  ].map((activity, index) => (
-                    <Col xs={24} sm={12} lg={6} key={index}>
-                      <Card size="small" className="h-full">
-                        <div className="flex items-start gap-3">
-                          <div style={{ 
-                            color: activity.type === 'success' ? '#52c41a' : 
-                                   activity.type === 'warning' ? '#faad14' : '#1890ff',
-                            fontSize: '16px'
-                          }}>
-                            {activity.icon}
+                  {adminStats?.recent_activity && adminStats.recent_activity.length > 0 ? (
+                    adminStats.recent_activity.slice(0, 4).map((activity: any, index: number) => (
+                      <Col xs={24} sm={12} lg={6} key={index}>
+                        <Card size="small" className="h-full">
+                          <div className="flex items-start gap-3">
+                            <div style={{ 
+                              color: activity.type === 'success' ? '#52c41a' : 
+                                     activity.type === 'warning' ? '#faad14' : '#1890ff',
+                              fontSize: '16px'
+                            }}>
+                              {activity.icon || <UserOutlined />}
+                            </div>
+                            <div className="flex-1">
+                              <Text strong className="text-sm">{activity.title}</Text>
+                              <br />
+                              <Text type="secondary" className="text-xs">{activity.description}</Text>
+                              <br />
+                              <Text type="secondary" className="text-xs">{activity.time}</Text>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <Text strong className="text-sm">{activity.title}</Text>
-                            <br />
-                            <Text type="secondary" className="text-xs">{activity.description}</Text>
-                            <br />
-                            <Text type="secondary" className="text-xs">{activity.time}</Text>
-                          </div>
-                        </div>
-                      </Card>
+                        </Card>
+                      </Col>
+                    ))
+                  ) : (
+                    <Col span={24}>
+                      <div className="text-center py-8">
+                        <Text type="secondary">No recent activity available</Text>
+                      </div>
                     </Col>
-                  ))}
+                  )}
                 </Row>
               </Card>
             </motion.div>

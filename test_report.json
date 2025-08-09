@@ -4,97 +4,97 @@
     "status": "PASS",
     "message": "Server is responding",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.586118"
+    "timestamp": "2025-08-09T09:48:05.514537"
   },
   {
     "test": "API: Home Statistics",
     "status": "PASS",
     "message": "Status: success",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.593468"
+    "timestamp": "2025-08-09T09:48:05.527964"
   },
   {
     "test": "API: Home Activity",
     "status": "PASS",
     "message": "Status: success",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.601951"
+    "timestamp": "2025-08-09T09:48:05.538126"
   },
   {
     "test": "API: Home Health",
     "status": "PASS",
     "message": "Status: success",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.610180"
+    "timestamp": "2025-08-09T09:48:05.545719"
   },
   {
     "test": "API: Home Insights",
     "status": "PASS",
     "message": "Status: success",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.613470"
+    "timestamp": "2025-08-09T09:48:05.549033"
   },
   {
     "test": "Auth: Login Endpoint",
     "status": "PASS",
     "message": "Endpoint exists and handles requests",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.896567"
+    "timestamp": "2025-08-09T09:48:05.841932"
   },
   {
     "test": "Auth: Register Endpoint",
     "status": "PASS",
     "message": "Endpoint exists and handles requests",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.902714"
+    "timestamp": "2025-08-09T09:48:05.849897"
   },
   {
     "test": "Admin API: Dashboard Statistics",
     "status": "WARN",
     "message": "HTTP 403",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.904656"
+    "timestamp": "2025-08-09T09:48:05.851911"
   },
   {
     "test": "Admin API: Users List",
     "status": "WARN",
     "message": "HTTP 403",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.907159"
+    "timestamp": "2025-08-09T09:48:05.853418"
   },
   {
     "test": "Admin API: Subcenters List",
     "status": "WARN",
     "message": "HTTP 403",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.909044"
+    "timestamp": "2025-08-09T09:48:05.855049"
   },
   {
     "test": "Admin API: Audit Logs",
     "status": "WARN",
     "message": "HTTP 403",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.910442"
+    "timestamp": "2025-08-09T09:48:05.857798"
   },
   {
     "test": "Admin API: System Alerts",
     "status": "WARN",
     "message": "HTTP 403",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.916978"
+    "timestamp": "2025-08-09T09:48:05.860530"
   },
   {
     "test": "Data Structure: Home Stats",
     "status": "PASS",
     "message": "All expected fields present",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.921696"
+    "timestamp": "2025-08-09T09:48:05.866960"
   },
   {
     "test": "CORS Configuration",
     "status": "WARN",
     "message": "Limited CORS headers: []",
     "details": null,
-    "timestamp": "2025-08-09T09:10:27.923619"
+    "timestamp": "2025-08-09T09:48:05.868843"
   }
 ]

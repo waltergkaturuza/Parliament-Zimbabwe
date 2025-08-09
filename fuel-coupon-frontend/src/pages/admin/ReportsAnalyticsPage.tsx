@@ -139,12 +139,10 @@ const ReportsAnalyticsPage: React.FC = () => {
             zwg_cost: Math.floor(Math.random() * 137500) + 55000
           })),
           savings: [
-            { category: 'Efficient Distribution', amount: 12500, percentage: 8.5 },
-            { category: 'Reduced Waste', amount: 8900, percentage: 6.1 },
-            { category: 'Digital Processing', amount: 5400, percentage: 3.7 },
-            { category: 'Automated Allocation', amount: 3200, percentage: 2.2 }
+            // All savings data should come from backend API
+            // For now, return empty array to avoid hard-coded data
           ],
-          budget_utilization: 78.5
+          budget_utilization: 0 // Should come from backend API
         }
       } as ReportData;
     }

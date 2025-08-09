@@ -183,12 +183,6 @@ const SubCenterMonitoring: FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const totalActiveSubCenters = subCenters.filter(c => c.status === 'ACTIVE').length;
-  const totalValueUSD = subCenters.reduce((sum, c) => sum + c.totalValueUSD, 0);
-  const averagePerformance = subCenters.length > 0 ? 
-    subCenters.reduce((sum, c) => sum + c.performanceScore, 0) / subCenters.length : 0;
-  const totalAlerts = subCenters.reduce((sum, c) => sum + c.alerts, 0);
-
   const performanceData = subCenters.map(center => ({
     name: center.code,
     performance: center.performanceScore,
@@ -364,6 +358,24 @@ const SubCenterMonitoring: FC = () => {
     
     return matchesSearch && matchesStatus;
   });
+
+  // Calculate summary statistics
+  const totalCenters = subCenters.length;
+  const activeCenters = subCenters.filter(center => center.status === 'ACTIVE').length;
+  const totalAlerts = subCenters.reduce((sum, center) => sum + center.alerts, 0);
+  const totalValueUSD = subCenters.reduce((sum, center) => sum + center.totalValueUSD, 0);
+  const totalBooks = subCenters.reduce((sum, center) => sum + center.totalBooks, 0);
+  const booksUsed = subCenters.reduce((sum, center) => sum + center.booksUsed, 0);
+  const utilizationRate = totalBooks > 0 ? ((booksUsed / totalBooks) * 100) : 0;
+  const avgPerformance = subCenters.length > 0 ? 
+    Math.round(subCenters.reduce((sum, center) => sum + center.performanceScore, 0) / subCenters.length) : 0;
+  const lowInventoryCenters = subCenters.filter(center => center.booksRemaining < 10).length;
+  
+  // Mock consumption trend data (replace with real API data)
+  const consumptionTrend = Array.from({ length: 7 }, (_, i) => ({
+    date: dayjs().subtract(6 - i, 'days').format('MMM DD'),
+    value: Math.floor(Math.random() * 1000) + 500
+  }));
 
   return (
     <Spin spinning={loading}>
@@ -562,7 +574,7 @@ const SubCenterMonitoring: FC = () => {
               <Descriptions.Item label="Books Remaining">{selectedCenter.booksRemaining}</Descriptions.Item>
               <Descriptions.Item label="Performance Score">{selectedCenter.performanceScore}%</Descriptions.Item>
               <Descriptions.Item label="Monthly Consumption">
-                ZWG {selectedCenter.monthlyConsumption.toLocaleString()}
+                ZWG {(selectedCenter.monthlyConsumptionUSD * 27.5).toLocaleString()}
               </Descriptions.Item>
               <Descriptions.Item label="Last Activity">
                 {dayjs(selectedCenter.lastActivity).format('DD/MM/YYYY HH:mm')}

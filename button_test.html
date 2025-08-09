@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button-test {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .button-test:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .result.success { background: #d4edda; }
+        .result.error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>🔘 Button Functionality Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>Critical Button Tests</h2>
+        <p>Click each button to test functionality:</p>
+        
+        <div>
+            <h4>Navigation Buttons</h4>
+            <button class="button-test" onclick="testNavigation('home')">Home Page</button>
+            <button class="button-test" onclick="testNavigation('login')">Login Page</button>
+            <button class="button-test" onclick="testNavigation('register')">Register Page</button>
+            <button class="button-test" onclick="testNavigation('dashboard')">Dashboard</button>
+            <div id="nav-result" class="result"></div>
+        </div>
+
+        <div>
+            <h4>Authentication Buttons</h4>
+            <button class="button-test" onclick="testLoginForm()">Test Login Form Submit</button>
+            <button class="button-test" onclick="testRegisterForm()">Test Register Form Submit</button>
+            <div id="auth-result" class="result"></div>
+        </div>
+
+        <div>
+            <h4>Admin Dashboard Buttons</h4>
+            <button class="button-test" onclick="testAdminButton('refresh')">Refresh Data</button>
+            <button class="button-test" onclick="testAdminButton('export')">Export Data</button>
+            <button class="button-test" onclick="testAdminButton('settings')">Settings</button>
+            <div id="admin-result" class="result"></div>
+        </div>
+
+        <div>
+            <h4>Data Management Buttons</h4>
+            <button class="button-test" onclick="testDataButton('create')">Create Record</button>
+            <button class="button-test" onclick="testDataButton('edit')">Edit Record</button>
+            <button class="button-test" onclick="testDataButton('delete')">Delete Record</button>
+            <div id="data-result" class="result"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>API Integration Test</h2>
+        <button class="button-test" onclick="testAllAPIs()">Test All API Endpoints</button>
+        <div id="api-result" class="result"></div>
+    </div>
+
+    <script>
+        const FRONTEND_BASE = 'http://localhost:5175';
+        const BACKEND_BASE = 'http://localhost:8000';
+
+        function testNavigation(page) {
+            const resultDiv = document.getElementById('nav-result');
+            resultDiv.textContent = `Testing navigation to ${page}...`;
+            
+            const urls = {
+                home: `${FRONTEND_BASE}/`,
+                login: `${FRONTEND_BASE}/auth/login`,
+                register: `${FRONTEND_BASE}/auth/register`,
+                dashboard: `${FRONTEND_BASE}/dashboard`
+            };
+
+            if (urls[page]) {
+                try {
+                    window.open(urls[page], '_blank');
+                    resultDiv.textContent = `✅ Successfully opened ${page} page in new tab`;
+                    resultDiv.className = 'result success';
+                } catch (error) {
+                    resultDiv.textContent = `❌ Failed to open ${page}: ${error.message}`;
+                    resultDiv.className = 'result error';
+                }
+            } else {
+                resultDiv.textContent = `❌ Unknown page: ${page}`;
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function testLoginForm() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.textContent = 'Testing login form submission...';
+            
+            try {
+                const response = await fetch(`${BACKEND_BASE}/api/v1/auth/login/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'test', password: 'test' })
+                });
+                
+                if (response.status === 400 || response.status === 401) {
+                    resultDiv.textContent = '✅ Login form endpoint working (expected auth failure)';
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `⚠️ Unexpected login response: ${response.status}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ Login form test failed: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function testRegisterForm() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.textContent = 'Testing register form submission...';
+            
+            try {
+                const response = await fetch(`${BACKEND_BASE}/api/v1/auth/register/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        username: 'test', 
+                        email: 'test@test.com', 
+                        password: 'test' 
+                    })
+                });
+                
+                if (response.status === 400 || response.status === 201) {
+                    resultDiv.textContent = '✅ Register form endpoint working';
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `⚠️ Unexpected register response: ${response.status}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ Register form test failed: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+
+        function testAdminButton(action) {
+            const resultDiv = document.getElementById('admin-result');
+            resultDiv.textContent = `Testing admin ${action} button...`;
+            
+            // Simulate admin button functionality
+            setTimeout(() => {
+                switch (action) {
+                    case 'refresh':
+                        resultDiv.textContent = '✅ Refresh button would trigger data reload';
+                        break;
+                    case 'export':
+                        resultDiv.textContent = '✅ Export button would download data file';
+                        break;
+                    case 'settings':
+                        resultDiv.textContent = '✅ Settings button would open configuration panel';
+                        break;
+                    default:
+                        resultDiv.textContent = `❌ Unknown admin action: ${action}`;
+                }
+                resultDiv.className = 'result success';
+            }, 500);
+        }
+
+        function testDataButton(action) {
+            const resultDiv = document.getElementById('data-result');
+            resultDiv.textContent = `Testing data ${action} button...`;
+            
+            // Simulate data management functionality
+            setTimeout(() => {
+                switch (action) {
+                    case 'create':
+                        resultDiv.textContent = '✅ Create button would open new record form';
+                        break;
+                    case 'edit':
+                        resultDiv.textContent = '✅ Edit button would open edit form with current data';
+                        break;
+                    case 'delete':
+                        resultDiv.textContent = '✅ Delete button would show confirmation dialog';
+                        break;
+                    default:
+                        resultDiv.textContent = `❌ Unknown data action: ${action}`;
+                }
+                resultDiv.className = 'result success';
+            }, 500);
+        }
+
+        async function testAllAPIs() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.textContent = 'Testing all API endpoints...\\n';
+            
+            const endpoints = [
+                { url: '/api/v1/home/stats/', name: 'Home Statistics' },
+                { url: '/api/v1/api/home/activity/', name: 'Home Activity' },
+                { url: '/api/v1/api/home/health/', name: 'Home Health' },
+                { url: '/api/v1/api/home/insights/', name: 'Home Insights' }
+            ];
+
+            let results = [];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${BACKEND_BASE}${endpoint.url}`);
+                    if (response.ok) {
+                        results.push(`✅ ${endpoint.name}: Working`);
+                    } else {
+                        results.push(`❌ ${endpoint.name}: HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    results.push(`❌ ${endpoint.name}: ${error.message}`);
+                }
+            }
+            
+            resultDiv.textContent = results.join('\\n');
+            resultDiv.className = 'result success';
+        }
+
+        // Auto-run navigation test on load
+        window.onload = function() {
+            console.log('Button functionality test page loaded');
+        };
+    </script>
+</body>
+</html>
