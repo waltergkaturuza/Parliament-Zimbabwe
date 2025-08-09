@@ -91,17 +91,15 @@ import {
   
       try {
         const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
+        if (!refreshToken) {
           console.warn('No refresh token available for refresh.');
           // If no refresh token, force logout (which sets loading to false)
           logout();
           return undefined;
         }
   
-        const response = await axios.post('/api/auth/refresh/', { refresh: refreshToken });
-        const newAccessToken = response.data.access;
-  
-        // Store the new access token, keep the existing refresh token
+        const response = await axios.post('/api/token/refresh/', { refresh: refreshToken });
+        const newAccessToken = response.data.access;        // Store the new access token, keep the existing refresh token
         localStorage.setItem('access_token', newAccessToken);
         setAccessToken(newAccessToken);
   
