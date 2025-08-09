@@ -57,6 +57,7 @@ else:
         '169.254.130.7',  # Azure internal middleware
         '169.254.130.9',  # Azure worker container
         '169.254.130.11', # Azure worker middleware
+        '169.254.130.12', # Azure additional worker
         '169.254.131.2',  # Azure container internal IPs
         '169.254.131.4',
         '169.254.131.5',
@@ -453,11 +454,14 @@ REST_FRAMEWORK = {
 
 # Database connection optimization for Azure
 if 'default' in DATABASES:
-    DATABASES['default']['CONN_MAX_AGE'] = 600  # 10 minutes
+    DATABASES['default']['CONN_MAX_AGE'] = 600  # 10 minutes - reuse connections
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = True  # Health checks on reused connections
     DATABASES['default']['OPTIONS'].update({
-        'MAX_CONNS': 20,
         'connect_timeout': 10,
         'command_timeout': 30,
+        # Use connection pooling at application level
+        'server_side_binding': True,
+        'prepared_statement_cache_size': 20,
     })
 
 # Time zone
