@@ -44,6 +44,9 @@ from .views_debug import test_azure_database, health_check as debug_health_check
 # Import CORS bypass views
 from .cors_test_views import cors_bypass_login, cors_test_endpoint
 
+# Import home views that provide some of the missing endpoints
+from .views_home import home_stats, recent_activity, system_health, quick_insights
+
 # Import setup views
 from .views_setup import create_superuser_api, database_status_api
 
