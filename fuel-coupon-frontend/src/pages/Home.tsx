@@ -193,32 +193,7 @@ const Home = () => {
     }
   ];
 
-  const recentActivityDisplay = recentActivity.length > 0 ? recentActivity : [
-    {
-      icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-      title: "System Update Completed",
-      description: "Latest security patches installed successfully",
-      time_display: "2 hours ago"
-    },
-    {
-      icon: <TeamOutlined style={{ color: '#1890ff' }} />,
-      title: "New Sub-Center Added",
-      description: "Chitungwiza East sub-center is now operational",
-      time_display: "1 day ago"
-    },
-    {
-      icon: <BarChartOutlined style={{ color: '#faad14' }} />,
-      title: "Monthly Report Generated",
-      description: "June 2025 distribution report available",
-      time_display: "3 days ago"
-    },
-    {
-      icon: <SafetyCertificateOutlined style={{ color: '#722ed1' }} />,
-      title: "Security Audit Passed",
-      description: "Annual security compliance review completed",
-      time_display: "1 week ago"
-    }
-  ];
+  const recentActivityDisplay = recentActivity.length > 0 ? recentActivity : [];
 
   const fadeInUp = {
     initial: { opacity: 0, y: 60 },
@@ -242,35 +217,27 @@ const Home = () => {
           <ParliamentLogo size="medium" />
         </div>
         
-        <div className="flex items-center gap-4">
-          <img 
-            src="/logo.webp" 
-            alt="Parliament Logo" 
-            className="h-12 w-auto"
-            style={{ maxHeight: '48px' }}
-          />
-          <Space size="middle">
-            <Button 
-              type="default" 
-              icon={<LoginOutlined />}
-              onClick={() => navigate('/login')}
-              size="large"
-            >
-              Login
-            </Button>
-            <Button 
-              type="primary" 
-              icon={<UserAddOutlined />}
-              onClick={() => navigate('/register')}
-              size="large"
-            >
-              Register
-            </Button>
-          </Space>
-        </div>
+        <Space size="middle">
+          <Button 
+            type="default" 
+            icon={<LoginOutlined />}
+            onClick={() => navigate('/login')}
+            size="large"
+          >
+            Login
+          </Button>
+          <Button 
+            type="primary" 
+            icon={<UserAddOutlined />}
+            onClick={() => navigate('/register')}
+            size="large"
+          >
+            Register
+          </Button>
+        </Space>
       </Header>
 
-      <Content>
+      <Content className="relative" style={{ margin: '0 10px' }}>
         {/* Hero Section */}
         <section 
           className="py-20 relative"
@@ -287,10 +254,10 @@ const Home = () => {
             className="absolute inset-0 bg-black bg-opacity-40"
             style={{ zIndex: 1 }}
           />
-          <div className="max-w-7xl mx-auto px-6 relative" style={{ zIndex: 2 }}>
+          <div className="max-w-7xl mx-auto relative" style={{ zIndex: 2, padding: '0 10px' }}>
             <Row gutter={[32, 32]} align="middle">
               <Col xs={24} lg={12}>
-                <motion.div {...fadeInUp}>
+                <motion.div {...fadeInUp} style={{ margin: '0 10px' }}>
                   <Badge.Ribbon text="Government Official" color="gold">
                     <div className="mb-6">
                       <Title level={1} className="mb-4 text-white">
@@ -314,6 +281,20 @@ const Home = () => {
                           Get Started
                         </Button>
                       </Space>
+                      
+                      {/* Parliament Logo 10px below Get Started button */}
+                      <div style={{ marginTop: '10px' }}>
+                        <img 
+                          src="/logo.webp" 
+                          alt="Parliament Logo" 
+                          style={{ 
+                            height: '120px', 
+                            width: 'auto',
+                            opacity: 0.7,
+                            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                          }}
+                        />
+                      </div>
                     </div>
                   </Badge.Ribbon>
                 </motion.div>

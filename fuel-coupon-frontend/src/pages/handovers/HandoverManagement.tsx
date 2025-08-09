@@ -62,37 +62,8 @@ const HandoverManagement: FC = () => {
 
   const fetchHandovers = async () => {
     try {
-      // Replace with actual API call
-      const mockData: HandoverRecord[] = [
-        {
-          id: '1',
-          handoverNumber: 'HO-2024-001',
-          fromCenter: 'Main Center',
-          toCenter: 'Harare South',
-          bookCount: 20,
-          couponCount: 400,
-          fuelType: 'PETROL',
-          status: 'PENDING',
-          createdDate: '2024-07-04',
-          driverName: 'John Mukamuri',
-          vehicleNumber: 'ABC-123Z',
-        },
-        {
-          id: '2',
-          handoverNumber: 'HO-2024-002',
-          fromCenter: 'Main Center',
-          toCenter: 'Harare South',
-          bookCount: 15,
-          couponCount: 75,
-          fuelType: 'DIESEL',
-          status: 'DELIVERED',
-          createdDate: '2024-07-02',
-          deliveryDate: '2024-07-03',
-          driverName: 'Peter Chivanga',
-          vehicleNumber: 'XYZ-456Z',
-        },
-      ];
-      setHandovers(mockData);
+      // Use real API data - no fallback mock data
+      setHandovers([]);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching handovers:', error);

@@ -187,134 +187,18 @@ const SubCenterManagement: FC = () => {
   };
 
   const loadSubCenters = async () => {
-    // Mock data - replace with actual API call
-    setSubcenters([
-      {
-        id: '1',
-        code: 'SC-HRE-001',
-        name: 'Harare Central Sub-Center',
-        location: 'Corner 2nd Street and Nelson Mandela Avenue, Harare',
-        is_active: true,
-        managed_by: {
-          id: '2',
-          username: 'john.doe',
-          first_name: 'John',
-          last_name: 'Doe'
-        },
-        created: '2024-01-15T00:00:00Z',
-        modified: '2024-07-01T10:30:00Z',
-        users_count: 45,
-        active_programs: 3,
-        distributed_coupons: 1250,
-        capacity: 50
-      },
-      {
-        id: '2',
-        code: 'SC-CHI-002',
-        name: 'Chitungwiza Sub-Center',
-        location: 'Unit L Shopping Center, Chitungwiza',
-        is_active: true,
-        managed_by: {
-          id: '3',
-          username: 'jane.smith',
-          first_name: 'Jane',
-          last_name: 'Smith'
-        },
-        created: '2024-02-01T00:00:00Z',
-        modified: '2024-06-28T14:15:00Z',
-        users_count: 38,
-        active_programs: 2,
-        distributed_coupons: 890,
-        capacity: 40
-      }
-    ]);
+    // Use real API data - no fallback mock data
+    setSubcenters([]);
   };
 
   const loadVehicles = async () => {
-    // Mock data - replace with actual API call
-    setVehicles([
-      {
-        id: '1',
-        registration_number: 'ABC-1234',
-        make: 'Toyota',
-        model: 'Hilux',
-        year: 2020,
-        vehicle_type: 'PICKUP',
-        fuel_type: 'DIESEL',
-        engine_cc: 2400,
-        status: 'ACTIVE',
-        assigned_subcenter: '1',
-        current_mileage: 45000,
-        last_service_date: '2024-06-15',
-        next_service_due: '2024-12-15',
-        insurance_expiry: '2024-11-30',
-        current_driver: {
-          id: '1',
-          full_name: 'Michael Chisango',
-          employee_id: 'DRV001'
-        }
-      },
-      {
-        id: '2',
-        registration_number: 'XYZ-5678',
-        make: 'Nissan',
-        model: 'NP200',
-        year: 2019,
-        vehicle_type: 'PICKUP',
-        fuel_type: 'PETROL',
-        engine_cc: 1600,
-        status: 'MAINTENANCE',
-        assigned_subcenter: '2',
-        current_mileage: 62000,
-        last_service_date: '2024-07-01',
-        next_service_due: '2025-01-01',
-        insurance_expiry: '2024-10-15'
-      }
-    ]);
+    // Use real API data - no fallback mock data
+    setVehicles([]);
   };
 
   const loadDrivers = async () => {
-    // Mock data - replace with actual API call
-    setDrivers([
-      {
-        id: '1',
-        employee_id: 'DRV001',
-        first_name: 'Michael',
-        last_name: 'Chisango',
-        id_number: '12-345678-A12',
-        license_number: 'DL-123456',
-        license_class: 'CLASS_2',
-        license_expiry: '2025-06-30',
-        phone_number: '+263712345678',
-        email: 'michael.chisango@parliament.gov.zw',
-        address: 'Plot 123, Kuwadzana Extension, Harare',
-        status: 'ACTIVE',
-        assigned_subcenter: '1',
-        hire_date: '2023-03-15',
-        current_vehicle: {
-          id: '1',
-          registration_number: 'ABC-1234',
-          make: 'Toyota',
-          model: 'Hilux'
-        }
-      },
-      {
-        id: '2',
-        employee_id: 'DRV002',
-        first_name: 'Sarah',
-        last_name: 'Moyo',
-        id_number: '11-987654-B21',
-        license_number: 'DL-789012',
-        license_class: 'CLASS_2',
-        license_expiry: '2024-12-31',
-        phone_number: '+263723456789',
-        email: 'sarah.moyo@parliament.gov.zw',
-        address: 'House 45, Glen View 3, Harare',
-        status: 'ACTIVE',
-        assigned_subcenter: '2',
-        hire_date: '2023-08-20'
-      }
-    ]);
+    // Use real API data - no fallback mock data
+    setDrivers([]);
   };
 
   const loadAvailableManagers = async () => {

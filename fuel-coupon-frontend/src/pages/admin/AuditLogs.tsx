@@ -67,103 +67,7 @@ const AuditLogs: FC = () => {
       setLoading(true);
       
       // Mock audit logs data - replace with actual API call
-      const mockLogs: AuditLog[] = [
-        {
-          id: '1',
-          timestamp: dayjs().subtract(1, 'hour').toISOString(),
-          user: {
-            id: '1',
-            username: 'admin',
-            first_name: 'John',
-            last_name: 'Doe',
-            role: 'admin'
-          },
-          action: 'CREATE',
-          resource_type: 'COUPON',
-          resource_id: 'COUP-001',
-          ip_address: '192.168.1.100',
-          user_agent: 'Mozilla/5.0...',
-          changes: { status: 'active', allocated_to: 'beneficiary_123' },
-          status: 'success',
-          details: 'Created new fuel coupon for beneficiary'
-        },
-        {
-          id: '2',
-          timestamp: dayjs().subtract(2, 'hour').toISOString(),
-          user: {
-            id: '2',
-            username: 'officer_1',
-            first_name: 'Jane',
-            last_name: 'Smith',
-            role: 'main_center_officer'
-          },
-          action: 'UPDATE',
-          resource_type: 'FUEL_PRICE',
-          resource_id: 'PRICE-PETROL',
-          ip_address: '192.168.1.101',
-          user_agent: 'Mozilla/5.0...',
-          changes: { old_price: 1.75, new_price: 1.80 },
-          status: 'success',
-          details: 'Updated petrol price'
-        },
-        {
-          id: '3',
-          timestamp: dayjs().subtract(3, 'hour').toISOString(),
-          user: {
-            id: '3',
-            username: 'sub_officer',
-            first_name: 'Mike',
-            last_name: 'Johnson',
-            role: 'subcenter_officer'
-          },
-          action: 'DELETE',
-          resource_type: 'BOX',
-          resource_id: 'BOX-001',
-          ip_address: '192.168.1.102',
-          user_agent: 'Mozilla/5.0...',
-          changes: { status: 'deleted' },
-          status: 'failed',
-          details: 'Failed to delete box - contains active books'
-        },
-        {
-          id: '4',
-          timestamp: dayjs().subtract(4, 'hour').toISOString(),
-          user: {
-            id: '1',
-            username: 'admin',
-            first_name: 'John',
-            last_name: 'Doe',
-            role: 'admin'
-          },
-          action: 'LOGIN',
-          resource_type: 'USER_SESSION',
-          resource_id: 'SESSION-001',
-          ip_address: '192.168.1.100',
-          user_agent: 'Mozilla/5.0...',
-          changes: { login_time: dayjs().subtract(4, 'hour').toISOString() },
-          status: 'success',
-          details: 'User logged in successfully'
-        },
-        {
-          id: '5',
-          timestamp: dayjs().subtract(5, 'hour').toISOString(),
-          user: {
-            id: '4',
-            username: 'beneficiary_1',
-            first_name: 'Alice',
-            last_name: 'Brown',
-            role: 'beneficiary'
-          },
-          action: 'VIEW',
-          resource_type: 'HANDOVER',
-          resource_id: 'HAND-001',
-          ip_address: '192.168.1.103',
-          user_agent: 'Mozilla/5.0...',
-          changes: {},
-          status: 'warning',
-          details: 'Attempted to view restricted handover details'
-        }
-      ];
+      const mockLogs: AuditLog[] = [];
 
       // Simulate API delay
       setTimeout(() => {
@@ -184,12 +88,7 @@ const AuditLogs: FC = () => {
       const uniqueResources = ['USER', 'COUPON', 'BOX', 'BOOK', 'HANDOVER', 'FUEL_PRICE', 'USER_SESSION'];
       
       // Mock users data
-      const mockUsers = [
-        { id: '1', username: 'admin', first_name: 'John', last_name: 'Doe' },
-        { id: '2', username: 'officer_1', first_name: 'Jane', last_name: 'Smith' },
-        { id: '3', username: 'sub_officer', first_name: 'Mike', last_name: 'Johnson' },
-        { id: '4', username: 'beneficiary_1', first_name: 'Alice', last_name: 'Brown' }
-      ];
+      const mockUsers: any[] = [];
 
       setActions(uniqueActions);
       setResources(uniqueResources);

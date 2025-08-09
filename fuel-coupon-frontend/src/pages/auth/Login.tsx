@@ -102,16 +102,6 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex flex-col">
-      {/* Header with Logo */}
-      <div className="absolute top-4 right-4 z-10">
-        <img 
-          src="/logo.webp" 
-          alt="Parliament Logo" 
-          className="h-12 w-auto"
-          style={{ maxHeight: '48px' }}
-        />
-      </div>
-      
       <div className="flex-1 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -128,6 +118,20 @@ const Login = () => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="space-y-8"
             >
+              {/* Parliament Logo */}
+              <div className="flex justify-center lg:justify-start mb-8">
+                <img 
+                  src="/logo.webp" 
+                  alt="Parliament of Zimbabwe Logo" 
+                  style={{ 
+                    width: 'auto',
+                    height: '180px', // Make it bigger
+                    objectFit: 'contain', // Maintain natural oval/egg shape
+                    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))'
+                  }}
+                />
+              </div>
+              
               <div className="flex items-center justify-center lg:justify-start gap-4 mb-8">
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg">
                   <CarOutlined className="text-white text-2xl" />

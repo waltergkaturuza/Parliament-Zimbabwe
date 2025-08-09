@@ -89,45 +89,45 @@ const ReportsAnalyticsPage: React.FC = () => {
           })).map(item => ({ ...item, total: item.petrol + item.diesel })),
           monthly: Array.from({ length: 12 }, (_, i) => ({
             month: dayjs().subtract(11 - i, 'months').format('MMM YYYY'),
-            petrol: Math.floor(Math.random() * 15000) + 8000,
-            diesel: Math.floor(Math.random() * 10000) + 5000,
+            petrol: 0,
+            diesel: 0,
             total: 0
-          })).map(item => ({ ...item, total: item.petrol + item.diesel })),
+          })),
           by_subcenter: [
-            { subcenter: 'Bulawayo Regional Office', total: 12500, percentage: 35 },
-            { subcenter: 'Harare Main Center', total: 10800, percentage: 30 },
-            { subcenter: 'Gweru District Office', total: 7200, percentage: 20 },
-            { subcenter: 'Mutare Regional Office', total: 5400, percentage: 15 }
+            { subcenter: 'Bulawayo Regional Office', total: 0, percentage: 0 },
+            { subcenter: 'Harare Main Center', total: 0, percentage: 0 },
+            { subcenter: 'Gweru District Office', total: 0, percentage: 0 },
+            { subcenter: 'Mutare Regional Office', total: 0, percentage: 0 }
           ]
         },
         user_activity: {
           registrations: Array.from({ length: 30 }, (_, i) => ({
             date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            count: Math.floor(Math.random() * 10) + 1
+            count: 0
           })),
           logins: Array.from({ length: 30 }, (_, i) => ({
             date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            count: Math.floor(Math.random() * 50) + 20
+            count: 0
           })),
           by_role: [
-            { role: 'BENEFICIARY', count: 245, percentage: 60 },
-            { role: 'SUB_CENTER', count: 89, percentage: 22 },
-            { role: 'MAIN_CENTER', count: 45, percentage: 11 },
-            { role: 'ADMIN', count: 18, percentage: 4 },
-            { role: 'AUDITOR', count: 12, percentage: 3 }
+            { role: 'BENEFICIARY', count: 0, percentage: 0 },
+            { role: 'SUB_CENTER', count: 0, percentage: 0 },
+            { role: 'MAIN_CENTER', count: 0, percentage: 0 },
+            { role: 'ADMIN', count: 0, percentage: 0 },
+            { role: 'AUDITOR', count: 0, percentage: 0 }
           ]
         },
         system_performance: {
           response_times: [
-            { endpoint: '/api/v1/auth/login', avg_time: 245, count: 1240 },
-            { endpoint: '/api/v1/coupons/', avg_time: 180, count: 890 },
-            { endpoint: '/api/v1/allocations/', avg_time: 320, count: 450 },
-            { endpoint: '/api/v1/admin/dashboard/', avg_time: 420, count: 120 }
+            { endpoint: '/api/v1/auth/login', avg_time: 0, count: 0 },
+            { endpoint: '/api/v1/coupons/', avg_time: 0, count: 0 },
+            { endpoint: '/api/v1/allocations/', avg_time: 0, count: 0 },
+            { endpoint: '/api/v1/admin/dashboard/', avg_time: 0, count: 0 }
           ],
           error_rates: Array.from({ length: 30 }, (_, i) => ({
             date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
-            errors: Math.floor(Math.random() * 10),
-            total: Math.floor(Math.random() * 500) + 200,
+            errors: 0,
+            total: 0,
             rate: 0
           })).map(item => ({ ...item, rate: (item.errors / item.total) * 100 })),
           uptime: 99.87

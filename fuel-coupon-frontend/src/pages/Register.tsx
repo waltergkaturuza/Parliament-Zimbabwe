@@ -433,21 +433,6 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex items-center justify-center p-4 relative">
-      {/* Full logo in top-left corner */}
-      <div className="absolute top-4 left-4 z-10">
-        <ParliamentLogo size="xs" showText={true} />
-      </div>
-      
-      {/* Logo image in top-right corner */}
-      <div className="absolute top-4 right-4 z-10">
-        <img 
-          src="/logo.webp" 
-          alt="Parliament Logo" 
-          className="h-12 w-auto"
-          style={{ maxHeight: '48px' }}
-        />
-      </div>
-      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -457,6 +442,20 @@ const Register = () => {
         <Card className="shadow-xl border-0">
           {/* Header */}
           <div className="text-center mb-8">
+            {/* Parliament Logo */}
+            <div className="flex justify-center mb-6">
+              <img 
+                src="/logo.webp" 
+                alt="Parliament of Zimbabwe Logo" 
+                style={{ 
+                  width: 'auto',
+                  height: '160px', // Make it bigger
+                  objectFit: 'contain', // Maintain natural oval/egg shape
+                  filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))'
+                }}
+              />
+            </div>
+            
             <div>
               <Title level={2} className="mb-0">Register for Access</Title>
               <Text type="secondary">Parliament of Zimbabwe Fuel Coupon System</Text>

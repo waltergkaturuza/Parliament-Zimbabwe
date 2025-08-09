@@ -107,50 +107,10 @@ const UsersManagementPage: React.FC = () => {
         });
       } catch (err) {
         console.error('Error fetching users:', err);
-        // Return mock data as fallback
+        // Return empty results when API fails
         return {
-          results: [
-            {
-              id: 1,
-              username: 'admin_user',
-              email: 'admin@parliament.gov.zw',
-              first_name: 'System',
-              last_name: 'Administrator',
-              role: 'ADMIN',
-              is_active: true,
-              is_approved: true,
-              date_joined: '2024-01-01T00:00:00Z',
-              last_login: '2025-07-06T10:00:00Z',
-              phone: '+263712345678'
-            },
-            {
-              id: 2,
-              username: 'maincenter_test',
-              email: 'maincenter@parliament.gov.zw',
-              first_name: 'Main',
-              last_name: 'Center Officer',
-              role: 'MAIN_CENTER',
-              is_active: true,
-              is_approved: true,
-              date_joined: '2024-02-01T00:00:00Z',
-              last_login: '2025-07-06T08:30:00Z',
-              phone: '+263712345679'
-            },
-            {
-              id: 3,
-              username: 'subcenter_test',
-              email: 'subcenter@parliament.gov.zw',
-              first_name: 'Sub',
-              last_name: 'Center Officer',
-              role: 'SUB_CENTER',
-              is_active: true,
-              is_approved: true,
-              date_joined: '2024-03-01T00:00:00Z',
-              last_login: '2025-07-05T14:30:00Z',
-              sub_center: { id: 1, name: 'Bulawayo Regional Office' }
-            }
-          ],
-          count: 3
+          results: [],
+          count: 0
         };
       }
     }

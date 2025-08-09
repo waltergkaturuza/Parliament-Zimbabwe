@@ -272,7 +272,7 @@ const SystemHealth: React.FC<{ healthData?: any }> = ({ healthData }) => {
     },
     {
       name: 'Uptime',
-      value: 99.9,
+      value: 0,
       status: 'excellent',
       icon: <CheckCircleOutlined />,
       unit: '%'
@@ -332,9 +332,9 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'Weekly House of Assembly Sittings',
       type: 'WEEKLY_SITTING',
       frequency: 'Weekly',
-      estimatedFuel: '2500L',
+      estimatedFuel: '0L',
       description: 'Regular parliamentary sessions for House of Assembly',
-      participants: 270,
+      participants: 0,
       status: 'Active',
       color: '#1890ff',
       icon: <BankOutlined />
@@ -344,9 +344,9 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'Weekly Senate Sittings',
       type: 'WEEKLY_SITTING',
       frequency: 'Weekly', 
-      estimatedFuel: '1200L',
+      estimatedFuel: '0L',
       description: 'Regular parliamentary sessions for Senate',
-      participants: 80,
+      participants: 0,
       status: 'Active',
       color: '#52c41a',
       icon: <BankOutlined />
@@ -356,7 +356,7 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'Portfolio Committee Meetings',
       type: 'COMMITTEE_MEETING',
       frequency: 'As Needed',
-      estimatedFuel: '800L',
+      estimatedFuel: '0L',
       description: 'Various portfolio committee meetings',
       participants: 'Variable',
       status: 'Active',
@@ -368,9 +368,9 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'Monthly Constituency Visits',
       type: 'CONSTITUENCY_VISIT',
       frequency: 'Monthly',
-      estimatedFuel: '42,000L',
-      description: '120L per Member/Senator × 350 Members',
-      participants: 350,
+      estimatedFuel: '0L',
+      description: 'Members/Senators constituency visits',
+      participants: 0,
       status: 'Active',
       color: '#fa8c16',
       icon: <HomeOutlined />
@@ -404,7 +404,7 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'Culture Day Celebrations',
       type: 'STATE_FUNCTION',
       frequency: 'Annual',
-      estimatedFuel: '3500L',
+      estimatedFuel: '0L',
       description: 'National Culture Day celebrations',
       participants: 'All Members',
       status: 'Scheduled',
@@ -416,7 +416,7 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'National Youth Day',
       type: 'STATE_FUNCTION',
       frequency: 'Annual',
-      estimatedFuel: '3000L',
+      estimatedFuel: '0L',
       description: 'National Youth Day activities',
       participants: 'Selected Members',
       status: 'Scheduled',
@@ -440,7 +440,7 @@ const ParliamentSessionsTab: React.FC = () => {
       name: 'Zimbabwe Trade Fair (April)',
       type: 'ANNUAL_EVENT',
       frequency: 'Annual',
-      estimatedFuel: '8000L',
+      estimatedFuel: '0L',
       description: 'Annual trade fair in Bulawayo - all members',
       participants: 'All Members',
       status: 'Scheduled',
@@ -493,7 +493,7 @@ const ParliamentSessionsTab: React.FC = () => {
               <Card className="text-center">
                 <Statistic
                   title="Total Annual Fuel Budget"
-                  value="580,000"
+                  value="0"
                   suffix="L"
                   valueStyle={{ color: '#1890ff' }}
                   prefix={<CarOutlined />}
@@ -507,13 +507,13 @@ const ParliamentSessionsTab: React.FC = () => {
               <Card className="text-center">
                 <Statistic
                   title="Monthly Constituency Allocation"
-                  value="42,000"
+                  value="0"
                   suffix="L"
                   valueStyle={{ color: '#fa8c16' }}
                   prefix={<HomeOutlined />}
                 />
                 <Text type="secondary" className="text-xs">
-                  120L × 350 Members/Senators
+                  Members/Senators allocation
                 </Text>
               </Card>
             </Col>
@@ -521,7 +521,7 @@ const ParliamentSessionsTab: React.FC = () => {
               <Card className="text-center">
                 <Statistic
                   title="Active Parliament Members"
-                  value="350"
+                  value="0"
                   valueStyle={{ color: '#52c41a' }}
                   prefix={<TeamOutlined />}
                 />
@@ -693,15 +693,15 @@ const ParliamentSessionsTab: React.FC = () => {
                 {
                   activity: 'Monthly Constituency Allocation',
                   date: 'July 1, 2025',
-                  attendance: '350/350 Members',
-                  fuelAllocated: '42,000L',
+                  attendance: '0/0 Members',
+                  fuelAllocated: '0L',
                   status: 'Completed'
                 },
                 {
                   activity: 'Public Hearing - Masvingo',
                   date: 'June 28, 2025',
-                  attendance: '8/12 Committee Members',
-                  fuelAllocated: '1,200L',
+                  attendance: '0/0 Committee Members',
+                  fuelAllocated: '0L',
                   status: 'Completed'
                 }
               ].map((item, index) => (
@@ -914,9 +914,9 @@ const AdminDashboard: React.FC = () => {
                 <Col xs={24} sm={12} lg={6}>
                   <EnhancedStatsCard
                     title="Total Users"
-                    value={adminStats?.total_users || 156}
+                    value={adminStats?.total_users || 0}
                     icon={<TeamOutlined />}
-                    trend={12}
+                    trend={0}
                     status="increase"
                     description="Active system users"
                     loading={isStatsLoading}
@@ -926,9 +926,9 @@ const AdminDashboard: React.FC = () => {
                 <Col xs={24} sm={12} lg={6}>
                   <EnhancedStatsCard
                     title="Active Sessions"
-                    value={adminStats?.active_today || 42}
+                    value={adminStats?.active_today || 0}
                     icon={<UserOutlined />}
-                    trend={5}
+                    trend={0}
                     status="increase"
                     color="#52c41a"
                     description="Users online today"
@@ -938,9 +938,9 @@ const AdminDashboard: React.FC = () => {
                 <Col xs={24} sm={12} lg={6}>
                   <EnhancedStatsCard
                     title="Total Coupons"
-                    value={adminStats?.total_coupons || 2840}
+                    value={adminStats?.total_coupons || 0}
                     icon={<FileTextOutlined />}
-                    trend={-2}
+                    trend={0}
                     status="decrease"
                     color="#722ed1"
                     description="All fuel coupons"
@@ -950,10 +950,10 @@ const AdminDashboard: React.FC = () => {
                 <Col xs={24} sm={12} lg={6}>
                   <EnhancedStatsCard
                     title="Fuel Consumed"
-                    value={adminStats?.total_fuel_volume_consumed || 18420}
+                    value={adminStats?.total_fuel_volume_consumed || 0}
                     suffix="L"
                     icon={<CarOutlined />}
-                    trend={8}
+                    trend={0}
                     status="increase"
                     color="#fa8c16"
                     description="Total fuel dispensed"
@@ -1004,10 +1004,10 @@ const AdminDashboard: React.FC = () => {
                               )) : (
                                 // Sample data when API is not available
                                 [
-                                  { status: 'AVAILABLE', count: 1840, total: 2840 },
-                                  { status: 'ALLOCATED', count: 680, total: 2840 },
-                                  { status: 'USED', count: 240, total: 2840 },
-                                  { status: 'EXPIRED', count: 80, total: 2840 }
+                                  { status: 'AVAILABLE', count: 0, total: 0 },
+                                  { status: 'ALLOCATED', count: 0, total: 0 },
+                                  { status: 'USED', count: 0, total: 0 },
+                                  { status: 'EXPIRED', count: 0, total: 0 }
                                 ].map(({ status, count, total }) => (
                                   <div key={status} className="flex justify-between items-center">
                                     <Text>{status}</Text>
@@ -1050,25 +1050,7 @@ const AdminDashboard: React.FC = () => {
                             ) : (
                               // Sample activity when API is not available
                               <Space direction="vertical" className="w-full" size="small">
-                                {[
-                                  { id: 'C001', user: 'john_doe', action: 'User Registration', time: '2 hours ago' },
-                                  { id: 'C002', user: 'admin', action: 'Coupon Distribution', time: '4 hours ago' },
-                                  { id: 'C003', user: 'jane_smith', action: 'Fuel Allocation', time: '6 hours ago' },
-                                  { id: 'C004', user: 'system', action: 'System Backup', time: '1 day ago' }
-                                ].map((activity, index) => (
-                                  <div key={activity.id} className="flex justify-between items-center p-2 border-b">
-                                    <div>
-                                      <Text strong className="text-sm">{activity.action}</Text>
-                                      <br />
-                                      <Text type="secondary" className="text-xs">
-                                        By: {activity.user}
-                                      </Text>
-                                    </div>
-                                    <Text type="secondary" className="text-xs">
-                                      {activity.time}
-                                    </Text>
-                                  </div>
-                                ))}
+                                <Text type="secondary" className="text-center">No recent activity data available</Text>
                               </Space>
                             )}
                           </Card>
