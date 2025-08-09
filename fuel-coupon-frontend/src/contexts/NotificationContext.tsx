@@ -1,67 +1,159 @@
 // src/contexts/NotificationContext.tsx
-import { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { message } from 'antd';
+import apiClient from '@/api/index';
 
-interface Notification {
-  id: string;
-  message: string;
-  type: 'success' | 'error' | 'info';
+interface NotificationStats {
+  total: number;
+  unread: number;
+  priority: number;
 }
 
 interface NotificationContextType {
-  notifications: Notification[];
-  addNotification: (message: string, type?: Notification['type']) => void;
-  removeNotification: (id: string) => void;
+  stats: NotificationStats;
+  refreshStats: () => Promise<void>;
+  playNotificationSound: () => void;
+  markAllAsRead: () => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextType>(null!);
+const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+interface NotificationProviderProps {
+  children: ReactNode;
+  userRole: 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY';
+  userId: string;
+}
 
-  const addNotification = (message: string, type: Notification['type'] = 'info') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setNotifications((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => removeNotification(id), 5000);
+export const NotificationProvider: React.FC<NotificationProviderProps> = ({
+  children,
+  userRole,
+  userId
+}) => {
+  const [stats, setStats] = useState<NotificationStats>({
+    total: 0,
+    unread: 0,
+    priority: 0
+  });
+
+  const refreshStats = async () => {
+    try {
+      const response = await apiClient.get('/notifications/stats/', {
+        params: {
+          recipient_type: userRole,
+          recipient_id: userId
+        }
+      });
+      
+      setStats(response.data);
+    } catch (error) {
+      console.error('Error fetching notification stats:', error);
+    }
   };
 
-  const removeNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const playNotificationSound = () => {
+    // Create audio context for notification sound
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.1);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await apiClient.post('/notifications/mark-all-read/', {
+        recipient_type: userRole,
+        recipient_id: userId
+      });
+      
+      await refreshStats();
+      message.success('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      message.error('Failed to mark all as read');
+    }
+  };
+
+  // Poll for new notifications every 30 seconds
+  useEffect(() => {
+    refreshStats();
+    
+    const interval = setInterval(() => {
+      refreshStats();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [userRole, userId]);
+
+  // Listen for real-time notifications via WebSocket (if implemented)
+  useEffect(() => {
+    if ('WebSocket' in window) {
+      const wsUrl = `ws://localhost:8000/ws/notifications/${userRole}/${userId}/`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'notification') {
+          playNotificationSound();
+          refreshStats();
+          
+          // Show toast notification
+          message.info({
+            content: `New notification: ${data.title}`,
+            duration: 5,
+          });
+        }
+      };
+
+      ws.onopen = () => {
+        console.log('WebSocket connected for notifications');
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      return () => {
+        ws.close();
+      };
+    }
+  }, [userRole, userId]);
+
+  const value = {
+    stats,
+    refreshStats,
+    playNotificationSound,
+    markAllAsRead
   };
 
   return (
-    <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>
+    <NotificationContext.Provider value={value}>
       {children}
-      <NotificationContainer />
     </NotificationContext.Provider>
   );
-}
+};
 
-function NotificationContainer() {
-  const { notifications, removeNotification } = useContext(NotificationContext);
-  
-  return (
-    <div className="fixed bottom-4 right-4 space-y-2">
-      {notifications.map((notification) => (
-        <div 
-          key={notification.id}
-          className={`p-4 rounded shadow-lg ${
-            notification.type === 'success' ? 'bg-green-500' :
-            notification.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-          } text-white`}
-        >
-          {notification.message}
-          <button 
-            onClick={() => removeNotification(notification.id)}
-            className="ml-4"
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
+export const useNotifications = () => {
+  const context = useContext(NotificationContext);
+  if (context === undefined) {
+    throw new Error('useNotifications must be used within a NotificationProvider');
+  }
+  return context;
+};
 
-export function useNotifications() {
-  return useContext(NotificationContext);
-}
+export default NotificationContext;

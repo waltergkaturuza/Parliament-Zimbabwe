@@ -1252,7 +1252,8 @@ const BoxReceiptManagement: FC = () => {
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Basic Info" icon={<InboxOutlined />} />
           <Step title="Fuel Details" icon={<CarOutlined />} />
-          <Step title="Verification" icon={<CheckOutlined />} />
+          <Step title="Coupon Verification" icon={<CheckOutlined />} />
+          <Step title="Final Approval" icon={<FileTextOutlined />} />
         </Steps>
 
         <Form
@@ -1589,6 +1590,114 @@ const BoxReceiptManagement: FC = () => {
           {currentStep === 2 && (
             <>
               <Alert
+                message="Coupon Verification Required"
+                description="Verify coupon sequences, book integrity, and barcode scanning before proceeding."
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+
+              <Form.Item
+                label="Coupon Verification Checklist"
+              >
+                <Checkbox.Group style={{ width: '100%' }}>
+                  <Row>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="first_coupon">First coupon ID verified: <Text code>{form.getFieldValue('firstCouponId')}</Text></Checkbox>
+                    </Col>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="last_coupon">Last coupon ID verified: <Text code>{form.getFieldValue('lastCouponId')}</Text></Checkbox>
+                    </Col>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="coupon_count">Coupon count matches: {form.getFieldValue('numberOfBooks') * form.getFieldValue('couponsPerBook')} coupons</Checkbox>
+                    </Col>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="book_integrity">All {form.getFieldValue('numberOfBooks')} books are intact and properly bound</Checkbox>
+                    </Col>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="barcode_scan">Box barcode scanned successfully: <Text code>{form.getFieldValue('barcode')}</Text></Checkbox>
+                    </Col>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="no_damage">No visible damage to coupons or books</Checkbox>
+                    </Col>
+                  </Row>
+                </Checkbox.Group>
+              </Form.Item>
+
+              <Form.Item
+                label="Sample Coupon Verification"
+                tooltip="Select random coupons from different books to verify authenticity and print quality"
+              >
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Input 
+                      placeholder="Sample Book 1 - First Coupon ID" 
+                      addonBefore="Book 1"
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Input 
+                      placeholder="Sample Book 1 - Last Coupon ID" 
+                      addonAfter={
+                        <Button 
+                          size="small" 
+                          icon={<CheckOutlined />}
+                          type="text"
+                          style={{ color: 'green' }}
+                        />
+                      }
+                    />
+                  </Col>
+                </Row>
+                <Row gutter={16} style={{ marginTop: 8 }}>
+                  <Col span={12}>
+                    <Input 
+                      placeholder="Sample Book 2 - First Coupon ID" 
+                      addonBefore="Book 2"
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Input 
+                      placeholder="Sample Book 2 - Last Coupon ID" 
+                      addonAfter={
+                        <Button 
+                          size="small" 
+                          icon={<CheckOutlined />}
+                          type="text"
+                          style={{ color: 'green' }}
+                        />
+                      }
+                    />
+                  </Col>
+                </Row>
+              </Form.Item>
+
+              <Form.Item
+                label="Verification Notes"
+                name="couponVerificationNotes"
+              >
+                <TextArea
+                  rows={3}
+                  placeholder="Enter coupon verification notes, any discrepancies found, or issues identified..."
+                />
+              </Form.Item>
+
+              <div style={{ textAlign: 'right' }}>
+                <Space>
+                  <Button onClick={() => setCurrentStep(1)}>
+                    Previous
+                  </Button>
+                  <Button onClick={() => setCurrentStep(3)}>
+                    Next: Final Approval
+                  </Button>
+                </Space>
+              </div>
+            </>
+          )}
+
+          {currentStep === 3 && (
+            <>
+              <Alert
                 message="Verification Required"
                 description="Please verify all box details and confirm receipt before submitting."
                 type="info"
@@ -1623,7 +1732,7 @@ const BoxReceiptManagement: FC = () => {
 
               <div style={{ textAlign: 'right' }}>
                 <Space>
-                  <Button onClick={() => setCurrentStep(1)}>
+                  <Button onClick={() => setCurrentStep(2)}>
                     Previous
                   </Button>
                   <Button onClick={() => setIsModalVisible(false)}>

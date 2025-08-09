@@ -371,11 +371,39 @@ const SubCenterMonitoring: FC = () => {
     Math.round(subCenters.reduce((sum, center) => sum + center.performanceScore, 0) / subCenters.length) : 0;
   const lowInventoryCenters = subCenters.filter(center => center.booksRemaining < 10).length;
   
-  // Mock consumption trend data (replace with real API data)
-  const consumptionTrend = Array.from({ length: 7 }, (_, i) => ({
-    date: dayjs().subtract(6 - i, 'days').format('MMM DD'),
-    value: Math.floor(Math.random() * 1000) + 500
-  }));
+  // Load real consumption trend data from API instead of mock data
+  const [consumptionTrend, setConsumptionTrend] = useState<Array<{date: string, value: number}>>([]);
+
+  useEffect(() => {
+    loadConsumptionTrend();
+  }, []);
+
+  const loadConsumptionTrend = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/analytics/consumption-trend/', {
+        params: { days: 7 }
+      });
+      
+      if (response.data && response.data.length > 0) {
+        setConsumptionTrend(response.data);
+      } else {
+        // Fallback to calculated trend if no data available
+        const calculatedTrend = Array.from({ length: 7 }, (_, i) => ({
+          date: dayjs().subtract(6 - i, 'days').format('MMM DD'),
+          value: subCenters.reduce((sum, center) => sum + (center.totalBooks || 0), 0) / 7
+        }));
+        setConsumptionTrend(calculatedTrend);
+      }
+    } catch (error) {
+      console.error('Error loading consumption trend:', error);
+      // Fallback calculation
+      const calculatedTrend = Array.from({ length: 7 }, (_, i) => ({
+        date: dayjs().subtract(6 - i, 'days').format('MMM DD'),
+        value: subCenters.reduce((sum, center) => sum + (center.totalBooks || 0), 0) / 7
+      }));
+      setConsumptionTrend(calculatedTrend);
+    }
+  };
 
   return (
     <Spin spinning={loading}>

@@ -139,159 +139,56 @@ const BookDispatchManagement: FC = () => {
   const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
   const [bookDetailConfirmations, setBookDetailConfirmations] = useState<Record<string, boolean>>({});
 
-  // Sample data
-  const sampleDispatches: BookDispatch[] = [
-    {
-      id: '1',
-      dispatchId: 'DSP-2024-07-0001',
-      subCenterId: 'SC001',
-      subCenterName: 'Harare Central Sub-Center',
-      dispatchedBy: 'John Mukamuri',
-      dispatchedDate: '2024-07-04',
-      dispatchedTime: '10:30',
-      books: [
-        {
-          id: 'B001',
-          bookId: 'PET20-BOOK-2024-001',
-          boxId: 'FCB-2024-0001',
-          fuelType: 'PETROL',
-          couponAmount: 20,
-          firstCouponId: 'PET20-2024-07-000001',
-          lastCouponId: 'PET20-2024-07-000020',
-          numberOfCoupons: 20,
-          value: 80000,
-          pricePerLitre: 200,
-        },
-        {
-          id: 'B002',
-          bookId: 'PET20-BOOK-2024-002',
-          boxId: 'FCB-2024-0001',
-          fuelType: 'PETROL',
-          couponAmount: 20,
-          firstCouponId: 'PET20-2024-07-000021',
-          lastCouponId: 'PET20-2024-07-000040',
-          numberOfCoupons: 20,
-          value: 80000,
-          pricePerLitre: 200,
-        },
-      ],
-      totalBooks: 2,
-      totalCoupons: 40,
-      totalValue: 160000,
-      status: 'DISPATCHED',
-      transportDetails: 'Main Center Van - Registration ABC123',
-      vehicleNumber: 'ABC123',
-      driverName: 'James Driver',
-      driverPhone: '+263771234567',
-      trackingNumber: 'TRK-2024-070001',
-      notes: 'Dispatched to Harare Central for monthly distribution',
-    },
-    {
-      id: '2',
-      dispatchId: 'DSP-2024-07-0002',
-      subCenterId: 'SC002',
-      subCenterName: 'Bulawayo North Sub-Center',
-      dispatchedBy: 'Mary Chigwamba',
-      dispatchedDate: '2024-07-04',
-      dispatchedTime: '14:15',
-      books: [
-        {
-          id: 'B003',
-          bookId: 'DSL5-BOOK-2024-001',
-          boxId: 'FCB-2024-0002',
-          fuelType: 'DIESEL',
-          couponAmount: 5,
-          firstCouponId: 'DSL5-2024-07-000001',
-          lastCouponId: 'DSL5-2024-07-000020',
-          numberOfCoupons: 20,
-          value: 18000,
-          pricePerLitre: 180,
-        },
-      ],
-      totalBooks: 1,
-      totalCoupons: 20,
-      totalValue: 18000,
-      status: 'RECEIVED',
-      receivedBy: 'Peter Ncube',
-      receivedDate: '2024-07-04',
-      receivedTime: '16:45',
-      transportDetails: 'Third-party courier - Swift Logistics',
-      trackingNumber: 'TRK-2024-070002',
-      notes: 'Received and confirmed by sub-center officer',
-    },
-  ];
+  // Load data from API instead of hardcoded sample data
+  useEffect(() => {
+    loadDispatches();
+    loadAvailableBooks();
+    loadSubCenters();
+  }, []);
 
-  const sampleAvailableBooks: AvailableBook[] = [
-    {
-      key: 'B004',
-      bookId: 'PET20-BOOK-2024-003',
-      boxId: 'FCB-2024-0001',
-      fuelType: 'PETROL',
-      couponAmount: 20,
-      firstCouponId: 'PET20-2024-07-000041',
-      lastCouponId: 'PET20-2024-07-000060',
-      numberOfCoupons: 20,
-      value: 80000,
-      pricePerLitre: 200,
-      status: 'VERIFIED',
-    },
-    {
-      key: 'B005',
-      bookId: 'PET20-BOOK-2024-004',
-      boxId: 'FCB-2024-0001',
-      fuelType: 'PETROL',
-      couponAmount: 20,
-      firstCouponId: 'PET20-2024-07-000061',
-      lastCouponId: 'PET20-2024-07-000080',
-      numberOfCoupons: 20,
-      value: 80000,
-      pricePerLitre: 200,
-      status: 'VERIFIED',
-    },
-    {
-      key: 'B006',
-      bookId: 'DSL5-BOOK-2024-002',
-      boxId: 'FCB-2024-0002',
-      fuelType: 'DIESEL',
-      couponAmount: 5,
-      firstCouponId: 'DSL5-2024-07-000021',
-      lastCouponId: 'DSL5-2024-07-000040',
-      numberOfCoupons: 20,
-      value: 18000,
-      pricePerLitre: 180,
-      status: 'VERIFIED',
-    },
-  ];
+  const loadDispatches = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get('/api/v1/dispatches/');
+      const data = response.data.results || response.data || [];
+      setDispatches(data);
+    } catch (error) {
+      console.error('Error loading dispatches:', error);
+      message.error('Failed to load dispatches');
+      // Fallback to empty array instead of sample data
+      setDispatches([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const sampleSubCenters: SubCenter[] = [
-    {
-      id: 'SC001',
-      name: 'Harare Central Sub-Center',
-      location: 'Central Harare',
-      officerName: 'Peter Ncube',
-      phone: '+263771234567',
-      email: 'peter.ncube@parliament.gov.zw',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'SC002',
-      name: 'Bulawayo North Sub-Center',
-      location: 'North Bulawayo',
-      officerName: 'Susan Moyo',
-      phone: '+263772345678',
-      email: 'susan.moyo@parliament.gov.zw',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'SC003',
-      name: 'Mutare East Sub-Center',
-      location: 'East Mutare',
-      officerName: 'David Chanda',
-      phone: '+263773456789',
-      email: 'david.chanda@parliament.gov.zw',
-      status: 'ACTIVE',
-    },
-  ];
+  const loadAvailableBooks = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/books/', {
+        params: { status: 'VERIFIED', available: true }
+      });
+      const data = response.data.results || response.data || [];
+      setAvailableBooks(data);
+    } catch (error) {
+      console.error('Error loading available books:', error);
+      message.error('Failed to load available books');
+      // Fallback to empty array
+      setAvailableBooks([]);
+    }
+  };
+
+  const loadSubCenters = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/subcenters/');
+      const data = response.data.results || response.data || [];
+      setSubCenters(data);
+    } catch (error) {
+      console.error('Error loading sub-centers:', error);
+      message.error('Failed to load sub-centers');
+      // Fallback to empty array
+      setSubCenters([]);
+    }
+  };
 
   // Helper function to generate individual coupon serials from first and last serial
   const generateCouponSerials = (firstSerial: string, numberOfCoupons: number): string[] => {

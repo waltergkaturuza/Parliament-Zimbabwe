@@ -53,6 +53,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import ParliamentLogo from '@/components/ParliamentLogo';
+import NotificationBell from '@/components/notifications/NotificationBell';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 
 const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -834,138 +836,140 @@ const UnifiedLayout: React.FC = () => {
   );
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {/* Desktop Sidebar */}
-      {screens.lg ? (
-        <Sidebar />
-      ) : (
-        /* Mobile Drawer */
-        <Drawer
-          title={
-            <div className="flex items-center gap-2">
-              {/* <ParliamentLogo size="small" /> */}
-              <span>Fuel Coupon System</span>
-            </div>
-          }
-          placement="left"
-          onClose={() => setMobileDrawerVisible(false)}
-          open={mobileDrawerVisible}
-          styles={{ body: { padding: 0 } }}
-          width={280}
-        >
+    <NotificationProvider
+      userRole={user?.role as 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY'}
+      userId={user?.id?.toString() || ''}
+    >
+      <Layout style={{ minHeight: '100vh' }}>
+        {/* Desktop Sidebar */}
+        {screens.lg ? (
           <Sidebar />
-        </Drawer>
-      )}
+        ) : (
+          /* Mobile Drawer */
+          <Drawer
+            title={
+              <div className="flex items-center gap-2">
+                {/* <ParliamentLogo size="small" /> */}
+                <span>Fuel Coupon System</span>
+              </div>
+            }
+            placement="left"
+            onClose={() => setMobileDrawerVisible(false)}
+            open={mobileDrawerVisible}
+            styles={{ body: { padding: 0 } }}
+            width={280}
+          >
+            <Sidebar />
+          </Drawer>
+        )}
 
-      <Layout>
-        {/* Top Header */}
-        <Header
-          style={{
-            background: colorBgContainer,
-            padding: '0 16px',
-            borderBottom: '1px solid #f0f0f0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-            height: 64,
-            lineHeight: '64px',
-          }}
-        >
-          <div className="flex items-center justify-between h-full">
-            {/* Left section */}
-            <div className="flex items-center gap-4">
-              <Button
-                type="text"
-                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={() => {
-                  if (screens.lg) {
-                    setCollapsed(!collapsed);
-                  } else {
-                    setMobileDrawerVisible(true);
-                  }
-                }}
-              />
-              
-              <div className="flex items-center gap-3">
-                <div>
-                  <Text strong style={{ fontSize: '16px' }}>
-                    Fuel Coupon System
-                  </Text>
-                  {user?.role && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Tag 
-                        color={
-                          user?.role === 'SUPERUSER' || user?.role === 'ADMIN' ? 'purple' : 
-                          user?.role === 'MAIN_CENTER' ? 'blue' : 
-                          user?.role === 'SUB_CENTER' ? 'green' : 'orange'
-                        } 
-                        style={{ margin: 0, fontSize: '11px' }}
-                      >
-                        {user?.role === 'MAIN_CENTER' ? '🏢 Main Center' :
-                         user?.role === 'SUB_CENTER' ? '🌍 Sub Center' :
-                         user?.role === 'SUPERUSER' || user?.role === 'ADMIN' ? '⚡ System Admin' :
-                         user?.role === 'BENEFICIARY' ? '🏛️ Parliament' : user?.role}
-                      </Tag>
-                      {user?.centerId && (
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          • {user.centerId}
-                        </Text>
-                      )}
-                    </div>
-                  )}
+        <Layout>
+          {/* Top Header */}
+          <Header
+            style={{
+              background: colorBgContainer,
+              padding: '0 16px',
+              borderBottom: '1px solid #f0f0f0',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              height: 64,
+              lineHeight: '64px',
+            }}
+          >
+            <div className="flex items-center justify-between h-full">
+              {/* Left section */}
+              <div className="flex items-center gap-4">
+                <Button
+                  type="text"
+                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                  onClick={() => {
+                    if (screens.lg) {
+                      setCollapsed(!collapsed);
+                    } else {
+                      setMobileDrawerVisible(true);
+                    }
+                  }}
+                />
+                
+                <div className="flex items-center gap-3">
+                  <div>
+                    <Text strong style={{ fontSize: '16px' }}>
+                      Fuel Coupon System
+                    </Text>
+                    {user?.role && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Tag 
+                          color={
+                            user?.role === 'SUPERUSER' || user?.role === 'ADMIN' ? 'purple' : 
+                            user?.role === 'MAIN_CENTER' ? 'blue' : 
+                            user?.role === 'SUB_CENTER' ? 'green' : 'orange'
+                          } 
+                          style={{ margin: 0, fontSize: '11px' }}
+                        >
+                          {user?.role === 'MAIN_CENTER' ? '🏢 Main Center' :
+                           user?.role === 'SUB_CENTER' ? '🌍 Sub Center' :
+                           user?.role === 'SUPERUSER' || user?.role === 'ADMIN' ? '⚡ System Admin' :
+                           user?.role === 'BENEFICIARY' ? '🏛️ Parliament' : user?.role}
+                        </Tag>
+                        {user?.centerId && (
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            • {user.centerId}
+                          </Text>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Right section */}
+              <Space size="middle">
+                {/* Import and use the NotificationBell component */}
+                <NotificationBell
+                  userRole={user?.role as 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY'}
+                  userId={user?.id?.toString() || ''}
+                />
+
+                <Dropdown
+                  menu={{ items: userMenuItems }}
+                  placement="bottomRight"
+                  trigger={['click']}
+                >
+                  <Button type="text" className="flex items-center gap-2">
+                    <Avatar size="small" icon={<UserOutlined />} />
+                    {screens.sm && (
+                      <span>{user?.name || 'User'}</span>
+                    )}
+                  </Button>
+                </Dropdown>
+              </Space>
             </div>
+          </Header>
 
-            {/* Right section */}
-            <Space size="middle">
-              <Tooltip title="Notifications">
-                <Badge count={5} size="small">
-                  <Button
-                    type="text"
-                    icon={<BellOutlined />}
-                  />
-                </Badge>
-              </Tooltip>
-
-              <Dropdown
-                menu={{ items: userMenuItems }}
-                placement="bottomRight"
-                trigger={['click']}
+          {/* Main Content */}
+          <Content
+            style={{
+              margin: '16px',
+              padding: '24px',
+              background: colorBgContainer,
+              borderRadius: borderRadiusLG,
+              minHeight: 'calc(100vh - 112px)',
+            }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
               >
-                <Button type="text" className="flex items-center gap-2">
-                  <Avatar size="small" icon={<UserOutlined />} />
-                  {screens.sm && (
-                    <span>{user?.name || 'User'}</span>
-                  )}
-                </Button>
-              </Dropdown>
-            </Space>
-          </div>
-        </Header>
-
-        {/* Main Content */}
-        <Content
-          style={{
-            margin: '16px',
-            padding: '24px',
-            background: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            minHeight: 'calc(100vh - 112px)',
-          }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
-        </Content>
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </NotificationProvider>
   );
 };
 
