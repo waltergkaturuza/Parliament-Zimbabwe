@@ -27,7 +27,7 @@ django-allauth==0.57.0
 django-filter==23.5
 
 # File Handling and Images
-pillow==10.4.0
+# pillow==10.4.0  # Commented out for faster deployment
 
 # PDF and Report Generation
 reportlab==4.2.2
@@ -62,7 +62,7 @@ whitenoise==6.9.0
 
 # Export and Reporting
 openpyxl==3.1.2
-pandas==2.2.2
+#pandas==2.2.2 # Commented out for faster deployment
 xlsxwriter==3.2.0
 fpdf2==2.7.9
 WeasyPrint==61.2

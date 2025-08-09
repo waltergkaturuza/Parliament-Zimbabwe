@@ -2110,6 +2110,12 @@ class BeneficiaryCategory(TimeStampedModel):
         default=0,
         help_text="Default monthly fuel entitlement in litres"
     )
+    category_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal('1.0'),
+        help_text="Multiplier for this category (MP: 1.5, Senator: 1.4, etc.)"
+    )
     is_active = models.BooleanField(default=True)
     
     class Meta:
@@ -2302,6 +2308,85 @@ class BeneficiaryProfile(TimeStampedModel):
     )
     is_active_beneficiary = models.BooleanField(default=True)
     
+    # Vehicle Information (Added for frontend enhancements)
+    vehicle_make = models.CharField(
+        max_length=50, 
+        blank=True, 
+        help_text="Vehicle manufacturer (e.g., Toyota, Mercedes)"
+    )
+    vehicle_model = models.CharField(
+        max_length=50, 
+        blank=True, 
+        help_text="Vehicle model (e.g., Prado, C-Class)"
+    )
+    vehicle_year = models.IntegerField(
+        null=True, 
+        blank=True, 
+        help_text="Year of manufacture"
+    )
+    engine_size = models.CharField(
+        max_length=20, 
+        blank=True, 
+        help_text="Engine size (e.g., 2.0L, 3.0L V6)"
+    )
+    vehicle_registration = models.CharField(
+        max_length=20, 
+        blank=True, 
+        help_text="Vehicle registration number"
+    )
+    fuel_type = models.CharField(
+        max_length=10,
+        choices=[('PETROL', 'Petrol'), ('DIESEL', 'Diesel')],
+        default='DIESEL',
+        help_text="Type of fuel the vehicle uses"
+    )
+    
+    # Contact Information (Added for frontend enhancements)
+    office_location = models.CharField(
+        max_length=200, 
+        blank=True, 
+        help_text="Office location/room number"
+    )
+    
+    # Enhanced Allocation Profile (Added for frontend enhancements)
+    base_allocation = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('200'),
+        help_text="Base monthly allocation before multipliers"
+    )
+    category_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal('1.0'),
+        help_text="Role-based multiplier (MP: 1.5, Senator: 1.4, etc.)"
+    )
+    engine_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal('1.0'),
+        help_text="Engine size-based multiplier"
+    )
+    
+    # Status tracking (Added for frontend enhancements)
+    last_allocation_date = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        help_text="Date of last fuel allocation"
+    )
+    current_balance = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Current fuel balance in litres"
+    )
+    used_this_month = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Fuel used in current month"
+    )
+    
     class Meta:
         verbose_name = "Beneficiary Profile"
         verbose_name_plural = "Beneficiary Profiles"
@@ -2309,6 +2394,81 @@ class BeneficiaryProfile(TimeStampedModel):
     
     def __str__(self):
         return f"{self.user.username} - {self.category.name} ({self.constituency.name if self.constituency else 'No Constituency'})"
+    
+    def calculate_final_allocation(self):
+        """Calculate final monthly allocation based on multipliers"""
+        return self.base_allocation * self.category_multiplier * self.engine_multiplier
+    
+    def calculate_engine_multiplier_from_size(self):
+        """Calculate engine multiplier based on engine size string"""
+        if not self.engine_size:
+            return Decimal('1.0')
+        
+        # Extract numeric value from engine size (e.g., "2.0L" -> 2.0)
+        import re
+        match = re.search(r'(\d+\.?\d*)', self.engine_size)
+        if match:
+            engine_numeric = float(match.group(1))
+            if engine_numeric <= 1.5:
+                return Decimal('0.8')
+            elif engine_numeric <= 2.0:
+                return Decimal('1.0')
+            elif engine_numeric <= 3.0:
+                return Decimal('1.3')
+            elif engine_numeric <= 4.0:
+                return Decimal('1.6')
+            else:
+                return Decimal('2.0')
+        return Decimal('1.0')
+    
+    def update_allocation_profile(self):
+        """Update allocation profile based on category and engine size"""
+        if self.category:
+            self.category_multiplier = getattr(self.category, 'category_multiplier', Decimal('1.0'))
+        
+        self.engine_multiplier = self.calculate_engine_multiplier_from_size()
+        
+        # Update monthly entitlement based on calculated final allocation
+        self.monthly_entitlement_litres = self.calculate_final_allocation()
+    
+    def save(self, *args, **kwargs):
+        # Auto-update allocation profile on save
+        self.update_allocation_profile()
+        super().save(*args, **kwargs)
+    
+    @property
+    def vehicle_info_dict(self):
+        """Return vehicle information as a dictionary for API responses"""
+        return {
+            'make': self.vehicle_make,
+            'model': self.vehicle_model,
+            'year': self.vehicle_year,
+            'engine_size': self.engine_size,
+            'registration_number': self.vehicle_registration,
+            'fuel_type': self.fuel_type,
+        }
+    
+    @property
+    def contact_info_dict(self):
+        """Return contact information as a dictionary for API responses"""
+        return {
+            'email': self.user.email,
+            'phone': self.user.phone,
+            'office': self.office_location,
+        }
+    
+    @property
+    def allocation_profile_dict(self):
+        """Return allocation profile as a dictionary for API responses"""
+        return {
+            'base_allocation': self.base_allocation,
+            'category_multiplier': self.category_multiplier,
+            'engine_multiplier': self.engine_multiplier,
+            'final_allocation': self.calculate_final_allocation(),
+            'current_balance': self.current_balance,
+            'used_this_month': self.used_this_month,
+            'last_updated': self.last_allocation_date,
+        }
 
 
 class BookDispatch(TimeStampedModel):
@@ -2552,6 +2712,54 @@ class CouponAllocation(TimeStampedModel):
     )
     notes = models.TextField(blank=True)
     
+    # Session tracking fields for frontend
+    session_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Legislative session or period name"
+    )
+    program_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Specific program or initiative name"
+    )
+    event_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Event or occasion for allocation"
+    )
+    allocation_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('MONTHLY', 'Monthly Allocation'),
+            ('QUARTERLY', 'Quarterly Allocation'),
+            ('SPECIAL', 'Special Event'),
+            ('EMERGENCY', 'Emergency Allocation'),
+            ('BONUS', 'Bonus Allocation'),
+        ],
+        default='MONTHLY'
+    )
+    total_value = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total monetary value of allocation"
+    )
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when allocation expires"
+    )
+    coupons_used = models.IntegerField(
+        default=0,
+        help_text="Number of coupons already used"
+    )
+    coupons_remaining = models.IntegerField(
+        default=0,
+        help_text="Number of coupons still available"
+    )
+    
     class Meta:
         ordering = ['-allocation_date']
         verbose_name = "Coupon Allocation"
@@ -2657,6 +2865,92 @@ class CouponAllocation(TimeStampedModel):
                 self.quantity = range_info['total_count']
         
         super().save(*args, **kwargs)
+    
+    @property
+    def usage_percentage(self):
+        """Calculate percentage of coupons used"""
+        if self.quantity == 0:
+            return 0
+        return round((self.coupons_used / self.quantity) * 100, 1)
+    
+    @property
+    def is_expired(self):
+        """Check if allocation has expired"""
+        if not self.expiry_date:
+            return False
+        from django.utils import timezone
+        return timezone.now().date() > self.expiry_date
+    
+    @property
+    def status_display(self):
+        """Get user-friendly status display"""
+        if self.is_expired:
+            return "Expired"
+        elif self.coupons_used >= self.quantity:
+            return "Fully Used"
+        elif self.coupons_used > 0:
+            return "Partially Used"
+        else:
+            return "Available"
+    
+    def update_usage(self, coupons_used=None):
+        """Update coupon usage tracking"""
+        if coupons_used is not None:
+            self.coupons_used = coupons_used
+        self.coupons_remaining = max(0, self.quantity - self.coupons_used)
+        self.save(update_fields=['coupons_used', 'coupons_remaining'])
+    
+    def get_allocation_details(self):
+        """Get detailed allocation information for frontend"""
+        return {
+            'id': self.id,
+            'beneficiary': {
+                'id': self.beneficiary.id,
+                'name': self.beneficiary.get_full_name(),
+                'role': self.beneficiary.role,
+                'category': self.beneficiary.category.name if self.beneficiary.category else None,
+                'vehicle': {
+                    'make': getattr(self.beneficiary, 'vehicle_make', ''),
+                    'model': getattr(self.beneficiary, 'vehicle_model', ''),
+                    'year': getattr(self.beneficiary, 'vehicle_year', None),
+                    'engine_size': getattr(self.beneficiary, 'engine_size', None),
+                    'registration': getattr(self.beneficiary, 'vehicle_registration', ''),
+                }
+            },
+            'allocation': {
+                'date': self.allocation_date,
+                'type': self.allocation_type,
+                'session_name': self.session_name,
+                'program_name': self.program_name,
+                'event_name': self.event_name,
+                'quantity': self.quantity,
+                'total_value': float(self.total_value) if self.total_value else 0,
+                'expiry_date': self.expiry_date,
+                'status': self.status,
+                'status_display': self.status_display,
+            },
+            'usage': {
+                'coupons_used': self.coupons_used,
+                'coupons_remaining': self.coupons_remaining,
+                'usage_percentage': self.usage_percentage,
+                'is_expired': self.is_expired,
+            },
+            'serial_range': {
+                'first_coupon': self.first_coupon_number,
+                'last_coupon': self.last_coupon_number,
+            },
+            'sub_center': {
+                'id': self.sub_center.id,
+                'name': self.sub_center.name,
+            } if self.sub_center else None,
+            'book': {
+                'id': self.book.id,
+                'book_number': self.book.book_number,
+                'box_code': self.book.box.box_code,
+                'denomination': self.book.box.denomination,
+            } if self.book else None,
+            'notes': self.notes,
+        }
 
 
 class SerialMovement(TimeStampedModel):

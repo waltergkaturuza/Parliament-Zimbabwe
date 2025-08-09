@@ -1,6 +1,9 @@
 // src/pages/main-center/components/BookDispatchManagement.tsx
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
+import { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import apiClient from '../../../api/apiClient';
 import {
   Card,
   Table,
@@ -48,9 +51,8 @@ import {
   ExclamationCircleOutlined,
   DeleteOutlined,
   EditOutlined,
+  DollarCircleOutlined,
 } from '@ant-design/icons';
-import { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -131,6 +133,11 @@ const BookDispatchManagement: FC = () => {
   const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
   const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
   const [nextDispatchNumber, setNextDispatchNumber] = useState('');
+  
+  // New state for book details functionality
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState<AvailableBook | null>(null);
+  const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
+  const [bookDetailConfirmations, setBookDetailConfirmations] = useState<Record<string, boolean>>({});
 
   // Sample data
   const sampleDispatches: BookDispatch[] = [
@@ -285,6 +292,58 @@ const BookDispatchManagement: FC = () => {
       status: 'ACTIVE',
     },
   ];
+
+  // Helper function to generate individual coupon serials from first and last serial
+  const generateCouponSerials = (firstSerial: string, numberOfCoupons: number): string[] => {
+    const serials: string[] = [];
+    
+    // Extract the numeric part and prefix from the first serial
+    const match = firstSerial.match(/^(.*?)(\d+)$/);
+    if (!match) {
+      return serials;
+    }
+    
+    const prefix = match[1];
+    const startNumber = parseInt(match[2], 10);
+    const numberLength = match[2].length;
+    
+    // Generate all serial numbers
+    for (let i = 0; i < numberOfCoupons; i++) {
+      const currentNumber = startNumber + i;
+      const paddedNumber = currentNumber.toString().padStart(numberLength, '0');
+      serials.push(`${prefix}${paddedNumber}`);
+    }
+    
+    return serials;
+  };
+
+  // Helper function to handle book detail confirmation
+  const handleBookDetailConfirmation = (bookId: string, confirmed: boolean) => {
+    setBookDetailConfirmations(prev => ({
+      ...prev,
+      [bookId]: confirmed
+    }));
+  };
+
+  // Helper function to check if all selected books are confirmed
+  const areAllBooksConfirmed = (): boolean => {
+    return selectedBooks.every(bookId => bookDetailConfirmations[bookId] === true);
+  };
+
+  // Helper function to reset confirmations when books selection changes
+  useEffect(() => {
+    // Reset confirmations when selected books change
+    setBookDetailConfirmations({});
+  }, [selectedBooks]);
+
+  // Helper function to reset form and state when modal closes
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setCurrentStep(0);
+    setSelectedBooks([]);
+    setBookDetailConfirmations({});
+    form.resetFields();
+  };
 
   // Fetch data on component mount
   useEffect(() => {
@@ -861,7 +920,7 @@ const BookDispatchManagement: FC = () => {
           </Space>
         }
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={handleModalClose}
         footer={null}
         width={900}
         destroyOnClose
@@ -869,7 +928,7 @@ const BookDispatchManagement: FC = () => {
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Sub Center" icon={<EnvironmentOutlined />} />
           <Step title="Select Books" icon={<BookOutlined />} />
-          <Step title="Transport Details" icon={<CarOutlined />} />
+          <Step title="Books Details" icon={<FileTextOutlined />} />
           <Step title="Confirmation" icon={<CheckOutlined />} />
         </Steps>
 
@@ -1016,7 +1075,7 @@ const BookDispatchManagement: FC = () => {
                     onClick={() => setCurrentStep(2)}
                     disabled={selectedBooks.length === 0}
                   >
-                    Next: Transport Details
+                    Next: Books Details
                   </Button>
                 </Space>
               </div>
@@ -1025,55 +1084,144 @@ const BookDispatchManagement: FC = () => {
 
           {currentStep === 2 && (
             <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label="Vehicle Number"
-                    name="vehicleNumber"
-                  >
-                    <Input placeholder="Enter vehicle registration number" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    label="Driver Name"
-                    name="driverName"
-                  >
-                    <Input placeholder="Enter driver's name" />
-                  </Form.Item>
-                </Col>
-              </Row>
+              <Alert
+                message="Review Books Details"
+                description="Review each book's serial number range and confirm the details before proceeding to dispatch."
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
 
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label="Driver Phone"
-                    name="driverPhone"
-                  >
-                    <Input placeholder="Enter driver's phone number" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    label="Transport Details"
-                    name="transportDetails"
-                  >
-                    <Input placeholder="Transport company or method" />
-                  </Form.Item>
-                </Col>
-              </Row>
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>Selected Books for Dispatch:</Text>
+              </div>
 
-              <Form.Item
-                label="Notes"
-                name="notes"
-              >
-                <TextArea
-                  rows={4}
-                  placeholder="Enter any additional notes or special instructions..."
-                />
-              </Form.Item>
+              <Table
+                dataSource={availableBooks.filter(book => selectedBooks.includes(book.key))}
+                columns={[
+                  {
+                    title: 'Book ID',
+                    dataIndex: 'bookId',
+                    key: 'bookId',
+                    render: (bookId) => <Text strong>{bookId}</Text>,
+                  },
+                  {
+                    title: 'Fuel Type',
+                    dataIndex: 'fuelType',
+                    key: 'fuelType',
+                    render: (fuelType) => (
+                      <Tag color={fuelType === 'PETROL' ? 'blue' : 'green'}>
+                        {fuelType}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    title: 'Amount',
+                    dataIndex: 'couponAmount',
+                    key: 'couponAmount',
+                    render: (amount) => `${amount}L`,
+                  },
+                  {
+                    title: 'Total Coupons',
+                    dataIndex: 'numberOfCoupons',
+                    key: 'numberOfCoupons',
+                    render: (count) => (
+                      <Badge count={count} showZero color="blue" />
+                    ),
+                  },
+                  {
+                    title: 'Serial Range',
+                    key: 'serialRange',
+                    render: (_, record) => (
+                      <Space direction="vertical" size={0}>
+                        <Text style={{ fontSize: '12px' }}>
+                          <strong>First:</strong> {record.firstCouponId}
+                        </Text>
+                        <Text style={{ fontSize: '12px' }}>
+                          <strong>Last:</strong> {record.lastCouponId}
+                        </Text>
+                      </Space>
+                    ),
+                  },
+                  {
+                    title: 'Value',
+                    dataIndex: 'value',
+                    key: 'value',
+                    render: (value) => (
+                      <Text strong>ZWG {value.toLocaleString()}</Text>
+                    ),
+                  },
+                  {
+                    title: 'Actions',
+                    key: 'actions',
+                    render: (_, record) => (
+                      <Space>
+                        <Button
+                          size="small"
+                          icon={<EyeOutlined />}
+                          onClick={() => {
+                            setSelectedBookForDetails(record);
+                            setBookDetailsModalVisible(true);
+                          }}
+                        >
+                          View Coupons
+                        </Button>
+                        <Checkbox
+                          checked={bookDetailConfirmations[record.key] || false}
+                          onChange={(e) => handleBookDetailConfirmation(record.key, e.target.checked)}
+                        >
+                          Confirmed
+                        </Checkbox>
+                      </Space>
+                    ),
+                  },
+                ]}
+                pagination={false}
+                size="small"
+              />
 
-              <div style={{ textAlign: 'right' }}>
+              <Card size="small" title="Dispatch Summary" style={{ marginTop: 16 }}>
+                <Row gutter={16}>
+                  <Col span={6}>
+                    <Statistic
+                      title="Total Books"
+                      value={selectedBooks.length}
+                      prefix={<BookOutlined />}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic
+                      title="Total Coupons"
+                      value={availableBooks
+                        .filter(book => selectedBooks.includes(book.key))
+                        .reduce((sum, book) => sum + book.numberOfCoupons, 0)
+                      }
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic
+                      title="Total Value"
+                      value={availableBooks
+                        .filter(book => selectedBooks.includes(book.key))
+                        .reduce((sum, book) => sum + book.value, 0)
+                      }
+                      formatter={(value) => `ZWG ${value?.toLocaleString()}`}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic
+                      title="Confirmed Books"
+                      value={Object.values(bookDetailConfirmations).filter(Boolean).length}
+                      suffix={`/ ${selectedBooks.length}`}
+                      valueStyle={{ 
+                        color: areAllBooksConfirmed() ? '#3f8600' : '#cf1322' 
+                      }}
+                    />
+                  </Col>
+                </Row>
+              </Card>
+
+              <div style={{ textAlign: 'right', marginTop: 16 }}>
                 <Space>
                   <Button onClick={() => setCurrentStep(1)}>
                     Previous
@@ -1081,6 +1229,7 @@ const BookDispatchManagement: FC = () => {
                   <Button
                     type="primary"
                     onClick={() => setCurrentStep(3)}
+                    disabled={!areAllBooksConfirmed()}
                   >
                     Next: Confirmation
                   </Button>
@@ -1128,7 +1277,7 @@ const BookDispatchManagement: FC = () => {
                   <Button onClick={() => setCurrentStep(2)}>
                     Previous
                   </Button>
-                  <Button onClick={() => setIsModalVisible(false)}>
+                  <Button onClick={handleModalClose}>
                     Cancel
                   </Button>
                   <Button
@@ -1262,6 +1411,99 @@ const BookDispatchManagement: FC = () => {
               pagination={false}
               size="small"
             />
+          </div>
+        )}
+      </Modal>
+
+      {/* Book Details Modal */}
+      <Modal
+        title={
+          <Space>
+            <BookOutlined />
+            Book Coupon Details - {selectedBookForDetails?.bookId}
+          </Space>
+        }
+        open={bookDetailsModalVisible}
+        onCancel={() => setBookDetailsModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setBookDetailsModalVisible(false)}>
+            Close
+          </Button>,
+          <Button
+            key="confirm"
+            type="primary"
+            onClick={() => {
+              if (selectedBookForDetails) {
+                handleBookDetailConfirmation(selectedBookForDetails.key, true);
+                setBookDetailsModalVisible(false);
+                message.success('Book details confirmed');
+              }
+            }}
+          >
+            Confirm Book Details
+          </Button>,
+        ]}
+        width={800}
+      >
+        {selectedBookForDetails && (
+          <div>
+            <Descriptions bordered column={2} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Book ID">{selectedBookForDetails.bookId}</Descriptions.Item>
+              <Descriptions.Item label="Box ID">{selectedBookForDetails.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Fuel Type">
+                <Tag color={selectedBookForDetails.fuelType === 'PETROL' ? 'blue' : 'green'}>
+                  {selectedBookForDetails.fuelType}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Coupon Amount">{selectedBookForDetails.couponAmount}L</Descriptions.Item>
+              <Descriptions.Item label="Total Coupons">{selectedBookForDetails.numberOfCoupons}</Descriptions.Item>
+              <Descriptions.Item label="Total Value">ZWG {selectedBookForDetails.value.toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="First Coupon">{selectedBookForDetails.firstCouponId}</Descriptions.Item>
+              <Descriptions.Item label="Last Coupon">{selectedBookForDetails.lastCouponId}</Descriptions.Item>
+            </Descriptions>
+
+            <Divider>All Coupon Serials in this Book</Divider>
+            
+            <Alert
+              message="Coupon Serial Numbers"
+              description={`This book contains ${selectedBookForDetails.numberOfCoupons} coupons with serials from ${selectedBookForDetails.firstCouponId} to ${selectedBookForDetails.lastCouponId}`}
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+
+            <div style={{ 
+              maxHeight: '300px', 
+              overflowY: 'auto', 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '6px',
+              padding: '16px',
+              backgroundColor: '#fafafa'
+            }}>
+              <Row gutter={[8, 8]}>
+                {generateCouponSerials(selectedBookForDetails.firstCouponId, selectedBookForDetails.numberOfCoupons).map((serial, index) => (
+                  <Col span={8} key={serial}>
+                    <Card size="small" style={{ textAlign: 'center' }}>
+                      <Text style={{ fontSize: '12px', fontFamily: 'monospace' }}>
+                        <strong>#{index + 1}</strong><br />
+                        {serial}
+                      </Text>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <Space>
+                <Badge count={selectedBookForDetails.numberOfCoupons} showZero>
+                  <Button icon={<FileTextOutlined />}>Total Coupons</Button>
+                </Badge>
+                <Badge count={`ZWG ${selectedBookForDetails.value.toLocaleString()}`} color="green">
+                  <Button icon={<DollarCircleOutlined />}>Total Value</Button>
+                </Badge>
+              </Space>
+            </div>
           </div>
         )}
       </Modal>

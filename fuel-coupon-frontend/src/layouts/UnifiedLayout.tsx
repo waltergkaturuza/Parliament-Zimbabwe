@@ -39,6 +39,7 @@ import {
   SwapOutlined,
   AuditOutlined,
   AppstoreOutlined,
+  ContainerOutlined,
   SecurityScanOutlined,
   CrownOutlined,
   UserSwitchOutlined,
@@ -120,10 +121,22 @@ const UnifiedLayout: React.FC = () => {
           path: '/dashboard/inventory-overview',
         },
         {
+          key: 'inventory-management',
+          icon: <ContainerOutlined />,
+          label: 'Inventory Management',
+          path: '/dashboard/inventory-management',
+        },
+        {
           key: 'box-receipt',
           icon: <GiftOutlined />,
           label: 'Box Receipt Management',
           path: '/dashboard/box-receipt',
+        },
+        {
+          key: 'box-verification',
+          icon: <AuditOutlined />,
+          label: 'Box & Coupon Verification',
+          path: '/dashboard/box-verification',
         },
         {
           key: 'book-dispatch',
@@ -187,6 +200,12 @@ const UnifiedLayout: React.FC = () => {
           icon: <AppstoreOutlined />,
           label: 'Local Inventory',
           path: '/dashboard/local-inventory',
+        },
+        {
+          key: 'subcenter-inventory',
+          icon: <ContainerOutlined />,
+          label: 'Inventory Management',
+          path: '/dashboard/subcenter-inventory',
         }
       );
     }
@@ -427,9 +446,11 @@ const UnifiedLayout: React.FC = () => {
     
     // Direct route matching for main center operations
     if (path.includes('/box-receipt')) return ['box-receipt'];
+    if (path.includes('/box-verification')) return ['box-verification'];
     if (path.includes('/book-dispatch')) return ['book-dispatch'];
     if (path.includes('/fuel-pricing')) return ['fuel-pricing'];
     if (path.includes('/inventory-overview')) return ['inventory-overview'];
+    if (path.includes('/inventory-management')) return ['inventory-management'];
     if (path.includes('/sub-center-monitoring')) return ['sub-center-monitoring'];
     if (path.includes('/analytics-finance')) return ['analytics-finance'];
     
@@ -449,6 +470,7 @@ const UnifiedLayout: React.FC = () => {
     if (path.includes('/center-overview')) return ['center-overview'];
     if (path.includes('/fuel-distribution')) return ['fuel-distribution'];
     if (path.includes('/local-inventory')) return ['local-inventory'];
+    if (path.includes('/subcenter-inventory')) return ['subcenter-inventory'];
     if (path.includes('/fuel-allocations')) return ['fuel-allocations'];
     if (path.includes('/analytics')) return ['usage-analytics'];
     

@@ -36,9 +36,11 @@ const MainCenterDashboard = lazy(() => import('@/pages/main-center/MainCenterDas
 
 // Main Center Dedicated Pages
 const BoxReceiptPage = lazy(() => import('@/pages/main-center/BoxReceiptPage'));
+const BoxVerificationPage = lazy(() => import('@/pages/main-center/components/BoxVerificationPage'));
 const BookDispatchPage = lazy(() => import('@/pages/main-center/BookDispatchPage'));
 const FuelPricingPage = lazy(() => import('@/pages/main-center/FuelPricingPage'));
 const InventoryOverviewPage = lazy(() => import('@/pages/main-center/InventoryOverviewPage'));
+const InventoryManagementPage = lazy(() => import('@/pages/main-center/InventoryManagementPage'));
 const SubCenterMonitoringPage = lazy(() => import('@/pages/main-center/SubCenterMonitoringPage'));
 const AnalyticsFinancePage = lazy(() => import('@/pages/main-center/AnalyticsFinancePage'));
 
@@ -46,6 +48,7 @@ const CouponManagement = lazy(() => import('@/pages/fuel/CouponManagement'));
 const BeneficiaryManagement = lazy(() => import('@/pages/parliament/BeneficiaryManagement'));
 const ReportsAnalytics = lazy(() => import('@/pages/reports/ReportsAnalytics'));
 const SubCenterDashboardPage = lazy(() => import('@/pages/subcenter/SubCenterDashboard'));
+const SubCenterInventoryPage = lazy(() => import('@/pages/subcenter/SubCenterInventoryPage'));
 const BeneficiaryDashboardPage = lazy(() => import('@/pages/beneficiary/BeneficiaryDashboard'));
 const AdminDashboard = lazy(() => import('@/pages/dashboard/AdminDashboard'));
 const ApprovalDashboardPage= lazy(() => import('@/pages/dashboard/ApprovalDashboard'));
@@ -151,6 +154,11 @@ const router = createBrowserRouter(
             <Suspense fallback={<LoadingSpinner />}><BoxReceiptPage /></Suspense>
           </MainCenterRoute>
         } />
+        <Route path="box-verification" element={
+          <MainCenterRoute>
+            <Suspense fallback={<LoadingSpinner />}><BoxVerificationPage /></Suspense>
+          </MainCenterRoute>
+        } />
         <Route path="book-dispatch" element={
           <MainCenterRoute>
             <Suspense fallback={<LoadingSpinner />}><BookDispatchPage /></Suspense>
@@ -164,6 +172,11 @@ const router = createBrowserRouter(
         <Route path="inventory-overview" element={
           <MainCenterRoute>
             <Suspense fallback={<LoadingSpinner />}><InventoryOverviewPage /></Suspense>
+          </MainCenterRoute>
+        } />
+        <Route path="inventory-management" element={
+          <MainCenterRoute>
+            <Suspense fallback={<LoadingSpinner />}><InventoryManagementPage /></Suspense>
           </MainCenterRoute>
         } />
         <Route path="sub-center-monitoring" element={
@@ -182,6 +195,11 @@ const router = createBrowserRouter(
         <Route path="handovers" element={<Suspense fallback={<LoadingSpinner />}><HandoverManagement /></Suspense>} />
         <Route path="fuel-distribution" element={<Suspense fallback={<LoadingSpinner />}><FuelDistribution /></Suspense>} />
         <Route path="local-inventory" element={<Suspense fallback={<LoadingSpinner />}><LocalInventory /></Suspense>} />
+        <Route path="subcenter-inventory" element={
+          <SubCenterRoute>
+            <Suspense fallback={<LoadingSpinner />}><SubCenterInventoryPage /></Suspense>
+          </SubCenterRoute>
+        } />
         
         {/* Parliament Routes */}
         <Route path="beneficiaries" element={<Suspense fallback={<LoadingSpinner />}><BeneficiaryManagement /></Suspense>} />

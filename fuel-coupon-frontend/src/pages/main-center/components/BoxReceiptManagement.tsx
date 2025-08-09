@@ -254,17 +254,27 @@ const BoxReceiptManagement: FC = () => {
     const fuelPriceUSD = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitreUSD')?.value;
     const exchangeRate = allFields.find((f: any) => f.name[0] === 'exchangeRate')?.value || 27.50;
     const couponsPerBook = allFields.find((f: any) => f.name[0] === 'couponsPerBook')?.value || 10;
+    const firstCouponId = allFields.find((f: any) => f.name[0] === 'firstCouponId')?.value;
 
-    if (fuelType && couponAmount && numberOfBooks) {
+    // Calculate totals
+    if (numberOfBooks && couponsPerBook) {
       const totalCoupons = numberOfBooks * couponsPerBook;
-      const totalLitres = totalCoupons * couponAmount;
+      const totalLitres = couponAmount ? totalCoupons * couponAmount : 0;
+      
       form.setFieldsValue({ 
         totalLitres,
         totalCoupons,
         couponsPerBook 
       });
 
-      if (fuelPriceUSD) {
+      // Calculate last coupon ID if first coupon ID is provided
+      if (firstCouponId && totalCoupons > 0) {
+        const lastCouponId = calculateLastCouponId(firstCouponId, totalCoupons);
+        form.setFieldsValue({ lastCouponId });
+      }
+
+      // Calculate monetary values
+      if (fuelPriceUSD && totalLitres > 0) {
         const monetaryValueUSD = totalLitres * fuelPriceUSD;
         const monetaryValueZWG = monetaryValueUSD * exchangeRate;
         const fuelPriceZWG = fuelPriceUSD * exchangeRate;
@@ -275,14 +285,34 @@ const BoxReceiptManagement: FC = () => {
           fuelPricePerLitre: fuelPriceZWG
         });
       }
+    }
 
-      // Calculate coupon range
+    // Auto-generate coupon range if no manual input provided
+    if (fuelType && couponAmount && numberOfBooks && !firstCouponId) {
+      const totalCoupons = numberOfBooks * couponsPerBook;
       const couponData = calculateCouponRange(fuelType, couponAmount, totalCoupons);
       form.setFieldsValue({
         firstCouponId: couponData.firstCouponId,
         lastCouponId: couponData.lastCouponId,
       });
     }
+  };
+
+  // New function to calculate last coupon ID from first coupon ID
+  const calculateLastCouponId = (firstCouponId: string, totalCoupons: number) => {
+    // Extract the numeric part from the coupon ID (e.g., PU00GH355101 -> 355101)
+    const match = firstCouponId.match(/([A-Z]+)(\d+)$/);
+    if (!match) return firstCouponId;
+
+    const prefix = match[1];
+    const firstNumber = parseInt(match[2]);
+    const lastNumber = firstNumber + totalCoupons - 1;
+    
+    // Maintain the same number of digits as the original
+    const numberLength = match[2].length;
+    const lastCouponId = firstCouponId.replace(/\d+$/, lastNumber.toString().padStart(numberLength, '0'));
+    
+    return lastCouponId;
   };
 
   const handleSubmit = async () => {
@@ -1486,6 +1516,15 @@ const BoxReceiptManagement: FC = () => {
                     <Input 
                       placeholder="Enter first coupon number (e.g., PU00GH355101)"
                       style={{ fontFamily: 'monospace' }}
+                      onChange={(e) => {
+                        // Trigger recalculation when first coupon ID changes
+                        const firstCouponId = e.target.value;
+                        const totalCoupons = form.getFieldValue('totalCoupons');
+                        if (firstCouponId && totalCoupons > 0) {
+                          const lastCouponId = calculateLastCouponId(firstCouponId, totalCoupons);
+                          form.setFieldsValue({ lastCouponId });
+                        }
+                      }}
                     />
                   </Form.Item>
                 </Col>

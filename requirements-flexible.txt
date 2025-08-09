@@ -21,7 +21,7 @@ django-crispy-forms>=2.1
 crispy-bootstrap5>=2024.2
 
 # Image Processing
-pillow>=10.4.0
+# pillow>=10.4.0  # Commented out for faster deployment
 
 # PDF and Reports
 reportlab>=4.2.2
@@ -58,7 +58,7 @@ whitenoise>=6.9.0
 
 # Export and reporting functionality
 openpyxl>=3.1.2
-pandas>=2.2.2
+# pandas>=2.2.2  # Commented out for faster deployment
 xlsxwriter>=3.2.0
 fpdf2>=2.7.9
 WeasyPrint>=61.2

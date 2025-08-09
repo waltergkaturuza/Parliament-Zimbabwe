@@ -10,7 +10,7 @@ celery==5.3.4
 redis==5.0.1
 django-crispy-forms==2.1
 crispy-bootstrap5==2024.2
-pillow==10.4.0
+# pillow==10.4.0  # Commented out for faster deployment
 reportlab==4.2.2
 qrcode==7.4.2
 python-decouple==3.8

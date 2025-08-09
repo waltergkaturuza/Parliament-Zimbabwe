@@ -1,0 +1,1457 @@
+// src/pages/subcenter/components/BeneficiaryManagement.tsx
+import { useState, useEffect } from 'react';
+import type { FC } from 'react';
+import {
+  Card,
+  Table,
+  Button,
+  Space,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Row,
+  Col,
+  Typography,
+  Tag,
+  Badge,
+  Statistic,
+  InputNumber,
+  DatePicker,
+  message,
+  Divider,
+  Descriptions,
+  Progress,
+  Alert,
+  Tooltip,
+} from 'antd';
+import {
+  UserAddOutlined,
+  EditOutlined,
+  EyeOutlined,
+  CarOutlined,
+  TeamOutlined,
+  SettingOutlined,
+  BankOutlined,
+  UserOutlined,
+  SendOutlined,
+  HistoryOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  CalendarOutlined,
+} from '@ant-design/icons';
+import { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { TextArea } = Input;
+
+interface Beneficiary {
+  id: string;
+  memberId: string;
+  name: string;
+  position: string;
+  department: string;
+  category: 'MP' | 'SENATOR' | 'STAFF' | 'DRIVER' | 'CONSULTANT';
+  contactInfo: {
+    email: string;
+    phone: string;
+    office: string;
+  };
+  vehicleInfo: {
+    make: string;
+    model: string;
+    year: number;
+    engineSize: string;
+    registrationNumber: string;
+    fuelType: 'PETROL' | 'DIESEL';
+  };
+  allocationProfile: {
+    baseAllocation: number;
+    categoryMultiplier: number;
+    engineMultiplier: number;
+    finalAllocation: number;
+    currentBalance: number;
+    usedThisMonth: number;
+  };
+  status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE';
+  lastAllocation?: string;
+  totalAllocated: number;
+  joinDate: string;
+}
+
+interface AllocationFormData {
+  sessionName: string;
+  programName: string;
+  eventName?: string;
+  allocationType: 'SESSION' | 'COMMITTEE' | 'EVENT' | 'EMERGENCY';
+  couponsPerBeneficiary: number;
+  litresPerCoupon: number;
+  valuePerLitre: number;
+  expiryDays: number;
+  notes?: string;
+  selectedBeneficiaries: string[];
+}
+
+interface CategoryConfig {
+  label: string;
+  baseAllocation: number;
+  multiplier: number;
+  color: string;
+  icon: React.ReactNode;
+  description: string;
+}
+
+const BeneficiaryManagement: FC = () => {
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [allocationModalVisible, setAllocationModalVisible] = useState(false);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
+  const [viewMode, setViewMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [form] = Form.useForm();
+  const [allocationForm] = Form.useForm();
+
+  // Category configurations
+  const categoryConfigs: Record<string, CategoryConfig> = {
+    MP: {
+      label: 'Member of Parliament',
+      baseAllocation: 200,
+      multiplier: 1.5,
+      color: 'blue',
+      icon: <BankOutlined />,
+      description: 'Elected members with highest allocation'
+    },
+    SENATOR: {
+      label: 'Senator',
+      baseAllocation: 180,
+      multiplier: 1.4,
+      color: 'purple',
+      icon: <BankOutlined />,
+      description: 'Upper house members with premium allocation'
+    },
+    STAFF: {
+      label: 'Parliament Staff',
+      baseAllocation: 120,
+      multiplier: 1.0,
+      color: 'green',
+      icon: <TeamOutlined />,
+      description: 'Parliament administration staff'
+    },
+    DRIVER: {
+      label: 'Official Driver',
+      baseAllocation: 150,
+      multiplier: 1.2,
+      color: 'orange',
+      icon: <CarOutlined />,
+      description: 'Official drivers for parliament members'
+    },
+    CONSULTANT: {
+      label: 'Consultant',
+      baseAllocation: 100,
+      multiplier: 0.8,
+      color: 'cyan',
+      icon: <UserOutlined />,
+      description: 'External consultants and advisors'
+    },
+  };
+
+  // Sample data
+  useEffect(() => {
+    setBeneficiaries([
+      {
+        id: 'BEN001',
+        memberId: 'MP001',
+        name: 'Hon. John Mukamuri',
+        position: 'Member of Parliament',
+        department: 'Finance Committee',
+        category: 'MP',
+        contactInfo: {
+          email: 'john.mukamuri@parliament.gov.zw',
+          phone: '+263771234567',
+          office: 'Room 205, Parliament Building',
+        },
+        vehicleInfo: {
+          make: 'Toyota',
+          model: 'Prado',
+          year: 2022,
+          engineSize: '3.0L V6',
+          registrationNumber: 'AEZ-1234',
+          fuelType: 'DIESEL',
+        },
+        allocationProfile: {
+          baseAllocation: 200,
+          categoryMultiplier: 1.5,
+          engineMultiplier: 1.3,
+          finalAllocation: 390, // 200 * 1.5 * 1.3
+          currentBalance: 185,
+          usedThisMonth: 205,
+        },
+        status: 'ACTIVE',
+        lastAllocation: '2024-08-09',
+        totalAllocated: 1250,
+        joinDate: '2023-08-23',
+      },
+    ]);
+  }, []);
+
+  const calculateFinalAllocation = (category: string, engineSize: string) => {
+    const categoryConfig = categoryConfigs[category];
+    const engineMultiplier = getEngineMultiplier(engineSize);
+    
+    if (!categoryConfig) return 0;
+    
+    return Math.round(categoryConfig.baseAllocation * categoryConfig.multiplier * engineMultiplier);
+  };
+
+  const getEngineMultiplier = (engineSize: string) => {
+    // Extract numeric value from engine size
+    const numericSize = parseFloat(engineSize);
+    
+    if (numericSize <= 1.5) return 0.8;
+    if (numericSize <= 2.0) return 1.0;
+    if (numericSize <= 3.0) return 1.3;
+    if (numericSize <= 4.0) return 1.6;
+    return 2.0;
+  };
+
+  const handleCreateBeneficiary = () => {
+    setViewMode('create');
+    setSelectedBeneficiary(null);
+    form.resetFields();
+    setModalVisible(true);
+  };
+
+  const handleBulkAllocation = () => {
+    allocationForm.resetFields();
+    setAllocationModalVisible(true);
+  };
+
+  const handleSaveBeneficiary = async (values: any) => {
+    try {
+      setLoading(true);
+      message.success('Beneficiary saved successfully');
+      setModalVisible(false);
+      form.resetFields();
+    } catch (error) {
+      message.error('Failed to save beneficiary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const columns: ColumnsType<Beneficiary> = [
+    {
+      title: 'Member',
+      key: 'member',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.name}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>{record.memberId}</Text>
+          <Tag 
+            color={categoryConfigs[record.category]?.color} 
+            size="small"
+            icon={categoryConfigs[record.category]?.icon}
+          >
+            {record.category}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: 'Position & Department',
+      key: 'position',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: '12px' }}>{record.position}</Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>{record.department}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Vehicle Info',
+      key: 'vehicle',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: '12px' }}>
+            {record.vehicleInfo.year} {record.vehicleInfo.make} {record.vehicleInfo.model}
+          </Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>
+            {record.vehicleInfo.engineSize} | {record.vehicleInfo.fuelType}
+          </Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>
+            {record.vehicleInfo.registrationNumber}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => (
+        <Badge 
+          status={status === 'ACTIVE' ? 'success' : status === 'SUSPENDED' ? 'warning' : 'error'}
+          text={status}
+        />
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="View Details">
+            <Button 
+              size="small" 
+              icon={<EyeOutlined />}
+            />
+          </Tooltip>
+          <Tooltip title="Edit">
+            <Button 
+              size="small" 
+              icon={<EditOutlined />}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  const activeBeneficiaries = beneficiaries.filter(b => b.status === 'ACTIVE');
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 16 }}>
+        <Row gutter={16}>
+          <Col span={6}>
+            <Statistic
+              title="Total Beneficiaries"
+              value={beneficiaries.length}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="Active Members"
+              value={activeBeneficiaries.length}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="Current Balance"
+              value={850}
+              suffix="L"
+              prefix={<CarOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="Used This Month"
+              value={1200}
+              suffix="L"
+              prefix={<CarOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      <Card
+        title="Beneficiary Management"
+        extra={
+          <Space>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleBulkAllocation}
+            >
+              Bulk Allocation
+            </Button>
+            <Button
+              type="primary"
+              icon={<UserAddOutlined />}
+              onClick={handleCreateBeneficiary}
+            >
+              Add Beneficiary
+            </Button>
+          </Space>
+        }
+      >
+        <Table
+          columns={columns}
+          dataSource={beneficiaries}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => 
+              `${range[0]}-${range[1]} of ${total} beneficiaries`,
+          }}
+        />
+      </Card>
+
+      {/* Beneficiary Form Modal */}
+      <Modal
+        title="Add New Beneficiary"
+        open={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onOk={() => form.submit()}
+        confirmLoading={loading}
+        width={800}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSaveBeneficiary}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="name"
+                label="Full Name"
+                rules={[{ required: true, message: 'Please enter full name' }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="memberId"
+                label="Member ID"
+                rules={[{ required: true, message: 'Please enter member ID' }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="category"
+                label="Category"
+                rules={[{ required: true, message: 'Please select category' }]}
+              >
+                <Select>
+                  {Object.entries(categoryConfigs).map(([key, config]) => (
+                    <Option key={key} value={key}>
+                      <Space>
+                        {config.icon}
+                        {config.label}
+                      </Space>
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="status"
+                label="Status"
+                rules={[{ required: true, message: 'Please select status' }]}
+              >
+                <Select>
+                  <Option value="ACTIVE">Active</Option>
+                  <Option value="SUSPENDED">Suspended</Option>
+                  <Option value="INACTIVE">Inactive</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      {/* Bulk Allocation Modal */}
+      <Modal
+        title="Bulk Fuel Allocation"
+        open={allocationModalVisible}
+        onCancel={() => setAllocationModalVisible(false)}
+        confirmLoading={loading}
+        width={800}
+      >
+        <Alert
+          message="Bulk Allocation Process"
+          description="Select beneficiaries and allocation parameters to distribute fuel coupons to multiple members simultaneously."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      </Modal>
+    </div>
+  );
+};
+
+export default BeneficiaryManagement;
+  Badge,
+  Statistic,
+  InputNumber,
+  DatePicker,
+  message,
+  Divider,
+  Descriptions,
+  Progress,
+  Alert,
+  Tooltip,
+} from 'antd';
+import {
+  UserAddOutlined,
+  EditOutlined,
+  EyeOutlined,
+  FuelOutlined,
+  FuelOutlined,
+  TeamOutlined,
+  SettingOutlined,
+  BankOutlined,
+  UserOutlined,
+  SendOutlined,
+  HistoryOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  CalendarOutlined,
+} from '@ant-design/icons';
+import { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { TextArea } = Input;
+
+interface Beneficiary {
+  id: string;
+  memberId: string;
+  name: string;
+  position: string;
+  department: string;
+  category: 'MP' | 'SENATOR' | 'STAFF' | 'DRIVER' | 'CONSULTANT';
+  contactInfo: {
+    email: string;
+    phone: string;
+    office: string;
+  };
+  vehicleInfo: {
+    make: string;
+    model: string;
+    year: number;
+    engineSize: string;
+    registrationNumber: string;
+    fuelType: 'PETROL' | 'DIESEL';
+  };
+  allocationProfile: {
+    baseAllocation: number;
+    categoryMultiplier: number;
+    engineMultiplier: number;
+    finalAllocation: number;
+    currentBalance: number;
+    usedThisMonth: number;
+  };
+  status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE';
+  lastAllocation?: string;
+  totalAllocated: number;
+  joinDate: string;
+}
+
+interface AllocationFormData {
+  sessionName: string;
+  programName: string;
+  eventName?: string;
+  allocationType: 'SESSION' | 'COMMITTEE' | 'EVENT' | 'EMERGENCY';
+  couponsPerBeneficiary: number;
+  litresPerCoupon: number;
+  valuePerLitre: number;
+  expiryDays: number;
+  notes?: string;
+  selectedBeneficiaries: string[];
+}
+
+interface CategoryConfig {
+  label: string;
+  baseAllocation: number;
+  multiplier: number;
+  color: string;
+  icon: React.ReactNode;
+  description: string;
+}
+
+const BeneficiaryManagement: FC = () => {
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [allocationModalVisible, setAllocationModalVisible] = useState(false);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
+  const [viewMode, setViewMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [form] = Form.useForm();
+  const [allocationForm] = Form.useForm();
+
+  // Category configurations
+  const categoryConfigs: Record<string, CategoryConfig> = {
+    MP: {
+      label: 'Member of Parliament',
+      baseAllocation: 200,
+      multiplier: 1.5,
+      color: 'blue',
+      icon: <BankOutlined />,
+      description: 'Elected members with highest allocation'
+    },
+    SENATOR: {
+      label: 'Senator',
+      baseAllocation: 180,
+      multiplier: 1.4,
+      color: 'purple',
+      icon: <BankOutlined />,
+      description: 'Upper house members with premium allocation'
+    },
+    STAFF: {
+      label: 'Parliament Staff',
+      baseAllocation: 120,
+      multiplier: 1.0,
+      color: 'green',
+      icon: <TeamOutlined />,
+      description: 'Parliament administration staff'
+    },
+    DRIVER: {
+      label: 'Official Driver',
+      baseAllocation: 150,
+      multiplier: 1.2,
+      color: 'orange',
+      icon: <CarOutlined />,
+      description: 'Official drivers for parliament members'
+    },
+    CONSULTANT: {
+      label: 'Consultant',
+      baseAllocation: 100,
+      multiplier: 0.8,
+      color: 'cyan',
+      icon: <UserOutlined />,
+      description: 'External consultants and advisors'
+    },
+  };
+
+  // Engine size multipliers
+  const engineMultipliers = {
+    '1.0L - 1.5L': 0.8,
+    '1.6L - 2.0L': 1.0,
+    '2.1L - 3.0L': 1.3,
+    '3.1L - 4.0L': 1.6,
+    '4.0L+': 2.0,
+  };
+
+  // Sample data
+  useEffect(() => {
+    setBeneficiaries([
+      {
+        id: 'BEN001',
+        memberId: 'MP001',
+        name: 'Hon. John Mukamuri',
+        position: 'Member of Parliament',
+        department: 'Finance Committee',
+        category: 'MP',
+        contactInfo: {
+          email: 'john.mukamuri@parliament.gov.zw',
+          phone: '+263771234567',
+          office: 'Room 205, Parliament Building',
+        },
+        vehicleInfo: {
+          make: 'Toyota',
+          model: 'Prado',
+          year: 2022,
+          engineSize: '3.0L V6',
+          registrationNumber: 'AEZ-1234',
+          fuelType: 'DIESEL',
+        },
+        allocationProfile: {
+          baseAllocation: 200,
+          categoryMultiplier: 1.5,
+          engineMultiplier: 1.3,
+          finalAllocation: 390, // 200 * 1.5 * 1.3
+          currentBalance: 185,
+          usedThisMonth: 205,
+        },
+        status: 'ACTIVE',
+        lastAllocation: '2024-08-09',
+        totalAllocated: 1250,
+        joinDate: '2023-08-23',
+      },
+      {
+        id: 'BEN002',
+        memberId: 'SEN001',
+        name: 'Sen. Mary Chisamba',
+        position: 'Senator',
+        department: 'Education Committee',
+        category: 'SENATOR',
+        contactInfo: {
+          email: 'mary.chisamba@parliament.gov.zw',
+          phone: '+263772345678',
+          office: 'Room 315, Senate Building',
+        },
+        vehicleInfo: {
+          make: 'Mercedes',
+          model: 'C-Class',
+          year: 2021,
+          engineSize: '2.0L Turbo',
+          registrationNumber: 'AFS-5678',
+          fuelType: 'PETROL',
+        },
+        allocationProfile: {
+          baseAllocation: 180,
+          categoryMultiplier: 1.4,
+          engineMultiplier: 1.0,
+          finalAllocation: 252, // 180 * 1.4 * 1.0
+          currentBalance: 98,
+          usedThisMonth: 154,
+        },
+        status: 'ACTIVE',
+        lastAllocation: '2024-08-08',
+        totalAllocated: 980,
+        joinDate: '2023-09-15',
+      },
+      {
+        id: 'BEN003',
+        memberId: 'DR001',
+        name: 'Peter Moyo',
+        position: 'Official Driver',
+        department: 'Transport Pool',
+        category: 'DRIVER',
+        contactInfo: {
+          email: 'peter.moyo@parliament.gov.zw',
+          phone: '+263773456789',
+          office: 'Transport Office',
+        },
+        vehicleInfo: {
+          make: 'Toyota',
+          model: 'Hilux',
+          year: 2020,
+          engineSize: '2.8L Diesel',
+          registrationNumber: 'AGH-9012',
+          fuelType: 'DIESEL',
+        },
+        allocationProfile: {
+          baseAllocation: 150,
+          categoryMultiplier: 1.2,
+          engineMultiplier: 1.0,
+          finalAllocation: 180, // 150 * 1.2 * 1.0
+          currentBalance: 45,
+          usedThisMonth: 135,
+        },
+        status: 'ACTIVE',
+        lastAllocation: '2024-08-07',
+        totalAllocated: 720,
+        joinDate: '2023-07-10',
+      },
+    ]);
+  }, []);
+
+  const calculateFinalAllocation = (category: string, engineSize: string) => {
+    const categoryConfig = categoryConfigs[category];
+    const engineMultiplier = getEngineMultiplier(engineSize);
+    
+    if (!categoryConfig) return 0;
+    
+    return Math.round(categoryConfig.baseAllocation * categoryConfig.multiplier * engineMultiplier);
+  };
+
+  const getEngineMultiplier = (engineSize: string) => {
+    // Extract numeric value from engine size
+    const numericSize = parseFloat(engineSize);
+    
+    if (numericSize <= 1.5) return 0.8;
+    if (numericSize <= 2.0) return 1.0;
+    if (numericSize <= 3.0) return 1.3;
+    if (numericSize <= 4.0) return 1.6;
+    return 2.0;
+  };
+
+  const handleCreateBeneficiary = () => {
+    setViewMode('create');
+    setSelectedBeneficiary(null);
+    form.resetFields();
+    setModalVisible(true);
+  };
+
+  const handleEditBeneficiary = (beneficiary: Beneficiary) => {
+    setViewMode('edit');
+    setSelectedBeneficiary(beneficiary);
+    form.setFieldsValue({
+      ...beneficiary,
+      vehicleYear: beneficiary.vehicleInfo.year,
+      vehicleMake: beneficiary.vehicleInfo.make,
+      vehicleModel: beneficiary.vehicleInfo.model,
+      engineSize: beneficiary.vehicleInfo.engineSize,
+      registrationNumber: beneficiary.vehicleInfo.registrationNumber,
+      fuelType: beneficiary.vehicleInfo.fuelType,
+      email: beneficiary.contactInfo.email,
+      phone: beneficiary.contactInfo.phone,
+      office: beneficiary.contactInfo.office,
+    });
+    setModalVisible(true);
+  };
+
+  const handleViewBeneficiary = (beneficiary: Beneficiary) => {
+    setViewMode('view');
+    setSelectedBeneficiary(beneficiary);
+    setModalVisible(true);
+  };
+
+  const handleBulkAllocation = () => {
+    allocationForm.resetFields();
+    setAllocationModalVisible(true);
+  };
+
+  const handleSaveBeneficiary = async (values: any) => {
+    try {
+      setLoading(true);
+      
+      const finalAllocation = calculateFinalAllocation(values.category, values.engineSize);
+      
+      const beneficiaryData: Beneficiary = {
+        id: selectedBeneficiary?.id || `BEN${String(beneficiaries.length + 1).padStart(3, '0')}`,
+        memberId: values.memberId,
+        name: values.name,
+        position: values.position,
+        department: values.department,
+        category: values.category,
+        contactInfo: {
+          email: values.email,
+          phone: values.phone,
+          office: values.office,
+        },
+        vehicleInfo: {
+          make: values.vehicleMake,
+          model: values.vehicleModel,
+          year: values.vehicleYear,
+          engineSize: values.engineSize,
+          registrationNumber: values.registrationNumber,
+          fuelType: values.fuelType,
+        },
+        allocationProfile: {
+          baseAllocation: categoryConfigs[values.category].baseAllocation,
+          categoryMultiplier: categoryConfigs[values.category].multiplier,
+          engineMultiplier: getEngineMultiplier(values.engineSize),
+          finalAllocation,
+          currentBalance: selectedBeneficiary?.allocationProfile.currentBalance || finalAllocation,
+          usedThisMonth: selectedBeneficiary?.allocationProfile.usedThisMonth || 0,
+        },
+        status: values.status || 'ACTIVE',
+        totalAllocated: selectedBeneficiary?.totalAllocated || 0,
+        joinDate: selectedBeneficiary?.joinDate || dayjs().format('YYYY-MM-DD'),
+      };
+
+      if (viewMode === 'create') {
+        setBeneficiaries([...beneficiaries, beneficiaryData]);
+        message.success('Beneficiary created successfully');
+      } else {
+        setBeneficiaries(beneficiaries.map(b => 
+          b.id === beneficiaryData.id ? beneficiaryData : b
+        ));
+        message.success('Beneficiary updated successfully');
+      }
+
+      setModalVisible(false);
+      form.resetFields();
+    } catch (error) {
+      message.error('Failed to save beneficiary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkAllocationSubmit = async (values: AllocationFormData) => {
+    try {
+      setLoading(true);
+      
+      const totalCoupons = values.selectedBeneficiaries.length * values.couponsPerBeneficiary;
+      const totalLitres = totalCoupons * values.litresPerCoupon;
+      const totalValue = totalLitres * values.valuePerLitre;
+
+      // Here you would typically send allocation data to backend
+      // For now, we'll simulate the allocation process
+      
+      message.success(
+        `Bulk allocation completed! ${totalCoupons} coupons (${totalLitres}L) allocated to ${values.selectedBeneficiaries.length} beneficiaries`
+      );
+      
+      setAllocationModalVisible(false);
+      allocationForm.resetFields();
+    } catch (error) {
+      message.error('Failed to process bulk allocation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const columns: ColumnsType<Beneficiary> = [
+    {
+      title: 'Member',
+      key: 'member',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.name}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>{record.memberId}</Text>
+          <Tag 
+            color={categoryConfigs[record.category]?.color} 
+            size="small"
+            icon={categoryConfigs[record.category]?.icon}
+          >
+            {record.category}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: 'Position & Department',
+      key: 'position',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: '12px' }}>{record.position}</Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>{record.department}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Vehicle Info',
+      key: 'vehicle',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: '12px' }}>
+            {record.vehicleInfo.year} {record.vehicleInfo.make} {record.vehicleInfo.model}
+          </Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>
+            {record.vehicleInfo.engineSize} | {record.vehicleInfo.fuelType}
+          </Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>
+            {record.vehicleInfo.registrationNumber}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Allocation Profile',
+      key: 'allocation',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong style={{ fontSize: '12px' }}>
+            {record.allocationProfile.finalAllocation}L/month
+          </Text>
+          <Text style={{ fontSize: '11px' }}>
+            Base: {record.allocationProfile.baseAllocation}L × {record.allocationProfile.categoryMultiplier} × {record.allocationProfile.engineMultiplier}
+          </Text>
+          <Progress 
+            percent={(record.allocationProfile.currentBalance / record.allocationProfile.finalAllocation) * 100}
+            size="small"
+            status={record.allocationProfile.currentBalance > 50 ? 'normal' : 'exception'}
+          />
+          <Text type="secondary" style={{ fontSize: '10px' }}>
+            Balance: {record.allocationProfile.currentBalance}L
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => (
+        <Badge 
+          status={status === 'ACTIVE' ? 'success' : status === 'SUSPENDED' ? 'warning' : 'error'}
+          text={status}
+        />
+      ),
+    },
+    {
+      title: 'Last Allocation',
+      dataIndex: 'lastAllocation',
+      key: 'lastAllocation',
+      render: (date) => date ? dayjs(date).format('DD MMM') : 'Never',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="View Details">
+            <Button 
+              size="small" 
+              icon={<EyeOutlined />}
+              onClick={() => handleViewBeneficiary(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Edit">
+            <Button 
+              size="small" 
+              icon={<EditOutlined />}
+              onClick={() => handleEditBeneficiary(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  const activeBeneficiaries = beneficiaries.filter(b => b.status === 'ACTIVE');
+  const totalCurrentBalance = beneficiaries.reduce((sum, b) => sum + b.allocationProfile.currentBalance, 0);
+  const totalUsedThisMonth = beneficiaries.reduce((sum, b) => sum + b.allocationProfile.usedThisMonth, 0);
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 16 }}>
+        <Row gutter={16}>
+          <Col span={6}>
+            <Statistic
+              title="Total Beneficiaries"
+              value={beneficiaries.length}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="Active Members"
+              value={activeBeneficiaries.length}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="Current Balance"
+              value={totalCurrentBalance}
+              suffix="L"
+              prefix={<FuelOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="Used This Month"
+              value={totalUsedThisMonth}
+              suffix="L"
+              prefix={<CarOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      <Card
+        title="Beneficiary Management"
+        extra={
+          <Space>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleBulkAllocation}
+            >
+              Bulk Allocation
+            </Button>
+            <Button
+              type="primary"
+              icon={<UserAddOutlined />}
+              onClick={handleCreateBeneficiary}
+            >
+              Add Beneficiary
+            </Button>
+          </Space>
+        }
+      >
+        <Table
+          columns={columns}
+          dataSource={beneficiaries}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => 
+              `${range[0]}-${range[1]} of ${total} beneficiaries`,
+          }}
+        />
+      </Card>
+
+      {/* Beneficiary Form Modal */}
+      <Modal
+        title={
+          viewMode === 'create' ? 'Add New Beneficiary' :
+          viewMode === 'edit' ? 'Edit Beneficiary' : 'Beneficiary Details'
+        }
+        open={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        footer={viewMode === 'view' ? null : undefined}
+        onOk={() => viewMode !== 'view' && form.submit()}
+        confirmLoading={loading}
+        width={800}
+      >
+        {viewMode === 'view' && selectedBeneficiary ? (
+          <Descriptions bordered column={2}>
+            <Descriptions.Item label="Name" span={2}>{selectedBeneficiary.name}</Descriptions.Item>
+            <Descriptions.Item label="Member ID">{selectedBeneficiary.memberId}</Descriptions.Item>
+            <Descriptions.Item label="Category">
+              <Tag color={categoryConfigs[selectedBeneficiary.category]?.color}>
+                {categoryConfigs[selectedBeneficiary.category]?.label}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Position">{selectedBeneficiary.position}</Descriptions.Item>
+            <Descriptions.Item label="Department">{selectedBeneficiary.department}</Descriptions.Item>
+            <Descriptions.Item label="Email">{selectedBeneficiary.contactInfo.email}</Descriptions.Item>
+            <Descriptions.Item label="Phone">{selectedBeneficiary.contactInfo.phone}</Descriptions.Item>
+            <Descriptions.Item label="Vehicle" span={2}>
+              {selectedBeneficiary.vehicleInfo.year} {selectedBeneficiary.vehicleInfo.make} {selectedBeneficiary.vehicleInfo.model}
+            </Descriptions.Item>
+            <Descriptions.Item label="Engine Size">{selectedBeneficiary.vehicleInfo.engineSize}</Descriptions.Item>
+            <Descriptions.Item label="Fuel Type">{selectedBeneficiary.vehicleInfo.fuelType}</Descriptions.Item>
+            <Descriptions.Item label="Monthly Allocation">
+              {selectedBeneficiary.allocationProfile.finalAllocation}L
+            </Descriptions.Item>
+            <Descriptions.Item label="Current Balance">
+              {selectedBeneficiary.allocationProfile.currentBalance}L
+            </Descriptions.Item>
+            <Descriptions.Item label="Join Date" span={2}>
+              {dayjs(selectedBeneficiary.joinDate).format('DD MMM YYYY')}
+            </Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSaveBeneficiary}
+          >
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="name"
+                  label="Full Name"
+                  rules={[{ required: true, message: 'Please enter full name' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="memberId"
+                  label="Member ID"
+                  rules={[{ required: true, message: 'Please enter member ID' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="category"
+                  label="Category"
+                  rules={[{ required: true, message: 'Please select category' }]}
+                >
+                  <Select
+                    onChange={(value) => {
+                      const engineSize = form.getFieldValue('engineSize');
+                      if (engineSize) {
+                        const finalAllocation = calculateFinalAllocation(value, engineSize);
+                        message.info(`Allocation will be ${finalAllocation}L/month`);
+                      }
+                    }}
+                  >
+                    {Object.entries(categoryConfigs).map(([key, config]) => (
+                      <Option key={key} value={key}>
+                        <Space>
+                          {config.icon}
+                          {config.label}
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="status"
+                  label="Status"
+                  rules={[{ required: true, message: 'Please select status' }]}
+                >
+                  <Select>
+                    <Option value="ACTIVE">Active</Option>
+                    <Option value="SUSPENDED">Suspended</Option>
+                    <Option value="INACTIVE">Inactive</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="position"
+                  label="Position"
+                  rules={[{ required: true, message: 'Please enter position' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="department"
+                  label="Department"
+                  rules={[{ required: true, message: 'Please enter department' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Divider>Contact Information</Divider>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="email"
+                  label="Email"
+                  rules={[
+                    { required: true, message: 'Please enter email' },
+                    { type: 'email', message: 'Please enter valid email' }
+                  ]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="phone"
+                  label="Phone"
+                  rules={[{ required: true, message: 'Please enter phone number' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item
+              name="office"
+              label="Office Location"
+            >
+              <Input />
+            </Form.Item>
+
+            <Divider>Vehicle Information</Divider>
+
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item
+                  name="vehicleMake"
+                  label="Make"
+                  rules={[{ required: true, message: 'Please enter vehicle make' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="vehicleModel"
+                  label="Model"
+                  rules={[{ required: true, message: 'Please enter vehicle model' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="vehicleYear"
+                  label="Year"
+                  rules={[{ required: true, message: 'Please enter vehicle year' }]}
+                >
+                  <InputNumber min={1990} max={2030} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item
+                  name="engineSize"
+                  label="Engine Size"
+                  rules={[{ required: true, message: 'Please enter engine size' }]}
+                >
+                  <Input 
+                    placeholder="e.g., 2.0L, 3.0L V6"
+                    onChange={(e) => {
+                      const category = form.getFieldValue('category');
+                      if (category) {
+                        const finalAllocation = calculateFinalAllocation(category, e.target.value);
+                        message.info(`Allocation will be ${finalAllocation}L/month`);
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="fuelType"
+                  label="Fuel Type"
+                  rules={[{ required: true, message: 'Please select fuel type' }]}
+                >
+                  <Select>
+                    <Option value="PETROL">Petrol</Option>
+                    <Option value="DIESEL">Diesel</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="registrationNumber"
+                  label="Registration Number"
+                  rules={[{ required: true, message: 'Please enter registration number' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Form>
+        )}
+      </Modal>
+
+      {/* Bulk Allocation Modal */}
+      <Modal
+        title="Bulk Fuel Allocation"
+        open={allocationModalVisible}
+        onCancel={() => setAllocationModalVisible(false)}
+        onOk={() => allocationForm.submit()}
+        confirmLoading={loading}
+        width={800}
+      >
+        <Alert
+          message="Bulk Allocation Process"
+          description="Select beneficiaries and allocation parameters to distribute fuel coupons to multiple members simultaneously."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+
+        <Form
+          form={allocationForm}
+          layout="vertical"
+          onFinish={handleBulkAllocationSubmit}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="sessionName"
+                label="Session Name"
+                rules={[{ required: true, message: 'Please enter session name' }]}
+              >
+                <Input placeholder="e.g., Morning Parliamentary Session" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="programName"
+                label="Program Name"
+                rules={[{ required: true, message: 'Please enter program name' }]}
+              >
+                <Input placeholder="e.g., Budget Review Committee" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="eventName"
+                label="Event Name (Optional)"
+              >
+                <Input placeholder="e.g., Site Inspection Tour" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="allocationType"
+                label="Allocation Type"
+                rules={[{ required: true, message: 'Please select allocation type' }]}
+              >
+                <Select>
+                  <Option value="SESSION">Parliamentary Session</Option>
+                  <Option value="COMMITTEE">Committee Meeting</Option>
+                  <Option value="EVENT">Special Event</Option>
+                  <Option value="EMERGENCY">Emergency Allocation</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item
+                name="couponsPerBeneficiary"
+                label="Coupons per Beneficiary"
+                rules={[{ required: true, message: 'Please enter coupon count' }]}
+              >
+                <InputNumber min={1} max={50} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
+                name="litresPerCoupon"
+                label="Litres per Coupon"
+                rules={[{ required: true, message: 'Please enter litres per coupon' }]}
+              >
+                <InputNumber min={1} max={10} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
+                name="valuePerLitre"
+                label="Value per Litre (ZWG)"
+                rules={[{ required: true, message: 'Please enter value per litre' }]}
+              >
+                <InputNumber min={1} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
+                name="expiryDays"
+                label="Expiry Days"
+                rules={[{ required: true, message: 'Please enter expiry days' }]}
+              >
+                <InputNumber min={1} max={30} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="selectedBeneficiaries"
+            label="Select Beneficiaries"
+            rules={[{ required: true, message: 'Please select at least one beneficiary' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="Select beneficiaries to allocate to"
+              optionFilterProp="children"
+            >
+              {activeBeneficiaries.map(beneficiary => (
+                <Option key={beneficiary.id} value={beneficiary.id}>
+                  {beneficiary.name} ({beneficiary.memberId}) - {beneficiary.category}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="notes"
+            label="Notes (Optional)"
+          >
+            <TextArea 
+              rows={3} 
+              placeholder="Additional notes about this allocation..." 
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+};
+
+export default BeneficiaryManagement;
