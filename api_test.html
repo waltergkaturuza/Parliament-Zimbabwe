@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Test Results</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function testAPI() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Test login first
+                resultsDiv.innerHTML += '<h2>Testing Login...</h2>';
+                const loginResponse = await fetch('https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/api/v1/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'Admin@123'
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                resultsDiv.innerHTML += `<p>Login Status: ${loginResponse.status}</p>`;
+                resultsDiv.innerHTML += `<p>Login Response: ${JSON.stringify(loginData)}</p>`;
+                
+                if (loginResponse.ok && loginData.access) {
+                    // Test notification stats
+                    resultsDiv.innerHTML += '<h2>Testing Notification Stats...</h2>';
+                    const notificationResponse = await fetch('https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/api/v1/notifications/stats/', {
+                        headers: {
+                            'Authorization': `Bearer ${loginData.access}`
+                        }
+                    });
+                    
+                    const notificationData = await notificationResponse.json();
+                    resultsDiv.innerHTML += `<p>Notification Stats Status: ${notificationResponse.status}</p>`;
+                    resultsDiv.innerHTML += `<p>Notification Response: ${JSON.stringify(notificationData)}</p>`;
+                    
+                    // Test admin dashboard
+                    resultsDiv.innerHTML += '<h2>Testing Admin Dashboard...</h2>';
+                    const dashboardResponse = await fetch('https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/api/v1/admin/dashboard/', {
+                        headers: {
+                            'Authorization': `Bearer ${loginData.access}`
+                        }
+                    });
+                    
+                    const dashboardData = await dashboardResponse.json();
+                    resultsDiv.innerHTML += `<p>Dashboard Status: ${dashboardResponse.status}</p>`;
+                    resultsDiv.innerHTML += `<p>Dashboard Response: ${JSON.stringify(dashboardData)}</p>`;
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        testAPI();
+    </script>
+</body>
+</html>
