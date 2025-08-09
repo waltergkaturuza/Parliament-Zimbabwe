@@ -39,29 +39,58 @@ apiClient.interceptors.response.use(
     console.log('API Response Success:', response.status, response.data);
     return response;
   },
-  (error) => {
+  async (error) => {
     console.error('API Response Error:', error);
-    // Handle errors: log them but let AuthContext handle 401s
+    const originalRequest = error.config;
+    
+    // Handle 401 errors with token refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      console.log('401 error detected, attempting token refresh...');
+      
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          console.warn('No refresh token available, redirecting to login');
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+
+        // Try to refresh the token
+        const refreshResponse = await axios.post('/api/token/refresh/', {
+          refresh: refreshToken
+        });
+        
+        const newAccessToken = refreshResponse.data.access;
+        localStorage.setItem('access_token', newAccessToken);
+        
+        // Update authorization header for the failed request
+        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+        
+        console.log('Token refreshed successfully, retrying original request...');
+        return apiClient(originalRequest);
+        
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+    }
+    
+    // Handle errors: log them but let other error handling take place
     if (error.response) {
       console.error('Error response:', error.response.status, error.response.data);
       
-      // Let AuthContext handle 401s with token refresh logic
-      // Only handle other status codes here
       if (error.response.status === 403) {
         console.warn('Access forbidden - insufficient permissions:', error.response.data);
-        // Don't redirect to login for permission issues
       } else if (error.response.status >= 500) {
         console.error('Server error:', error.response.status, error.response.data);
       }
-      // Note: 401s are handled by AuthContext interceptor for token refresh
-      
-      // Optionally show a toast or notification for specific errors
-      // window.alert('API Error: ' + (error.response.data?.detail || error.response.statusText));
     } else if (error.request) {
       // Network or CORS error
       console.error('API Error (no response):', error);
-      // Optionally show a toast or notification for network errors
-      // window.alert('Network error: Could not reach backend API.');
     } else {
       // Other errors
       console.error('API Error:', error.message);
