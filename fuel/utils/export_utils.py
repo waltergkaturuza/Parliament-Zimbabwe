@@ -3,7 +3,6 @@ import io
 import csv
 from datetime import datetime
 from typing import List, Dict, Any
-import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from reportlab.lib import colors
@@ -14,7 +13,8 @@ from reportlab.lib.units import inch
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 import qrcode
-from PIL import Image
+# import pandas as pd  # Commented out for deployment optimization  
+# from PIL import Image  # Commented out for deployment optimization
 
 
 class ExportManager:
