@@ -456,12 +456,10 @@ REST_FRAMEWORK = {
 if 'default' in DATABASES:
     DATABASES['default']['CONN_MAX_AGE'] = 600  # 10 minutes - reuse connections
     DATABASES['default']['CONN_HEALTH_CHECKS'] = True  # Health checks on reused connections
+    # Only use valid psycopg3 connection parameters
     DATABASES['default']['OPTIONS'].update({
-        'connect_timeout': 10,
-        'command_timeout': 30,
-        # Use connection pooling at application level
-        'server_side_binding': True,
-        'prepared_statement_cache_size': 20,
+        'connect_timeout': 10,  # This is valid for psycopg3
+        'application_name': 'fuel_coupon_system',
     })
 
 # Time zone
