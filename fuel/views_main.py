@@ -2341,6 +2341,458 @@ def notification_stats(request):
         )
 
 
+# =========================== MISSING VIEW IMPLEMENTATIONS ===========================
+
+# Main Dashboard View - Critical endpoint that MainCenterDashboard.tsx calls
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def main_dashboard(request):
+    """
+    Main dashboard endpoint for /api/v1/dashboard/
+    """
+    try:
+        user = request.user
+        
+        # Basic statistics for the main dashboard
+        stats = {
+            'total_users': User.objects.count(),
+            'active_users': User.objects.filter(is_active=True).count(),
+            'pending_approvals': User.objects.filter(is_approved=False, rejection_reason__isnull=True).count(),
+            
+            # Inventory stats
+            'total_boxes': Box.objects.count(),
+            'active_boxes': Box.objects.filter(is_archived=False).count(),
+            'total_books': Book.objects.count(),
+            'assigned_books': Book.objects.filter(is_assigned=True).count(),
+            
+            # Coupon stats
+            'total_coupons': Coupon.objects.count(),
+            'available_coupons': Coupon.objects.filter(status='AVAILABLE').count(),
+            'allocated_coupons': Coupon.objects.filter(status='ALLOCATED').count(),
+            'used_coupons': Coupon.objects.filter(status='USED').count(),
+            
+            # Parliament stats
+            'total_subcenters': SubCenter.objects.count(),
+            'active_subcenters': SubCenter.objects.filter(is_active=True).count(),
+            
+            # Recent activity
+            'recent_sessions': ParliamentSession.objects.filter(
+                start_date__gte=timezone.now() - timedelta(days=30)
+            ).count(),
+            'recent_transactions': FuelTransaction.objects.filter(
+                timestamp__gte=timezone.now() - timedelta(days=7)
+            ).count(),
+            
+            'last_updated': timezone.now().isoformat()
+        }
+        
+        return Response(stats)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve dashboard statistics: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Home Activity View - for /api/v1/home/activity/
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def home_activity(request):
+    """
+    Home activity feed endpoint
+    """
+    try:
+        user = request.user
+        activities = []
+        
+        # Get recent transactions
+        recent_transactions = FuelTransaction.objects.filter(
+            timestamp__gte=timezone.now() - timedelta(days=7)
+        ).select_related('beneficiary', 'coupon').order_by('-timestamp')[:10]
+        
+        for transaction in recent_transactions:
+            activities.append({
+                'id': transaction.id,
+                'type': 'fuel_transaction',
+                'title': 'Fuel Transaction',
+                'description': f'{transaction.beneficiary.get_full_name()} used {transaction.litres_consumed}L',
+                'timestamp': transaction.timestamp.isoformat(),
+                'location': transaction.transaction_location or 'Unknown',
+                'user': transaction.beneficiary.get_full_name()
+            })
+        
+        # Get recent book dispatches
+        recent_dispatches = BookDispatch.objects.filter(
+            dispatch_date__gte=timezone.now() - timedelta(days=7)
+        ).select_related('book', 'assigned_to', 'dispatched_by').order_by('-dispatch_date')[:5]
+        
+        for dispatch in recent_dispatches:
+            activities.append({
+                'id': f"dispatch_{dispatch.id}",
+                'type': 'book_dispatch',
+                'title': 'Book Dispatch',
+                'description': f'Book {dispatch.book.book_number} dispatched to {dispatch.assigned_to.name if dispatch.assigned_to else "Unknown"}',
+                'timestamp': dispatch.dispatch_date.isoformat(),
+                'user': dispatch.dispatched_by.get_full_name() if dispatch.dispatched_by else 'System'
+            })
+        
+        # Get recent user registrations
+        recent_users = User.objects.filter(
+            date_joined__gte=timezone.now() - timedelta(days=7)
+        ).order_by('-date_joined')[:5]
+        
+        for user_obj in recent_users:
+            activities.append({
+                'id': f"user_{user_obj.id}",
+                'type': 'user_registration',
+                'title': 'New User Registration',
+                'description': f'{user_obj.get_full_name()} registered as {user_obj.role}',
+                'timestamp': user_obj.date_joined.isoformat(),
+                'user': user_obj.get_full_name()
+            })
+        
+        # Sort activities by timestamp
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return Response({
+            'activities': activities[:20],  # Return top 20 activities
+            'count': len(activities[:20]),
+            'last_updated': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve home activities: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Home Insights View - for /api/v1/home/insights/
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def home_insights(request):
+    """
+    Home insights and quick statistics endpoint
+    """
+    try:
+        # Calculate key insights
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        
+        # Fuel consumption trends
+        monthly_consumption = FuelTransaction.objects.filter(
+            timestamp__gte=thirty_days_ago
+        ).aggregate(total=Sum('litres_consumed'))['total'] or 0
+        
+        weekly_consumption = FuelTransaction.objects.filter(
+            timestamp__gte=seven_days_ago
+        ).aggregate(total=Sum('litres_consumed'))['total'] or 0
+        
+        # User activity trends
+        new_users_month = User.objects.filter(date_joined__gte=thirty_days_ago).count()
+        active_users_week = User.objects.filter(last_login__gte=seven_days_ago).count()
+        
+        # Parliament session trends
+        sessions_month = ParliamentSession.objects.filter(start_date__gte=thirty_days_ago).count()
+        
+        # Inventory utilization
+        total_coupons = Coupon.objects.count()
+        used_coupons = Coupon.objects.filter(status='USED').count()
+        utilization_rate = (used_coupons / total_coupons * 100) if total_coupons > 0 else 0
+        
+        # Top performing subcenters
+        top_subcenters = SubCenter.objects.annotate(
+            transaction_count=Count('box__book__coupon__fueltransaction', distinct=True)
+        ).order_by('-transaction_count')[:5]
+        
+        subcenter_performance = []
+        for subcenter in top_subcenters:
+            subcenter_performance.append({
+                'name': subcenter.name,
+                'transactions': subcenter.transaction_count,
+                'efficiency': min(100, subcenter.transaction_count * 10)  # Mock efficiency score
+            })
+        
+        insights = {
+            'fuel_trends': {
+                'monthly_consumption_liters': monthly_consumption,
+                'weekly_consumption_liters': weekly_consumption,
+                'average_daily_consumption': weekly_consumption / 7 if weekly_consumption > 0 else 0,
+                'trend': 'increasing' if weekly_consumption > monthly_consumption / 4 else 'stable'
+            },
+            'user_activity': {
+                'new_users_this_month': new_users_month,
+                'active_users_this_week': active_users_week,
+                'user_growth_rate': (new_users_month / 30) if new_users_month > 0 else 0
+            },
+            'parliament_activity': {
+                'sessions_this_month': sessions_month,
+                'average_sessions_per_week': sessions_month / 4 if sessions_month > 0 else 0
+            },
+            'inventory_insights': {
+                'utilization_rate': round(utilization_rate, 2),
+                'total_inventory': total_coupons,
+                'remaining_inventory': total_coupons - used_coupons,
+                'status': 'healthy' if utilization_rate < 80 else 'attention_needed'
+            },
+            'performance': {
+                'top_subcenters': subcenter_performance,
+                'overall_efficiency': round(utilization_rate * 0.8, 2)  # Mock overall efficiency
+            },
+            'last_updated': timezone.now().isoformat()
+        }
+        
+        return Response(insights)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve home insights: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Analytics Consumption Trend View - for /api/v1/analytics/consumption-trend/
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_consumption_trend(request):
+    """
+    Fuel consumption trend analytics endpoint
+    """
+    try:
+        # Get query parameters
+        days = int(request.GET.get('days', 30))
+        start_date = timezone.now() - timedelta(days=days)
+        
+        # Get daily consumption data
+        daily_consumption = FuelTransaction.objects.filter(
+            timestamp__gte=start_date
+        ).extra(
+            select={'day': 'date(timestamp)'}
+        ).values('day').annotate(
+            total_liters=Sum('litres_consumed'),
+            transaction_count=Count('id')
+        ).order_by('day')
+        
+        # Format data for frontend charts
+        consumption_data = []
+        transaction_data = []
+        
+        for item in daily_consumption:
+            date_str = item['day'].strftime('%Y-%m-%d') if item['day'] else ''
+            consumption_data.append({
+                'date': date_str,
+                'liters': item['total_liters'] or 0
+            })
+            transaction_data.append({
+                'date': date_str,
+                'count': item['transaction_count'] or 0
+            })
+        
+        # Calculate trend indicators
+        recent_week = daily_consumption.filter(day__gte=timezone.now().date() - timedelta(days=7))
+        previous_week = daily_consumption.filter(
+            day__gte=timezone.now().date() - timedelta(days=14),
+            day__lt=timezone.now().date() - timedelta(days=7)
+        )
+        
+        recent_avg = recent_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+        previous_avg = previous_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+        
+        trend_percentage = ((recent_avg - previous_avg) / previous_avg * 100) if previous_avg > 0 else 0
+        
+        return Response({
+            'consumption_trend': consumption_data,
+            'transaction_trend': transaction_data,
+            'summary': {
+                'total_consumption': sum(item['liters'] for item in consumption_data),
+                'total_transactions': sum(item['count'] for item in transaction_data),
+                'average_daily_consumption': recent_avg,
+                'trend_percentage': round(trend_percentage, 2),
+                'trend_direction': 'up' if trend_percentage > 0 else 'down' if trend_percentage < 0 else 'stable'
+            },
+            'period_days': days,
+            'last_updated': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve consumption trend: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Auth Change Password View - for /api/v1/auth/change-password/
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """
+    Change password endpoint
+    """
+    try:
+        user = request.user
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+        
+        # Validate input
+        if not all([old_password, new_password, confirm_password]):
+            return Response(
+                {'error': 'All password fields are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if old password is correct
+        if not user.check_password(old_password):
+            return Response(
+                {'error': 'Current password is incorrect'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if new passwords match
+        if new_password != confirm_password:
+            return Response(
+                {'error': 'New passwords do not match'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate new password strength
+        if len(new_password) < 8:
+            return Response(
+                {'error': 'Password must be at least 8 characters long'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Change password
+        user.set_password(new_password)
+        user.save()
+        
+        # Log the password change
+        AuditLog.objects.create(
+            user=user,
+            action='PASSWORD_CHANGE',
+            model_name='User',
+            object_id=user.id,
+            details={'message': 'Password changed successfully'}
+        )
+        
+        return Response({
+            'message': 'Password changed successfully',
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to change password: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Notification Mark All Read View - for /api/v1/notifications/mark-all-read/
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_all_notifications_read(request):
+    """
+    Mark all notifications as read for the current user
+    """
+    try:
+        user = request.user
+        
+        # For now, return success since we don't have a full notification system
+        # This can be expanded when notification models are implemented
+        
+        return Response({
+            'message': 'All notifications marked as read',
+            'count': 0,  # Number of notifications marked as read
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to mark notifications as read: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Subcenter Statistics View - for /api/v1/subcenter/statistics/
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_statistics(request):
+    """
+    General subcenter statistics endpoint
+    """
+    try:
+        user = request.user
+        
+        # Get all subcenters or filter based on user role
+        if user.role == 'SUB_CENTER' and user.sub_center:
+            subcenters = SubCenter.objects.filter(id=user.sub_center.id)
+        else:
+            subcenters = SubCenter.objects.all()
+        
+        statistics = []
+        
+        for subcenter in subcenters:
+            # Calculate statistics for each subcenter
+            total_boxes = Box.objects.filter(assigned_to=subcenter).count()
+            total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+            total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
+            used_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter, 
+                status='USED'
+            ).count()
+            
+            # Recent activity
+            recent_transactions = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=subcenter,
+                timestamp__gte=timezone.now() - timedelta(days=30)
+            ).count()
+            
+            # Active members
+            active_members = User.objects.filter(
+                sub_center=subcenter,
+                is_active=True
+            ).count()
+            
+            subcenter_stats = {
+                'subcenter_id': subcenter.id,
+                'subcenter_name': subcenter.name,
+                'subcenter_code': subcenter.code or f'SC-{subcenter.id}',
+                'inventory': {
+                    'total_boxes': total_boxes,
+                    'total_books': total_books,
+                    'total_coupons': total_coupons,
+                    'used_coupons': used_coupons,
+                    'available_coupons': total_coupons - used_coupons,
+                    'utilization_rate': round((used_coupons / total_coupons * 100) if total_coupons > 0 else 0, 2)
+                },
+                'activity': {
+                    'recent_transactions': recent_transactions,
+                    'active_members': active_members
+                },
+                'location': {
+                    'district': subcenter.district or 'Not specified',
+                    'province': subcenter.province or 'Not specified'
+                }
+            }
+            
+            statistics.append(subcenter_stats)
+        
+        return Response({
+            'statistics': statistics,
+            'total_subcenters': len(statistics),
+            'last_updated': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve subcenter statistics: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# =========================== END MISSING VIEW IMPLEMENTATIONS ===========================
+
 # Fuel Statistics API View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

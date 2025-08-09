@@ -10,6 +10,10 @@ from .views_main import (
     # Admin views
     admin_dashboard, fuel_statistics, analytics_view, notification_stats,
     
+    # NEW: Missing view implementations
+    main_dashboard, home_activity, home_insights, analytics_consumption_trend,
+    change_password, mark_all_notifications_read, subcenter_statistics,
+    
     # Existing ViewSets
     UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
     
@@ -110,8 +114,7 @@ urlpatterns = [
     path('api/v1/auth/register/', RegisterView.as_view(), name='register-v1'),
     path('api/v1/auth/login/', LoginView.as_view(), name='login-v1'),
     path('api/v1/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh_v1'),
-    # TODO: Add change-password endpoint
-    # path('api/v1/auth/change-password/', ChangePasswordView.as_view(), name='change-password-v1'),
+    path('api/v1/auth/change-password/', change_password, name='change-password-v1'),
     
     # CORS bypass endpoints for debugging
     path('auth/login-bypass/', cors_bypass_login, name='login-bypass'),
@@ -139,16 +142,14 @@ urlpatterns = [
     
     # Notification endpoints
     path('api/v1/notifications/stats/', notification_stats, name='notification-stats'),
-    # TODO: Add notification management endpoints
-    # path('api/v1/notifications/mark-all-read/', NotificationViewSet.as_view({'post': 'mark_all_read'}), name='notifications-mark-all-read'),
-    # path('api/v1/notifications/clear-all/', NotificationViewSet.as_view({'post': 'clear_all'}), name='notifications-clear-all'),
+    path('api/v1/notifications/mark-all-read/', mark_all_notifications_read, name='notifications-mark-all-read'),
     
-    # Analytics endpoints
+    # Analytics endpoints - Added missing consumption trend endpoint
     path('analytics/', analytics_view, name='analytics-view'),
     path('api/v1/analytics/', analytics_view, name='analytics-v1'),
+    path('api/v1/analytics/consumption-trend/', analytics_consumption_trend, name='consumption-trend-analytics'),
     path('analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics'),
     path('api/v1/analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics-v1'),
-    path('api/v1/analytics/consumption-trend/', analytics_view, name='consumption-trend-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
     path('api/v1/statistics/', fuel_statistics, name='statistics-v1'),  # Add API v1 statistics endpoint
@@ -178,12 +179,12 @@ urlpatterns = [
     path('audit/transaction-stats/', AuditLogViewSet.as_view({'get': 'transaction_stats'}), name='audit-transaction-stats'),
     path('audit/transactions/', AuditLogViewSet.as_view({'get': 'transactions'}), name='audit-transactions'),
     
-    # Subcenter endpoints
+    # Subcenter endpoints - Fixed to use new subcenter_statistics view
     path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview'),
     path('api/v1/subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview-v1'),
     path('subcenter/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
-    # General subcenter statistics endpoint (list all subcenters with stats)
-    path('api/v1/subcenter/statistics/', SubCenterViewSet.as_view({'get': 'list'}), name='subcenter-statistics-v1'),
+    # General subcenter statistics endpoint - Using new function-based view
+    path('api/v1/subcenter/statistics/', subcenter_statistics, name='subcenter-statistics-v1'),
     # Individual subcenter statistics endpoint
     path('api/v1/subcenters/<int:pk>/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-detail-statistics'),
     
