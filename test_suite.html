@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Coupon System - Integration Test Suite</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-item input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        .pass { background-color: #d4edda; border-color: #c3e6cb; }
+        .fail { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warn { background-color: #fff3cd; border-color: #ffeaa7; }
+        .status {
+            margin-left: auto;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .api-test {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .button-test {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .button-test:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .result.success { background: #d4edda; }
+        .result.error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>🚗 Parliament Fuel Coupon System - Integration Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>📊 API Connectivity Tests</h2>
+        <div id="api-tests">
+            <div class="api-test">
+                <h4>Home Page APIs</h4>
+                <button class="button-test" onclick="testAPI('/api/v1/home/stats/', 'home-stats')">Test Home Stats</button>
+                <button class="button-test" onclick="testAPI('/api/v1/api/home/activity/', 'home-activity')">Test Home Activity</button>
+                <button class="button-test" onclick="testAPI('/api/v1/api/home/health/', 'home-health')">Test Home Health</button>
+                <button class="button-test" onclick="testAPI('/api/v1/api/home/insights/', 'home-insights')">Test Home Insights</button>
+                <div id="home-stats" class="result"></div>
+                <div id="home-activity" class="result"></div>
+                <div id="home-health" class="result"></div>
+                <div id="home-insights" class="result"></div>
+            </div>
+            
+            <div class="api-test">
+                <h4>Authentication APIs</h4>
+                <button class="button-test" onclick="testAuthAPI('login')">Test Login Endpoint</button>
+                <button class="button-test" onclick="testAuthAPI('register')">Test Register Endpoint</button>
+                <div id="login-test" class="result"></div>
+                <div id="register-test" class="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🖥️ Frontend Page Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" id="home-page">
+            <label for="home-page">Home Page loads correctly with logo and background</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="login-page">
+            <label for="login-page">Login Page loads correctly with logo placement</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="register-page">
+            <label for="register-page">Register Page loads correctly with logo placement</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="admin-dashboard">
+            <label for="admin-dashboard">Admin Dashboard loads without hard-coded data</label>
+            <span class="status">Manual Test</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔘 Button Functionality Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" id="get-started-btn">
+            <label for="get-started-btn">"Get Started" button on home page redirects correctly</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="login-btn">
+            <label for="login-btn">Login button submits form and handles authentication</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="register-btn">
+            <label for="register-btn">Register button submits form and creates account</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="dashboard-buttons">
+            <label for="dashboard-buttons">Dashboard navigation buttons work correctly</label>
+            <span class="status">Manual Test</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Field Formatting & Data Display</h2>
+        <div class="test-item">
+            <input type="checkbox" id="stats-format">
+            <label for="stats-format">Statistics display with proper number formatting</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="date-format">
+            <label for="date-format">Dates display in correct format throughout the system</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="currency-format">
+            <label for="currency-format">Currency values display with proper formatting</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="no-hardcoded">
+            <label for="no-hardcoded">No hard-coded data visible in any admin component</label>
+            <span class="status">Manual Test</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎨 Visual Design Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" id="logo-placement">
+            <label for="logo-placement">Logo placement is correct on all pages (oval/egg shape maintained)</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="background-display">
+            <label for="background-display">Background images display correctly with overlay</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="margins">
+            <label for="margins">Page margins are correct (10px left/right on home page)</label>
+            <span class="status">Manual Test</span>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="responsive">
+            <label for="responsive">Layout is responsive on different screen sizes</label>
+            <span class="status">Manual Test</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Test Results Summary</h2>
+        <div id="summary">
+            <p>Complete the tests above and check the boxes for passed tests.</p>
+            <button class="button-test" onclick="generateSummary()">Generate Test Summary</button>
+            <div id="summary-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        async function testAPI(endpoint, resultId) {
+            const resultDiv = document.getElementById(resultId);
+            resultDiv.textContent = 'Testing...';
+            resultDiv.className = 'result';
+            
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.textContent = `✅ SUCCESS (${response.status})\n${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `❌ FAILED (${response.status})\n${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ ERROR\n${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+        
+        async function testAuthAPI(type) {
+            const resultDiv = document.getElementById(`${type}-test`);
+            resultDiv.textContent = 'Testing...';
+            resultDiv.className = 'result';
+            
+            const testData = type === 'login' 
+                ? { username: 'test', password: 'test' }
+                : { username: 'test', email: 'test@test.com', password: 'test' };
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/auth/${type}/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.status === 400 || response.status === 401) {
+                    resultDiv.textContent = `✅ ENDPOINT OK (${response.status}) - Expected auth failure\n${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                } else if (response.status === 201 || response.status === 200) {
+                    resultDiv.textContent = `✅ SUCCESS (${response.status})\n${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `⚠️ UNEXPECTED (${response.status})\n${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ ERROR\n${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+        
+        function generateSummary() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const total = checkboxes.length;
+            const checked = document.querySelectorAll('input[type="checkbox"]:checked').length;
+            const percentage = Math.round((checked / total) * 100);
+            
+            const summaryDiv = document.getElementById('summary-result');
+            summaryDiv.innerHTML = `
+                <h3>Test Summary</h3>
+                <p><strong>Total Tests:</strong> ${total}</p>
+                <p><strong>Passed:</strong> ${checked}</p>
+                <p><strong>Success Rate:</strong> ${percentage}%</p>
+                <p><strong>Status:</strong> ${percentage >= 90 ? '✅ Excellent' : percentage >= 70 ? '⚠️ Good' : '❌ Needs Work'}</p>
+            `;
+            summaryDiv.className = percentage >= 90 ? 'result success' : 'result error';
+        }
+        
+        // Auto-test APIs on page load
+        window.onload = function() {
+            setTimeout(() => {
+                testAPI('/api/v1/home/stats/', 'home-stats');
+                testAPI('/api/v1/api/home/activity/', 'home-activity');
+                testAPI('/api/v1/api/home/health/', 'home-health');
+                testAPI('/api/v1/api/home/insights/', 'home-insights');
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

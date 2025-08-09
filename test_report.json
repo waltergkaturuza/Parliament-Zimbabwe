@@ -1,0 +1,100 @@
+[
+  {
+    "test": "Backend Health Check",
+    "status": "PASS",
+    "message": "Server is responding",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.586118"
+  },
+  {
+    "test": "API: Home Statistics",
+    "status": "PASS",
+    "message": "Status: success",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.593468"
+  },
+  {
+    "test": "API: Home Activity",
+    "status": "PASS",
+    "message": "Status: success",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.601951"
+  },
+  {
+    "test": "API: Home Health",
+    "status": "PASS",
+    "message": "Status: success",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.610180"
+  },
+  {
+    "test": "API: Home Insights",
+    "status": "PASS",
+    "message": "Status: success",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.613470"
+  },
+  {
+    "test": "Auth: Login Endpoint",
+    "status": "PASS",
+    "message": "Endpoint exists and handles requests",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.896567"
+  },
+  {
+    "test": "Auth: Register Endpoint",
+    "status": "PASS",
+    "message": "Endpoint exists and handles requests",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.902714"
+  },
+  {
+    "test": "Admin API: Dashboard Statistics",
+    "status": "WARN",
+    "message": "HTTP 403",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.904656"
+  },
+  {
+    "test": "Admin API: Users List",
+    "status": "WARN",
+    "message": "HTTP 403",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.907159"
+  },
+  {
+    "test": "Admin API: Subcenters List",
+    "status": "WARN",
+    "message": "HTTP 403",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.909044"
+  },
+  {
+    "test": "Admin API: Audit Logs",
+    "status": "WARN",
+    "message": "HTTP 403",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.910442"
+  },
+  {
+    "test": "Admin API: System Alerts",
+    "status": "WARN",
+    "message": "HTTP 403",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.916978"
+  },
+  {
+    "test": "Data Structure: Home Stats",
+    "status": "PASS",
+    "message": "All expected fields present",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.921696"
+  },
+  {
+    "test": "CORS Configuration",
+    "status": "WARN",
+    "message": "Limited CORS headers: []",
+    "details": null,
+    "timestamp": "2025-08-09T09:10:27.923619"
+  }
+]
