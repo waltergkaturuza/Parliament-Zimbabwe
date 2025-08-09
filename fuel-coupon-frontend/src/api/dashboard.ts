@@ -58,45 +58,56 @@ interface DashboardData {
 // Function to fetch all data needed for the main dashboard
 export const getDashboardData = async (): Promise<DashboardData> => {
   try {
-    // --- Make API Call(s) to your backend endpoints ---
-    // Based on your urls.py, the main dashboard stats are available at /api/v1/statistics/
-
-    // If ALL dashboard data is returned by /api/v1/statistics/:
-    const response = await api.get('/api/v1/statistics/'); // ✅ Use the correct backend path
-
-    // If fuel stats are separate at /api/v1/fuel-stats/ and needed:
-    // If program summary is separate at /admin/statistics/program-summary/ and needed:
-    // const [mainStatsResponse, fuelStatsResponse, programSummaryResponse] = await Promise.all([
-    //    api.get('/api/v1/statistics/'),
-    //    api.get('/api/v1/fuel-stats/'), // ✅ Use the correct path
-    //    api.get('/admin/statistics/program-summary/'), // ✅ Use the correct path (NO /api/v1/ prefix here)
-    // ]);
-
-
-    // --- Process and Structure the Data ---
-    // This mapping depends entirely on the actual structure of the JSON
-    // returned by your backend's endpoints.
-
-    // Assuming /api/v1/statistics/ returns a single object with all the data keys:
-    const dashboardData: DashboardData = response.data; // ✅ Assuming backend returns data directly
-
-    // If data is spread across responses (e.g., mainStatsResponse, fuelStatsResponse, programSummaryResponse):
-    // const dashboardData: DashboardData = {
-    //    ...mainStatsResponse.data, // Combine data from main stats endpoint
-    //    ...fuelStatsResponse.data, // Combine data from fuel stats endpoint (if separate)
-    //    // Add data from other endpoints, potentially mapping keys
-    //    program_summary: programSummaryResponse.data, // Example: including program summary data
-    //    // Manually map specific fields if backend structure is different
-    //    coupon_stats: mainStatsResponse.data.coupon_summary_data, // Example: if backend uses different key
-    //    fuel_consumed_per_day_chart: fuelStatsResponse.data.trend_data, // Example: if fuel data is separate
-    // };
-
+    // Make API call to backend statistics endpoint
+    const response = await api.get('/api/v1/statistics/');
+    
+    // Transform the backend response to match frontend expectations
+    const backendData = response.data;
+    
+    // Create the expected structure with real data from backend
+    const dashboardData: DashboardData = {
+      coupon_stats: {
+        total_coupons: backendData.total_coupons || 0,
+        total_fuel_volume_available: backendData.available_fuel || 0,
+        total_fuel_volume_consumed: backendData.total_fuel_used || 0,
+        total_coupons_available: backendData.available_coupons || 0,
+        total_coupons_allocated: backendData.allocated_coupons || 0,
+        total_coupons_used: backendData.used_coupons || 0,
+        total_coupons_expired: backendData.expired_coupons || 0,
+        total_coupons_damaged: backendData.damaged_coupons || 0,
+        low_coupon_stock_alert: null
+      },
+      // Transform status distribution for charts
+      coupon_status_chart: backendData.status_distribution || [],
+      // Transform monthly usage for fuel consumption chart
+      fuel_consumed_per_day_chart: (backendData.monthly_coupon_usage || []).map((item: any) => ({
+        date: item.month || item.date,
+        total_litres: item.usage_count || 0
+      })),
+      // Transform status distribution for subcenter allocation chart
+      coupons_per_subcenter_chart: backendData.subcenters_chart_data || [],
+      // Include other data from backend
+      total_users: backendData.total_users || 0,
+      total_subcenters: backendData.sub_center_count || 0,
+      total_programs: 0, // Will need to add this to backend
+      total_fuel_transactions: 0, // Will need to add this to backend
+      
+      // Add chart data placeholders (to be enhanced)
+      attendance_per_program_chart: [],
+      coupons_per_book_chart: [],
+      handovers_per_recipient_chart: [],
+      handovers_per_initiator_chart: [],
+      handovers_by_status_chart: [],
+      coupons_per_program_chart: [],
+      coupons_created_per_day_chart: [],
+      coupons_distributed_per_day_chart: [],
+      coupons_per_allocated_user_chart: []
+    };
 
     return dashboardData;
 
   } catch (error) {
     console.error("Error fetching dashboard data:", error);
-    // Depending on how you want to handle errors
     throw error;
   }
 };

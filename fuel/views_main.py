@@ -2300,6 +2300,24 @@ def fuel_statistics(request):
             beneficiary_count = BeneficiaryProfile.objects.count()
             sub_center_count = SubCenter.objects.count()
             
+            # Calculate fuel volumes
+            total_fuel_allocated = Coupon.objects.aggregate(
+                total=Sum('fuel_volume')
+            )['total'] or 0
+            
+            used_fuel_volume = Coupon.objects.filter(status='USED').aggregate(
+                total=Sum('fuel_volume')
+            )['total'] or 0
+            
+            available_fuel = total_fuel_allocated - used_fuel_volume
+            
+            # Program statistics
+            total_programs = ParliamentSession.objects.count()
+            total_sessions = ParliamentSession.objects.count()
+            
+            # Fuel transactions count
+            total_fuel_transactions = FuelTransaction.objects.count()
+            
             # Monthly usage trends (last 6 months)
             six_months_ago = timezone.now() - timedelta(days=180)
             monthly_usage = (FuelTransaction.objects
@@ -2317,6 +2335,20 @@ def fuel_statistics(request):
                 for item in monthly_usage
             ]
             
+            # SubCenter allocation data
+            subcenter_allocation = (SubCenter.objects
+                                  .annotate(coupon_count=Count('coupon_allocations'))
+                                  .values('name', 'coupon_count')
+                                  .order_by('-coupon_count'))
+            
+            subcenters_chart_data = [
+                {
+                    'name': item['name'],
+                    'count': item['coupon_count']
+                }
+                for item in subcenter_allocation
+            ]
+            
             return Response({
                 'total_coupons': total_coupons,
                 'available_coupons': available_coupons,
@@ -2327,7 +2359,16 @@ def fuel_statistics(request):
                 'total_users': total_users,
                 'beneficiary_count': beneficiary_count,
                 'sub_center_count': sub_center_count,
+                'total_programs': total_programs,
+                'total_sessions': total_sessions,
+                'total_fuel_transactions': total_fuel_transactions,
+                # Fuel volume data
+                'total_fuel_allocated': float(total_fuel_allocated),
+                'total_fuel_used': float(used_fuel_volume),
+                'available_fuel': float(available_fuel),
+                # Chart data
                 'monthly_coupon_usage': monthly_coupon_usage,
+                'subcenters_chart_data': subcenters_chart_data,
                 # Additional dashboard properties
                 'allocated': allocated_coupons,
                 'allocation_rate': (allocated_coupons / total_coupons * 100) if total_coupons > 0 else 0,
@@ -2401,7 +2442,7 @@ def analytics_view(request):
 
         # --- Query Data ---
         fuel_transactions = FuelTransaction.objects.filter(transaction_date__range=[start_date, end_date])
-        attendances = Attendance.objects.filter(date__range=[start_date, end_date])
+        attendances = SessionAttendance.objects.filter(session__date__range=[start_date, end_date])
         entitlements = FuelEntitlement.objects.filter(created__date__range=[start_date, end_date])
 
         # --- Aggregate Data ---

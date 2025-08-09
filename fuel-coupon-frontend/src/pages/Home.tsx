@@ -168,25 +168,25 @@ const Home = () => {
   const stats_display = [
     { 
       title: "Active Users", 
-      value: stats?.active_users || 1250, 
+      value: stats?.active_users || 0, 
       prefix: <UserOutlined />, 
       color: "#1890ff" 
     },
     { 
       title: "Sub-Centers", 
-      value: stats?.sub_centers || 25, 
+      value: stats?.sub_centers || 0, 
       prefix: <BankOutlined />, 
       color: "#52c41a" 
     },
     { 
       title: "Distributed Coupons", 
-      value: stats?.distributed_coupons || 15420, 
+      value: stats?.distributed_coupons || 0, 
       prefix: <CarOutlined />, 
       color: "#faad14" 
     },
     { 
       title: "Success Rate", 
-      value: stats?.success_rate || 99.8, 
+      value: stats?.success_rate || 0, 
       suffix: "%", 
       prefix: <TrophyOutlined />, 
       color: "#722ed1" 

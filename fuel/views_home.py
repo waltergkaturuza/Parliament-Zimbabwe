@@ -27,9 +27,7 @@ def home_stats(request):
         sub_centers = SubCenter.objects.filter(is_active=True).count()
         
         # Distributed coupons count
-        distributed_coupons = CouponDistribution.objects.aggregate(
-            total=Sum('quantity_distributed')
-        )['total'] or 0
+        distributed_coupons = CouponDistribution.objects.count()
         
         # Success rate calculation (approved transactions vs total)
         total_transactions = FuelTransaction.objects.count()
@@ -70,29 +68,29 @@ def recent_activity(request):
         
         # Recent system alerts
         recent_alerts = SystemAlert.objects.filter(
-            created_at__gte=timezone.now() - timedelta(days=7)
-        ).order_by('-created_at')[:2]
+            created__gte=timezone.now() - timedelta(days=7)
+        ).order_by('-created')[:2]
         
         for alert in recent_alerts:
             activities.append({
                 'type': 'alert',
                 'title': alert.title,
                 'description': alert.message,
-                'time': alert.created_at,
+                'time': alert.created,
                 'icon_type': 'warning' if alert.level == 'WARNING' else 'info'
             })
         
         # Recent sub-center additions
         recent_centers = SubCenter.objects.filter(
-            created_at__gte=timezone.now() - timedelta(days=7)
-        ).order_by('-created_at')[:2]
+            created__gte=timezone.now() - timedelta(days=7)
+        ).order_by('-created')[:2]
         
         for center in recent_centers:
             activities.append({
                 'type': 'subcenter',
                 'title': 'New Sub-Center Added',
                 'description': f'{center.name} is now operational',
-                'time': center.created_at,
+                'time': center.created,
                 'icon_type': 'team'
             })
         
