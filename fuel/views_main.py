@@ -2278,6 +2278,42 @@ def admin_dashboard(request):
         )
 
 
+# Notification Statistics API View
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notification_stats(request):
+    """
+    Notification statistics endpoint
+    """
+    try:
+        # Get notification statistics based on the user's role and permissions
+        user = request.user
+        
+        # Basic notification stats structure expected by frontend
+        stats = {
+            'unread_count': 0,
+            'total_count': 0,
+            'recent_notifications': [],
+            'notification_types': {
+                'system': 0,
+                'alerts': 0,
+                'messages': 0,
+                'updates': 0
+            },
+            'last_updated': timezone.now().isoformat()
+        }
+        
+        # For now, return basic stats structure
+        # This can be expanded when notification models are implemented
+        return Response(stats)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve notification statistics: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 # Fuel Statistics API View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

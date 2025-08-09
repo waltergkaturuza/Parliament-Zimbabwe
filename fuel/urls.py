@@ -8,7 +8,7 @@ from .views_main import (
     RegisterView, LoginView,
     
     # Admin views
-    admin_dashboard, fuel_statistics, analytics_view,
+    admin_dashboard, fuel_statistics, analytics_view, notification_stats,
     
     # Existing ViewSets
     UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
@@ -121,6 +121,9 @@ urlpatterns = [
     # Admin dashboard endpoints - Updated paths
     path('api/v1/admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
     path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
+    
+    # Notification endpoints
+    path('api/v1/notifications/stats/', notification_stats, name='notification-stats'),
     
     # Analytics endpoints
     path('analytics/', analytics_view, name='analytics-view'),
