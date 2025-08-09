@@ -1,0 +1,3 @@
+Deployment forced at 2025-08-10 01:06:53
+This file triggers Azure App Service to restart with latest code.
+All 9 missing endpoints should be working after this deployment.
