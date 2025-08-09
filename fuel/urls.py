@@ -182,7 +182,10 @@ urlpatterns = [
     path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview'),
     path('api/v1/subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview-v1'),
     path('subcenter/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
-    path('api/v1/subcenter/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-statistics-v1'),
+    # General subcenter statistics endpoint (list all subcenters with stats)
+    path('api/v1/subcenter/statistics/', SubCenterViewSet.as_view({'get': 'list'}), name='subcenter-statistics-v1'),
+    # Individual subcenter statistics endpoint
+    path('api/v1/subcenters/<int:pk>/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-detail-statistics'),
     
     # Business Central Production Integration
     path('api/bc/webhook/', bc_webhook, name='bc-webhook'),
