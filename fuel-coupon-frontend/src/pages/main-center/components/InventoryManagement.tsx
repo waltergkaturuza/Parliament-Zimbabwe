@@ -189,55 +189,108 @@ const InventoryManagement: FC = () => {
   const loadInventoryData = async () => {
     setLoading(true);
     try {
-      // Simulate API call - replace with actual API calls
-      const sampleBoxInventory: BoxInventory[] = [
-        {
-          id: '1',
-          boxId: 'BOX001',
-          boxCode: 'FCB-2024-0001',
-          receivedDate: '2024-08-01',
-          totalBooks: 10,
-          booksAvailable: 7,
-          booksDispatched: 3,
-          fuelType: 'PETROL',
-          couponAmount: 20,
-          totalCoupons: 200,
-          couponsAvailable: 140,
-          couponsDispatched: 60,
-          totalValue: 800000,
-          valueDispatched: 240000,
-          valueRemaining: 560000,
-          status: 'PARTIAL',
-          location: 'Main Storage A1',
-          books: [],
-        },
-        {
-          id: '2',
-          boxId: 'BOX002',
-          boxCode: 'FCB-2024-0002',
-          receivedDate: '2024-08-05',
-          totalBooks: 10,
-          booksAvailable: 10,
-          booksDispatched: 0,
-          fuelType: 'DIESEL',
-          couponAmount: 5,
-          totalCoupons: 200,
-          couponsAvailable: 200,
-          couponsDispatched: 0,
-          totalValue: 180000,
-          valueDispatched: 0,
-          valueRemaining: 180000,
-          status: 'FULL',
-          location: 'Main Storage A2',
-          books: [],
-        },
-      ];
+      // Load boxes from API
+      const boxResponse = await apiClient.get('/api/v1/boxes/');
+      const boxData = boxResponse.data.results || boxResponse.data || [];
 
-      setBoxInventory(sampleBoxInventory);
-      calculateStats(sampleBoxInventory);
+      // Load books data for each box
+      const boxInventoryPromises = boxData.map(async (box: any) => {
+        try {
+          // Get books for this box
+          const booksResponse = await apiClient.get(`/api/v1/books/?box_id=${box.id}`);
+          const books = booksResponse.data.results || booksResponse.data || [];
+
+          // Calculate statistics
+          const totalBooks = books.length;
+          const booksDispatched = books.filter((book: any) => book.status === 'DISPATCHED').length;
+          const booksAvailable = totalBooks - booksDispatched;
+          
+          // Estimate coupons (typically 10-20 per book depending on fuel type)
+          const couponsPerBook = box.fuel_type === 'PETROL' ? 20 : 10;
+          const totalCoupons = totalBooks * couponsPerBook;
+          const couponsDispatched = booksDispatched * couponsPerBook;
+          const couponsAvailable = totalCoupons - couponsDispatched;
+
+          // Calculate values (using current fuel prices)
+          const pricePerLitre = box.fuel_type === 'PETROL' ? 37.95 : 36.00;
+          const litresPerCoupon = box.fuel_type === 'PETROL' ? 20 : 5;
+          const totalValue = totalCoupons * litresPerCoupon * pricePerLitre;
+          const valueDispatched = couponsDispatched * litresPerCoupon * pricePerLitre;
+          const valueRemaining = totalValue - valueDispatched;
+
+          // Determine status
+          let status: 'FULL' | 'PARTIAL' | 'EMPTY' | 'RESERVED' = 'FULL';
+          if (booksAvailable === 0) status = 'EMPTY';
+          else if (booksAvailable < totalBooks * 0.3) status = 'PARTIAL';
+
+          return {
+            id: String(box.id),
+            boxId: `BOX${String(box.id).padStart(3, '0')}`,
+            boxCode: box.box_code || `FCB-2024-${String(box.id).padStart(4, '0')}`,
+            receivedDate: box.received_at ? dayjs(box.received_at).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+            totalBooks,
+            booksAvailable,
+            booksDispatched,
+            fuelType: (box.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
+            couponAmount: (box.fuel_type === 'PETROL' ? 20 : 5) as 5 | 20,
+            totalCoupons,
+            couponsAvailable,
+            couponsDispatched,
+            totalValue,
+            valueDispatched,
+            valueRemaining,
+            status,
+            location: box.storage_location || 'Main Warehouse',
+            books: [], // We'll load individual books when needed
+          };
+        } catch (error) {
+          console.error(`Error loading books for box ${box.id}:`, error);
+          // Return basic box info even if books fail to load
+          return {
+            id: String(box.id),
+            boxId: `BOX${String(box.id).padStart(3, '0')}`,
+            boxCode: box.box_code || `FCB-2024-${String(box.id).padStart(4, '0')}`,
+            receivedDate: box.received_at ? dayjs(box.received_at).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+            totalBooks: 0,
+            booksAvailable: 0,
+            booksDispatched: 0,
+            fuelType: (box.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
+            couponAmount: (box.fuel_type === 'PETROL' ? 20 : 5) as 5 | 20,
+            totalCoupons: 0,
+            couponsAvailable: 0,
+            couponsDispatched: 0,
+            totalValue: 0,
+            valueDispatched: 0,
+            valueRemaining: 0,
+            status: 'EMPTY' as const,
+            location: box.storage_location || 'Main Warehouse',
+            books: [],
+          };
+        }
+      });
+
+      const inventoryData = await Promise.all(boxInventoryPromises);
+      setBoxInventory(inventoryData);
+      calculateStats(inventoryData);
     } catch (error) {
       console.error('Error loading inventory:', error);
       message.error('Failed to load inventory data');
+      // Set empty data on error
+      setBoxInventory([]);
+      setStats({
+        totalBoxes: 0,
+        totalBooks: 0,
+        totalCoupons: 0,
+        totalValue: 0,
+        availableBooks: 0,
+        dispatchedBooks: 0,
+        availableCoupons: 0,
+        dispatchedCoupons: 0,
+        availableValue: 0,
+        dispatchedValue: 0,
+        lowStockBoxes: 0,
+        emptyBoxes: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -245,38 +298,29 @@ const InventoryManagement: FC = () => {
 
   const loadDispatchHistory = async () => {
     try {
-      const sampleHistory: DispatchHistory[] = [
-        {
-          id: '1',
-          dispatchId: 'DSP-2024-08-001',
-          date: '2024-08-08',
-          time: '10:30',
-          subCenterName: 'Harare Central Sub-Center',
-          officerName: 'Peter Ncube',
-          booksCount: 3,
-          couponsCount: 60,
-          totalValue: 240000,
-          status: 'CONFIRMED',
-          trackingNumber: 'TRK-001',
-        },
-        {
-          id: '2',
-          dispatchId: 'DSP-2024-08-002',
-          date: '2024-08-09',
-          time: '14:15',
-          subCenterName: 'Bulawayo North Sub-Center',
-          officerName: 'Susan Moyo',
-          booksCount: 2,
-          couponsCount: 40,
-          totalValue: 72000,
-          status: 'DISPATCHED',
-          trackingNumber: 'TRK-002',
-        },
-      ];
+      // Load dispatch history from API
+      const response = await apiClient.get('/api/v1/dispatches/');
+      const dispatches = response.data.results || response.data || [];
 
-      setDispatchHistory(sampleHistory);
+      const historyData: DispatchHistory[] = dispatches.map((dispatch: any) => ({
+        id: String(dispatch.id),
+        dispatchId: dispatch.dispatch_id || `DSP-${String(dispatch.id).padStart(6, '0')}`,
+        date: dispatch.dispatch_date ? dayjs(dispatch.dispatch_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+        time: dispatch.dispatch_time || dayjs().format('HH:mm'),
+        subCenterName: dispatch.subcenter?.name || dispatch.subcenter_name || 'Unknown Sub-Center',
+        officerName: dispatch.dispatched_by?.full_name || dispatch.dispatched_by_name || 'System User',
+        booksCount: dispatch.books?.length || dispatch.total_books || 0,
+        couponsCount: dispatch.total_coupons || 0,
+        totalValue: dispatch.total_value || 0,
+        status: dispatch.status || 'PENDING',
+        trackingNumber: dispatch.tracking_number || `TRK-${String(dispatch.id).padStart(3, '0')}`,
+      }));
+
+      setDispatchHistory(historyData);
     } catch (error) {
       console.error('Error loading dispatch history:', error);
+      // Set empty array on error, but don't show error message since this is secondary data
+      setDispatchHistory([]);
     }
   };
 
@@ -299,40 +343,87 @@ const InventoryManagement: FC = () => {
     setStats(newStats);
   };
 
-  const calculateRequirements = () => {
-    // Sample requirements calculation
-    const sampleRequirements: FuelRequirement[] = [
-      {
-        period: 'daily',
-        fuelType: 'PETROL',
-        requiredLitres: 500,
-        requiredCoupons: 25,
-        estimatedCost: 100000,
-        startDate: dayjs().format('YYYY-MM-DD'),
-        endDate: dayjs().format('YYYY-MM-DD'),
-      },
-      {
-        period: 'weekly',
-        fuelType: 'DIESEL',
-        requiredLitres: 800,
-        requiredCoupons: 160,
-        estimatedCost: 144000,
-        startDate: dayjs().startOf('week').format('YYYY-MM-DD'),
-        endDate: dayjs().endOf('week').format('YYYY-MM-DD'),
-      },
-      {
-        period: 'event',
-        fuelType: 'PETROL',
-        requiredLitres: 2000,
-        requiredCoupons: 100,
-        estimatedCost: 400000,
-        eventName: 'Parliament Special Session',
-        startDate: '2024-08-15',
-        endDate: '2024-08-20',
-      },
-    ];
+  const calculateRequirements = async () => {
+    try {
+      // Try to get fuel consumption analytics from API
+      const response = await apiClient.get('/api/v1/analytics/fuel-requirements/');
+      const apiRequirements = response.data.results || response.data || [];
+      
+      if (apiRequirements.length > 0) {
+        setRequirements(apiRequirements);
+        return;
+      }
+    } catch (error) {
+      console.log('API fuel requirements not available, using calculated estimates');
+    }
 
-    setRequirements(sampleRequirements);
+    try {
+      // If API doesn't have requirements, calculate based on historical data
+      const analyticsResponse = await apiClient.get('/api/v1/analytics/consumption-trend/?days=30');
+      const consumptionData = analyticsResponse.data;
+      
+      // Calculate average daily consumption
+      const avgDailyPetrol = consumptionData?.petrol_avg || 500;
+      const avgDailyDiesel = consumptionData?.diesel_avg || 800;
+      
+      // Generate requirements based on historical patterns
+      const calculatedRequirements: FuelRequirement[] = [
+        {
+          period: 'daily',
+          fuelType: 'PETROL',
+          requiredLitres: Math.round(avgDailyPetrol),
+          requiredCoupons: Math.round(avgDailyPetrol / 20), // 20L per petrol coupon
+          estimatedCost: Math.round(avgDailyPetrol * 37.95), // Current petrol price
+          startDate: dayjs().format('YYYY-MM-DD'),
+          endDate: dayjs().format('YYYY-MM-DD'),
+        },
+        {
+          period: 'weekly',
+          fuelType: 'DIESEL',
+          requiredLitres: Math.round(avgDailyDiesel * 7),
+          requiredCoupons: Math.round((avgDailyDiesel * 7) / 5), // 5L per diesel coupon
+          estimatedCost: Math.round(avgDailyDiesel * 7 * 36.00), // Current diesel price
+          startDate: dayjs().startOf('week').format('YYYY-MM-DD'),
+          endDate: dayjs().endOf('week').format('YYYY-MM-DD'),
+        },
+        {
+          period: 'monthly',
+          fuelType: 'PETROL',
+          requiredLitres: Math.round(avgDailyPetrol * 30),
+          requiredCoupons: Math.round((avgDailyPetrol * 30) / 20),
+          estimatedCost: Math.round(avgDailyPetrol * 30 * 37.95),
+          startDate: dayjs().startOf('month').format('YYYY-MM-DD'),
+          endDate: dayjs().endOf('month').format('YYYY-MM-DD'),
+        },
+      ];
+
+      setRequirements(calculatedRequirements);
+    } catch (error) {
+      console.error('Error calculating requirements:', error);
+      // Fallback to basic estimates if analytics fail
+      const fallbackRequirements: FuelRequirement[] = [
+        {
+          period: 'daily',
+          fuelType: 'PETROL',
+          requiredLitres: 500,
+          requiredCoupons: 25,
+          estimatedCost: 18975,
+          startDate: dayjs().format('YYYY-MM-DD'),
+          endDate: dayjs().format('YYYY-MM-DD'),
+        },
+        {
+          period: 'weekly',
+          fuelType: 'DIESEL',
+          requiredLitres: 800,
+          requiredCoupons: 160,
+          estimatedCost: 28800,
+          startDate: dayjs().startOf('week').format('YYYY-MM-DD'),
+          endDate: dayjs().endOf('week').format('YYYY-MM-DD'),
+        },
+      ];
+
+      setRequirements(fallbackRequirements);
+    }
   };
 
   const getStatusColor = (status: string) => {

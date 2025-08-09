@@ -55,11 +55,12 @@ from .views_bc_production import (
 )
 
 # Export and print views
-from .views_export import (
-    export_coupons, export_transactions, export_users, export_beneficiaries,
-    export_books, print_coupon, print_handover_report, export_dashboard_data,
-    download_template
-)
+# Commented out for deployment optimization - imports with pandas/pillow dependencies
+# from .views_export import (
+#     export_coupons, export_transactions, export_users, export_beneficiaries,
+#     export_books, print_coupon, print_handover_report, export_dashboard_data,
+#     download_template
+# )
 
 router = DefaultRouter()
 
@@ -166,18 +167,18 @@ urlpatterns = [
     path('api/setup/database-status/', database_status_api, name='database-status'),
     path('api/setup/create-superuser/', create_superuser_api, name='create-superuser'),
     
-    # Export and Download endpoints
-    path('api/export/coupons/', export_coupons, name='export-coupons'),
-    path('api/export/transactions/', export_transactions, name='export-transactions'),
-    path('api/export/users/', export_users, name='export-users'),
-    path('api/export/beneficiaries/', export_beneficiaries, name='export-beneficiaries'),
-    path('api/export/books/', export_books, name='export-books'),
-    path('api/export/dashboard/', export_dashboard_data, name='export-dashboard'),
-    path('api/export/template/', download_template, name='download-template'),
+    # Export and Download endpoints - Commented out for deployment optimization
+    # path('api/export/coupons/', export_coupons, name='export-coupons'),
+    # path('api/export/transactions/', export_transactions, name='export-transactions'),
+    # path('api/export/users/', export_users, name='export-users'),
+    # path('api/export/beneficiaries/', export_beneficiaries, name='export-beneficiaries'),
+    # path('api/export/books/', export_books, name='export-books'),
+    # path('api/export/dashboard/', export_dashboard_data, name='export-dashboard'),
+    # path('api/export/template/', download_template, name='download-template'),
     
-    # Print endpoints
-    path('api/print/coupon/', print_coupon, name='print-coupon'),
-    path('api/print/handover/', print_handover_report, name='print-handover'),
+    # Print endpoints - Commented out for deployment optimization
+    # path('api/print/coupon/', print_coupon, name='print-coupon'),
+    # path('api/print/handover/', print_handover_report, name='print-handover'),
     
     # Include profile URLs 
     path('', include('fuel.urls_profile')),

@@ -13,7 +13,7 @@ import django
 print(f"[PRODUCTION SETTINGS] Django version: {django.get_version()}")
 print(f"[PRODUCTION SETTINGS] Python environment variables loaded")
 
-# Override MIDDLEWARE to enable proper CORS handling
+# Override MIDDLEWARE to enable proper CORS and request handling
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -25,7 +25,11 @@ MIDDLEWARE = [
     'auth.middleware.RequestLoggingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Add custom middleware for API error handling
 ]
+
+# Site URL - Use the ACTUAL DEPLOYED backend URL  
+SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
 
 # Print all environment variables at startup for debug
 import logging
@@ -334,21 +338,24 @@ CSRF_TRUSTED_ORIGINS = [
     'https://parliament.gov.zw',
 ]
 
-# CORS settings - Fixed for production
+# CORS settings - Enhanced for production frontend-backend communication
 CORS_ALLOWED_ORIGINS = [
     'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net',  # Current frontend
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
 ]
 
-# Site URL - Use the ACTUAL DEPLOYED backend URL
-SITE_URL = 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
+# Add the backend URL itself to CORS for API documentation and testing
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.azurestaticapps\.net$",  # Allow any Azure Static Web App
+    r"^https://.*\.parliament\.gov\.zw$",   # Allow parliament subdomains
+]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
 CORS_PREFLIGHT_MAX_AGE = 86400  # 1 day
 
-# More comprehensive CORS headers
+# More comprehensive CORS headers for better frontend compatibility
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -364,6 +371,8 @@ CORS_ALLOW_HEADERS = [
     'x-forwarded-for',
     'x-forwarded-proto',
     'access-control-allow-origin',
+    'x-api-key',  # For potential API authentication
+    'x-client-version',  # For client version tracking
 ]
 
 CORS_ALLOW_METHODS = [
@@ -376,12 +385,15 @@ CORS_ALLOW_METHODS = [
     'HEAD',
 ]
 
-# Additional CORS settings for better compatibility
+# Enhanced CORS headers for API responses
 CORS_EXPOSE_HEADERS = [
     'content-type',
     'x-csrftoken',
     'access-control-allow-origin',
     'access-control-allow-credentials',
+    'x-pagination-count',  # For pagination info
+    'x-pagination-page',
+    'x-api-version',  # For API versioning
 ]
 
 # Business Central Integration Settings
@@ -405,6 +417,48 @@ if DEBUG_PRODUCTION_ISSUES:
 else:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOW_CREDENTIALS = True
+
+# API Response and Performance Settings
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# REST Framework settings for better API handling
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
+    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour'
+    }
+}
+
+# Database connection optimization for Azure
+if 'default' in DATABASES:
+    DATABASES['default']['CONN_MAX_AGE'] = 600  # 10 minutes
+    DATABASES['default']['OPTIONS'].update({
+        'MAX_CONNS': 20,
+        'connect_timeout': 10,
+        'command_timeout': 30,
+    })
 
 # Time zone
 TIME_ZONE = 'Africa/Harare'

@@ -134,7 +134,7 @@ const BoxReceiptManagement: FC = () => {
   const fetchBoxReceipts = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/boxes/');
+      const response = await apiClient.get('/api/v1/boxes/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -353,7 +353,7 @@ const BoxReceiptManagement: FC = () => {
 
       if (selectedBox) {
         // Edit existing box
-        const response = await apiClient.put(`/boxes/${selectedBox.id}/`, boxData);
+        const response = await apiClient.put(`/api/v1/boxes/${selectedBox.id}/`, boxData);
         if (response.status === 200) {
           // Update local state
           setBoxReceipts(prev => prev.map(box => 
@@ -365,7 +365,7 @@ const BoxReceiptManagement: FC = () => {
         }
       } else {
         // Create new box
-        const response = await apiClient.post('/boxes/', boxData);
+        const response = await apiClient.post('/api/v1/boxes/', boxData);
         if (response.status === 201) {
           const newBox: BoxReceipt = {
             id: String(response.data.id),

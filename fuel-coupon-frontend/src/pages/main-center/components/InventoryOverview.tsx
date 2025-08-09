@@ -105,7 +105,7 @@ const InventoryOverview: FC = () => {
   const loadInventoryData = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/boxes/');
+      const response = await apiClient.get('/api/v1/boxes/');
       const data = response.data;
       
       // Handle both paginated and direct array responses

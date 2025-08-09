@@ -1,7 +1,7 @@
 // src/services/homeApi.ts
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const homeApi = axios.create({
   baseURL: API_BASE_URL,
@@ -61,7 +61,7 @@ export const homeApiService = {
   // Get homepage statistics
   async getStats(): Promise<HomeStats> {
     try {
-      const response = await homeApi.get<ApiResponse<HomeStats>>('/v1/home/stats/');
+      const response = await homeApi.get<ApiResponse<HomeStats>>('/api/v1/home/stats/');
       if (response.data.status === 'success') {
         return response.data.data;
       }
@@ -75,7 +75,7 @@ export const homeApiService = {
   // Get recent activity
   async getRecentActivity(): Promise<ActivityItem[]> {
     try {
-      const response = await homeApi.get<ApiResponse<ActivityItem[]>>('/v1/api/home/activity/');
+      const response = await homeApi.get<ApiResponse<ActivityItem[]>>('/api/v1/home/activity/');
       if (response.data.status === 'success') {
         return response.data.data;
       }
@@ -89,7 +89,7 @@ export const homeApiService = {
   // Get system health metrics
   async getSystemHealth(): Promise<SystemHealth> {
     try {
-      const response = await homeApi.get<ApiResponse<SystemHealth>>('/v1/api/home/health/');
+      const response = await homeApi.get<ApiResponse<SystemHealth>>('/api/v1/home/health/');
       if (response.data.status === 'success') {
         return response.data.data;
       }
@@ -103,7 +103,7 @@ export const homeApiService = {
   // Get quick insights
   async getQuickInsights(): Promise<QuickInsights> {
     try {
-      const response = await homeApi.get<ApiResponse<QuickInsights>>('/v1/api/home/insights/');
+      const response = await homeApi.get<ApiResponse<QuickInsights>>('/api/v1/home/insights/');
       if (response.data.status === 'success') {
         return response.data.data;
       }

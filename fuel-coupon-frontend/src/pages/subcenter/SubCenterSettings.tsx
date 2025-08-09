@@ -62,7 +62,7 @@ const SubCenterSettings: FC = () => {
       const currentUser = userResponse.data;
       
       if (currentUser.sub_center) {
-        const subCenterResponse = await apiClient.get(`/subcenters/${currentUser.sub_center}/`);
+                const subCenterResponse = await apiClient.get(`/api/v1/subcenters/${currentUser.sub_center}/`);
         const subCenterData = subCenterResponse.data;
         setSubCenter(subCenterData);
 
@@ -117,7 +117,7 @@ const SubCenterSettings: FC = () => {
         status: values.status
       };
 
-      await apiClient.put(`/subcenters/${subCenter.id}/`, subCenterData);
+      await apiClient.put(`/api/v1/subcenters/${subCenter.id}/`, subCenterData);
 
       // Update configuration (this would typically be stored in a separate settings model)
       const newConfig: SubCenterConfig = {

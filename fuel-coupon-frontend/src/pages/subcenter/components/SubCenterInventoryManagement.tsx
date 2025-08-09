@@ -177,57 +177,45 @@ const SubCenterInventoryManagement: FC = () => {
     setLoading(true);
     try {
       // Simulate incoming books from main center dispatches
-      const sampleIncomingBooks: IncomingBook[] = [
-        {
-          id: '1',
-          bookId: 'BOOK001',
-          bookNumber: 'PET20-BOOK-2024-001',
-          boxId: 'FCB-2024-0001',
-          fuelType: 'PETROL',
-          couponAmount: 20,
-          firstCouponSerial: 'PET20-2024-08-000001',
-          lastCouponSerial: 'PET20-2024-08-000020',
-          totalCoupons: 20,
-          couponsAllocated: 5,
-          couponsRemaining: 15,
-          totalValue: 80000,
-          valueAllocated: 20000,
-          valueRemaining: 60000,
-          receivedDate: '2024-08-09',
-          receivedTime: '10:30',
-          receivedBy: 'Peter Ncube',
-          dispatchId: 'DSP-2024-08-001',
-          fromMainCenter: 'Parliament Main Center',
-          status: 'IN_USE',
-          pages: generateCouponPages('PET20-2024-08-000001', 20, 'BOOK001'),
-        },
-        {
-          id: '2',
-          bookId: 'BOOK002',
-          bookNumber: 'DSL5-BOOK-2024-001',
-          boxId: 'FCB-2024-0002',
-          fuelType: 'DIESEL',
-          couponAmount: 5,
-          firstCouponSerial: 'DSL5-2024-08-000001',
-          lastCouponSerial: 'DSL5-2024-08-000020',
-          totalCoupons: 20,
-          couponsAllocated: 0,
-          couponsRemaining: 20,
-          totalValue: 18000,
-          valueAllocated: 0,
-          valueRemaining: 18000,
-          receivedDate: '2024-08-09',
-          receivedTime: '14:15',
-          receivedBy: 'Peter Ncube',
-          dispatchId: 'DSP-2024-08-002',
-          fromMainCenter: 'Parliament Main Center',
-          status: 'RECEIVED',
-          pages: generateCouponPages('DSL5-2024-08-000001', 20, 'BOOK002'),
-        },
-      ];
+      // Load books received by this subcenter from API
+      const response = await apiClient.get('/api/v1/books/received/');
+      const booksData = response.data.results || response.data || [];
 
-      setIncomingBooks(sampleIncomingBooks);
-      calculateStats(sampleIncomingBooks);
+      const processedBooks: IncomingBook[] = booksData.map((book: any) => {
+        // Calculate coupon pages for this book
+        const pages = generateCouponPages(
+          book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-${book.id}-000001`,
+          book.total_coupons || 20,
+          String(book.id)
+        );
+
+        return {
+          id: String(book.id),
+          bookId: `BOOK${String(book.id).padStart(3, '0')}`,
+          bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
+          boxId: book.box?.box_code || `FCB-2024-${String(book.box_id || book.id).padStart(4, '0')}`,
+          fuelType: (book.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
+          couponAmount: (book.coupon_amount || (book.fuel_type === 'PETROL' ? 20 : 5)) as 5 | 20,
+          firstCouponSerial: book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000001`,
+          lastCouponSerial: book.last_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000020`,
+          totalCoupons: book.total_coupons || 20,
+          couponsAllocated: book.coupons_allocated || 0,
+          couponsRemaining: (book.total_coupons || 20) - (book.coupons_allocated || 0),
+          totalValue: book.total_value || ((book.total_coupons || 20) * (book.coupon_amount || 20) * (book.fuel_type === 'PETROL' ? 37.95 : 36.00)),
+          valueAllocated: book.value_allocated || 0,
+          valueRemaining: (book.total_value || 0) - (book.value_allocated || 0),
+          receivedDate: book.received_date ? dayjs(book.received_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+          receivedTime: book.received_time || dayjs().format('HH:mm'),
+          receivedBy: book.received_by?.full_name || book.received_by_name || 'System User',
+          dispatchId: book.dispatch?.dispatch_id || book.dispatch_id || `DSP-${String(book.id).padStart(6, '0')}`,
+          fromMainCenter: 'Parliament Main Center',
+          status: book.status || 'RECEIVED',
+          pages,
+        };
+      });
+
+      setIncomingBooks(processedBooks);
+      calculateStats(processedBooks);
     } catch (error) {
       console.error('Error loading inventory:', error);
       message.error('Failed to load inventory data');

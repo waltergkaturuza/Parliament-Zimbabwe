@@ -82,9 +82,11 @@ const MainCenterDashboard: React.FC = () => {
       setLoading(true);
       console.log('Fetching dashboard stats from backend...');
       
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      
       // Try to fetch from actual Django API
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/v1/dashboard/', {
+        const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
             'Content-Type': 'application/json',
@@ -111,7 +113,7 @@ const MainCenterDashboard: React.FC = () => {
           
           // Also try to fetch alerts
           try {
-            const alertsResponse = await fetch('http://127.0.0.1:8000/api/v1/analytics/', {
+            const alertsResponse = await fetch(`${API_BASE_URL}/api/v1/analytics/`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
                 'Content-Type': 'application/json',

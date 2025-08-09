@@ -92,7 +92,7 @@ const SubCenterParliamentActivity: FC = () => {
       setLoading(true);
       
       // Fetch subcenter activities from backend
-      const response = await apiClient.get('/subcenters/activities/', {
+                  const response = await apiClient.get('/api/v1/subcenter/statistics/', {
         params: {
           include_parliament_data: true
         }
@@ -143,7 +143,7 @@ const SubCenterParliamentActivity: FC = () => {
   const loadStats = async () => {
     try {
       // Fetch statistics from backend
-      const response = await apiClient.get('/subcenters/statistics/', {
+      const response = await apiClient.get('/api/v1/subcenter/overview/', {
         params: {
           include_parliament_data: true
         }
