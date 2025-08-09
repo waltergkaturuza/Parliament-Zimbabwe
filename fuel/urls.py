@@ -120,20 +120,17 @@ urlpatterns = [
     
     # Admin dashboard endpoints - Updated paths
     path('api/v1/admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
+    path('api/v1/dashboard/', admin_dashboard, name='dashboard-v1'),
     path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
     
     # Notification endpoints
     path('api/v1/notifications/stats/', notification_stats, name='notification-stats'),
     
-    # API v1 specific endpoints for frontend compatibility
-    path('api/v1/boxes/', include(router.urls)),
-    path('api/v1/books/', include(router.urls)),  
-    path('api/v1/dispatches/', include(router.urls)),
-    path('api/v1/analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics-v1'),
-    
     # Analytics endpoints
     path('analytics/', analytics_view, name='analytics-view'),
     path('analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics'),
+    path('api/v1/analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics-v1'),
+    path('api/v1/analytics/consumption-trend/', analytics_view, name='consumption-trend-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
     
@@ -142,6 +139,13 @@ urlpatterns = [
     
     # Users endpoints with role filtering
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
+    path('users/stats/', UserViewSet.as_view({'get': 'stats'}), name='user-stats'),
+    
+    # Router endpoints for missing paths
+    path('users/', UserViewSet.as_view({'get': 'list'}), name='users-list'),
+    path('subcenters/', SubCenterViewSet.as_view({'get': 'list'}), name='subcenters-list'),
+    path('sub-centers/', SubCenterViewSet.as_view({'get': 'list'}), name='sub-centers-list'),  # Alternative path
+    path('beneficiaries/', BeneficiaryProfileViewSet.as_view({'get': 'list'}), name='beneficiaries-list'),
     
     # Audit endpoints
     path('audit-logs/', AuditLogViewSet.as_view({'get': 'list'}), name='audit-logs'),
