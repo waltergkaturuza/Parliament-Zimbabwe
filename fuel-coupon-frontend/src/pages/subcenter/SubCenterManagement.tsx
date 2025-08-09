@@ -52,7 +52,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 
 const { Title, Text } = Typography;
 const { Search } = Input;

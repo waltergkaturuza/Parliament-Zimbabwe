@@ -31,7 +31,7 @@ import {
   UserOutlined,
   EnvironmentOutlined,
 } from '@ant-design/icons';
-import apiClient from '../../api/apiClient';
+import apiClient from '../../api/index';
 import type { AuditTransaction, AuditTrail } from '../../types';
 
 const { Title, Text } = Typography;

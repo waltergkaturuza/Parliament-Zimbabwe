@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Table, Button, Space, Form, Input, Select, Modal, Tag, message, Spin, Typography, Row, Col, Statistic, InputNumber } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined, BarChartOutlined } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import type { FuelEntitlement, BeneficiaryProfile, VehicleCategory } from '../../types';
 
 const { Title } = Typography;

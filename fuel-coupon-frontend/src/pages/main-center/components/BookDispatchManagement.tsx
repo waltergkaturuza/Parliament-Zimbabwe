@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import apiClient from '../../../api/apiClient';
+import apiClient from '../../../api/index';
 import {
   Card,
   Table,

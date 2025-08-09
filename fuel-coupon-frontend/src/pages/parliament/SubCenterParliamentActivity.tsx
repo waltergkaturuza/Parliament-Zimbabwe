@@ -34,7 +34,7 @@ import {
   ClockCircleOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 

@@ -39,7 +39,7 @@ import {
   CarOutlined,
   ClockCircleOutlined
 } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import type { ParliamentSession } from '../../types';
 import dayjs from 'dayjs';
 

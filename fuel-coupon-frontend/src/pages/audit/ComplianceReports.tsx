@@ -26,7 +26,7 @@ import {
   ExclamationCircleOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
-import apiClient from '../../api/apiClient';
+import apiClient from '../../api/index';
 import type { ComplianceReport } from '../../types';
 
 const { Title, Text } = Typography;

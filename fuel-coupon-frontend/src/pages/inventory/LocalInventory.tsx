@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Table, Button, Space, Statistic, Row, Col, Tag, Alert, Spin, Typography, Progress } from 'antd';
 import { PlusOutlined, SyncOutlined, WarningOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import apiClient from '../../api/apiClient';
+import apiClient from '../../api/index';
 import type { Book, Box, SubCenter } from '../../types/models';
 
 const { Title } = Typography;

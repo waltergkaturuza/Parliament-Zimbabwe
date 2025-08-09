@@ -29,7 +29,7 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
-import apiClient from '../../../api/apiClient';
+import apiClient from '../../../api/index';
 
 const { Title, Text } = Typography;
 const { Search } = Input;

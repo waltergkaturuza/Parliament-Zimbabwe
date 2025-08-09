@@ -16,7 +16,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import dayjs from 'dayjs';
 
 // Register Chart.js components

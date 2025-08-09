@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Form, Input, Button, Select, Switch, message, Spin, Typography, Row, Col, Divider, Space, Modal, InputNumber, Upload } from 'antd';
 import { SaveOutlined, ReloadOutlined, SettingOutlined, SecurityScanOutlined, DollarOutlined, UploadOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 
 const { Title, Text } = Typography;
 const { Option } = Select;

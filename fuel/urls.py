@@ -125,8 +125,15 @@ urlpatterns = [
     # Notification endpoints
     path('api/v1/notifications/stats/', notification_stats, name='notification-stats'),
     
+    # API v1 specific endpoints for frontend compatibility
+    path('api/v1/boxes/', include(router.urls)),
+    path('api/v1/books/', include(router.urls)),  
+    path('api/v1/dispatches/', include(router.urls)),
+    path('api/v1/analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics-v1'),
+    
     # Analytics endpoints
     path('analytics/', analytics_view, name='analytics-view'),
+    path('analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
     

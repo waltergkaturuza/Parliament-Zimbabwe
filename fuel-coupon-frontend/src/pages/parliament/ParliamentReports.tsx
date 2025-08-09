@@ -31,7 +31,7 @@ import {
   PrinterOutlined,
   ExportOutlined
 } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;

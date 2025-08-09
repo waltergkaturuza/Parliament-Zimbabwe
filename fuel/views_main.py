@@ -248,6 +248,33 @@ class UserViewSet(viewsets.ModelViewSet):
             'users': serializer.data
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def stats(self, request):
+        """Get user statistics"""
+        total_users = User.objects.count()
+        active_users = User.objects.filter(is_active=True).count()
+        approved_users = User.objects.filter(is_approved=True).count()
+        pending_users = User.objects.filter(is_approved=False, rejection_reason__isnull=True).count()
+        
+        # Role-based stats
+        main_center_users = User.objects.filter(role='MAIN_CENTER').count()
+        sub_center_users = User.objects.filter(role='SUB_CENTER').count()
+        parliament_users = User.objects.filter(role='PARLIAMENT').count()
+        auditor_users = User.objects.filter(role='AUDITOR').count()
+        
+        return Response({
+            'total_users': total_users,
+            'active_users': active_users,
+            'approved_users': approved_users,
+            'pending_users': pending_users,
+            'roles': {
+                'main_center': main_center_users,
+                'sub_center': sub_center_users,
+                'parliament': parliament_users,
+                'auditor': auditor_users,
+            }
+        })
+
 
 # Added SubCenterOfficer ViewSet
 class SubCenterOfficerViewSet(viewsets.ModelViewSet):

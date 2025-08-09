@@ -1,6 +1,6 @@
 // src/api/subcenters/subcenters.ts
 // Correct the import path to your apiClient instance
-import apiClient from '../apiClient'; // Assuming apiClient is in api/apiClient.ts
+import apiClient from '../index'; // Using main API client
 // OR if your configured instance is exported from api/index.ts:
 // import apiClient from '../index';
 

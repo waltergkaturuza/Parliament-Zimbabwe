@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Form, Input, Button, Select, Switch, message, Spin, Typography, Row, Col, Divider, Space, Modal } from 'antd';
 import { SaveOutlined, ReloadOutlined, SettingOutlined, UserOutlined, HomeOutlined } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import type { SubCenter, User } from '../../types';
 
 const { Title, Text } = Typography;

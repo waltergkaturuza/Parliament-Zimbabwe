@@ -41,16 +41,21 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     console.error('API Response Error:', error);
-    // Handle errors: redirect to login on 401, etc.
+    // Handle errors: log them but let AuthContext handle 401s
     if (error.response) {
       console.error('Error response:', error.response.status, error.response.data);
-      // Optionally handle other status codes as needed
-      if (error.response.status === 401) {
-        // Remove the token and redirect to login
-        localStorage.removeItem('access_token');
-        window.location.href = '/login';
+      
+      // Let AuthContext handle 401s with token refresh logic
+      // Only handle other status codes here
+      if (error.response.status === 403) {
+        console.warn('Access forbidden - insufficient permissions:', error.response.data);
+        // Don't redirect to login for permission issues
+      } else if (error.response.status >= 500) {
+        console.error('Server error:', error.response.status, error.response.data);
       }
-      // Optionally show a toast or notification for all API errors
+      // Note: 401s are handled by AuthContext interceptor for token refresh
+      
+      // Optionally show a toast or notification for specific errors
       // window.alert('API Error: ' + (error.response.data?.detail || error.response.statusText));
     } else if (error.request) {
       // Network or CORS error

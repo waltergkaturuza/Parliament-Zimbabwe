@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Table, Button, Input, Select, DatePicker, Tag, Space, Typography, Row, Col, message, Spin, Modal } from 'antd';
 import { SearchOutlined, DownloadOutlined, EyeOutlined, FilterOutlined, ReloadOutlined } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;

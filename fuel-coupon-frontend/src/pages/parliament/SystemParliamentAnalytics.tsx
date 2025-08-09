@@ -53,7 +53,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;

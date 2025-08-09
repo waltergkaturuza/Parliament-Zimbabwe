@@ -38,7 +38,7 @@ import {
   CloseOutlined,
   TeamOutlined
 } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import type { Program, User } from '../../types';
 import dayjs from 'dayjs';
 

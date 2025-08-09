@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Table, Button, Space, Form, Input, DatePicker, Select, Modal, Tag, message, Spin, Typography, Row, Col, Statistic } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CalendarOutlined, UserOutlined } from '@ant-design/icons';
-import apiClient from '@/api/apiClient';
+import apiClient from '@/api/index';
 import type { ParliamentSession, BeneficiaryProfile } from '../../types';
 import dayjs from 'dayjs';
 
