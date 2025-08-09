@@ -10,8 +10,8 @@ from .views_main import (
     # Admin views
     admin_dashboard, fuel_statistics, analytics_view, notification_stats,
     
-    # NEW: Missing view implementations
-    main_dashboard, home_activity, home_insights, analytics_consumption_trend,
+    # NEW: Missing view implementations from views_main
+    main_dashboard, analytics_consumption_trend,
     change_password, mark_all_notifications_read, subcenter_statistics,
     
     # Existing ViewSets
@@ -132,9 +132,9 @@ urlpatterns = [
     path('api/home/insights/', quick_insights, name='home-insights'),
     path('api/v1/home/insights/', quick_insights, name='home-insights-v1'),
     
-    # Admin dashboard endpoints - Updated paths
+    # Admin dashboard endpoints - Fixed to use correct views
     path('api/v1/admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
-    path('api/v1/dashboard/', admin_dashboard, name='dashboard-v1'),
+    path('api/v1/dashboard/', main_dashboard, name='main-dashboard-v1'),
     path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
     
     # Fuel statistics endpoint
