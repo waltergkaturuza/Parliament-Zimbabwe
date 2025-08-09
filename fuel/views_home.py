@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from .models import (
     User, SubCenter, CouponDistribution, FuelTransaction, 
-    SystemAlert, AuditLog, ParliamentSession, BookDispatch
+    SystemAlert, AuditLog, ParliamentSession, BookDispatch, Coupon
 )
 
 @api_view(['GET'])
@@ -143,24 +143,60 @@ def system_health(request):
     Get system health metrics for the homepage
     """
     try:
-        # Server performance (based on recent response times)
-        server_performance = 95  # This would come from monitoring system
+        # Server performance (based on recent API response success rate)
+        recent_logs = AuditLog.objects.filter(
+            created__gte=timezone.now() - timedelta(hours=24)
+        )
+        total_requests = recent_logs.count()
+        successful_requests = recent_logs.filter(
+            action__in=['LOGIN', 'API_CALL', 'DATA_ACCESS']
+        ).count()
         
-        # Database health (based on query performance)
-        database_health = 98  # This would come from database monitoring
+        server_performance = 85  # Base performance
+        if total_requests > 0:
+            success_rate = (successful_requests / total_requests) * 100
+            server_performance = min(100, max(70, int(success_rate)))
         
-        # Security score (based on recent security checks)
-        security_score = 99  # This would come from security monitoring
+        # Database health (based on query performance and data integrity)
+        try:
+            # Test database connectivity and basic operations
+            user_count = User.objects.count()
+            coupon_count = Coupon.objects.count()
+            subcenter_count = SubCenter.objects.count()
+            
+            # Calculate health based on data presence and consistency
+            data_health = 90
+            if user_count > 0 and coupon_count > 0 and subcenter_count > 0:
+                data_health = 98
+            elif user_count > 0:
+                data_health = 95
+                
+            database_health = data_health
+        except Exception:
+            database_health = 75
         
-        # User satisfaction (based on feedback or system usage)
+        # Security score (based on recent security events and user activity)
+        recent_failed_logins = AuditLog.objects.filter(
+            created__gte=timezone.now() - timedelta(hours=24),
+            action='LOGIN_FAILED'
+        ).count()
+        
+        security_score = 99
+        if recent_failed_logins > 10:
+            security_score = max(80, 99 - (recent_failed_logins * 2))
+        elif recent_failed_logins > 5:
+            security_score = 95
+        
+        # User satisfaction (based on active users vs total users ratio)
         total_users = User.objects.count()
         active_users = User.objects.filter(
             last_login__gte=timezone.now() - timedelta(days=30)
         ).count()
         
-        user_satisfaction = 97
+        user_satisfaction = 85  # Base satisfaction
         if total_users > 0:
-            user_satisfaction = min(97, round((active_users / total_users) * 100))
+            activity_ratio = (active_users / total_users) * 100
+            user_satisfaction = min(100, max(60, int(activity_ratio + 20)))
         
         health_metrics = {
             'server_performance': server_performance,

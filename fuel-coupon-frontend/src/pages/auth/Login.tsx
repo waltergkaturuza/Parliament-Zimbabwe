@@ -101,13 +101,24 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-6xl"
-      >
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex flex-col">
+      {/* Header with Logo */}
+      <div className="absolute top-4 right-4 z-10">
+        <img 
+          src="/logo.webp" 
+          alt="Parliament Logo" 
+          className="h-12 w-auto"
+          style={{ maxHeight: '48px' }}
+        />
+      </div>
+      
+      <div className="flex-1 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-6xl"
+        >
         <Row gutter={[32, 32]} align="middle" className="min-h-[600px]">
           {/* Left Panel - Branding */}
           <Col xs={24} lg={12} className="text-center lg:text-left">
@@ -280,7 +291,8 @@ const Login = () => {
             </motion.div>
           </Col>
         </Row>
-      </motion.div>
+        </motion.div>
+      </div>
 
       {/* Loading Overlay */}
       {loading && (

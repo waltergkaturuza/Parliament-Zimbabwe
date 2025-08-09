@@ -438,6 +438,16 @@ const Register = () => {
         <ParliamentLogo size="xs" showText={true} />
       </div>
       
+      {/* Logo image in top-right corner */}
+      <div className="absolute top-4 right-4 z-10">
+        <img 
+          src="/logo.webp" 
+          alt="Parliament Logo" 
+          className="h-12 w-auto"
+          style={{ maxHeight: '48px' }}
+        />
+      </div>
+      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

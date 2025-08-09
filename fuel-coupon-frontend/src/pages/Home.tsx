@@ -242,41 +242,63 @@ const Home = () => {
           <ParliamentLogo size="medium" />
         </div>
         
-        <Space size="middle">
-          <Button 
-            type="default" 
-            icon={<LoginOutlined />}
-            onClick={() => navigate('/login')}
-            size="large"
-          >
-            Login
-          </Button>
-          <Button 
-            type="primary" 
-            icon={<UserAddOutlined />}
-            onClick={() => navigate('/register')}
-            size="large"
-          >
-            Register
-          </Button>
-        </Space>
+        <div className="flex items-center gap-4">
+          <img 
+            src="/logo.webp" 
+            alt="Parliament Logo" 
+            className="h-12 w-auto"
+            style={{ maxHeight: '48px' }}
+          />
+          <Space size="middle">
+            <Button 
+              type="default" 
+              icon={<LoginOutlined />}
+              onClick={() => navigate('/login')}
+              size="large"
+            >
+              Login
+            </Button>
+            <Button 
+              type="primary" 
+              icon={<UserAddOutlined />}
+              onClick={() => navigate('/register')}
+              size="large"
+            >
+              Register
+            </Button>
+          </Space>
+        </div>
       </Header>
 
       <Content>
         {/* Hero Section */}
-        <section className="bg-gradient-to-br from-blue-50 to-purple-50 py-20">
-          <div className="max-w-7xl mx-auto px-6">
+        <section 
+          className="py-20 relative"
+          style={{
+            backgroundImage: 'url(/background.avif)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            minHeight: '80vh'
+          }}
+        >
+          {/* Overlay for better text readability */}
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-40"
+            style={{ zIndex: 1 }}
+          />
+          <div className="max-w-7xl mx-auto px-6 relative" style={{ zIndex: 2 }}>
             <Row gutter={[32, 32]} align="middle">
               <Col xs={24} lg={12}>
                 <motion.div {...fadeInUp}>
                   <Badge.Ribbon text="Government Official" color="gold">
                     <div className="mb-6">
-                      <Title level={1} className="mb-4 text-gray-800">
+                      <Title level={1} className="mb-4 text-white">
                         Modern Fuel Coupon
                         <br />
-                        <span className="text-blue-600">Management System</span>
+                        <span className="text-blue-300">Management System</span>
                       </Title>
-                      <Paragraph className="text-xl text-gray-600 mb-6">
+                      <Paragraph className="text-xl text-gray-200 mb-6">
                         Streamline parliamentary fuel distribution with cutting-edge 
                         digital solutions. Secure, transparent, and efficient management 
                         for the modern government.
@@ -290,13 +312,6 @@ const Home = () => {
                           className="px-8 py-6 h-auto"
                         >
                           Get Started
-                        </Button>
-                        <Button 
-                          size="large" 
-                          icon={<BarChartOutlined />}
-                          className="px-8 py-6 h-auto"
-                        >
-                          View Demo
                         </Button>
                       </Space>
                     </div>
@@ -487,7 +502,7 @@ const Home = () => {
                   <Card className="h-full shadow-lg">
                     <Title level={3} className="mb-6 flex items-center gap-2">
                       <BarChartOutlined className="text-green-500" />
-                      System Health
+                      System Health Dashboard
                     </Title>
                     
                     {loading ? (
@@ -495,53 +510,93 @@ const Home = () => {
                         <Spin size="large" />
                       </div>
                     ) : (
-                      <div className="space-y-6">
-                        <div>
-                          <div className="flex justify-between mb-2">
-                            <Text>Server Performance</Text>
-                            <Text strong>{systemHealth?.server_performance || 95}%</Text>
+                      <div className="grid grid-cols-2 gap-6">
+                        {/* Server Performance Circular Gauge */}
+                        <div className="text-center">
+                          <div className="relative mb-3">
+                            <Progress 
+                              type="circle"
+                              percent={systemHealth?.server_performance || 0} 
+                              size={100}
+                              strokeColor={{
+                                '0%': '#52c41a',
+                                '100%': '#73d13d',
+                              }}
+                              format={(percent) => (
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-gray-800">{percent}%</div>
+                                  <div className="text-xs text-gray-500">Server</div>
+                                </div>
+                              )}
+                            />
                           </div>
-                          <Progress 
-                            percent={systemHealth?.server_performance || 95} 
-                            strokeColor="#52c41a"
-                            showInfo={false}
-                          />
+                          <Text className="text-sm font-medium">Server Performance</Text>
                         </div>
-                        
-                        <div>
-                          <div className="flex justify-between mb-2">
-                            <Text>Database Health</Text>
-                            <Text strong>{systemHealth?.database_health || 98}%</Text>
+
+                        {/* Database Health Circular Gauge */}
+                        <div className="text-center">
+                          <div className="relative mb-3">
+                            <Progress 
+                              type="circle"
+                              percent={systemHealth?.database_health || 0} 
+                              size={100}
+                              strokeColor={{
+                                '0%': '#1890ff',
+                                '100%': '#40a9ff',
+                              }}
+                              format={(percent) => (
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-gray-800">{percent}%</div>
+                                  <div className="text-xs text-gray-500">DB</div>
+                                </div>
+                              )}
+                            />
                           </div>
-                          <Progress 
-                            percent={systemHealth?.database_health || 98} 
-                            strokeColor="#1890ff"
-                            showInfo={false}
-                          />
+                          <Text className="text-sm font-medium">Database Health</Text>
                         </div>
-                        
-                        <div>
-                          <div className="flex justify-between mb-2">
-                            <Text>Security Score</Text>
-                            <Text strong>{systemHealth?.security_score || 99}%</Text>
+
+                        {/* Security Score Circular Gauge */}
+                        <div className="text-center">
+                          <div className="relative mb-3">
+                            <Progress 
+                              type="circle"
+                              percent={systemHealth?.security_score || 0} 
+                              size={100}
+                              strokeColor={{
+                                '0%': '#722ed1',
+                                '100%': '#9254de',
+                              }}
+                              format={(percent) => (
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-gray-800">{percent}%</div>
+                                  <div className="text-xs text-gray-500">Security</div>
+                                </div>
+                              )}
+                            />
                           </div>
-                          <Progress 
-                            percent={systemHealth?.security_score || 99} 
-                            strokeColor="#722ed1"
-                            showInfo={false}
-                          />
+                          <Text className="text-sm font-medium">Security Score</Text>
                         </div>
-                        
-                        <div>
-                          <div className="flex justify-between mb-2">
-                            <Text>User Satisfaction</Text>
-                            <Text strong>{systemHealth?.user_satisfaction || 97}%</Text>
+
+                        {/* User Satisfaction Circular Gauge */}
+                        <div className="text-center">
+                          <div className="relative mb-3">
+                            <Progress 
+                              type="circle"
+                              percent={systemHealth?.user_satisfaction || 0} 
+                              size={100}
+                              strokeColor={{
+                                '0%': '#faad14',
+                                '100%': '#ffc53d',
+                              }}
+                              format={(percent) => (
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-gray-800">{percent}%</div>
+                                  <div className="text-xs text-gray-500">Users</div>
+                                </div>
+                              )}
+                            />
                           </div>
-                          <Progress 
-                            percent={systemHealth?.user_satisfaction || 97} 
-                            strokeColor="#faad14"
-                            showInfo={false}
-                          />
+                          <Text className="text-sm font-medium">User Satisfaction</Text>
                         </div>
                       </div>
                     )}
