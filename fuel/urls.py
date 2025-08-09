@@ -106,6 +106,13 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     
+    # API v1 Authentication endpoints
+    path('api/v1/auth/register/', RegisterView.as_view(), name='register-v1'),
+    path('api/v1/auth/login/', LoginView.as_view(), name='login-v1'),
+    path('api/v1/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh_v1'),
+    # TODO: Add change-password endpoint
+    # path('api/v1/auth/change-password/', ChangePasswordView.as_view(), name='change-password-v1'),
+    
     # CORS bypass endpoints for debugging
     path('auth/login-bypass/', cors_bypass_login, name='login-bypass'),
     path('cors-test/', cors_test_endpoint, name='cors-test-endpoint'),
@@ -114,32 +121,48 @@ urlpatterns = [
     path('home/stats/', home_stats, name='home-stats'),
     path('home/health/', system_health, name='home-health'),
     path('api/home/stats/', home_stats, name='home-stats-api'),
+    path('api/v1/home/stats/', home_stats, name='home-stats-v1'),
     path('api/home/activity/', recent_activity, name='home-activity'),
+    path('api/v1/home/activity/', recent_activity, name='home-activity-v1'),
     path('api/home/health/', system_health, name='home-health-api'),
+    path('api/v1/home/health/', system_health, name='home-health-v1'),
     path('api/home/insights/', quick_insights, name='home-insights'),
+    path('api/v1/home/insights/', quick_insights, name='home-insights-v1'),
     
     # Admin dashboard endpoints - Updated paths
     path('api/v1/admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
     path('api/v1/dashboard/', admin_dashboard, name='dashboard-v1'),
     path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
     
+    # Fuel statistics endpoint
+    path('api/v1/fuel-stats/', fuel_statistics, name='fuel-statistics'),
+    
     # Notification endpoints
     path('api/v1/notifications/stats/', notification_stats, name='notification-stats'),
+    # TODO: Add notification management endpoints
+    # path('api/v1/notifications/mark-all-read/', NotificationViewSet.as_view({'post': 'mark_all_read'}), name='notifications-mark-all-read'),
+    # path('api/v1/notifications/clear-all/', NotificationViewSet.as_view({'post': 'clear_all'}), name='notifications-clear-all'),
     
     # Analytics endpoints
     path('analytics/', analytics_view, name='analytics-view'),
+    path('api/v1/analytics/', analytics_view, name='analytics-v1'),
     path('analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics'),
     path('api/v1/analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics-v1'),
     path('api/v1/analytics/consumption-trend/', analytics_view, name='consumption-trend-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
+    path('api/v1/statistics/', fuel_statistics, name='statistics-v1'),  # Add API v1 statistics endpoint
     
     # Fuel pricing endpoints
     path('fuel-prices/', fuel_statistics, name='fuel-prices'),
+    path('api/v1/fuel-prices/', fuel_statistics, name='fuel-prices-v1'),
     
     # Users endpoints with role filtering
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
     path('users/stats/', UserViewSet.as_view({'get': 'stats'}), name='user-stats'),
+    
+    # Books endpoints
+    path('api/v1/books/received/', BookViewSet.as_view({'get': 'received'}), name='books-received-v1'),
     
     # Router endpoints for missing paths
     path('users/', UserViewSet.as_view({'get': 'list'}), name='users-list'),
@@ -157,7 +180,9 @@ urlpatterns = [
     
     # Subcenter endpoints
     path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview'),
+    path('api/v1/subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview-v1'),
     path('subcenter/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
+    path('api/v1/subcenter/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-statistics-v1'),
     
     # Business Central Production Integration
     path('api/bc/webhook/', bc_webhook, name='bc-webhook'),
