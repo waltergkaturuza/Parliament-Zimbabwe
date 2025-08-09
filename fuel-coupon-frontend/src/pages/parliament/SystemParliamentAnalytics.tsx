@@ -118,65 +118,32 @@ const SystemParliamentAnalytics: FC = () => {
     try {
       setLoading(true);
       
-      // Mock analytics data
-      const mockAnalytics: AnalyticsData[] = [
-        {
-          period: 'December 2024',
-          sessions: 89,
-          attendance: 1245,
-          fuel_allocated: 24500,
-          subcenters_active: 8,
-          programs: 15,
-          compliance_score: 92
-        },
-        {
-          period: 'November 2024',
-          sessions: 76,
-          attendance: 1089,
-          fuel_allocated: 21800,
-          subcenters_active: 7,
-          programs: 12,
-          compliance_score: 88
-        },
-        {
-          period: 'October 2024',
-          sessions: 82,
-          attendance: 1156,
-          fuel_allocated: 23200,
-          subcenters_active: 8,
-          programs: 14,
-          compliance_score: 90
-        },
-        {
-          period: 'September 2024',
-          sessions: 71,
-          attendance: 987,
-          fuel_allocated: 19500,
-          subcenters_active: 6,
-          programs: 11,
-          compliance_score: 85
-        },
-        {
-          period: 'August 2024',
-          sessions: 68,
-          attendance: 932,
-          fuel_allocated: 18200,
-          subcenters_active: 6,
-          programs: 10,
-          compliance_score: 83
-        },
-        {
-          period: 'July 2024',
-          sessions: 74,
-          attendance: 1021,
-          fuel_allocated: 20100,
-          subcenters_active: 7,
-          programs: 13,
-          compliance_score: 87
+      // Fetch analytics data from backend
+      const response = await apiClient.get('/parliament/analytics/', {
+        params: {
+          period: selectedPeriod,
+          metric: selectedMetric
         }
-      ];
+      });
+      
+      const analyticsData = response.data.results || response.data;
+      
+      if (Array.isArray(analyticsData)) {
+        const mappedAnalytics = analyticsData.map((item: any) => ({
+          period: item.period || 'Unknown Period',
+          sessions: item.sessions_count || 0,
+          attendance: item.total_attendance || 0,
+          fuel_allocated: item.fuel_allocated || 0,
+          subcenters_active: item.active_subcenters || 0,
+          programs: item.programs_count || 0,
+          compliance_score: item.compliance_score || 0
+        }));
 
-      setAnalyticsData(mockAnalytics);
+        setAnalyticsData(mappedAnalytics);
+      } else {
+        console.warn('Expected array but got:', analyticsData);
+        setAnalyticsData([]);
+      }
     } catch (error) {
       console.error('Error loading analytics:', error);
       message.error('Failed to load analytics data');

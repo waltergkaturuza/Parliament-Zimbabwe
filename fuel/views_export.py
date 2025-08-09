@@ -20,7 +20,7 @@ from .models import (
     BookDispatch, CouponAllocation, FuelEntitlement
 )
 from .utils.export_utils import ExportManager, CouponPrintManager
-from rest_framework.permissions import IsAuthenticated
+from .permissions import IsAuthenticated
 
 
 @api_view(['GET'])

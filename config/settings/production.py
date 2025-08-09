@@ -49,7 +49,6 @@ else:
         'fuel.parliament.gov.zw',
         'parliament.gov.zw',
         # Azure internal network IPs
-        '169.254.130.1',  # Azure health check
         '169.254.130.5',  # Azure internal load balancer
         '169.254.130.7',  # Azure internal middleware
         '169.254.130.9',  # Azure worker container

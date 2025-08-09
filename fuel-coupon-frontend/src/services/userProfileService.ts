@@ -1,4 +1,4 @@
-import { apiClient } from '../api/apiClient';
+import apiClient from '../api/index';
 
 export interface UserProfile {
   id: number;
@@ -56,24 +56,24 @@ export interface ChangePasswordData {
 
 class UserProfileService {
   async getCurrentProfile(): Promise<UserProfile> {
-    const response = await apiClient.get('/api/v1/profile/me/');
+    const response = await apiClient.get('/profile/me/');
     return response.data;
   }
 
   async updateProfile(data: UpdateProfileData): Promise<UserProfile> {
-    const response = await apiClient.patch('/api/v1/profile/me/', data);
+    const response = await apiClient.patch('/profile/me/', data);
     return response.data;
   }
 
   async changePassword(data: ChangePasswordData): Promise<void> {
-    await apiClient.post('/api/v1/change-password/', data);
+    await apiClient.post('/profile/change-password/', data);
   }
 
   async uploadProfilePicture(file: File): Promise<UserProfile> {
     const formData = new FormData();
     formData.append('profile_picture', file);
     
-    const response = await apiClient.patch('/api/v1/profile/me/', formData, {
+    const response = await apiClient.patch('/profile/me/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -82,7 +82,7 @@ class UserProfileService {
   }
 
   async updateNotificationPreferences(preferences: Record<string, any>): Promise<UserProfile> {
-    const response = await apiClient.patch('/api/v1/profile/me/', {
+    const response = await apiClient.patch('/profile/me/', {
       notification_preferences: preferences,
     });
     return response.data;
@@ -94,7 +94,7 @@ class UserProfileService {
     account_created: string;
     permissions: string[];
   }> {
-    const response = await apiClient.get('/api/v1/profile/summary/');
+    const response = await apiClient.get('/profile/summary/');
     return response.data;
   }
 }

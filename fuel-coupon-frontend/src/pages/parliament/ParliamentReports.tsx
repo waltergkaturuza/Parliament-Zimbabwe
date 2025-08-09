@@ -76,83 +76,39 @@ const ParliamentReports: FC = () => {
     try {
       setLoading(true);
       
-      // Mock data for parliament reports
-      const mockReports: ReportData[] = [
-        {
-          id: '1',
-          title: 'Parliament Sessions Report - Q4 2024',
-          type: 'session',
-          subcenter: 'Harare Central',
-          period: 'Q4 2024',
-          generated_date: '2024-12-15T10:00:00Z',
-          status: 'ready',
-          file_size: '2.3 MB',
-          sessions_count: 45,
-          attendance_rate: 89,
-          fuel_allocated: 12450
-        },
-        {
-          id: '2',
-          title: 'Attendance Analysis - November 2024',
-          type: 'attendance',
-          subcenter: 'Bulawayo',
-          period: 'November 2024',
-          generated_date: '2024-12-01T14:30:00Z',
-          status: 'ready',
-          file_size: '1.8 MB',
-          sessions_count: 18,
-          attendance_rate: 92,
-          fuel_allocated: 5680
-        },
-        {
-          id: '3',
-          title: 'Fuel Allocation Report - December 2024',
-          type: 'fuel',
-          subcenter: 'Chitungwiza',
-          period: 'December 2024',
-          generated_date: '2024-12-10T09:15:00Z',
-          status: 'generating',
-          sessions_count: 12,
-          attendance_rate: 85,
-          fuel_allocated: 3420
-        },
-        {
-          id: '4',
-          title: 'Compliance Report - All Subcenters',
-          type: 'compliance',
-          subcenter: 'System Wide',
-          period: 'Q4 2024',
-          generated_date: '2024-12-20T16:45:00Z',
-          status: 'ready',
-          file_size: '4.1 MB',
-          sessions_count: 156,
-          attendance_rate: 88,
-          fuel_allocated: 45230
-        },
-        {
-          id: '5',
-          title: 'Monthly Parliament Activity - December',
-          type: 'session',
-          subcenter: 'Gweru',
-          period: 'December 2024',
-          generated_date: '2024-12-25T11:20:00Z',
-          status: 'failed',
-          sessions_count: 8,
-          attendance_rate: 76,
-          fuel_allocated: 2150
+      // Fetch reports from backend
+      const response = await apiClient.get('/parliament/reports/', {
+        params: {
+          type: selectedType !== 'all' ? selectedType : undefined
         }
-      ];
+      });
+      
+      const reportsData = response.data.results || response.data;
+      
+      if (Array.isArray(reportsData)) {
+        const mappedReports = reportsData.map((item: any) => ({
+          id: String(item.id),
+          title: item.title || 'Parliament Report',
+          type: item.report_type || 'session',
+          subcenter: item.subcenter_name || 'Unknown SubCenter',
+          period: item.period || 'Current Period',
+          generated_date: item.created_at || new Date().toISOString(),
+          status: item.status || 'ready',
+          file_size: item.file_size || 'N/A',
+          sessions_count: item.sessions_count || 0,
+          attendance_rate: item.attendance_rate || 0,
+          fuel_allocated: item.fuel_allocated || 0
+        }));
 
-      // Filter by type if selected
-      let filteredReports = mockReports;
-      if (selectedType !== 'all') {
-        filteredReports = mockReports.filter(report => report.type === selectedType);
+        setReports(mappedReports);
+      } else {
+        console.warn('Expected array but got:', reportsData);
+        setReports([]);
       }
-
-      setReports(filteredReports);
     } catch (error) {
       console.error('Error loading reports:', error);
       message.error('Failed to load parliament reports');
+      setReports([]);
     } finally {
       setLoading(false);
     }

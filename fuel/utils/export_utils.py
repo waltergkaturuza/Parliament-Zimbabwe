@@ -3,40 +3,18 @@ import io
 import csv
 from datetime import datetime
 from typing import List, Dict, Any
-
-# Conditional imports for heavy dependencies
-try:
-    import pandas as pd
-    PANDAS_AVAILABLE = True
-except ImportError:
-    PANDAS_AVAILABLE = False
-
-try:
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill
-    OPENPYXL_AVAILABLE = True
-except ImportError:
-    OPENPYXL_AVAILABLE = False
-
-try:
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import letter, A4
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    REPORTLAB_AVAILABLE = True
-except ImportError:
-    REPORTLAB_AVAILABLE = False
-
-try:
-    import qrcode
-    from PIL import Image
-    QR_AVAILABLE = True
-except ImportError:
-    QR_AVAILABLE = False
-
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+import qrcode
+from PIL import Image
 
 
 class ExportManager:
@@ -63,10 +41,6 @@ class ExportManager:
     @staticmethod
     def export_to_excel(data: List[Dict[str, Any]], filename: str = None, sheet_name: str = "Data") -> HttpResponse:
         """Export data to Excel format with styling"""
-        if not OPENPYXL_AVAILABLE:
-            # Fallback to CSV if openpyxl is not available
-            return ExportManager.export_to_csv(data, filename.replace('.xlsx', '.csv') if filename else None)
-        
         if not filename:
             filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         
@@ -121,10 +95,6 @@ class ExportManager:
     @staticmethod
     def export_to_pdf(data: List[Dict[str, Any]], filename: str = None, title: str = "Export Report") -> HttpResponse:
         """Export data to PDF format"""
-        if not REPORTLAB_AVAILABLE:
-            # Fallback to CSV if reportlab is not available
-            return ExportManager.export_to_csv(data, filename.replace('.pdf', '.csv') if filename else None)
-        
         if not filename:
             filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         
@@ -199,12 +169,6 @@ class CouponPrintManager:
     @staticmethod
     def generate_coupon_pdf(coupon_data: Dict[str, Any]) -> HttpResponse:
         """Generate a printable fuel coupon PDF"""
-        if not REPORTLAB_AVAILABLE or not QR_AVAILABLE:
-            # Return error response if required packages are not available
-            response = HttpResponse("PDF generation not available. Please install reportlab and qrcode packages.", 
-                                  content_type='text/plain', status=503)
-            return response
-        
         filename = f"fuel_coupon_{coupon_data.get('coupon_number', 'unknown')}.pdf"
         
         response = HttpResponse(content_type='application/pdf')
@@ -254,12 +218,6 @@ class CouponPrintManager:
     @staticmethod
     def generate_handover_report(handover_data: Dict[str, Any]) -> HttpResponse:
         """Generate handover report PDF"""
-        if not REPORTLAB_AVAILABLE:
-            # Return error response if reportlab is not available
-            response = HttpResponse("PDF generation not available. Please install reportlab package.", 
-                                  content_type='text/plain', status=503)
-            return response
-        
         filename = f"handover_report_{handover_data.get('handover_id', 'unknown')}.pdf"
         
         response = HttpResponse(content_type='application/pdf')

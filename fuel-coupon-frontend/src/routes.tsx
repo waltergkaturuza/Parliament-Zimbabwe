@@ -90,6 +90,9 @@ const UsersManagementPage = lazy(() => import('@/pages/admin/UsersManagementPage
 const SystemAlertsPage = lazy(() => import('@/pages/admin/SystemAlertsPage'));
 const ReportsAnalyticsPage = lazy(() => import('@/pages/admin/ReportsAnalyticsPage'));
 
+// Profile page
+const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
+
 // Test pages
 const BookDispatchTest = lazy(() => import('@/pages/test/BookDispatchTest'));
 
@@ -211,6 +214,9 @@ const router = createBrowserRouter(
         
         {/* Analytics Routes */}
         <Route path="analytics" element={<Suspense fallback={<LoadingSpinner />}><UsageAnalytics /></Suspense>} />
+        
+        {/* Profile Routes */}
+        <Route path="profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
         
         {/* Admin Routes */}
         <Route path="users" element={<Suspense fallback={<LoadingSpinner />}><UsersPage /></Suspense>} />

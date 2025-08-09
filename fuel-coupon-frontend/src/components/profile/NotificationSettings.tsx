@@ -1,266 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  FormGroup,
-  FormControlLabel,
-  Switch,
-  Typography,
-  Divider,
-  Box,
-  Alert,
-  Snackbar,
-} from '@mui/material';
-import { Notifications, Email, Sms, Push } from '@mui/icons-material';
+// src/components/profile/NotificationSettings.tsx
+import React from 'react';
+import { Card, Form, Switch, Button, Divider, Typography, Row, Col } from 'antd';
+import { BellOutlined, MailOutlined, MessageOutlined, SaveOutlined } from '@ant-design/icons';
 
-interface NotificationPreferences {
-  email_enabled: boolean;
-  sms_enabled: boolean;
-  push_enabled: boolean;
-  email_frequency: 'immediate' | 'daily' | 'weekly';
-  notification_types: {
-    system_updates: boolean;
-    security_alerts: boolean;
-    fuel_alerts: boolean;
-    approval_requests: boolean;
-  };
-}
+const { Title } = Typography;
 
 interface NotificationSettingsProps {
-  open: boolean;
-  onClose: () => void;
-  userId: number;
+  initialValues?: any;
+  onSubmit: (values: any) => void;
+  loading?: boolean;
 }
 
 const NotificationSettings: React.FC<NotificationSettingsProps> = ({
-  open,
-  onClose,
-  userId,
+  initialValues,
+  onSubmit,
+  loading = false
 }) => {
-  const [preferences, setPreferences] = useState<NotificationPreferences>({
-    email_enabled: true,
-    sms_enabled: false,
-    push_enabled: true,
-    email_frequency: 'immediate',
-    notification_types: {
-      system_updates: true,
-      security_alerts: true,
-      fuel_alerts: true,
-      approval_requests: true,
-    },
-  });
-  
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [form] = Form.useForm();
 
-  useEffect(() => {
-    if (open && userId) {
-      loadPreferences();
-    }
-  }, [open, userId]);
-
-  const loadPreferences = async () => {
+  const handleSubmit = async () => {
     try {
-      // This would typically load from an API
-      // For now, we'll use default values
-      console.log('Loading notification preferences for user:', userId);
-    } catch (err) {
-      setError('Failed to load notification preferences');
-    }
-  };
-
-  const handlePreferenceChange = (key: keyof NotificationPreferences, value: any) => {
-    setPreferences(prev => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
-
-  const handleNotificationTypeChange = (type: keyof NotificationPreferences['notification_types'], value: boolean) => {
-    setPreferences(prev => ({
-      ...prev,
-      notification_types: {
-        ...prev.notification_types,
-        [type]: value,
-      },
-    }));
-  };
-
-  const handleSave = async () => {
-    setLoading(true);
-    try {
-      // This would typically save to an API
-      console.log('Saving notification preferences:', preferences);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setSuccess(true);
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } catch (err) {
-      setError('Failed to save notification preferences');
-    } finally {
-      setLoading(false);
+      const values = await form.validateFields();
+      onSubmit(values);
+    } catch (error) {
+      console.error('Validation failed:', error);
     }
   };
 
   return (
-    <>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <Notifications />
-            Notification Settings
-          </Box>
-        </DialogTitle>
-        
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Configure how and when you want to receive notifications from the fuel coupon system.
-          </Typography>
-
-          {/* Notification Channels */}
-          <Typography variant="h6" gutterBottom>
-            Notification Channels
-          </Typography>
-          
-          <FormGroup sx={{ mb: 3 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.email_enabled}
-                  onChange={(e) => handlePreferenceChange('email_enabled', e.target.checked)}
-                />
-              }
-              label={
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Email fontSize="small" />
-                  Email Notifications
-                </Box>
-              }
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.sms_enabled}
-                  onChange={(e) => handlePreferenceChange('sms_enabled', e.target.checked)}
-                />
-              }
-              label={
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Sms fontSize="small" />
-                  SMS Notifications
-                </Box>
-              }
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.push_enabled}
-                  onChange={(e) => handlePreferenceChange('push_enabled', e.target.checked)}
-                />
-              }
-              label={
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Push fontSize="small" />
-                  Push Notifications
-                </Box>
-              }
-            />
-          </FormGroup>
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Notification Types */}
-          <Typography variant="h6" gutterBottom>
-            Notification Types
-          </Typography>
-          
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.notification_types.system_updates}
-                  onChange={(e) => handleNotificationTypeChange('system_updates', e.target.checked)}
-                />
-              }
-              label="System Updates"
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.notification_types.security_alerts}
-                  onChange={(e) => handleNotificationTypeChange('security_alerts', e.target.checked)}
-                />
-              }
-              label="Security Alerts"
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.notification_types.fuel_alerts}
-                  onChange={(e) => handleNotificationTypeChange('fuel_alerts', e.target.checked)}
-                />
-              }
-              label="Fuel & Coupon Alerts"
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.notification_types.approval_requests}
-                  onChange={(e) => handleNotificationTypeChange('approval_requests', e.target.checked)}
-                />
-              }
-              label="Approval Requests"
-            />
-          </FormGroup>
-        </DialogContent>
-        
-        <DialogActions>
-          <Button onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            variant="contained" 
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : 'Save Settings'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar
-        open={success}
-        autoHideDuration={3000}
-        onClose={() => setSuccess(false)}
+    <Card title={
+      <span>
+        <BellOutlined style={{ marginRight: 8 }} />
+        Notification Settings
+      </span>
+    }>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={initialValues}
+        onFinish={onSubmit}
       >
-        <Alert severity="success" onClose={() => setSuccess(false)}>
-          Notification settings saved successfully!
-        </Alert>
-      </Snackbar>
+        <Row gutter={[24, 24]}>
+          <Col xs={24} md={12}>
+            <Title level={5}>
+              <MailOutlined style={{ marginRight: 8 }} />
+              Email Notifications
+            </Title>
+            
+            <Form.Item name="email_alerts" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>Email Alerts</span>
+                <Switch />
+              </div>
+            </Form.Item>
 
-      <Snackbar
-        open={!!error}
-        autoHideDuration={6000}
-        onClose={() => setError(null)}
-      >
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      </Snackbar>
-    </>
+            <Form.Item name="fuel_price_updates" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>Fuel Price Updates</span>
+                <Switch />
+              </div>
+            </Form.Item>
+
+            <Form.Item name="dispatch_notifications" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>Dispatch Notifications</span>
+                <Switch />
+              </div>
+            </Form.Item>
+
+            <Form.Item name="system_maintenance" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>System Maintenance</span>
+                <Switch />
+              </div>
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Title level={5}>
+              <MessageOutlined style={{ marginRight: 8 }} />
+              System Notifications
+            </Title>
+
+            <Form.Item name="sms_alerts" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>SMS Alerts</span>
+                <Switch />
+              </div>
+            </Form.Item>
+
+            <Form.Item name="low_stock_alerts" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>Low Stock Alerts</span>
+                <Switch />
+              </div>
+            </Form.Item>
+
+            <Form.Item name="urgent_updates" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>Urgent Updates</span>
+                <Switch />
+              </div>
+            </Form.Item>
+
+            <Form.Item name="weekly_summary" valuePropName="checked">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <span>Weekly Summary</span>
+                <Switch />
+              </div>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Divider />
+
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
+          onClick={handleSubmit}
+          loading={loading}
+          size="large"
+        >
+          Save Notification Preferences
+        </Button>
+      </Form>
+    </Card>
   );
 };
 
