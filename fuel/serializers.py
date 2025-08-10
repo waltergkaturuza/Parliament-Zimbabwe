@@ -741,9 +741,9 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
     box_date = serializers.DateTimeField(source='received_at', required=False)
     boxDate = serializers.DateTimeField(source='received_at', required=False)
     
-    # Coupon number field mappings
-    firstCouponNumber = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
-    lastCouponNumber = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    # Coupon number field mappings - REQUIRED fields
+    firstCouponNumber = serializers.CharField(source='first_coupon_number', required=False, allow_blank=False)
+    lastCouponNumber = serializers.CharField(source='last_coupon_number', required=False, allow_blank=False)
     
     # Additional frontend field mappings
     numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
@@ -759,8 +759,8 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
     # Additional frontend fields
     number_of_coupons = serializers.IntegerField(write_only=True, required=False)
     total_litres = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    notes = serializers.CharField(required=False, allow_blank=True, default='')
-    barcode = serializers.CharField(required=False, allow_blank=True, default='')
+    notes = serializers.CharField(required=False, allow_blank=True, default='Default box notes')
+    barcode = serializers.CharField(required=False, allow_blank=False, default='AUTO_GENERATED')
     
     class Meta:
         model = Box
@@ -778,6 +778,59 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
         """Handle camelCase to snake_case field mapping"""
         # Create a copy to avoid modifying original data
         mapped_data = data.copy()
+        
+        # Map camelCase fields to snake_case
+        field_mappings = {
+            'boxCode': 'box_code',
+            'fuelType': 'fuel_type', 
+            'firstCouponNumber': 'first_coupon_number',
+            'lastCouponNumber': 'last_coupon_number',
+            'numberOfBooks': 'number_of_books',
+            'couponsPerBook': 'coupons_per_book',
+            'couponAmount': 'denomination',
+            'subCenter': 'assigned_to',
+            'monetaryValueUSD': 'monetary_value_usd',
+            'fuelPricePerLitreUSD': 'fuel_price_per_litre_usd',
+            'exchangeRate': 'exchange_rate',
+            'boxDate': 'received_at'
+        }
+        
+        for camel_case, snake_case in field_mappings.items():
+            if camel_case in mapped_data:
+                mapped_data[snake_case] = mapped_data.pop(camel_case)
+        
+        # Handle required fields - provide meaningful defaults if missing
+        if 'first_coupon_number' not in mapped_data or not mapped_data.get('first_coupon_number'):
+            # Generate a default first coupon number if not provided
+            mapped_data['first_coupon_number'] = f"FCN{timezone.now().strftime('%Y%m%d%H%M%S')}001"
+            
+        if 'last_coupon_number' not in mapped_data or not mapped_data.get('last_coupon_number'):
+            # Generate a default last coupon number based on first + calculation
+            first_coupon = mapped_data.get('first_coupon_number', '')
+            num_books = mapped_data.get('number_of_books', 1)
+            coupons_per_book = mapped_data.get('coupons_per_book', 50)
+            total_coupons = num_books * coupons_per_book
+            
+            if first_coupon and first_coupon.startswith('FCN'):
+                # Extract number and add total coupons
+                try:
+                    base_number = int(first_coupon[-3:])
+                    last_number = base_number + total_coupons - 1
+                    mapped_data['last_coupon_number'] = f"{first_coupon[:-3]}{last_number:03d}"
+                except (ValueError, IndexError):
+                    mapped_data['last_coupon_number'] = f"LCN{timezone.now().strftime('%Y%m%d%H%M%S')}{total_coupons:03d}"
+            else:
+                mapped_data['last_coupon_number'] = f"LCN{timezone.now().strftime('%Y%m%d%H%M%S')}{total_coupons:03d}"
+            
+        if 'notes' not in mapped_data or mapped_data['notes'] is None:
+            mapped_data['notes'] = 'Box received via API'
+            
+        if 'barcode' not in mapped_data or not mapped_data.get('barcode'):
+            # Generate a meaningful barcode
+            box_code = mapped_data.get('box_code', 'UNKNOWN')
+            mapped_data['barcode'] = f"BC_{box_code}_{timezone.now().strftime('%Y%m%d')}"
+        
+        return super().to_internal_value(mapped_data)
         
         # Map camelCase fields to snake_case
         field_mappings = {
