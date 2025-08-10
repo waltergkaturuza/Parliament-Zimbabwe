@@ -1406,7 +1406,6 @@ const BoxReceiptManagement: FC = () => {
                   <Form.Item
                     label="Number of Books"
                     name="numberOfBooks"
-                    initialValue={10}
                     rules={[{ required: true, message: 'Please enter number of books' }]}
                   >
                     <InputNumber
@@ -1421,12 +1420,11 @@ const BoxReceiptManagement: FC = () => {
                   <Form.Item
                     label="Coupons per Book"
                     name="couponsPerBook"
-                    initialValue={10}
                     rules={[{ required: true, message: 'Please enter coupons per book' }]}
                   >
                     <InputNumber
                       min={1}
-                      max={25}
+                      max={50}
                       style={{ width: '100%' }}
                       placeholder="Coupons per book"
                     />

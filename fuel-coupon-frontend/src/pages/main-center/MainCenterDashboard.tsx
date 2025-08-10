@@ -130,6 +130,10 @@ const MainCenterDashboard: React.FC = () => {
           return; // Exit early if API call was successful
         } else {
           console.log('API response not ok:', response.status, response.statusText);
+          // If not found yet, silently continue to mock fallback below
+          if (response.status !== 404) {
+            // Non-404 errors can be surfaced if needed
+          }
         }
       } catch (apiError) {
         console.log('API not available or error occurred:', apiError);

@@ -47,6 +47,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching notification stats:', error);
+      // Safe fallback while backend endpoint deploys
+      // If 404, keep stats at zero to avoid UI crash
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e: any = error;
+      if (e?.response?.status === 404) {
+        setStats({ total: 0, unread: 0, priority: 0 });
+        return;
+      }
     }
   };
 
@@ -81,6 +89,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       message.success('All notifications marked as read');
     } catch (error) {
       console.error('Error marking all as read:', error);
+      // If endpoint is not deployed yet, fail silently with info
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e: any = error;
+      if (e?.response?.status === 404) {
+        message.info('Notifications are not available yet.');
+        return;
+      }
       message.error('Failed to mark all as read');
     }
   };
@@ -101,7 +116,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     if ('WebSocket' in window) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const wsUrl = baseUrl.replace('http', 'ws').replace('https', 'wss') + `/ws/notifications/${userRole}/${userId}/`;
-      const ws = new WebSocket(wsUrl);
+      let ws: WebSocket | null = null;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (err) {
+        console.warn('WebSocket not available yet, skipping.');
+        return;
+      }
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -130,7 +151,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       };
 
       return () => {
-        ws.close();
+        if (ws) ws.close();
       };
     }
   }, [userRole, userId]);

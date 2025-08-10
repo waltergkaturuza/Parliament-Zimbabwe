@@ -66,8 +66,17 @@ export const homeApiService = {
         return response.data.data;
       }
       throw new Error(response.data.message || 'Failed to fetch stats');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching home stats:', error);
+      // Safe fallback while backend endpoints deploy
+      if (error?.response?.status === 404) {
+        return {
+          active_users: 0,
+          sub_centers: 0,
+          distributed_coupons: 0,
+          success_rate: 0,
+        };
+      }
       throw error;
     }
   },
@@ -80,8 +89,12 @@ export const homeApiService = {
         return response.data.data;
       }
       throw new Error(response.data.message || 'Failed to fetch activity');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching recent activity:', error);
+      // Safe fallback while backend endpoints deploy
+      if (error?.response?.status === 404) {
+        return [];
+      }
       throw error;
     }
   },
@@ -108,8 +121,17 @@ export const homeApiService = {
         return response.data.data;
       }
       throw new Error(response.data.message || 'Failed to fetch insights');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching quick insights:', error);
+      // Safe fallback while backend endpoints deploy
+      if (error?.response?.status === 404) {
+        return {
+          monthly_trend: 0,
+          current_month_distributions: 0,
+          recent_dispatches: 0,
+          pending_approvals: 0,
+        };
+      }
       throw error;
     }
   }

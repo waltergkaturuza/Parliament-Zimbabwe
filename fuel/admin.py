@@ -6,7 +6,8 @@ from .models import (
     Box, Book, BookPage, Coupon, FuelData, FuelTransaction,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
     BeneficiaryProfile, BookDispatch, CouponAllocation, FuelEntitlement,
-    CouponDistribution, AuditLog, SystemAlert, SessionAttendance
+    CouponDistribution, AuditLog, SystemAlert, SessionAttendance,
+    FuelRequirementConfiguration
 )
 from django import forms
 from django.db import models
@@ -226,6 +227,39 @@ class SessionAttendanceAdmin(admin.ModelAdmin):
     search_fields = ['beneficiary__user__username', 'beneficiary__user__first_name', 'beneficiary__user__last_name', 'session__title']
     readonly_fields = ['created', 'modified']
     raw_id_fields = ['beneficiary', 'session', 'recorded_by']
+
+# Fuel Requirement Configuration Admin
+@admin.register(FuelRequirementConfiguration)
+class FuelRequirementConfigurationAdmin(admin.ModelAdmin):
+    list_display = ['fuel_type', 'period', 'required_litres', 'required_coupons', 'litres_per_coupon', 'is_active', 'effective_from', 'created_by']
+    list_filter = ['fuel_type', 'period', 'is_active', 'effective_from']
+    search_fields = ['fuel_type', 'notes']
+    readonly_fields = ['created', 'modified', 'required_coupons']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('fuel_type', 'period', 'is_active')
+        }),
+        ('Requirements', {
+            'fields': ('required_litres', 'litres_per_coupon', 'required_coupons')
+        }),
+        ('Dates', {
+            'fields': ('effective_from',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes', 'created_by')
+        }),
+        ('Timestamps', {
+            'fields': ('created', 'modified'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # Only set created_by on creation
+            obj.created_by = request.user
+        # Auto-calculate required coupons
+        obj.required_coupons = obj.calculate_required_coupons()
+        super().save_model(request, obj, form, change)
 
 # Admin Site Customization
 admin.site.site_header = "Fuel Coupon Management System"

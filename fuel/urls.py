@@ -11,7 +11,7 @@ from .views_main import (
     admin_dashboard, fuel_statistics, analytics_view, notification_stats,
     
     # NEW: Missing view implementations from views_main
-    main_dashboard, analytics_consumption_trend,
+    main_dashboard, analytics_consumption_trend, analytics_fuel_requirements,
     change_password, mark_all_notifications_read, subcenter_statistics,
     
     # Existing ViewSets
@@ -24,6 +24,9 @@ from .views_main import (
     
     # Subcenter management ViewSets
     PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
+    
+    # Fuel requirements management ViewSet
+    FuelRequirementConfigurationViewSet,
     
     # Dispatch and allocation ViewSets
     BookDispatchViewSet, CouponAllocationViewSet,
@@ -99,6 +102,9 @@ router.register(r'pool-vehicles', PoolVehicleViewSet, basename='pool-vehicle')
 router.register(r'drivers', DriverViewSet, basename='driver')
 router.register(r'vehicle-assignments', VehicleAssignmentViewSet, basename='vehicle-assignment')
 
+# Fuel requirements management
+router.register(r'fuel-requirements', FuelRequirementConfigurationViewSet, basename='fuel-requirement')
+
 # System management
 router.register(r'system-alerts', SystemAlertViewSet, basename='system-alert')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
@@ -139,7 +145,7 @@ urlpatterns = [
     # Analytics endpoints - keep relative paths only
     path('analytics/', analytics_view, name='analytics-view'),
     path('analytics/consumption-trend/', analytics_consumption_trend, name='consumption-trend-analytics'),
-    path('analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics'),
+    path('analytics/fuel-requirements/', analytics_fuel_requirements, name='fuel-requirements-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # General statistics endpoint
     

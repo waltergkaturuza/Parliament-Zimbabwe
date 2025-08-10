@@ -3330,3 +3330,93 @@ class CouponDistribution(TimeStampedModel):
 
     def __str__(self):
         return f"Coupon {self.coupon.coupon_number} distributed to {self.beneficiary.get_full_name()}"
+
+
+class FuelRequirementConfiguration(TimeStampedModel):
+    """
+    Configuration model for managing daily/weekly fuel requirements
+    """
+    FUEL_TYPE_CHOICES = [
+        ('PETROL', 'Petrol'),
+        ('DIESEL', 'Diesel'),
+    ]
+    
+    PERIOD_CHOICES = [
+        ('DAILY', 'Daily'),
+        ('WEEKLY', 'Weekly'),
+        ('MONTHLY', 'Monthly'),
+    ]
+    
+    fuel_type = models.CharField(
+        max_length=10,
+        choices=FUEL_TYPE_CHOICES,
+        help_text="Type of fuel"
+    )
+    period = models.CharField(
+        max_length=10,
+        choices=PERIOD_CHOICES,
+        default='DAILY',
+        help_text="Period for which this requirement applies"
+    )
+    required_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Required litres for this period"
+    )
+    required_coupons = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Number of coupons needed for this period"
+    )
+    litres_per_coupon = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=20.00,
+        validators=[MinValueValidator(0)],
+        help_text="Litres per coupon for this fuel type"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this configuration is currently active"
+    )
+    effective_from = models.DateField(
+        default=timezone.now,
+        help_text="Date from which this configuration is effective"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this requirement"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_fuel_requirements',
+        limit_choices_to={'role__in': ['ADMIN', 'SUPERUSER', 'MAIN_CENTER']}
+    )
+    
+    class Meta:
+        ordering = ['-created']
+        verbose_name = "Fuel Requirement Configuration"
+        verbose_name_plural = "Fuel Requirement Configurations"
+        unique_together = ['fuel_type', 'period', 'effective_from']
+        indexes = [
+            models.Index(fields=['fuel_type', 'period']),
+            models.Index(fields=['effective_from']),
+            models.Index(fields=['is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.fuel_type} - {self.required_litres}L {self.period.lower()}"
+    
+    def calculate_required_coupons(self):
+        """Calculate required coupons based on litres and coupon size"""
+        if self.litres_per_coupon > 0:
+            return int(self.required_litres / self.litres_per_coupon)
+        return 0
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate required coupons if not set
+        if not self.required_coupons:
+            self.required_coupons = self.calculate_required_coupons()
+        super().save(*args, **kwargs)

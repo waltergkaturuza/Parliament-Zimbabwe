@@ -23,7 +23,7 @@ from .models import (
     User as UserModel, FuelData, CouponDistribution, FuelTransaction, SubCenterOfficer,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, SessionAttendance,
     BeneficiaryProfile, AuditLog, SystemAlert, BookDispatch, CouponAllocation, FuelEntitlement,
-    PoolVehicle, Driver, VehicleAssignment
+    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration
 )
 from .serializers import (
     CouponSerializer, SubCenterSerializer,
@@ -35,7 +35,8 @@ from .serializers import (
     BulkCouponAllocationSerializer,
     BookDispatchSerializer, CouponAllocationSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
-    SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer
+    SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
+    FuelRequirementConfigurationSerializer
 )
 from .permissions import (
     # Role-based permissions
@@ -2111,6 +2112,87 @@ class VehicleAssignmentViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(active_assignments, many=True)
         return Response(serializer.data)
+
+
+class FuelRequirementConfigurationViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing fuel requirement configurations"""
+    serializer_class = FuelRequirementConfigurationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        queryset = FuelRequirementConfiguration.objects.all()
+        
+        # Only admin, superuser, and main center can manage fuel requirements
+        if user.role in ['ADMIN', 'SUPERUSER', 'MAIN_CENTER']:
+            return queryset
+        
+        # Others can only view
+        if self.action in ['list', 'retrieve']:
+            return queryset
+        
+        return queryset.none()
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), AdminPermission() | SuperUserPermission() | MainCenterPermission()]
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get all active fuel requirement configurations"""
+        active_configs = self.get_queryset().filter(is_active=True)
+        serializer = self.get_serializer(active_configs, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def current_requirements(self, request):
+        """Get current fuel requirements based on active configurations"""
+        today = timezone.now().date()
+        
+        # Get active configurations effective today
+        daily_petrol = FuelRequirementConfiguration.objects.filter(
+            fuel_type='PETROL',
+            period='DAILY',
+            is_active=True,
+            effective_from__lte=today
+        ).order_by('-effective_from').first()
+        
+        daily_diesel = FuelRequirementConfiguration.objects.filter(
+            fuel_type='DIESEL',
+            period='DAILY',
+            is_active=True,
+            effective_from__lte=today
+        ).order_by('-effective_from').first()
+        
+        weekly_petrol = FuelRequirementConfiguration.objects.filter(
+            fuel_type='PETROL',
+            period='WEEKLY',
+            is_active=True,
+            effective_from__lte=today
+        ).order_by('-effective_from').first()
+        
+        weekly_diesel = FuelRequirementConfiguration.objects.filter(
+            fuel_type='DIESEL',
+            period='WEEKLY',
+            is_active=True,
+            effective_from__lte=today
+        ).order_by('-effective_from').first()
+        
+        return Response({
+            'daily': {
+                'petrol': FuelRequirementConfigurationSerializer(daily_petrol).data if daily_petrol else None,
+                'diesel': FuelRequirementConfigurationSerializer(daily_diesel).data if daily_diesel else None,
+            },
+            'weekly': {
+                'petrol': FuelRequirementConfigurationSerializer(weekly_petrol).data if weekly_petrol else None,
+                'diesel': FuelRequirementConfigurationSerializer(weekly_diesel).data if weekly_diesel else None,
+            },
+            'effective_date': today.isoformat()
+        })
         
 #         if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
 #             return queryset  # Main Center and Auditors see all drivers
@@ -2486,6 +2568,128 @@ def analytics_consumption_trend(request):
     except Exception as e:
         return Response(
             {'error': f'Failed to retrieve consumption trend: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Analytics Fuel Requirements View - for /api/v1/analytics/fuel-requirements/
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_fuel_requirements(request):
+    """
+    Fuel requirements analytics endpoint - calculates projected fuel needs
+    """
+    try:
+        # Get current date and calculate periods
+        today = timezone.now().date()
+        
+        # Daily requirements calculation
+        daily_petrol_requirement = 500  # Base requirement in liters
+        daily_diesel_requirement = 800  # Base requirement in liters
+        
+        # Get current fuel pricing
+        try:
+            latest_fuel_data = FuelData.objects.first()
+            if latest_fuel_data:
+                petrol_price_usd = latest_fuel_data.petrol_price_usd
+                diesel_price_usd = latest_fuel_data.diesel_price_usd
+                exchange_rate = latest_fuel_data.exchange_rate_usd_to_zwg
+            else:
+                petrol_price_usd = 1.25  # Default price
+                diesel_price_usd = 1.35  # Default price
+                exchange_rate = 27.5  # Default exchange rate
+        except:
+            petrol_price_usd = 1.25
+            diesel_price_usd = 1.35
+            exchange_rate = 27.5
+        
+        # Calculate coupon requirements (assuming 20L per coupon for petrol, 25L for diesel)
+        petrol_coupons_needed = daily_petrol_requirement // 20
+        diesel_coupons_needed = daily_diesel_requirement // 25
+        
+        # Calculate costs
+        petrol_cost_usd = daily_petrol_requirement * petrol_price_usd
+        diesel_cost_usd = daily_diesel_requirement * diesel_price_usd
+        petrol_cost_zwg = petrol_cost_usd * exchange_rate
+        diesel_cost_zwg = diesel_cost_usd * exchange_rate
+        
+        # Weekly requirements
+        weekly_petrol_requirement = daily_petrol_requirement * 7
+        weekly_diesel_requirement = daily_diesel_requirement * 7
+        weekly_petrol_coupons = petrol_coupons_needed * 7
+        weekly_diesel_coupons = diesel_coupons_needed * 7
+        weekly_petrol_cost_zwg = petrol_cost_zwg * 7
+        weekly_diesel_cost_zwg = diesel_cost_zwg * 7
+        
+        # Get current stock levels
+        available_petrol_coupons = Coupon.objects.filter(
+            fuel_type='PETROL', 
+            status='AVAILABLE'
+        ).count()
+        
+        available_diesel_coupons = Coupon.objects.filter(
+            fuel_type='DIESEL', 
+            status='AVAILABLE'
+        ).count()
+        
+        # Calculate days of supply remaining
+        petrol_days_remaining = available_petrol_coupons // petrol_coupons_needed if petrol_coupons_needed > 0 else 0
+        diesel_days_remaining = available_diesel_coupons // diesel_coupons_needed if diesel_coupons_needed > 0 else 0
+        
+        return Response({
+            'daily_requirements': {
+                'petrol': {
+                    'fuel_type': 'PETROL',
+                    'required_litres': daily_petrol_requirement,
+                    'required_coupons': petrol_coupons_needed,
+                    'estimated_cost_usd': round(petrol_cost_usd, 2),
+                    'estimated_cost_zwg': round(petrol_cost_zwg, 2),
+                    'period': f'{today} to {today}'
+                },
+                'diesel': {
+                    'fuel_type': 'DIESEL',
+                    'required_litres': daily_diesel_requirement,
+                    'required_coupons': diesel_coupons_needed,
+                    'estimated_cost_usd': round(diesel_cost_usd, 2),
+                    'estimated_cost_zwg': round(diesel_cost_zwg, 2),
+                    'period': f'{today} to {today}'
+                }
+            },
+            'weekly_requirements': {
+                'petrol': {
+                    'fuel_type': 'PETROL',
+                    'required_litres': weekly_petrol_requirement,
+                    'required_coupons': weekly_petrol_coupons,
+                    'estimated_cost_usd': round(petrol_cost_usd * 7, 2),
+                    'estimated_cost_zwg': round(weekly_petrol_cost_zwg, 2),
+                    'period': f'{today} to {today + timedelta(days=6)}'
+                },
+                'diesel': {
+                    'fuel_type': 'DIESEL',
+                    'required_litres': weekly_diesel_requirement,
+                    'required_coupons': weekly_diesel_coupons,
+                    'estimated_cost_usd': round(diesel_cost_usd * 7, 2),
+                    'estimated_cost_zwg': round(weekly_diesel_cost_zwg, 2),
+                    'period': f'{today} to {today + timedelta(days=6)}'
+                }
+            },
+            'current_stock': {
+                'available_petrol_coupons': available_petrol_coupons,
+                'available_diesel_coupons': available_diesel_coupons,
+                'petrol_days_remaining': petrol_days_remaining,
+                'diesel_days_remaining': diesel_days_remaining
+            },
+            'pricing_info': {
+                'petrol_price_usd': petrol_price_usd,
+                'diesel_price_usd': diesel_price_usd,
+                'exchange_rate': exchange_rate,
+                'last_updated': timezone.now().isoformat()
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve fuel requirements: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

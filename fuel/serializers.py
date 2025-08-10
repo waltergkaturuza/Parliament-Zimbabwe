@@ -11,7 +11,8 @@ from .models import (
     FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
     BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, SystemAlert, FuelEntitlement,
-    PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance
+    PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
+    FuelRequirementConfiguration
 )
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 # import re # Not used in provided code
@@ -685,6 +686,40 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     f"Coupon range ({first_coupon}-{last_coupon}) doesn't match "
                     f"calculated total ({num_books} books × {coupons_per_book} coupons = {calculated_total})"
+                )
+        
+        return data
+
+
+class FuelRequirementConfigurationSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.ReadOnlyField(source='created_by.username')
+    required_coupons = serializers.ReadOnlyField()  # Auto-calculated field
+    
+    class Meta:
+        model = FuelRequirementConfiguration
+        fields = [
+            'id', 'fuel_type', 'period', 'required_litres', 'required_coupons',
+            'litres_per_coupon', 'is_active', 'effective_from', 'notes',
+            'created_by', 'created_by_username', 'created', 'modified'
+        ]
+        read_only_fields = ['created_by', 'created', 'modified']
+    
+    def validate(self, data):
+        # Ensure only one active configuration per fuel type and period
+        fuel_type = data.get('fuel_type')
+        period = data.get('period')
+        is_active = data.get('is_active', True)
+        
+        if is_active:
+            existing = FuelRequirementConfiguration.objects.filter(
+                fuel_type=fuel_type,
+                period=period,
+                is_active=True
+            ).exclude(id=self.instance.id if self.instance else None)
+            
+            if existing.exists():
+                raise serializers.ValidationError(
+                    f"An active {period.lower()} configuration for {fuel_type} already exists."
                 )
         
         return data
