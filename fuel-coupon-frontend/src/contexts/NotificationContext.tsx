@@ -113,12 +113,21 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   // Listen for real-time notifications via WebSocket (if implemented)
   useEffect(() => {
+    // Don't connect WebSocket if userId is empty or invalid
+    if (!userId || userId.trim() === '') {
+      console.log('Skipping WebSocket connection: userId is empty');
+      return;
+    }
+
     if ('WebSocket' in window) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       // Remove /api/v1 from base URL for WebSocket connection
       const wsBaseUrl = baseUrl.replace('/api/v1', '');
       const wsUrl = wsBaseUrl.replace('http', 'ws').replace('https', 'wss') + `/ws/notifications/${userRole}/${userId}/`;
       let ws: WebSocket | null = null;
+      
+      console.log('Attempting WebSocket connection to:', wsUrl);
+      
       try {
         ws = new WebSocket(wsUrl);
       } catch (err) {

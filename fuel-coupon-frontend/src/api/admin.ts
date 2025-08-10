@@ -62,7 +62,7 @@ class AdminService {
     page?: number;
     page_size?: number;
   }): Promise<{ results: User[]; count: number }> {
-    const response = await apiClient.get('/users/', { params });
+    const response = await apiClient.get('/api/v1/users/', { params });
     return response.data;
   }
 
@@ -70,7 +70,7 @@ class AdminService {
    * Get user statistics
    */
   async getUserStats(): Promise<UserStats> {
-    const response = await apiClient.get('/users/stats/');
+    const response = await apiClient.get('/api/v1/users/stats/');
     return response.data;
   }
 
@@ -78,7 +78,7 @@ class AdminService {
    * Create a new user
    */
   async createUser(userData: Partial<User>): Promise<User> {
-    const response = await apiClient.post('/users/', userData);
+    const response = await apiClient.post('/api/v1/users/', userData);
     return response.data;
   }
 
@@ -86,7 +86,7 @@ class AdminService {
    * Update user
    */
   async updateUser(userId: number, userData: Partial<User>): Promise<User> {
-    const response = await apiClient.patch(`/users/${userId}/`, userData);
+    const response = await apiClient.patch(`/api/v1/users/${userId}/`, userData);
     return response.data;
   }
 
@@ -94,14 +94,14 @@ class AdminService {
    * Delete user
    */
   async deleteUser(userId: number): Promise<void> {
-    await apiClient.delete(`/users/${userId}/`);
+    await apiClient.delete(`/api/v1/users/${userId}/`);
   }
 
   /**
    * Approve user
    */
   async approveUser(userId: number): Promise<User> {
-    const response = await apiClient.post(`/users/${userId}/approve_user/`);
+    const response = await apiClient.post(`/api/v1/users/${userId}/approve_user/`);
     return response.data;
   }
 
@@ -109,14 +109,14 @@ class AdminService {
    * Reject user
    */
   async rejectUser(userId: number, reason: string): Promise<void> {
-    await apiClient.post(`/users/${userId}/reject_user/`, { reason });
+    await apiClient.post(`/api/v1/users/${userId}/reject_user/`, { reason });
   }
 
   /**
    * Get pending user approvals
    */
   async getPendingApprovals(): Promise<{ count: number; users: User[] }> {
-    const response = await apiClient.get('/users/pending_approvals/');
+    const response = await apiClient.get('/api/v1/users/pending_approvals/');
     return response.data;
   }
 

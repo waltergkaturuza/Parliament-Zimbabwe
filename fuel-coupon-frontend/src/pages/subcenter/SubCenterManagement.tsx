@@ -223,7 +223,7 @@ const SubCenterManagement: FC = () => {
 
   const loadAvailableManagers = async () => {
     try {
-      const response = await apiClient.get('/users/?role=MAIN_CENTER,SUB_CENTER&page_size=50');
+      const response = await apiClient.get('/api/v1/users/?role=MAIN_CENTER,SUB_CENTER&page_size=50');
       setAvailableManagers(response.data.results || response.data);
     } catch (error) {
       console.error('Failed to load managers:', error);

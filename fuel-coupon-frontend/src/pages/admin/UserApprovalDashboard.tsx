@@ -63,7 +63,7 @@ const UserApprovalDashboard = () => {
   const fetchPendingUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/users/pending_approvals/');
+      const response = await apiClient.get('/api/v1/users/pending_approvals/');
       setPendingUsers(response.data.users || []);
     } catch (error) {
       console.error('Error fetching pending users:', error);

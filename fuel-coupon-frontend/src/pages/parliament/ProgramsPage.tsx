@@ -92,7 +92,7 @@ const ProgramsPage: FC = () => {
       const [programsResponse, subCentersResponse, organizersResponse] = await Promise.all([
         apiClient.get('/programs/'),
         apiClient.get('/sub-centers/'),
-        apiClient.get('/users/?role__in=MAIN_CENTER,SUB_CENTER')
+        apiClient.get('/api/v1/users/?role__in=MAIN_CENTER,SUB_CENTER')
       ]);
 
       const programData = programsResponse.data.results || programsResponse.data;

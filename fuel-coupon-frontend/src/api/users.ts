@@ -54,37 +54,37 @@ export const UserService = {
     page?: number;
     page_size?: number;
   }) => {
-    const response = await apiClient.get('/users/', { params });
+    const response = await apiClient.get('/api/v1/users/', { params });
     return response.data;
   },
 
   // Get users by specific role
   getUsersByRole: async (role: string) => {
-    const response = await apiClient.get('/users/', { params: { role } });
+    const response = await apiClient.get('/api/v1/users/', { params: { role } });
     return response.data;
   },
 
   // Get a specific user by ID
   getUser: async (id: string | number) => {
-    const response = await apiClient.get(`/users/${id}/`);
+    const response = await apiClient.get(`/api/v1/users/${id}/`);
     return response.data;
   },
 
   // Create a new user
   createUser: async (userData: CreateUserData) => {
-    const response = await apiClient.post('/users/', userData);
+    const response = await apiClient.post('/api/v1/users/', userData);
     return response.data;
   },
 
   // Update an existing user
   updateUser: async (id: string | number, userData: UpdateUserData) => {
-    const response = await apiClient.patch(`/users/${id}/`, userData);
+    const response = await apiClient.patch(`/api/v1/users/${id}/`, userData);
     return response.data;
   },
 
   // Delete a user
   deleteUser: async (id: string | number) => {
-    const response = await apiClient.delete(`/users/${id}/`);
+    const response = await apiClient.delete(`/api/v1/users/${id}/`);
     return response.data;
   },
 
@@ -102,7 +102,7 @@ export const UserService = {
 
   // Get user statistics
   getUserStats: async () => {
-    const response = await apiClient.get('/users/stats/');
+    const response = await apiClient.get('/api/v1/users/stats/');
     return response.data;
   },
 };

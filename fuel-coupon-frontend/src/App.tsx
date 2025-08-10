@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import './index.css';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { App as AntdApp } from 'antd';
 
 const defaultTheme = createTheme({
   palette: {
@@ -27,12 +28,14 @@ const defaultTheme = createTheme({
 
 function App() {
   return (
-    <ThemeProvider theme={defaultTheme}>
-      <CssBaseline />
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </ThemeProvider>
+    <AntdApp>
+      <ThemeProvider theme={defaultTheme}>
+        <CssBaseline />
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </ThemeProvider>
+    </AntdApp>
   );
 }
 
