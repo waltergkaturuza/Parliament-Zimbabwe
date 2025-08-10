@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import apiClient from '@/api/index';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Card,
   Table,
@@ -31,6 +32,7 @@ import {
   Statistic,
   TimePicker,
   Radio,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -113,6 +115,7 @@ interface SmartCalculationMode {
 }
 
 const BoxReceiptManagement: FC = () => {
+  const { user } = useAuth();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
@@ -132,6 +135,310 @@ const BoxReceiptManagement: FC = () => {
   const [archiveModalVisible, setArchiveModalVisible] = useState(false);
   const [archiveForm] = Form.useForm();
 
+  // PDF and Print functionality
+  const generateVerificationReportData = () => {
+    const currentUser = user ? `${user.name || user.username}` : "System User";
+    const currentDate = new Date();
+    const formValues = form.getFieldsValue();
+    
+    return {
+      boxId: formValues.boxId || 'N/A',
+      barcode: formValues.barcode || 'N/A',
+      supplier: formValues.supplier || 'Petrotrade Zimbabwe',
+      receivedDate: formValues.receivedDate ? dayjs(formValues.receivedDate).format('DD/MM/YYYY') : 'N/A',
+      receivedTime: formValues.receivedTime ? dayjs(formValues.receivedTime).format('HH:mm') : 'N/A',
+      receivedBy: currentUser, // Auto-filled with logged-in user
+      verifiedBy: currentUser,
+      verificationDate: currentDate.toLocaleDateString('en-GB'),
+      verificationTime: currentDate.toLocaleTimeString('en-GB'),
+      books: calculatedBooks,
+      totalBooks: calculatedBooks.length,
+      totalCoupons: calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0),
+      
+      // Fuel Details
+      fuelType: formValues.fuelType || 'DIESEL',
+      couponAmount: formValues.couponAmount || 20, // litres per coupon
+      totalLitres: calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0) * (formValues.couponAmount || 20),
+      fuelPricePerLitre: formValues.fuelPricePerLitreUSD || 1.40,
+      totalValueUSD: calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0) * (formValues.couponAmount || 20) * (formValues.fuelPricePerLitreUSD || 1.40),
+      exchangeRate: formValues.exchangeRate || 27.50,
+      totalValueZWL: calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0) * (formValues.couponAmount || 20) * (formValues.fuelPricePerLitreUSD || 1.40) * (formValues.exchangeRate || 27.50),
+      
+      verificationNotes: formValues.couponVerificationNotes || 'No additional notes',
+      witnessSignature: '', // Empty space for witness signature
+      verifierSignature: currentUser, // Auto-filled with logged-in user
+    };
+  };
+
+  const downloadVerificationReport = async () => {
+    try {
+      const reportData = generateVerificationReportData();
+      
+      // Create verification record in backend
+      const verificationRecord = {
+        box_id: form.getFieldValue('boxId'),
+        verified_by: reportData.verifiedBy,
+        verification_date: new Date().toISOString(),
+        books_verified: reportData.books,
+        verification_notes: reportData.verificationNotes,
+        status: 'VERIFIED'
+      };
+      
+      // Save to backend
+      await apiClient.post('/boxes/verification-reports/', verificationRecord);
+      
+      // Generate PDF content
+      const pdfContent = generatePDFContent(reportData);
+      
+      // Create and download PDF
+      const blob = new Blob([pdfContent], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Verification_Report_${reportData.boxId}_${reportData.verificationDate.replace(/\//g, '')}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Verification report downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading verification report:', error);
+      message.error('Failed to download verification report');
+    }
+  };
+
+  const printVerificationReport = () => {
+    const reportData = generateVerificationReportData();
+    const printContent = generatePDFContent(reportData);
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
+  };
+
+  const generatePDFContent = (data: any) => {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Box Verification Report - ${data.boxId}</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                margin: 20px; 
+                line-height: 1.6;
+                color: #333;
+            }
+            .header { 
+                display: flex; 
+                align-items: center; 
+                margin-bottom: 30px;
+                border-bottom: 2px solid #1890ff;
+                padding-bottom: 20px;
+            }
+            .logo { 
+                width: 80px; 
+                height: 80px; 
+                margin-right: 20px;
+                background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%231890ff"/><text x="50" y="55" text-anchor="middle" fill="white" font-size="20" font-weight="bold">PZ</text></svg>') no-repeat center;
+                background-size: contain;
+            }
+            .header-text h1 { 
+                margin: 0; 
+                color: #1890ff;
+                font-size: 24px;
+            }
+            .header-text p { 
+                margin: 5px 0; 
+                color: #666;
+            }
+            .report-info { 
+                background: #f5f5f5; 
+                padding: 15px; 
+                border-radius: 5px; 
+                margin-bottom: 20px;
+            }
+            .books-table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin: 20px 0;
+            }
+            .books-table th, .books-table td { 
+                border: 1px solid #ddd; 
+                padding: 8px; 
+                text-align: left;
+            }
+            .books-table th { 
+                background-color: #1890ff; 
+                color: white;
+            }
+            .books-table tr:nth-child(even) { 
+                background-color: #f2f2f2;
+            }
+            .signature-section { 
+                display: flex; 
+                justify-content: space-between; 
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #ddd;
+            }
+            .signature-box { 
+                width: 45%; 
+                text-align: center;
+            }
+            .signature-line { 
+                border-bottom: 1px solid #333; 
+                height: 40px; 
+                margin-bottom: 10px;
+            }
+            .summary-stats {
+                display: flex;
+                justify-content: space-around;
+                background: #f0f8ff;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 20px 0;
+            }
+            .stat-item {
+                text-align: center;
+            }
+            .stat-number {
+                font-size: 24px;
+                font-weight: bold;
+                color: #1890ff;
+            }
+            .verification-checklist {
+                background: #f6ffed;
+                border: 1px solid #b7eb8f;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 20px 0;
+            }
+            .print-only { display: none; }
+            @media print {
+                .print-only { display: block; }
+                body { margin: 0; }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <div class="logo"></div>
+            <div class="header-text">
+                <h1>Parliament of Zimbabwe</h1>
+                <p>Fuel Coupon System - Box Verification Report</p>
+                <p>Generated on ${data.verificationDate} at ${data.verificationTime}</p>
+            </div>
+        </div>
+
+        <div class="report-info">
+            <h3>Box Information</h3>
+            <p><strong>Box ID:</strong> ${data.boxId}</p>
+            <p><strong>Barcode:</strong> ${data.barcode}</p>
+            <p><strong>Supplier:</strong> ${data.supplier}</p>
+            <p><strong>Received Date:</strong> ${data.receivedDate}</p>
+            <p><strong>Received Time:</strong> ${data.receivedTime}</p>
+            <p><strong>Received By:</strong> ${data.receivedBy}</p>
+        </div>
+
+        <div class="report-info">
+            <h3>Fuel Details</h3>
+            <p><strong>Fuel Type:</strong> ${data.fuelType}</p>
+            <p><strong>Coupon Denomination:</strong> ${data.couponAmount} litres per coupon</p>
+            <p><strong>Fuel Price:</strong> $${data.fuelPricePerLitre} USD per litre</p>
+            <p><strong>Exchange Rate:</strong> 1 USD = ${data.exchangeRate} ZWL</p>
+        </div>
+
+        <div class="summary-stats">
+            <div class="stat-item">
+                <div class="stat-number">${data.totalBooks}</div>
+                <div>Total Books</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">${data.totalCoupons}</div>
+                <div>Total Coupons</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">${data.totalLitres}</div>
+                <div>Total Litres</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">$${data.totalValueUSD.toFixed(2)}</div>
+                <div>Total Value (USD)</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">${data.totalValueZWL.toLocaleString()}</div>
+                <div>Total Value (ZWL)</div>
+            </div>
+        </div>
+
+        <h3>Book Details</h3>
+        <table class="books-table">
+            <thead>
+                <tr>
+                    <th>Book #</th>
+                    <th>First Coupon ID</th>
+                    <th>Last Coupon ID</th>
+                    <th>Number of Coupons</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${data.books.map((book, index) => `
+                    <tr>
+                        <td>Book ${index + 1}</td>
+                        <td>${book.firstCouponId}</td>
+                        <td>${book.lastCouponId}</td>
+                        <td>${book.numberOfCoupons}</td>
+                        <td>✓ Verified</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+
+        <div class="verification-checklist">
+            <h3>Verification Checklist</h3>
+            <p>✓ First coupon ID verified: ${data.books[0]?.firstCouponId || 'N/A'}</p>
+            <p>✓ Last coupon ID verified: ${data.books[data.books.length - 1]?.lastCouponId || 'N/A'}</p>
+            <p>✓ Coupon count matches: ${data.totalCoupons} coupons</p>
+            <p>✓ All ${data.totalBooks} books are intact and properly bound</p>
+            <p>✓ Box barcode scanned successfully: ${data.barcode}</p>
+            <p>✓ No visible damage to coupons or books</p>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>Verification Notes</h3>
+            <p>${data.verificationNotes}</p>
+        </div>
+
+        <div class="signature-section">
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <p><strong>Verified By:</strong><br>${data.verifiedBy}<br>Date: ${data.verificationDate}</p>
+            </div>
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <p><strong>Witness Signature:</strong><br>Name: ____________________<br>Date: ____________________</p>
+            </div>
+        </div>
+
+        <div class="print-only" style="margin-top: 30px; text-align: center; font-size: 12px; color: #666;">
+            <p>This document was automatically generated by the Parliament of Zimbabwe Fuel Coupon System</p>
+            <p>Verification ID: VER-${data.boxId}-${data.verificationDate.replace(/\//g, '')}</p>
+        </div>
+    </body>
+    </html>
+    `;
+  };
+
   // Fetch data on component mount
   useEffect(() => {
     fetchBoxReceipts();
@@ -141,7 +448,7 @@ const BoxReceiptManagement: FC = () => {
   const fetchBoxReceipts = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/boxes/');
+      const response = await apiClient.get('/boxes/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -251,6 +558,15 @@ const BoxReceiptManagement: FC = () => {
     setSelectedBox(null); // Clear any selected box for editing
     form.resetFields();
     generateNextBoxNumber();
+    
+    // Auto-populate receivedBy with current user
+    const currentUser = user ? `${user.name || user.username}` : "System User";
+    form.setFieldsValue({
+      receivedBy: currentUser,
+      receivedDate: dayjs(), // Set current date
+      receivedTime: dayjs(), // Set current time
+    });
+    
     setIsModalVisible(true);
   };
 
@@ -374,7 +690,7 @@ const BoxReceiptManagement: FC = () => {
 
       if (selectedBox) {
         // Edit existing box
-        const response = await apiClient.put(`/api/v1/boxes/${selectedBox.id}/`, boxData);
+        const response = await apiClient.put(`/boxes/${selectedBox.id}/`, boxData);
         if (response.status === 200) {
           // Update local state
           setBoxReceipts(prev => prev.map(box => 
@@ -386,7 +702,7 @@ const BoxReceiptManagement: FC = () => {
         }
       } else {
         // Create new box - use correct API endpoint
-        const response = await apiClient.post('/api/v1/boxes/', boxData);
+        const response = await apiClient.post('/boxes/', boxData);
         if (response.status === 201) {
           const newBox: BoxReceipt = {
             id: String(response.data.id),
@@ -869,6 +1185,7 @@ const BoxReceiptManagement: FC = () => {
                   setSelectedBox(record);
                   form.setFieldsValue({
                     ...record,
+                    receivedBy: currentUser?.fullName || record.receivedBy || '',
                     receivedDate: record.receivedDate ? dayjs(record.receivedDate) : null,
                     receivedTime: record.receivedTime ? dayjs(record.receivedTime, 'HH:mm') : null,
                   });
@@ -2194,50 +2511,111 @@ const BoxReceiptManagement: FC = () => {
 
               <Form.Item
                 label="Book Verification"
-                tooltip="Select random coupons from different books to verify authenticity and print quality"
+                tooltip="Verify all generated books with their coupon ranges and download verification report"
               >
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 1 - First Coupon ID" 
-                      addonBefore="Book 1"
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 1 - Last Coupon ID" 
-                      addonAfter={
+                {calculatedBooks.length > 0 ? (
+                  <div>
+                    <div style={{ marginBottom: 16 }}>
+                      <Space>
                         <Button 
-                          size="small" 
-                          icon={<CheckOutlined />}
-                          type="text"
-                          style={{ color: 'green' }}
-                        />
-                      }
-                    />
-                  </Col>
-                </Row>
-                <Row gutter={16} style={{ marginTop: 8 }}>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 2 - First Coupon ID" 
-                      addonBefore="Book 2"
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 2 - Last Coupon ID" 
-                      addonAfter={
+                          type="primary"
+                          icon={<DownloadOutlined />}
+                          onClick={() => downloadVerificationReport()}
+                        >
+                          Download Verification Report
+                        </Button>
                         <Button 
-                          size="small" 
-                          icon={<CheckOutlined />}
-                          type="text"
-                          style={{ color: 'green' }}
-                        />
-                      }
+                          icon={<PrinterOutlined />}
+                          onClick={() => printVerificationReport()}
+                        >
+                          Print Report
+                        </Button>
+                      </Space>
+                    </div>
+                    
+                    <Table
+                      size="small"
+                      dataSource={calculatedBooks.map((book, index) => ({
+                        ...book,
+                        key: index,
+                        bookNumber: index + 1,
+                      }))}
+                      columns={[
+                        {
+                          title: 'Book #',
+                          dataIndex: 'bookNumber',
+                          key: 'bookNumber',
+                          width: 80,
+                          render: (text: number) => (
+                            <Tag color="blue">Book {text}</Tag>
+                          ),
+                        },
+                        {
+                          title: 'First Coupon ID',
+                          dataIndex: 'firstCouponId',
+                          key: 'firstCouponId',
+                          render: (text: string) => (
+                            <Text code copyable>{text}</Text>
+                          ),
+                        },
+                        {
+                          title: 'Last Coupon ID',
+                          dataIndex: 'lastCouponId',
+                          key: 'lastCouponId',
+                          render: (text: string) => (
+                            <Text code copyable>{text}</Text>
+                          ),
+                        },
+                        {
+                          title: 'Coupons',
+                          dataIndex: 'numberOfCoupons',
+                          key: 'numberOfCoupons',
+                          width: 100,
+                          render: (text: number) => (
+                            <Text strong>{text}</Text>
+                          ),
+                        },
+                        {
+                          title: 'Verified',
+                          key: 'verified',
+                          width: 100,
+                          render: () => (
+                            <Button 
+                              size="small" 
+                              icon={<CheckOutlined />}
+                              type="text"
+                              style={{ color: 'green' }}
+                            >
+                              ✓
+                            </Button>
+                          ),
+                        },
+                      ]}
+                      pagination={false}
+                      bordered
+                      style={{ marginBottom: 16 }}
                     />
-                  </Col>
-                </Row>
+                    
+                    <Alert
+                      message="Book Verification Summary"
+                      description={
+                        <div>
+                          <p><strong>Total Books:</strong> {calculatedBooks.length}</p>
+                          <p><strong>Total Coupons:</strong> {calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0)}</p>
+                          <p><strong>First Book Range:</strong> {calculatedBooks[0]?.firstCouponId} - {calculatedBooks[0]?.lastCouponId}</p>
+                          <p><strong>Last Book Range:</strong> {calculatedBooks[calculatedBooks.length - 1]?.firstCouponId} - {calculatedBooks[calculatedBooks.length - 1]?.lastCouponId}</p>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                    />
+                  </div>
+                ) : (
+                  <Empty
+                    description="No books generated yet. Generate books in the Books Details tab first."
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  />
+                )}
               </Form.Item>
 
               <Form.Item

@@ -4,9 +4,12 @@ import axios from 'axios';
 // Load base URL from environment or fallback to localhost
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000';
 
+// Ensure the base URL includes /api/v1 if not already present
+const finalBaseURL = API_BASE_URL.includes('/api/v1') ? API_BASE_URL : `${API_BASE_URL}/api/v1`;
+
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: finalBaseURL,
   headers: {
     'Content-Type': 'application/json',
   },
