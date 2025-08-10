@@ -41,6 +41,7 @@ import {
   InboxOutlined,
   BarcodeOutlined,
   FileTextOutlined,
+  BookOutlined,
   UserOutlined,
   ClockCircleOutlined,
   DollarOutlined,
@@ -887,6 +888,93 @@ const BoxReceiptManagement: FC = () => {
     },
   ];
 
+  // Helper functions for book management
+  const generateBooksFromRange = () => {
+    const numberOfBooks = form.getFieldValue('numberOfBooks') || 0;
+    const couponsPerBook = form.getFieldValue('couponsPerBook') || 100;
+    const firstCouponId = form.getFieldValue('firstCouponId') || '';
+
+    if (!numberOfBooks || !couponsPerBook || !firstCouponId) {
+      message.error('Please fill in basic box details first');
+      return;
+    }
+
+    const books: BookInfo[] = [];
+    const match = firstCouponId.match(/^([A-Z]+)(\d+)$/);
+    
+    if (!match) {
+      message.error('Invalid first coupon ID format');
+      return;
+    }
+
+    const prefix = match[1];
+    let currentNumber = parseInt(match[2]);
+    const numberLength = match[2].length;
+
+    for (let i = 0; i < numberOfBooks; i++) {
+      const bookFirstNumber = currentNumber;
+      const bookLastNumber = currentNumber + couponsPerBook - 1;
+      
+      const bookFirstCouponId = `${prefix}${bookFirstNumber.toString().padStart(numberLength, '0')}`;
+      const bookLastCouponId = `${prefix}${bookLastNumber.toString().padStart(numberLength, '0')}`;
+
+      books.push({
+        bookId: `Book ${i + 1}`,
+        firstCouponId: bookFirstCouponId,
+        lastCouponId: bookLastCouponId,
+        numberOfCoupons: couponsPerBook,
+      });
+
+      currentNumber = bookLastNumber + 1;
+    }
+
+    setCalculatedBooks(books);
+    message.success(`Generated ${numberOfBooks} books successfully`);
+  };
+
+  const updateBookField = (index: number, field: string, value: string) => {
+    const newBooks = [...calculatedBooks];
+    newBooks[index] = { ...newBooks[index], [field]: value };
+    
+    // Recalculate number of coupons if first or last coupon changes
+    if (field === 'firstCouponId' || field === 'lastCouponId') {
+      const book = newBooks[index];
+      if (book.firstCouponId && book.lastCouponId) {
+        const firstMatch = book.firstCouponId.match(/(\d+)$/);
+        const lastMatch = book.lastCouponId.match(/(\d+)$/);
+        
+        if (firstMatch && lastMatch) {
+          const firstNum = parseInt(firstMatch[1]);
+          const lastNum = parseInt(lastMatch[1]);
+          newBooks[index].numberOfCoupons = lastNum - firstNum + 1;
+        }
+      }
+    }
+    
+    setCalculatedBooks(newBooks);
+  };
+
+  const addEmptyBook = () => {
+    const bookNumber = calculatedBooks.length + 1;
+    const newBook: BookInfo = {
+      bookId: `Book ${bookNumber}`,
+      firstCouponId: '',
+      lastCouponId: '',
+      numberOfCoupons: 0,
+    };
+    setCalculatedBooks([...calculatedBooks, newBook]);
+  };
+
+  const removeBook = (index: number) => {
+    const newBooks = calculatedBooks.filter((_, i) => i !== index);
+    // Renumber books
+    const renumberedBooks = newBooks.map((book, i) => ({
+      ...book,
+      bookId: `Book ${i + 1}`,
+    }));
+    setCalculatedBooks(renumberedBooks);
+  };
+
   return (
     <div>
       {/* Header */}
@@ -1252,6 +1340,7 @@ const BoxReceiptManagement: FC = () => {
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Basic Info" icon={<InboxOutlined />} />
           <Step title="Fuel Details" icon={<CarOutlined />} />
+          <Step title="Books Details" icon={<BookOutlined />} />
           <Step title="Coupon Verification" icon={<CheckOutlined />} />
           <Step title="Final Approval" icon={<FileTextOutlined />} />
         </Steps>
@@ -1410,9 +1499,9 @@ const BoxReceiptManagement: FC = () => {
                   >
                     <InputNumber
                       min={1}
-                      max={50}
+                      max={25}
                       style={{ width: '100%' }}
-                      placeholder="Number of books in box"
+                      placeholder="Number of books in box (max 25)"
                     />
                   </Form.Item>
                 </Col>
@@ -1424,9 +1513,9 @@ const BoxReceiptManagement: FC = () => {
                   >
                     <InputNumber
                       min={1}
-                      max={50}
+                      max={100}
                       style={{ width: '100%' }}
-                      placeholder="Coupons per book"
+                      placeholder="Coupons per book (max 100)"
                     />
                   </Form.Item>
                 </Col>
@@ -1578,7 +1667,7 @@ const BoxReceiptManagement: FC = () => {
                     type="primary"
                     onClick={() => setCurrentStep(2)}
                   >
-                    Next: Verification
+                    Next: Books Details
                   </Button>
                 </Space>
               </div>
@@ -1586,6 +1675,137 @@ const BoxReceiptManagement: FC = () => {
           )}
 
           {currentStep === 2 && (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <Title level={4}>Book Details Configuration</Title>
+                <Text type="secondary">
+                  Configure individual books with their first and last coupon numbers.
+                  Each book can contain up to 100 coupons.
+                </Text>
+              </div>
+
+              <Alert
+                message="Book Generation Required" 
+                description={`Generate ${form.getFieldValue('numberOfBooks') || 0} books with ${form.getFieldValue('couponsPerBook') || 0} coupons each. Each book needs first and last coupon numbers.`}
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+
+              {/* Books Table with iteration */}
+              <div style={{ marginBottom: 16 }}>
+                <Row gutter={16} style={{ marginBottom: 16 }}>
+                  <Col span={12}>
+                    <Button 
+                      type="primary" 
+                      onClick={() => generateBooksFromRange()}
+                      block
+                      icon={<BookOutlined />}
+                    >
+                      Auto-Generate Book Ranges
+                    </Button>
+                  </Col>
+                  <Col span={12}>
+                    <Button 
+                      onClick={() => setCalculatedBooks([])}
+                      block
+                    >
+                      Clear All Books
+                    </Button>
+                  </Col>
+                </Row>
+
+                <Table
+                  dataSource={calculatedBooks}
+                  columns={[
+                    {
+                      title: 'Book #',
+                      dataIndex: 'bookId',
+                      key: 'bookId',
+                      width: 100,
+                    },
+                    {
+                      title: 'First Coupon',
+                      dataIndex: 'firstCouponId',
+                      key: 'firstCouponId',
+                      render: (text, record, index) => (
+                        <Input
+                          value={text}
+                          onChange={(e) => updateBookField(index, 'firstCouponId', e.target.value)}
+                          placeholder="PU00GH355101"
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Last Coupon',
+                      dataIndex: 'lastCouponId',
+                      key: 'lastCouponId',
+                      render: (text, record, index) => (
+                        <Input
+                          value={text}
+                          onChange={(e) => updateBookField(index, 'lastCouponId', e.target.value)}
+                          placeholder="PU00GH355200"
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Coupons',
+                      dataIndex: 'numberOfCoupons',
+                      key: 'numberOfCoupons',
+                      width: 100,
+                      render: (text) => <Text strong>{text}</Text>,
+                    },
+                    {
+                      title: 'Actions',
+                      key: 'actions',
+                      width: 100,
+                      render: (_, record, index) => (
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => removeBook(index)}
+                          size="small"
+                        />
+                      ),
+                    },
+                  ]}
+                  pagination={false}
+                  size="small"
+                  scroll={{ y: 300 }}
+                  footer={() => (
+                    <Button
+                      type="dashed"
+                      onClick={() => addEmptyBook()}
+                      block
+                      icon={<PlusOutlined />}
+                    >
+                      Add Book Manually
+                    </Button>
+                  )}
+                />
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <Space>
+                  <Button onClick={() => setCurrentStep(1)}>
+                    Previous
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={() => setCurrentStep(3)}
+                    disabled={calculatedBooks.length === 0}
+                  >
+                    Next: Verification
+                  </Button>
+                </Space>
+              </div>
+            </>
+          )}
+
+          {currentStep === 3 && (
             <>
               <Alert
                 message="Coupon Verification Required"
@@ -1682,10 +1902,10 @@ const BoxReceiptManagement: FC = () => {
 
               <div style={{ textAlign: 'right' }}>
                 <Space>
-                  <Button onClick={() => setCurrentStep(1)}>
+                  <Button onClick={() => setCurrentStep(2)}>
                     Previous
                   </Button>
-                  <Button onClick={() => setCurrentStep(3)}>
+                  <Button onClick={() => setCurrentStep(4)}>
                     Next: Final Approval
                   </Button>
                 </Space>
@@ -1693,7 +1913,7 @@ const BoxReceiptManagement: FC = () => {
             </>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <>
               <Alert
                 message="Verification Required"
@@ -1730,7 +1950,7 @@ const BoxReceiptManagement: FC = () => {
 
               <div style={{ textAlign: 'right' }}>
                 <Space>
-                  <Button onClick={() => setCurrentStep(2)}>
+                  <Button onClick={() => setCurrentStep(3)}>
                     Previous
                   </Button>
                   <Button onClick={() => setIsModalVisible(false)}>
