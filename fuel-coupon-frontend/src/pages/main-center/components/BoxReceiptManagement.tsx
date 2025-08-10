@@ -30,6 +30,7 @@ import {
   Badge,
   Statistic,
   TimePicker,
+  Radio,
 } from 'antd';
 import {
   PlusOutlined,
@@ -55,8 +56,6 @@ import {
   FolderOutlined,
   FolderOpenOutlined,
   CarOutlined,
-  FolderOutlined,
-  FolderOpenOutlined,
   HistoryOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
@@ -107,6 +106,12 @@ interface BookInfo {
   numberOfCoupons: number;
 }
 
+interface SmartCalculationMode {
+  mode: 'first-and-count' | 'last-and-count' | 'first-and-last' | 'full-range';
+  label: string;
+  description: string;
+}
+
 const BoxReceiptManagement: FC = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
@@ -120,6 +125,7 @@ const BoxReceiptManagement: FC = () => {
   const [nextBoxNumber, setNextBoxNumber] = useState('');
   const [calculatedBooks, setCalculatedBooks] = useState<BookInfo[]>([]);
   const [activeTab, setActiveTab] = useState<'receipts' | 'verification' | 'inventory'>('receipts');
+  const [calculationMode, setCalculationMode] = useState<SmartCalculationMode['mode']>('first-and-count');
   
   // Archive-related state
   const [showArchived, setShowArchived] = useState(false);
@@ -135,7 +141,7 @@ const BoxReceiptManagement: FC = () => {
   const fetchBoxReceipts = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/boxes/');
+      const response = await apiClient.get('/api/v1/boxes/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -334,27 +340,41 @@ const BoxReceiptManagement: FC = () => {
            : new Date().toTimeString().slice(0, 5))
         : new Date().toTimeString().slice(0, 5);
 
+      // Include book details from calculated books
+      const bookDetails = calculatedBooks.map((book, index) => ({
+        book_number: index + 1,
+        book_id: book.bookId,
+        first_coupon_id: book.firstCouponId,
+        last_coupon_id: book.lastCouponId,
+        number_of_coupons: book.numberOfCoupons
+      }));
+
       const boxData = {
         box_code: values.boxId,
         barcode: values.barcode || '',
         fuel_type: values.fuelType,
         coupon_amount: values.couponAmount,
-        number_of_books: values.numberOfBooks,
-        coupons_per_book: values.couponsPerBook || 10,
+        number_of_books: calculatedBooks.length || values.numberOfBooks,
+        coupons_per_book: values.couponsPerBook || 100,
         total_litres: values.totalLitres,
+        total_coupons: calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0) || values.totalCoupons,
         monetary_value_usd: values.monetaryValueUSD,
-        fuel_price_per_litre_usd: values.fuelPriceUSD,
+        fuel_price_per_litre_usd: values.fuelPricePerLitreUSD,
         exchange_rate: values.exchangeRate,
-        first_coupon_id: values.firstCouponId,
-        last_coupon_id: values.lastCouponId,
+        first_coupon_id: calculatedBooks.length > 0 ? calculatedBooks[0].firstCouponId : values.firstCouponId,
+        last_coupon_id: calculatedBooks.length > 0 ? calculatedBooks[calculatedBooks.length - 1].lastCouponId : values.lastCouponId,
+        book_details: bookDetails, // Include detailed book information
+        calculation_mode: calculationMode, // Save which calculation method was used
         status: 'RECEIVED',
         received_at: `${receivedDate}T${receivedTime}:00Z`,
         notes: values.notes || ''
       };
 
+      console.log('📦 Submitting box data:', boxData); // For debugging
+
       if (selectedBox) {
         // Edit existing box
-        const response = await apiClient.put(`/boxes/${selectedBox.id}/`, boxData);
+        const response = await apiClient.put(`/api/v1/boxes/${selectedBox.id}/`, boxData);
         if (response.status === 200) {
           // Update local state
           setBoxReceipts(prev => prev.map(box => 
@@ -362,11 +382,11 @@ const BoxReceiptManagement: FC = () => {
               ? { ...selectedBox, ...values, receivedDate, receivedTime }
               : box
           ));
-          message.success('Box updated successfully!');
+          message.success('✅ Box updated successfully!');
         }
       } else {
-        // Create new box
-        const response = await apiClient.post('/boxes/', boxData);
+        // Create new box - use correct API endpoint
+        const response = await apiClient.post('/api/v1/boxes/', boxData);
         if (response.status === 201) {
           const newBox: BoxReceipt = {
             id: String(response.data.id),
@@ -376,17 +396,27 @@ const BoxReceiptManagement: FC = () => {
             status: 'RECEIVED' as const,
           };
           setBoxReceipts(prev => [newBox, ...prev]);
-          message.success('Box received successfully!');
+          message.success(`✅ Box ${values.boxId} received successfully with ${calculatedBooks.length} books!`);
         }
       }
 
       setIsModalVisible(false);
       setSelectedBox(null);
       form.resetFields();
+      setCalculatedBooks([]); // Clear calculated books
+      setCurrentStep(0); // Reset to first step
       generateNextBoxNumber();
-    } catch (error) {
-      console.error('Error saving box:', error);
-      message.error('Failed to save box receipt');
+      
+    } catch (error: any) {
+      console.error('❌ Error saving box:', error);
+      
+      if (error.response?.status === 400) {
+        message.error(`Bad Request: ${error.response?.data?.detail || 'Invalid data provided'}`);
+      } else if (error.response?.status === 401) {
+        message.error('Authentication required. Please log in again.');
+      } else {
+        message.error('Failed to save box receipt. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -888,48 +918,249 @@ const BoxReceiptManagement: FC = () => {
     },
   ];
 
+  // Smart calculation modes
+  const calculationModes: SmartCalculationMode[] = [
+    {
+      mode: 'first-and-count',
+      label: 'First Serial + Coupon Count',
+      description: 'Enter first coupon number and number of coupons per book. System calculates last numbers.'
+    },
+    {
+      mode: 'last-and-count', 
+      label: 'Last Serial + Coupon Count',
+      description: 'Enter last coupon number and number of coupons per book. System calculates first numbers.'
+    },
+    {
+      mode: 'first-and-last',
+      label: 'First + Last of Box',
+      description: 'Enter first coupon of first book and last coupon of last book. System distributes across books.'
+    },
+    {
+      mode: 'full-range',
+      label: 'Complete Range',
+      description: 'Enter complete coupon range. System automatically calculates books and distribution.'
+    }
+  ];
+
   // Helper functions for book management
   const generateBooksFromRange = () => {
     const numberOfBooks = form.getFieldValue('numberOfBooks') || 0;
     const couponsPerBook = form.getFieldValue('couponsPerBook') || 100;
     const firstCouponId = form.getFieldValue('firstCouponId') || '';
+    const lastCouponId = form.getFieldValue('lastCouponId') || '';
 
-    if (!numberOfBooks || !couponsPerBook || !firstCouponId) {
-      message.error('Please fill in basic box details first');
+    if (numberOfBooks <= 0 || numberOfBooks > 25) {
+      message.error('Number of books must be between 1 and 25');
       return;
     }
 
-    const books: BookInfo[] = [];
-    const match = firstCouponId.match(/^([A-Z]+)(\d+)$/);
-    
-    if (!match) {
-      message.error('Invalid first coupon ID format');
+    if (couponsPerBook <= 0 || couponsPerBook > 100) {
+      message.error('Coupons per book must be between 1 and 100');
       return;
+    }
+
+    let books: BookInfo[] = [];
+
+    try {
+      switch (calculationMode) {
+        case 'first-and-count':
+          books = generateFromFirstAndCount(firstCouponId, numberOfBooks, couponsPerBook);
+          break;
+        case 'last-and-count':
+          books = generateFromLastAndCount(lastCouponId, numberOfBooks, couponsPerBook);
+          break;
+        case 'first-and-last':
+          books = generateFromFirstAndLast(firstCouponId, lastCouponId, numberOfBooks);
+          break;
+        case 'full-range':
+          books = generateFromFullRange(firstCouponId, lastCouponId);
+          break;
+        default:
+          books = generateFromFirstAndCount(firstCouponId, numberOfBooks, couponsPerBook);
+      }
+
+      setCalculatedBooks(books);
+      
+      // Update form with calculated values
+      if (books.length > 0) {
+        const totalCoupons = books.reduce((sum, book) => sum + book.numberOfCoupons, 0);
+        const firstBook = books[0];
+        const lastBook = books[books.length - 1];
+        
+        form.setFieldsValue({
+          numberOfBooks: books.length,
+          totalCoupons: totalCoupons,
+          firstCouponId: firstBook.firstCouponId,
+          lastCouponId: lastBook.lastCouponId,
+          couponsPerBook: Math.round(totalCoupons / books.length)
+        });
+
+        message.success(`✅ Generated ${books.length} books with ${totalCoupons} total coupons`);
+      }
+    } catch (error: any) {
+      message.error(error.message || 'Failed to generate books');
+    }
+  };
+
+  // Mode 1: First coupon + count per book
+  const generateFromFirstAndCount = (firstCouponId: string, numberOfBooks: number, couponsPerBook: number): BookInfo[] => {
+    if (!firstCouponId) {
+      throw new Error('First coupon ID is required');
+    }
+
+    const match = firstCouponId.match(/^([A-Z]+)(\d+)$/);
+    if (!match) {
+      throw new Error('Invalid coupon ID format. Expected format: PU00GH355101');
     }
 
     const prefix = match[1];
     let currentNumber = parseInt(match[2]);
     const numberLength = match[2].length;
+    const books: BookInfo[] = [];
 
     for (let i = 0; i < numberOfBooks; i++) {
       const bookFirstNumber = currentNumber;
       const bookLastNumber = currentNumber + couponsPerBook - 1;
       
-      const bookFirstCouponId = `${prefix}${bookFirstNumber.toString().padStart(numberLength, '0')}`;
-      const bookLastCouponId = `${prefix}${bookLastNumber.toString().padStart(numberLength, '0')}`;
-
       books.push({
         bookId: `Book ${i + 1}`,
-        firstCouponId: bookFirstCouponId,
-        lastCouponId: bookLastCouponId,
+        firstCouponId: `${prefix}${bookFirstNumber.toString().padStart(numberLength, '0')}`,
+        lastCouponId: `${prefix}${bookLastNumber.toString().padStart(numberLength, '0')}`,
         numberOfCoupons: couponsPerBook,
       });
 
       currentNumber = bookLastNumber + 1;
     }
 
-    setCalculatedBooks(books);
-    message.success(`Generated ${numberOfBooks} books successfully`);
+    return books;
+  };
+
+  // Mode 2: Last coupon + count per book (working backwards)
+  const generateFromLastAndCount = (lastCouponId: string, numberOfBooks: number, couponsPerBook: number): BookInfo[] => {
+    if (!lastCouponId) {
+      throw new Error('Last coupon ID is required');
+    }
+
+    const match = lastCouponId.match(/^([A-Z]+)(\d+)$/);
+    if (!match) {
+      throw new Error('Invalid coupon ID format. Expected format: PU00GH355200');
+    }
+
+    const prefix = match[1];
+    const lastNumber = parseInt(match[2]);
+    const numberLength = match[2].length;
+    const totalCoupons = numberOfBooks * couponsPerBook;
+    const firstNumber = lastNumber - totalCoupons + 1;
+
+    if (firstNumber <= 0) {
+      throw new Error('Calculated first coupon number is invalid. Check your inputs.');
+    }
+
+    // Now generate forward from the calculated first number
+    return generateFromFirstAndCount(`${prefix}${firstNumber.toString().padStart(numberLength, '0')}`, numberOfBooks, couponsPerBook);
+  };
+
+  // Mode 3: First and last of entire box (auto-distribute)
+  const generateFromFirstAndLast = (firstCouponId: string, lastCouponId: string, numberOfBooks: number): BookInfo[] => {
+    if (!firstCouponId || !lastCouponId) {
+      throw new Error('Both first and last coupon IDs are required');
+    }
+
+    const firstMatch = firstCouponId.match(/^([A-Z]+)(\d+)$/);
+    const lastMatch = lastCouponId.match(/^([A-Z]+)(\d+)$/);
+    
+    if (!firstMatch || !lastMatch) {
+      throw new Error('Invalid coupon ID format');
+    }
+
+    if (firstMatch[1] !== lastMatch[1]) {
+      throw new Error('First and last coupons must have the same prefix');
+    }
+
+    const prefix = firstMatch[1];
+    const firstNumber = parseInt(firstMatch[2]);
+    const lastNumber = parseInt(lastMatch[2]);
+    const numberLength = firstMatch[2].length;
+    
+    const totalCoupons = lastNumber - firstNumber + 1;
+    const couponsPerBook = Math.floor(totalCoupons / numberOfBooks);
+    const remainingCoupons = totalCoupons % numberOfBooks;
+
+    if (couponsPerBook === 0) {
+      throw new Error(`Too many books for the coupon range. Maximum ${totalCoupons} books possible.`);
+    }
+
+    const books: BookInfo[] = [];
+    let currentNumber = firstNumber;
+
+    for (let i = 0; i < numberOfBooks; i++) {
+      // Distribute remaining coupons to first few books
+      const bookCoupons = couponsPerBook + (i < remainingCoupons ? 1 : 0);
+      const bookFirstNumber = currentNumber;
+      const bookLastNumber = currentNumber + bookCoupons - 1;
+      
+      books.push({
+        bookId: `Book ${i + 1}`,
+        firstCouponId: `${prefix}${bookFirstNumber.toString().padStart(numberLength, '0')}`,
+        lastCouponId: `${prefix}${bookLastNumber.toString().padStart(numberLength, '0')}`,
+        numberOfCoupons: bookCoupons,
+      });
+
+      currentNumber = bookLastNumber + 1;
+    }
+
+    return books;
+  };
+
+  // Mode 4: Full range analysis (auto-detect optimal book count)
+  const generateFromFullRange = (firstCouponId: string, lastCouponId: string): BookInfo[] => {
+    if (!firstCouponId || !lastCouponId) {
+      throw new Error('Both first and last coupon IDs are required');
+    }
+
+    const firstMatch = firstCouponId.match(/^([A-Z]+)(\d+)$/);
+    const lastMatch = lastCouponId.match(/^([A-Z]+)(\d+)$/);
+    
+    if (!firstMatch || !lastMatch) {
+      throw new Error('Invalid coupon ID format');
+    }
+
+    const firstNumber = parseInt(firstMatch[2]);
+    const lastNumber = parseInt(lastMatch[2]);
+    const totalCoupons = lastNumber - firstNumber + 1;
+
+    // Smart book count calculation
+    let optimalBooks = 1;
+    let optimalCouponsPerBook = totalCoupons;
+
+    // Find the best distribution (prefer standard coupon counts)
+    const preferredCouponsPerBook = [100, 50, 25, 20, 10];
+    
+    for (const preferred of preferredCouponsPerBook) {
+      if (totalCoupons >= preferred && totalCoupons % preferred === 0) {
+        optimalBooks = totalCoupons / preferred;
+        optimalCouponsPerBook = preferred;
+        break;
+      }
+    }
+
+    // If no perfect division, find closest to 100 coupons per book
+    if (optimalBooks === 1 && totalCoupons > 100) {
+      optimalBooks = Math.ceil(totalCoupons / 100);
+      optimalCouponsPerBook = Math.ceil(totalCoupons / optimalBooks);
+    }
+
+    // Ensure we don't exceed limits
+    if (optimalBooks > 25) {
+      optimalBooks = 25;
+      optimalCouponsPerBook = Math.ceil(totalCoupons / 25);
+    }
+
+    if (optimalCouponsPerBook > 100) {
+      throw new Error(`Coupon range too large. Maximum ${25 * 100} coupons supported.`);
+    }
+
+    return generateFromFirstAndLast(firstCouponId, lastCouponId, optimalBooks);
   };
 
   const updateBookField = (index: number, field: string, value: string) => {
@@ -1676,119 +1907,229 @@ const BoxReceiptManagement: FC = () => {
 
           {currentStep === 2 && (
             <>
-              <div style={{ marginBottom: 16 }}>
-                <Title level={4}>Book Details Configuration</Title>
+              <div style={{ marginBottom: 24 }}>
+                <Title level={4}>🎯 Intelligent Book Configuration</Title>
                 <Text type="secondary">
-                  Configure individual books with their first and last coupon numbers.
-                  Each book can contain up to 100 coupons.
+                  Choose your preferred calculation method. The system will automatically generate all book details.
                 </Text>
               </div>
 
-              <Alert
-                message="Book Generation Required" 
-                description={`Generate ${form.getFieldValue('numberOfBooks') || 0} books with ${form.getFieldValue('couponsPerBook') || 0} coupons each. Each book needs first and last coupon numbers.`}
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
+              {/* Smart Calculation Mode Selection */}
+              <Card style={{ marginBottom: 16 }} size="small">
+                <Title level={5}>📊 Calculation Mode</Title>
+                <Radio.Group 
+                  value={calculationMode} 
+                  onChange={(e) => setCalculationMode(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <Row gutter={[16, 16]}>
+                    {calculationModes.map((mode) => (
+                      <Col span={12} key={mode.mode}>
+                        <Radio.Button 
+                          value={mode.mode} 
+                          style={{ width: '100%', height: 'auto', padding: '8px 12px' }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 'bold' }}>{mode.label}</div>
+                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                              {mode.description}
+                            </div>
+                          </div>
+                        </Radio.Button>
+                      </Col>
+                    ))}
+                  </Row>
+                </Radio.Group>
+              </Card>
 
-              {/* Books Table with iteration */}
-              <div style={{ marginBottom: 16 }}>
-                <Row gutter={16} style={{ marginBottom: 16 }}>
-                  <Col span={12}>
+              {/* Smart Input Fields based on calculation mode */}
+              <Card style={{ marginBottom: 16 }} size="small">
+                <Title level={5}>⚙️ Input Parameters</Title>
+                <Row gutter={16}>
+                  {(calculationMode === 'first-and-count' || calculationMode === 'first-and-last' || calculationMode === 'full-range') && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="First Coupon ID"
+                        name="firstCouponId"
+                        rules={[{ required: true, message: 'Enter first coupon ID' }]}
+                      >
+                        <Input 
+                          placeholder="PU00GH355101"
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+
+                  {(calculationMode === 'last-and-count' || calculationMode === 'first-and-last' || calculationMode === 'full-range') && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Last Coupon ID"
+                        name="lastCouponId"
+                        rules={[{ required: true, message: 'Enter last coupon ID' }]}
+                      >
+                        <Input 
+                          placeholder="PU00GH357500"
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+
+                  {(calculationMode === 'first-and-count' || calculationMode === 'last-and-count' || calculationMode === 'first-and-last') && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Number of Books"
+                        name="numberOfBooks"
+                        rules={[{ required: true, message: 'Enter number of books' }]}
+                      >
+                        <InputNumber
+                          min={1}
+                          max={25}
+                          style={{ width: '100%' }}
+                          placeholder="1-25 books"
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+
+                  {(calculationMode === 'first-and-count' || calculationMode === 'last-and-count') && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Coupons per Book"
+                        name="couponsPerBook"
+                        rules={[{ required: true, message: 'Enter coupons per book' }]}
+                      >
+                        <InputNumber
+                          min={1}
+                          max={100}
+                          style={{ width: '100%' }}
+                          placeholder="1-100 coupons"
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+                </Row>
+
+                <Row style={{ marginTop: 16 }}>
+                  <Col span={24}>
+                    <Alert
+                      message={calculationModes.find(m => m.mode === calculationMode)?.description}
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                    />
+                  </Col>
+                </Row>
+              </Card>
+
+              {/* Generation Controls */}
+              <Card style={{ marginBottom: 16 }} size="small">
+                <Row gutter={16}>
+                  <Col span={8}>
                     <Button 
                       type="primary" 
                       onClick={() => generateBooksFromRange()}
                       block
                       icon={<BookOutlined />}
+                      size="large"
                     >
-                      Auto-Generate Book Ranges
+                      🚀 Generate Books
                     </Button>
                   </Col>
-                  <Col span={12}>
+                  <Col span={8}>
                     <Button 
                       onClick={() => setCalculatedBooks([])}
                       block
+                      size="large"
                     >
-                      Clear All Books
+                      🗑️ Clear All
+                    </Button>
+                  </Col>
+                  <Col span={8}>
+                    <Button 
+                      onClick={() => addEmptyBook()}
+                      block
+                      size="large"
+                      icon={<PlusOutlined />}
+                    >
+                      ➕ Add Manual Book
                     </Button>
                   </Col>
                 </Row>
+              </Card>
 
-                <Table
-                  dataSource={calculatedBooks}
-                  columns={[
-                    {
-                      title: 'Book #',
-                      dataIndex: 'bookId',
-                      key: 'bookId',
-                      width: 100,
-                    },
-                    {
-                      title: 'First Coupon',
-                      dataIndex: 'firstCouponId',
-                      key: 'firstCouponId',
-                      render: (text, record, index) => (
-                        <Input
-                          value={text}
-                          onChange={(e) => updateBookField(index, 'firstCouponId', e.target.value)}
-                          placeholder="PU00GH355101"
-                          style={{ fontFamily: 'monospace' }}
-                        />
-                      ),
-                    },
-                    {
-                      title: 'Last Coupon',
-                      dataIndex: 'lastCouponId',
-                      key: 'lastCouponId',
-                      render: (text, record, index) => (
-                        <Input
-                          value={text}
-                          onChange={(e) => updateBookField(index, 'lastCouponId', e.target.value)}
-                          placeholder="PU00GH355200"
-                          style={{ fontFamily: 'monospace' }}
-                        />
-                      ),
-                    },
-                    {
-                      title: 'Coupons',
-                      dataIndex: 'numberOfCoupons',
-                      key: 'numberOfCoupons',
-                      width: 100,
-                      render: (text) => <Text strong>{text}</Text>,
-                    },
-                    {
-                      title: 'Actions',
-                      key: 'actions',
-                      width: 100,
-                      render: (_, record, index) => (
-                        <Button
-                          type="text"
-                          danger
-                          icon={<DeleteOutlined />}
-                          onClick={() => removeBook(index)}
-                          size="small"
-                        />
-                      ),
-                    },
-                  ]}
-                  pagination={false}
-                  size="small"
-                  scroll={{ y: 300 }}
-                  footer={() => (
-                    <Button
-                      type="dashed"
-                      onClick={() => addEmptyBook()}
-                      block
-                      icon={<PlusOutlined />}
-                    >
-                      Add Book Manually
-                    </Button>
-                  )}
-                />
-              </div>
+              {/* Books Display Table */}
+              {calculatedBooks.length > 0 && (
+                <Card title={`📚 Generated Books (${calculatedBooks.length} books, ${calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0)} total coupons)`} size="small">
+                  <Table
+                    dataSource={calculatedBooks}
+                    columns={[
+                      {
+                        title: 'Book #',
+                        dataIndex: 'bookId',
+                        key: 'bookId',
+                        width: 100,
+                        render: (text) => <Tag color="blue">{text}</Tag>,
+                      },
+                      {
+                        title: 'First Coupon',
+                        dataIndex: 'firstCouponId',
+                        key: 'firstCouponId',
+                        render: (text, record, index) => (
+                          <Input
+                            value={text}
+                            onChange={(e) => updateBookField(index, 'firstCouponId', e.target.value)}
+                            style={{ fontFamily: 'monospace', fontWeight: 'bold' }}
+                          />
+                        ),
+                      },
+                      {
+                        title: 'Last Coupon',
+                        dataIndex: 'lastCouponId',
+                        key: 'lastCouponId',
+                        render: (text, record, index) => (
+                          <Input
+                            value={text}
+                            onChange={(e) => updateBookField(index, 'lastCouponId', e.target.value)}
+                            style={{ fontFamily: 'monospace', fontWeight: 'bold' }}
+                          />
+                        ),
+                      },
+                      {
+                        title: 'Coupons',
+                        dataIndex: 'numberOfCoupons',
+                        key: 'numberOfCoupons',
+                        width: 100,
+                        render: (text) => <Tag color="green">{text} coupons</Tag>,
+                      },
+                      {
+                        title: 'Actions',
+                        key: 'actions',
+                        width: 120,
+                        render: (_, record, index) => (
+                          <Space>
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => removeBook(index)}
+                              size="small"
+                            >
+                              Remove
+                            </Button>
+                          </Space>
+                        ),
+                      },
+                    ]}
+                    pagination={false}
+                    size="small"
+                    scroll={{ y: 400 }}
+                  />
+                </Card>
+              )}
 
-              <div style={{ textAlign: 'right' }}>
+              <div style={{ textAlign: 'right', marginTop: 16 }}>
                 <Space>
                   <Button onClick={() => setCurrentStep(1)}>
                     Previous
@@ -1798,7 +2139,7 @@ const BoxReceiptManagement: FC = () => {
                     onClick={() => setCurrentStep(3)}
                     disabled={calculatedBooks.length === 0}
                   >
-                    Next: Verification
+                    Next: Review & Submit
                   </Button>
                 </Space>
               </div>
