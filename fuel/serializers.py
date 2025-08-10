@@ -799,6 +799,15 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
             if camel_case in mapped_data:
                 mapped_data[snake_case] = mapped_data.pop(camel_case)
         
+        # Auto-generate box_code if not provided (CRITICAL FIX for Azure production)
+        if 'box_code' not in mapped_data or not mapped_data.get('box_code'):
+            # Generate a unique box code like FCB-2025-0001
+            timestamp = timezone.now()
+            year = timestamp.strftime('%Y')
+            # Create a unique identifier based on timestamp and random component
+            unique_id = f"{timestamp.strftime('%m%d%H%M%S')}"
+            mapped_data['box_code'] = f"FCB-{year}-{unique_id}"
+        
         # Handle required fields - provide meaningful defaults if missing
         if 'first_coupon_number' not in mapped_data or not mapped_data.get('first_coupon_number'):
             # Generate a default first coupon number if not provided

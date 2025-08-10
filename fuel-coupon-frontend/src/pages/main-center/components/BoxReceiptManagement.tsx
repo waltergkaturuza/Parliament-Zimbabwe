@@ -28,6 +28,7 @@ import {
   Steps,
   Checkbox,
   Tooltip,
+  Switch,
   Badge,
   Statistic,
   TimePicker,
@@ -135,6 +136,7 @@ const BoxReceiptManagement: FC = () => {
   // Archive-related state
   const [showArchived, setShowArchived] = useState(false);
   const [archiveModalVisible, setArchiveModalVisible] = useState(false);
+  const [autoGenerateBoxCode, setAutoGenerateBoxCode] = useState(true); // Default to auto-generate
   const [archiveForm] = Form.useForm();
 
   // PDF and Print functionality
@@ -1925,11 +1927,46 @@ const BoxReceiptManagement: FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
-                    label="Box ID"
+                    label={
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        Box Code/ID
+                        <Tooltip title="Toggle between manual entry and auto-generation">
+                          <Switch
+                            size="small"
+                            checked={autoGenerateBoxCode}
+                            onChange={(checked) => {
+                              setAutoGenerateBoxCode(checked);
+                              if (checked) {
+                                form.setFieldsValue({ boxId: nextBoxNumber });
+                              } else {
+                                form.setFieldsValue({ boxId: '' });
+                              }
+                            }}
+                            checkedChildren="Auto"
+                            unCheckedChildren="Manual"
+                          />
+                        </Tooltip>
+                      </div>
+                    }
                     name="boxId"
                     initialValue={nextBoxNumber}
+                    rules={[
+                      { required: !autoGenerateBoxCode, message: 'Please enter box code or enable auto-generation' },
+                      { 
+                        pattern: /^[A-Z]{2,4}-\d{4}-\d{4,6}$/, 
+                        message: 'Box code format: ABC-YYYY-NNNN (e.g., FCB-2025-0001)' 
+                      }
+                    ]}
+                    extra={autoGenerateBoxCode ? "Auto-generated based on year and sequence" : "Enter existing box code from physical box"}
                   >
-                    <Input disabled />
+                    <Input 
+                      disabled={autoGenerateBoxCode}
+                      placeholder={autoGenerateBoxCode ? "Auto-generated" : "e.g., FCB-2025-0001"}
+                      style={{ 
+                        backgroundColor: autoGenerateBoxCode ? '#f5f5f5' : '#fff',
+                        borderColor: autoGenerateBoxCode ? '#d9d9d9' : '#1890ff'
+                      }}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -2514,6 +2551,16 @@ const BoxReceiptManagement: FC = () => {
                     </Col>
                     <Col span={24} style={{ marginBottom: 8 }}>
                       <Checkbox value="barcode_scan">Box barcode scanned successfully: <Text code>{form.getFieldValue('barcode')}</Text></Checkbox>
+                    </Col>
+                    <Col span={24} style={{ marginBottom: 8 }}>
+                      <Checkbox value="box_code_verified">
+                        Box Code verified: <Text code>{form.getFieldValue('boxId')}</Text>
+                        {autoGenerateBoxCode ? (
+                          <Tag color="blue" style={{ marginLeft: 8 }}>Auto-generated</Tag>
+                        ) : (
+                          <Tag color="green" style={{ marginLeft: 8 }}>Manual Entry</Tag>
+                        )}
+                      </Checkbox>
                     </Col>
                     <Col span={24} style={{ marginBottom: 8 }}>
                       <Checkbox value="no_damage">No visible damage to coupons or books</Checkbox>

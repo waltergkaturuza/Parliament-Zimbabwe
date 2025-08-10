@@ -537,6 +537,8 @@ class Box(ArchivableModel):
     box_code = models.CharField(
         max_length=50,
         unique=True,
+        blank=True,
+        default='',
         help_text="Unique identifier for the box (e.g., FCB-2025-0001)"
     )
     fuel_type = models.CharField(
