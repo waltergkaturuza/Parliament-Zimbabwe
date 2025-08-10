@@ -481,6 +481,12 @@ class BoxViewSet(viewsets.ModelViewSet):
     serializer_class = BoxSerializer
     permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission]
     
+    def get_serializer_class(self):
+        """Use BoxReceiptSerializer for create operations to handle frontend field mapping"""
+        if self.action == 'create':
+            return BoxReceiptSerializer
+        return BoxSerializer
+    
     def get_queryset(self):
         user = self.request.user
         queryset = Box.objects.all().select_related('assigned_to', 'received_by')
@@ -491,6 +497,39 @@ class BoxViewSet(viewsets.ModelViewSet):
             return queryset.filter(assigned_to=user.sub_center)
         
         return queryset.none()
+    
+    def create(self, request, *args, **kwargs):
+        """Enhanced create method using BoxReceiptSerializer with auto-generation"""
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            try:
+                with transaction.atomic():
+                    # Save the box with auto-generated required fields
+                    box = serializer.save(received_by=request.user)
+                    
+                    # Return success response
+                    return Response({
+                        'message': 'Box created successfully',
+                        'box': BoxSerializer(box).data,
+                        'auto_generated_fields': {
+                            'first_coupon_number': box.first_coupon_number,
+                            'last_coupon_number': box.last_coupon_number,
+                            'barcode': box.barcode,
+                            'notes': box.notes
+                        }
+                    }, status=status.HTTP_201_CREATED)
+                    
+            except Exception as e:
+                return Response({
+                    'error': f'Failed to create box: {str(e)}',
+                    'details': 'Check that all required fields are valid'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'error': 'Invalid data provided',
+            'details': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
     def receive_box(self, request):
