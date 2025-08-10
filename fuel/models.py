@@ -597,6 +597,19 @@ class Box(ArchivableModel):
         help_text="USD to ZWL exchange rate"
     )
     
+    # Additional fields for frontend compatibility
+    notes = models.TextField(
+        blank=True,
+        default='',
+        help_text="Additional notes about this box"
+    )
+    barcode = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Barcode for the box (if applicable)"
+    )
+    
     received_at = models.DateTimeField(default=timezone.now)
     assigned_to = models.ForeignKey(
         SubCenter,

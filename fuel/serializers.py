@@ -741,6 +741,16 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
     box_date = serializers.DateTimeField(source='received_at', required=False)
     boxDate = serializers.DateTimeField(source='received_at', required=False)
     
+    # Coupon number field mappings
+    firstCouponNumber = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
+    lastCouponNumber = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    
+    # Additional frontend field mappings
+    numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
+    couponsPerBook = serializers.IntegerField(source='coupons_per_book', required=False)
+    fuelType = serializers.CharField(source='fuel_type', required=False)
+    boxCode = serializers.CharField(source='box_code', required=False)
+    
     # Monetary fields
     monetaryValueUSD = serializers.DecimalField(source='monetary_value_usd', max_digits=12, decimal_places=2, required=False, allow_null=True)
     fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=2, required=False, allow_null=True)
@@ -749,36 +759,85 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
     # Additional frontend fields
     number_of_coupons = serializers.IntegerField(write_only=True, required=False)
     total_litres = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    notes = serializers.CharField(required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    barcode = serializers.CharField(required=False, allow_blank=True, default='')
     
     class Meta:
         model = Box
         fields = [
-            'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount', 'couponAmount',
-            'first_coupon_number', 'last_coupon_number',
-            'number_of_books', 'coupons_per_book', 'total_litres',
+            'id', 'box_code', 'boxCode', 'fuel_type', 'fuelType', 'denomination', 'coupon_amount', 'couponAmount',
+            'first_coupon_number', 'firstCouponNumber', 'last_coupon_number', 'lastCouponNumber',
+            'number_of_books', 'numberOfBooks', 'coupons_per_book', 'couponsPerBook', 'total_litres',
             'assigned_to', 'sub_center', 'subCenter', 'received_by', 'received_at', 'box_date', 'boxDate',
             'monetaryValueUSD', 'fuelPricePerLitreUSD', 'exchangeRate',
-            'number_of_coupons', 'notes', 'created', 'modified'
+            'number_of_coupons', 'notes', 'barcode', 'created', 'modified'
         ]
-        read_only_fields = ['id', 'received_by', 'box_code', 'created', 'modified']
+        read_only_fields = ['id', 'received_by', 'created', 'modified']
+    
+    def to_internal_value(self, data):
+        """Handle camelCase to snake_case field mapping"""
+        # Create a copy to avoid modifying original data
+        mapped_data = data.copy()
+        
+        # Map camelCase fields to snake_case
+        field_mappings = {
+            'boxCode': 'box_code',
+            'fuelType': 'fuel_type', 
+            'firstCouponNumber': 'first_coupon_number',
+            'lastCouponNumber': 'last_coupon_number',
+            'numberOfBooks': 'number_of_books',
+            'couponsPerBook': 'coupons_per_book',
+            'couponAmount': 'denomination',
+            'subCenter': 'assigned_to',
+            'monetaryValueUSD': 'monetary_value_usd',
+            'fuelPricePerLitreUSD': 'fuel_price_per_litre_usd',
+            'exchangeRate': 'exchange_rate',
+            'boxDate': 'received_at'
+        }
+        
+        for camel_case, snake_case in field_mappings.items():
+            if camel_case in mapped_data:
+                mapped_data[snake_case] = mapped_data.pop(camel_case)
+        
+        # Ensure required fields have defaults if not provided
+        if 'first_coupon_number' not in mapped_data or not mapped_data['first_coupon_number']:
+            mapped_data['first_coupon_number'] = ''
+            
+        if 'last_coupon_number' not in mapped_data or not mapped_data['last_coupon_number']:
+            mapped_data['last_coupon_number'] = ''
+            
+        if 'notes' not in mapped_data or mapped_data['notes'] is None:
+            mapped_data['notes'] = ''
+            
+        if 'barcode' not in mapped_data or mapped_data['barcode'] is None:
+            mapped_data['barcode'] = ''
+        
+        return super().to_internal_value(mapped_data)
     
     def validate(self, data):
-        # Validate coupon sequence
-        first_coupon = data.get('first_coupon_number')
-        last_coupon = data.get('last_coupon_number')
+        """Validate coupon sequence and required fields"""
+        # Handle optional coupon numbers validation
+        first_coupon = data.get('first_coupon_number', '')
+        last_coupon = data.get('last_coupon_number', '')
         num_books = data.get('number_of_books')
         coupons_per_book = data.get('coupons_per_book')
         
-        if first_coupon and last_coupon:
-            expected_total = (last_coupon - first_coupon + 1)
-            calculated_total = num_books * coupons_per_book
-            
-            if expected_total != calculated_total:
-                raise serializers.ValidationError(
-                    f"Coupon range ({first_coupon}-{last_coupon}) doesn't match "
-                    f"calculated total ({num_books} books × {coupons_per_book} coupons = {calculated_total})"
-                )
+        # Only validate coupon sequence if both numbers are provided and numeric
+        if first_coupon and last_coupon and first_coupon.isdigit() and last_coupon.isdigit():
+            try:
+                first_num = int(first_coupon)
+                last_num = int(last_coupon)
+                expected_total = (last_num - first_num + 1)
+                calculated_total = num_books * coupons_per_book
+                
+                if expected_total != calculated_total:
+                    raise serializers.ValidationError(
+                        f"Coupon range ({first_coupon}-{last_coupon}) doesn't match "
+                        f"calculated total ({num_books} books × {coupons_per_book} coupons = {calculated_total})"
+                    )
+            except (ValueError, TypeError):
+                # If coupon numbers aren't numeric, skip validation
+                pass
         
         return data
 
