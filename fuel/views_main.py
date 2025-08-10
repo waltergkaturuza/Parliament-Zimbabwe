@@ -45,7 +45,10 @@ from .permissions import (
     AuditorPermission, BeneficiaryPermission, CenterBasedObjectPermission,
     
     # Workflow permissions
-    MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
+    MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission,
+    
+    # Combined permissions
+    MainCenterOrSubCenterPermission, CanManageCoupon, AllStaffPermission
 )
 from rest_framework.views import APIView # Ensure this import is present
 
@@ -281,7 +284,7 @@ class UserViewSet(viewsets.ModelViewSet):
 class SubCenterOfficerViewSet(viewsets.ModelViewSet):
     queryset = SubCenterOfficer.objects.all().select_related('user', 'sub_center')
     serializer_class = SubCenterOfficerSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission] # Adjust permissions
+    permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission] # Fixed permission combination
 
 
 class SubCenterViewSet(viewsets.ModelViewSet):
@@ -476,7 +479,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
 class BoxViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Box management with coupon generation"""
     serializer_class = BoxSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
+    permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission]
     
     def get_queryset(self):
         user = self.request.user
@@ -743,7 +746,7 @@ class BoxViewSet(viewsets.ModelViewSet):
 class BookViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Book management with sequential allocation"""
     serializer_class = BookSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
+    permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission]
     
     def get_queryset(self):
         user = self.request.user
@@ -1051,7 +1054,9 @@ class CouponViewSet(viewsets.ModelViewSet):
         # Apply filtering based on user role
         user = self.request.user
         if user.is_authenticated:
-            if user.role == 'MAIN_CENTER':
+            if user.role in ['SUPERUSER', 'ADMIN']:
+                return self.queryset  # SUPERUSER and ADMIN see all
+            elif user.role == 'MAIN_CENTER':
                 return self.queryset # Main Center sees all
             elif user.role == 'SUB_CENTER' and user.sub_center:
                 # Sub Center officer sees coupons in boxes assigned to their sub-center
@@ -1142,7 +1147,7 @@ class CouponViewSet(viewsets.ModelViewSet):
              return Response({"error": f"An error occurred when marking as used: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission | SubCenterPermission]) # Restrict bulk allocation
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterOrSubCenterPermission]) # Restrict bulk allocation
     def bulk_allocate(self, request):
         """Bulk allocate coupons to a beneficiary."""
         serializer = BulkCouponAllocationSerializer(data=request.data)
@@ -1353,7 +1358,7 @@ class FuelTransactionViewSet(viewsets.ReadOnlyModelViewSet): # ReadOnly as trans
     queryset = FuelTransaction.objects.all().select_related('beneficiary', 'coupon', 'recorded_by').order_by('-timestamp') # Default ordering
     serializer_class = FuelTransactionSerializer
     # Adjust permissions as needed - who can view transaction history?
-    permission_classes = [IsAuthenticated, MainCenterPermission | AuditorPermission | SubCenterPermission | BeneficiaryPermission]
+    permission_classes = [IsAuthenticated, AllStaffPermission]
 
     def get_queryset(self):
         user = self.request.user

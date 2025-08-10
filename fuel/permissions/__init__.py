@@ -25,6 +25,11 @@ from .roles import (
     AuditorPermission,
     BeneficiaryPermission,
     CenterBasedObjectPermission,
+    
+    # Combined permissions for ViewSets
+    MainCenterOrSubCenterPermission,
+    CanManageCoupon,
+    AllStaffPermission,
 )
 
 # Workflow permissions
@@ -65,6 +70,11 @@ __all__ = [
     'AuditorPermission',
     'BeneficiaryPermission',
     'CenterBasedObjectPermission',
+    
+    # Combined permissions
+    'MainCenterOrSubCenterPermission',
+    'CanManageCoupon',
+    'AllStaffPermission',
     
     # Workflow permissions
     'MainCenterApprovalPermission',

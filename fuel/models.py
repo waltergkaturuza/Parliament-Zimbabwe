@@ -573,6 +573,30 @@ class Box(ArchivableModel):
         decimal_places=2,
         validators=[MinValueValidator(0)]
     )
+    
+    # Pricing and monetary fields
+    monetary_value_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total monetary value in USD"
+    )
+    fuel_price_per_litre_usd = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Fuel price per litre in USD"
+    )
+    exchange_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="USD to ZWL exchange rate"
+    )
+    
     received_at = models.DateTimeField(default=timezone.now)
     assigned_to = models.ForeignKey(
         SubCenter,
@@ -2195,6 +2219,25 @@ class ParliamentSession(TimeStampedModel):
     end_date = models.DateField()
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    
+    # Venue and management fields
+    venue = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Venue where the session will be held"
+    )
+    fuel_entitlement_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Fuel entitlement in litres for this session"
+    )
+    is_mandatory = models.BooleanField(
+        default=False,
+        help_text="Whether attendance is mandatory for this session"
+    )
+    
     organizer = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -2243,6 +2286,47 @@ class Program(TimeStampedModel):
         choices=PROGRAM_TYPES,
         default='COMMITTEE'
     )
+    
+    # Schedule fields
+    scheduled_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when the program is scheduled"
+    )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="End date of the program"
+    )
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    
+    # Location and management
+    venue = models.CharField(max_length=200, blank=True)
+    location = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Alternative location field (alias for venue)"
+    )
+    
+    # Management fields
+    organizer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='organized_programs',
+        help_text="User organizing this program"
+    )
+    sub_center = models.ForeignKey(
+        'SubCenter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_programs',
+        help_text="SubCenter managing this program"
+    )
+    
     session = models.ForeignKey(
         'ParliamentSession',
         on_delete=models.CASCADE,
@@ -2251,9 +2335,6 @@ class Program(TimeStampedModel):
         blank=True,
         help_text="Associated parliament session"
     )
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
-    venue = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
     
     class Meta:

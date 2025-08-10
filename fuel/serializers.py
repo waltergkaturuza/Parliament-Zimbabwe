@@ -209,12 +209,53 @@ class BoxSerializer(serializers.ModelSerializer):
     # Use SimpleSerializers for related fields
     assigned_to_details = SimpleSubCenterSerializer(source='assigned_to', read_only=True, allow_null=True)
     received_by_details = SimpleUserSerializer(source='received_by', read_only=True, allow_null=True)
+    
+    # Map frontend field names to model field names
+    coupon_amount = serializers.IntegerField(source='denomination', required=False)
+    couponAmount = serializers.IntegerField(source='denomination', required=False)  # Frontend camelCase
+    first_coupon_id = serializers.CharField(source='first_coupon_number', required=False)
+    last_coupon_id = serializers.CharField(source='last_coupon_number', required=False)
+    
+    # Additional frontend field mappings
+    sub_center = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
+    subCenter = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
+    box_date = serializers.DateField(source='received_at', required=False)
+    boxDate = serializers.DateField(source='received_at', required=False)
+    
+    # Additional fields that frontend sends (now stored in model)
+    monetary_value_usd = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True)
+    monetaryValueUSD = serializers.DecimalField(source='monetary_value_usd', max_digits=12, decimal_places=2, required=False, allow_null=True)  # Frontend camelCase
+    fuel_price_per_litre_usd = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=2, required=False, allow_null=True)  # Frontend camelCase
+    exchange_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    exchangeRate = serializers.DecimalField(source='exchange_rate', max_digits=10, decimal_places=2, required=False, allow_null=True)  # Frontend camelCase
+    
+    # Additional frontend fields (write-only)
+    total_coupons = serializers.IntegerField(write_only=True, required=False)
+    number_of_coupons = serializers.IntegerField(source='total_coupons', write_only=True, required=False)
+    book_details = serializers.ListField(write_only=True, required=False)
+    calculation_mode = serializers.CharField(write_only=True, required=False)
+    status = serializers.CharField(write_only=True, required=False)
+    notes = serializers.CharField(write_only=True, required=False)
+    barcode = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = Box
-        # Added 'created', 'modified' from TimeStampedModel
-        fields = ['id', 'box_code', 'first_coupon_number', 'last_coupon_number', 'total_litres', 'received_at', 'assigned_to', 'assigned_to_details', 'received_by', 'received_by_details', 'created', 'modified']
-        read_only_fields = ['id', 'received_at', 'box_code', 'total_litres', 'assigned_to_details', 'received_by_details', 'created', 'modified'] # Make total_litres readonly if calculated, added timestamps
+        fields = [
+            'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount', 'couponAmount',
+            'first_coupon_number', 'first_coupon_id', 'last_coupon_number', 'last_coupon_id',
+            'number_of_books', 'coupons_per_book', 'total_litres', 'received_at', 
+            'assigned_to', 'assigned_to_details', 'received_by', 'received_by_details',
+            'sub_center', 'subCenter', 'box_date', 'boxDate',
+            'monetary_value_usd', 'monetaryValueUSD', 'fuel_price_per_litre_usd', 'fuelPricePerLitreUSD', 
+            'exchange_rate', 'exchangeRate', 'created', 'modified',
+            # Additional frontend fields (write-only)
+            'total_coupons', 'number_of_coupons', 'book_details', 'calculation_mode', 'status', 'notes', 'barcode'
+        ]
+        read_only_fields = [
+            'id', 'box_code', 'total_litres', 'assigned_to_details', 
+            'received_by_details', 'created', 'modified'
+        ]
 
 class BookSerializer(serializers.ModelSerializer):
     # Use SimpleBoxSerializer for the box field
@@ -354,11 +395,15 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
     organizer_details = SimpleUserSerializer(source='organizer', read_only=True)
     managing_subcenter_details = serializers.SerializerMethodField()
     
+    # Field mapping for frontend compatibility
+    session_manager = serializers.IntegerField(source='organizer_id', write_only=True, required=False)
+    
     class Meta:
         model = ParliamentSession
         fields = [
             'id', 'title', 'session_type', 'start_date', 'end_date', 'description',
-            'is_active', 'organizer', 'organizer_details', 
+            'venue', 'fuel_entitlement_litres', 'is_mandatory',
+            'is_active', 'organizer', 'organizer_details', 'session_manager',
             'managing_subcenter', 'managing_subcenter_details',
             'attendance_count', 'total_fuel_allocated',
             'created', 'modified'
@@ -391,11 +436,15 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
 class ProgramSerializer(serializers.ModelSerializer):
     session_details = serializers.SerializerMethodField()
     
+    # Field mapping for frontend compatibility
+    title = serializers.CharField(source='name', required=False)
+    
     class Meta:
         model = Program
         fields = [
-            'id', 'name', 'description', 'program_type', 'session', 'session_details',
-            'start_time', 'end_time', 'venue', 'is_active', 'created', 'modified'
+            'id', 'name', 'title', 'description', 'program_type', 'session', 'session_details',
+            'start_time', 'end_time', 'venue', 'scheduled_date', 'end_date', 
+            'location', 'organizer', 'sub_center', 'is_active', 'created', 'modified'
         ]
         read_only_fields = ('created', 'modified')
     

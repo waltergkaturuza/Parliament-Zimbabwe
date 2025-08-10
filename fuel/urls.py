@@ -118,6 +118,7 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh_alt'),  # Alternative path for frontend compatibility
     # Change password (no hard-coded api/v1 here; config/urls.py adds the prefix)
     path('auth/change-password/', change_password, name='change-password-v1'),
     
