@@ -798,6 +798,31 @@ class BookViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Allocation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    @action(detail=False, methods=['get'])
+    def received(self, request):
+        """
+        Get list of received books for the current user/subcenter
+        """
+        user = self.request.user
+        queryset = Book.objects.filter(
+            box__is_received=True
+        ).select_related('box', 'box__assigned_to', 'assigned_to')
+        
+        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+            # Can see all received books
+            pass
+        elif user.role == 'SUB_CENTER' and user.sub_center:
+            # Only books for their subcenter
+            queryset = queryset.filter(box__assigned_to=user.sub_center)
+        elif user.role == 'BENEFICIARY':
+            # Only their own books
+            queryset = queryset.filter(assigned_to=user)
+        else:
+            queryset = queryset.none()
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['get'])
     def available_ranges(self, request, pk=None):
         """
