@@ -33,7 +33,7 @@ jobs:
           output_location: "dist" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
         env:
-          VITE_API_BASE_URL: https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net
+          VITE_API_BASE_URL: https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net/api/v1
           VITE_APP_NAME: Parliament Fuel Coupon System
           VITE_APP_VERSION: 2.0.4
 

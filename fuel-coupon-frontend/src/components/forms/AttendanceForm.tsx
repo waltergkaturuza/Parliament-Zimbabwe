@@ -43,7 +43,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = (props) => {
     // --- Add your API call logic here ---
     /*
     try {
-      const response = await api.post('/api/v1/attendance/', formData); // Example API endpoint
+      const response = await api.post('/attendance/', formData); // Example API endpoint
       console.log('Attendance recorded successfully:', response.data);
       // Handle success (e.g., show a success message, clear form)
       setUserId('');

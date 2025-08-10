@@ -91,7 +91,7 @@ const ParliamentSessionsPage: FC = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
-            const response = await apiClient.get('/api/v1/subcenters/');
+            const response = await apiClient.get('/subcenters/');
       const sessionData = response.data.results || response.data;
       setSessions(sessionData);
 
@@ -140,7 +140,7 @@ const ParliamentSessionsPage: FC = () => {
   const loadSubcenters = async () => {
     try {
       setSubcentersLoading(true);
-      const response = await apiClient.get('/api/v1/subcenters/');
+      const response = await apiClient.get('/subcenters/');
       setSubcenters(response.data.results || response.data);
     } catch (error) {
       console.error('Error loading subcenters:', error);

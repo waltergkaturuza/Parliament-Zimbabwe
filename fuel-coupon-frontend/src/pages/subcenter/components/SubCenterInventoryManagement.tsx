@@ -178,7 +178,7 @@ const SubCenterInventoryManagement: FC = () => {
     try {
       // Simulate incoming books from main center dispatches
       // Load books received by this subcenter from API
-      const response = await apiClient.get('/api/v1/books/received/');
+      const response = await apiClient.get('/books/received/');
       const booksData = response.data.results || response.data || [];
 
       const processedBooks: IncomingBook[] = booksData.map((book: any) => {
@@ -258,64 +258,31 @@ const SubCenterInventoryManagement: FC = () => {
 
   const loadBeneficiaries = async () => {
     try {
-      const sampleBeneficiaries: Beneficiary[] = [
-        {
-          id: 'BEN001',
-          name: 'John Doe',
-          memberId: 'MP001',
-          position: 'Member of Parliament',
-          department: 'Finance Committee',
-          allocatedLitres: 100,
-          usedLitres: 25,
-          remainingLitres: 75,
-          status: 'ACTIVE',
-          lastAllocation: '2024-08-09',
-        },
-        {
-          id: 'BEN002',
-          name: 'Jane Smith',
-          memberId: 'MP002',
-          position: 'Committee Chair',
-          department: 'Health Committee',
-          allocatedLitres: 150,
-          usedLitres: 0,
-          remainingLitres: 150,
-          status: 'ACTIVE',
-          lastAllocation: '2024-08-08',
-        },
-      ];
-
-      setBeneficiaries(sampleBeneficiaries);
+      const response = await apiClient.get('/beneficiaries/', {
+        params: { page_size: 100 }
+      });
+      
+      const beneficiariesData = response.data.results || response.data || [];
+      setBeneficiaries(beneficiariesData);
     } catch (error) {
       console.error('Error loading beneficiaries:', error);
+      // Keep empty array as fallback
+      setBeneficiaries([]);
     }
   };
 
   const loadAllocations = async () => {
     try {
-      const sampleAllocations: AllocationRecord[] = [
-        {
-          id: 'ALLOC001',
-          beneficiaryId: 'BEN001',
-          beneficiaryName: 'John Doe',
-          allocationDate: '2024-08-09',
-          sessionName: 'Morning Session',
-          programName: 'Daily Parliament Session',
-          firstCouponSerial: 'PET20-2024-08-000001',
-          lastCouponSerial: 'PET20-2024-08-000005',
-          totalCoupons: 5,
-          totalLitres: 100,
-          totalValue: 20000,
-          notes: 'Committee travel allocation',
-          allocatedBy: 'Peter Ncube',
-          status: 'ALLOCATED',
-          pages: ['PET20-2024-08-000001', 'PET20-2024-08-000002', 'PET20-2024-08-000003', 'PET20-2024-08-000004', 'PET20-2024-08-000005'],
-        },
-      ];
-
-      setAllocations(sampleAllocations);
+      const response = await apiClient.get('/allocations/', {
+        params: { page_size: 100 }
+      });
+      
+      const allocationsData = response.data.results || response.data || [];
+      setAllocations(allocationsData);
     } catch (error) {
       console.error('Error loading allocations:', error);
+      // Keep empty array as fallback
+      setAllocations([]);
     }
   };
 

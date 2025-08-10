@@ -149,7 +149,7 @@ const BookDispatchManagement: FC = () => {
   const loadDispatches = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/dispatches/');
+      const response = await apiClient.get('/dispatches/');
       const data = response.data.results || response.data || [];
       setDispatches(data);
     } catch (error) {
@@ -164,7 +164,7 @@ const BookDispatchManagement: FC = () => {
 
   const loadAvailableBooks = async () => {
     try {
-      const response = await apiClient.get('/api/v1/books/', {
+      const response = await apiClient.get('/books/', {
         params: { status: 'VERIFIED', available: true }
       });
       const data = response.data.results || response.data || [];
@@ -179,7 +179,7 @@ const BookDispatchManagement: FC = () => {
 
   const loadSubCenters = async () => {
     try {
-      const response = await apiClient.get('/api/v1/subcenters/');
+      const response = await apiClient.get('/subcenters/');
       const data = response.data.results || response.data || [];
       setSubCenters(data);
     } catch (error) {
@@ -253,7 +253,7 @@ const BookDispatchManagement: FC = () => {
   const fetchDispatches = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/dispatches/');
+      const response = await apiClient.get('/dispatches/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -309,7 +309,7 @@ const BookDispatchManagement: FC = () => {
 
   const fetchAvailableBooks = async () => {
     try {
-      const response = await apiClient.get('/api/v1/books/');
+      const response = await apiClient.get('/books/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -344,7 +344,7 @@ const BookDispatchManagement: FC = () => {
 
   const fetchSubCenters = async () => {
     try {
-      const response = await apiClient.get('/api/v1/subcenters/');
+      const response = await apiClient.get('/subcenters/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -447,15 +447,9 @@ const BookDispatchManagement: FC = () => {
 
       // API call to save dispatch
       try {
-        const response = await fetch('/api/v1/dispatches/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(newDispatch),
-        });
+        const response = await apiClient.post('/dispatches/', newDispatch);
 
-        if (response.ok) {
+        if (response.status === 200 || response.status === 201) {
           setDispatches([newDispatch, ...dispatches]);
           // Remove dispatched books from available books
           setAvailableBooks(prev => prev.filter(book => !selectedBooks.includes(book.key)));

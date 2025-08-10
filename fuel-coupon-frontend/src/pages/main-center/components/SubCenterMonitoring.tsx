@@ -95,7 +95,7 @@ const SubCenterMonitoring: FC = () => {
   const loadSubCenters = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/subcenters/');
+      const response = await apiClient.get('/subcenters/');
       const data = response.data;
       
       // Handle both paginated and direct array responses
@@ -380,7 +380,7 @@ const SubCenterMonitoring: FC = () => {
 
   const loadConsumptionTrend = async () => {
     try {
-      const response = await apiClient.get('/api/v1/analytics/consumption-trend/', {
+      const response = await apiClient.get('/analytics/consumption-trend/', {
         params: { days: 7 }
       });
       

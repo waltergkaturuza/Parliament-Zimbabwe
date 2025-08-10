@@ -3028,12 +3028,12 @@ def analytics_view(request):
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
 
         # --- Query Data ---
-        fuel_transactions = FuelTransaction.objects.filter(transaction_date__range=[start_date, end_date])
+        fuel_transactions = FuelTransaction.objects.filter(timestamp__date__range=[start_date, end_date])
         attendances = SessionAttendance.objects.filter(session__date__range=[start_date, end_date])
         entitlements = FuelEntitlement.objects.filter(created__date__range=[start_date, end_date])
 
         # --- Aggregate Data ---
-        total_fuel_dispensed = fuel_transactions.aggregate(total=Sum('litres'))['total'] or 0
+        total_fuel_dispensed = fuel_transactions.aggregate(total=Sum('litres_consumed'))['total'] or 0
         total_coupons_used = fuel_transactions.filter(coupon__isnull=False).count()
         
         total_attendance = attendances.count()

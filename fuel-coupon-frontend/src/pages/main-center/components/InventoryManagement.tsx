@@ -190,14 +190,14 @@ const InventoryManagement: FC = () => {
     setLoading(true);
     try {
       // Load boxes from API
-      const boxResponse = await apiClient.get('/api/v1/boxes/');
+      const boxResponse = await apiClient.get('/boxes/');
       const boxData = boxResponse.data.results || boxResponse.data || [];
 
       // Load books data for each box
       const boxInventoryPromises = boxData.map(async (box: any) => {
         try {
           // Get books for this box
-          const booksResponse = await apiClient.get(`/api/v1/books/?box_id=${box.id}`);
+          const booksResponse = await apiClient.get(`/books/?box_id=${box.id}`);
           const books = booksResponse.data.results || booksResponse.data || [];
 
           // Calculate statistics
@@ -299,7 +299,7 @@ const InventoryManagement: FC = () => {
   const loadDispatchHistory = async () => {
     try {
       // Load dispatch history from API
-      const response = await apiClient.get('/api/v1/dispatches/');
+      const response = await apiClient.get('/dispatches/');
       const dispatches = response.data.results || response.data || [];
 
       const historyData: DispatchHistory[] = dispatches.map((dispatch: any) => ({
@@ -346,7 +346,7 @@ const InventoryManagement: FC = () => {
   const calculateRequirements = async () => {
     try {
       // Try to get fuel consumption analytics from API
-      const response = await apiClient.get('/api/v1/analytics/fuel-requirements/');
+      const response = await apiClient.get('/analytics/fuel-requirements/');
       const apiRequirements = response.data.results || response.data || [];
       
       if (apiRequirements.length > 0) {
@@ -359,7 +359,7 @@ const InventoryManagement: FC = () => {
 
     try {
       // If API doesn't have requirements, calculate based on historical data
-      const analyticsResponse = await apiClient.get('/api/v1/analytics/consumption-trend/?days=30');
+      const analyticsResponse = await apiClient.get('/analytics/consumption-trend/?days=30');
       const consumptionData = analyticsResponse.data;
       
       // Calculate average daily consumption

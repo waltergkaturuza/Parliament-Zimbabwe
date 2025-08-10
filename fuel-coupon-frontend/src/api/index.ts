@@ -57,7 +57,7 @@ apiClient.interceptors.response.use(
         }
 
         // Try to refresh the token
-        const refreshResponse = await axios.post('/api/token/refresh/', {
+        const refreshResponse = await axios.post('/token/refresh/', {
           refresh: refreshToken
         });
         
@@ -102,7 +102,7 @@ apiClient.interceptors.response.use(
 // Health check utility for backend connectivity (can be used in all pages)
 export async function checkBackendHealth() {
   try {
-    const resp = await apiClient.get('/api/health/');
+    const resp = await apiClient.get('/health/');
     return resp.data;
   } catch (err) {
     console.error('Backend health check failed:', err);

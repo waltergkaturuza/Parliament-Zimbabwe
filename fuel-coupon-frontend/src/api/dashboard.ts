@@ -59,7 +59,7 @@ interface DashboardData {
 export const getDashboardData = async (): Promise<DashboardData> => {
   try {
     // Make API call to backend statistics endpoint
-    const response = await api.get('/api/v1/statistics/');
+    const response = await api.get('/statistics/');
     
     // Transform the backend response to match frontend expectations
     const backendData = response.data;

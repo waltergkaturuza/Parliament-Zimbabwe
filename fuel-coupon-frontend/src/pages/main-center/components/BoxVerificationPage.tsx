@@ -108,7 +108,7 @@ const BoxVerificationPage: React.FC = () => {
   const loadBoxes = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/boxes/');
+      const response = await apiClient.get('/boxes/');
       const boxData = response.data.results || response.data || [];
       
       // Transform data and generate coupon serials for verification

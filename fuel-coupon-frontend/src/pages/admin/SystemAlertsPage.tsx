@@ -1,6 +1,7 @@
 // src/pages/admin/SystemAlertsPage.tsx
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import apiClient from '@/api';
 import {
   Table,
   Card,
@@ -95,28 +96,17 @@ const SystemAlertsPage: React.FC = () => {
     queryKey: ['system-alerts', selectedType, selectedStatus, selectedPriority],
     queryFn: async () => {
       try {
-        // TODO: Replace with actual API call when backend endpoint is ready
-        // const response = await apiClient.get('/api/v1/system-alerts/', {
-        //   params: {
-        //     alert_type: selectedType,
-        //     status: selectedStatus,
-        //     priority: selectedPriority
-        //   }
-        // });
-        // return response.data;
-        
-        // For now, return empty data until API is implemented
-        return {
-          alerts: [],
-          stats: {
-            total_alerts: 0,
-            active_alerts: 0,
-            critical_alerts: 0,
-            resolved_today: 0
-          } as AlertStats
-        };
+        const response = await apiClient.get('/system-alerts/', {
+          params: {
+            alert_type: selectedType,
+            status: selectedStatus,
+            priority: selectedPriority
+          }
+        });
+        return response.data;
       } catch (error) {
         console.error('Error fetching alerts:', error);
+        // Return empty data as fallback
         return {
           alerts: [],
           stats: {

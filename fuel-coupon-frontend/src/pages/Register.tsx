@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import ParliamentLogo from '@/components/ParliamentLogo';
+import apiClient from '@/api';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -105,24 +106,17 @@ const Register = () => {
       console.log('Registration data:', registrationData);
       
       // Call the registration API
-      const response = await fetch('/api/v1/auth/register/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registrationData),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Registration successful:', result);
-        setRegistrationComplete(true);
-        message.success('Registration submitted successfully! Your account is pending approval.');
-      } else {
-        const errorData = await response.json();
-        console.error('Registration failed:', errorData);
-        
-        // Handle specific field errors
+      const response = await apiClient.post('/auth/register/', registrationData);
+      
+      console.log('Registration successful:', response.data);
+      setRegistrationComplete(true);
+      message.success('Registration submitted successfully! Your account is pending approval.');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      
+      // Handle specific field errors from API response
+      if (error.response?.data) {
+        const errorData = error.response.data;
         if (errorData.username) {
           message.error(`Username: ${errorData.username[0]}`);
         } else if (errorData.email) {
@@ -132,10 +126,9 @@ const Register = () => {
         } else {
           message.error('Registration failed. Please check your information and try again.');
         }
+      } else {
+        message.error('Registration failed. Please check your connection and try again.');
       }
-    } catch (error) {
-      console.error('Registration error:', error);
-      message.error('Registration failed. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

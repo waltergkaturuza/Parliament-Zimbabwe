@@ -167,6 +167,7 @@ export class ExportManager {
         title: "Template Downloaded",
         description: `${type} import template has been downloaded.`,
       });
+import apiClient from '@/api';
     } catch (error) {
       console.error('Template download error:', error);
       toast({

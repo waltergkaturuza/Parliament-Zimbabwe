@@ -38,6 +38,7 @@ import {
 import { motion } from 'framer-motion';
 import { userProfileService } from '@/services/userProfileService';
 import { useAuth } from '@/contexts/AuthContext';
+import apiClient from '@/api';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -85,23 +86,15 @@ const ProfilePage: React.FC = () => {
   // Update password mutation
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: { current_password: string; new_password: string }) => {
-      const response = await fetch('/api/v1/auth/change-password/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error('Failed to change password');
-      return response.json();
+      const response = await apiClient.post('/auth/change-password/', data);
+      return response.data;
     },
     onSuccess: () => {
       message.success('Password changed successfully');
       passwordForm.resetFields();
     },
     onError: (error: any) => {
-      message.error(`Failed to change password: ${error.message}`);
+      message.error(`Failed to change password: ${error.response?.data?.message || error.message}`);
     }
   });
 

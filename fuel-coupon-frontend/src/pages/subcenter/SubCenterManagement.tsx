@@ -53,6 +53,7 @@ import {
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import apiClient from '@/api/index';
+import { SubCenterService } from '@/api/subcenters';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -187,44 +188,48 @@ const SubCenterManagement: FC = () => {
   };
 
   const loadSubCenters = async () => {
-    // Use real API data - no fallback mock data
-    setSubcenters([]);
+    try {
+      const response = await SubCenterService.getSubCenters({ page_size: 100 });
+      setSubcenters(response.results || response);
+    } catch (error) {
+      console.error('Failed to load subcenters:', error);
+      message.error('Failed to load subcenters');
+      // Keep empty array if API fails
+      setSubcenters([]);
+    }
   };
 
   const loadVehicles = async () => {
-    // Use real API data - no fallback mock data
-    setVehicles([]);
+    try {
+      const response = await apiClient.get('/pool-vehicles/');
+      setVehicles(response.data.results || response.data);
+    } catch (error) {
+      console.error('Failed to load vehicles:', error);
+      message.error('Failed to load vehicles');
+      setVehicles([]);
+    }
   };
 
   const loadDrivers = async () => {
-    // Use real API data - no fallback mock data
-    setDrivers([]);
+    try {
+      const response = await apiClient.get('/drivers/');
+      setDrivers(response.data.results || response.data);
+    } catch (error) {
+      console.error('Failed to load drivers:', error);
+      message.error('Failed to load drivers');
+      setDrivers([]);
+    }
   };
 
   const loadAvailableManagers = async () => {
-    // Mock data - replace with actual API call
-    setAvailableManagers([
-      {
-        id: '4',
-        username: 'alice.manager',
-        first_name: 'Alice',
-        last_name: 'Manager',
-        email: 'alice.manager@parliament.gov.zw',
-        phone: '+263734567890',
-        role: 'SUB_CENTER',
-        is_active: true
-      },
-      {
-        id: '5',
-        username: 'bob.supervisor',
-        first_name: 'Bob',
-        last_name: 'Supervisor',
-        email: 'bob.supervisor@parliament.gov.zw',
-        phone: '+263745678901',
-        role: 'MAIN_CENTER',
-        is_active: true
-      }
-    ]);
+    try {
+      const response = await apiClient.get('/users/?role=MAIN_CENTER,SUB_CENTER&page_size=50');
+      setAvailableManagers(response.data.results || response.data);
+    } catch (error) {
+      console.error('Failed to load managers:', error);
+      message.error('Failed to load managers');
+      setAvailableManagers([]);
+    }
   };
 
   // SubCenter handlers

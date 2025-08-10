@@ -53,7 +53,7 @@ const BeneficiaryService = {
   getBeneficiaries: async (params: BeneficiaryParams = {}): Promise<Beneficiary[]> => {
     try {
       console.log('BeneficiaryService.getBeneficiaries called with:', params);
-      const response = await apiClient.get<{results: Beneficiary[]}>('/api/v1/beneficiaries/', { params });
+      const response = await apiClient.get<{results: Beneficiary[]}>('/beneficiaries/', { params });
       console.log('BeneficiaryService.getBeneficiaries response:', response.status, response.data);
       return response.data?.results || [];
     } catch (error: any) {
@@ -65,7 +65,7 @@ const BeneficiaryService = {
   getBeneficiary: async (id: string): Promise<Beneficiary | null> => {
     try {
       console.log('BeneficiaryService.getBeneficiary called with id:', id);
-      const response = await apiClient.get<Beneficiary>(`/api/v1/beneficiaries/${id}/`);
+      const response = await apiClient.get<Beneficiary>(`/beneficiaries/${id}/`);
       console.log('BeneficiaryService.getBeneficiary response:', response.status, response.data);
       return response.data;
     } catch (error: any) {
@@ -77,7 +77,7 @@ const BeneficiaryService = {
   createBeneficiary: async (data: Partial<Beneficiary>): Promise<Beneficiary | null> => {
     try {
       console.log('BeneficiaryService.createBeneficiary called with:', data);
-      const response = await apiClient.post<Beneficiary>('/api/v1/beneficiaries/', data);
+      const response = await apiClient.post<Beneficiary>('/beneficiaries/', data);
       console.log('BeneficiaryService.createBeneficiary response:', response.status, response.data);
       return response.data;
     } catch (error: any) {
@@ -89,7 +89,7 @@ const BeneficiaryService = {
   updateBeneficiary: async (id: string, data: Partial<Beneficiary>): Promise<Beneficiary | null> => {
     try {
       console.log('BeneficiaryService.updateBeneficiary called with:', id, data);
-      const response = await apiClient.patch<Beneficiary>(`/api/v1/beneficiaries/${id}/`, data);
+      const response = await apiClient.patch<Beneficiary>(`/beneficiaries/${id}/`, data);
       console.log('BeneficiaryService.updateBeneficiary response:', response.status, response.data);
       return response.data;
     } catch (error: any) {
@@ -101,7 +101,7 @@ const BeneficiaryService = {
   deleteBeneficiary: async (id: string): Promise<boolean> => {
     try {
       console.log('BeneficiaryService.deleteBeneficiary called with id:', id);
-      await apiClient.delete(`/api/v1/beneficiaries/${id}/`);
+      await apiClient.delete(`/beneficiaries/${id}/`);
       console.log('BeneficiaryService.deleteBeneficiary success');
       return true;
     } catch (error: any) {

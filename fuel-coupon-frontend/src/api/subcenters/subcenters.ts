@@ -9,7 +9,7 @@ export const getSubCenters = async () => {
   // If your apiClient base URL is http://localhost:8000/api/v1/
   return apiClient.get('/subcenters/');
   // If your apiClient base URL is http://localhost:8000/
-  // return apiClient.get('/api/v1/subcenters/'); // Adjust path if needed
+  // return apiClient.get('/subcenters/'); // Adjust path if needed
 };
 
 export const fetchSubCenters = async () => {

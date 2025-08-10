@@ -71,7 +71,7 @@ const FuelPriceManagement: FC = () => {
   const loadPriceHistory = async () => {
     setLoading(true);
     try {
-            const response = await apiClient.get('/api/v1/fuel-prices/');
+            const response = await apiClient.get('/fuel-prices/');
       const data = response.data;
       
       // Handle both paginated and direct array responses

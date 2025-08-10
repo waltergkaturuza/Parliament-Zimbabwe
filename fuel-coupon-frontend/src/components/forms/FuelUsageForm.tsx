@@ -41,7 +41,7 @@ const FuelUsageForm: React.FC<FuelUsageFormProps> = (props) => {
     /*
     try {
       // Use the coupon ID in the API path
-      const response = await api.patch(`/api/v1/coupons/${couponId}/mark_used/`, formData); // Example API endpoint
+      const response = await api.patch(`/coupons/${couponId}/mark_used/`, formData); // Example API endpoint
       console.log('Marked as used successfully:', response.data);
       // Handle success (e.g., show a success message, clear form)
       setCouponNumber('');

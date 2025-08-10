@@ -51,8 +51,8 @@ const LocalInventory: FC = () => {
     try {
       setLoading(true);
       const [boxesResponse, booksResponse] = await Promise.all([
-        apiClient.get('/api/v1/boxes/'),
-        apiClient.get('/api/v1/books/')
+        apiClient.get('/boxes/'),
+        apiClient.get('/books/')
       ]);
 
       const boxes: Box[] = boxesResponse.data.results || boxesResponse.data;

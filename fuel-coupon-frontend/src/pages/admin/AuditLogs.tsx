@@ -52,49 +52,72 @@ const AuditLogs: FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [actions, setActions] = useState<string[]>([]);
   const [resources, setResources] = useState<string[]>([]);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    loadAuditLogs();
     loadFilterOptions();
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [logs, searchText, selectedAction, selectedResource, selectedStatus, selectedUser, dateRange]);
+    loadAuditLogs();
+  }, [currentPage, pageSize, searchText, selectedAction, selectedResource, selectedStatus, selectedUser, dateRange]);
 
   const loadAuditLogs = async () => {
     try {
       setLoading(true);
       
-      // Mock audit logs data - replace with actual API call
-      const mockLogs: AuditLog[] = [];
-
-      // Simulate API delay
-      setTimeout(() => {
-        setLogs(mockLogs);
-        setLoading(false);
-      }, 1000);
+      // Call real audit logs API
+      const response = await apiClient.get('/audit-logs/', {
+        params: {
+          page: currentPage,
+          page_size: pageSize,
+          search: searchText,
+          action: selectedAction,
+          resource: selectedResource,
+          status: selectedStatus,
+          user: selectedUser,
+          start_date: dateRange?.[0]?.format('YYYY-MM-DD'),
+          end_date: dateRange?.[1]?.format('YYYY-MM-DD')
+        }
+      });
+      
+      const data = response.data;
+      setLogs(data.results || data || []);
+      setTotal(data.count || 0);
+      setLoading(false);
     } catch (error) {
       console.error('Error loading audit logs:', error);
       message.error('Failed to load audit logs');
+      setLogs([]);
       setLoading(false);
     }
   };
 
   const loadFilterOptions = async () => {
     try {
-      // Extract unique values for filters
+      // Load users for filtering
+      const usersResponse = await apiClient.get('/users/', {
+        params: { page_size: 100 }
+      });
+      const users = usersResponse.data.results || usersResponse.data || [];
+      setUsers(users);
+
+      // Set common filter options
       const uniqueActions = ['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT'];
       const uniqueResources = ['USER', 'COUPON', 'BOX', 'BOOK', 'HANDOVER', 'FUEL_PRICE', 'USER_SESSION'];
       
-      // Mock users data
-      const mockUsers: any[] = [];
-
       setActions(uniqueActions);
       setResources(uniqueResources);
-      setUsers(mockUsers);
     } catch (error) {
       console.error('Error loading filter options:', error);
+      // Set default values if API fails
+      setActions(['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT']);
+      setResources(['USER', 'COUPON', 'BOX', 'BOOK', 'HANDOVER', 'FUEL_PRICE', 'USER_SESSION']);
+      setUsers([]);
     }
   };
 

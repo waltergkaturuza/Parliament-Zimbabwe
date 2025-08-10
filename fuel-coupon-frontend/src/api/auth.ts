@@ -30,7 +30,7 @@ export const AuthService = {
   login: async (credentials: LoginData): Promise<{ success: boolean; access?: string; refresh?: string; message?: string; user?: any }> => {
     try {
       console.log('AuthService.login called with:', credentials);
-      const response = await apiClient.post<{ access: string; refresh: string; user?: any }>('/api/v1/auth/login/', credentials);
+      const response = await apiClient.post<{ access: string; refresh: string; user?: any }>('/auth/login/', credentials);
       console.log('AuthService.login response received:', response.status, response.data);
       return { 
         success: true,
@@ -59,7 +59,7 @@ export const AuthService = {
     data: RegisterData
   ): Promise<{ success: boolean; data?: any; message?: string }> => {
     try {
-      const response = await apiClient.post('/api/v1/auth/register/', data);
+      const response = await apiClient.post('/auth/register/', data);
       return { success: true, data: response.data };
     } catch (error: any) {
       let message = 'Registration failed. Please try again.';

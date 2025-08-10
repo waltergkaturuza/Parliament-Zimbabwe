@@ -80,7 +80,7 @@ export const FuelDistributionService = {
       });
     }
     
-    const response = await apiClient.get(`/api/v1/coupon-distributions/?${queryParams}`, {
+    const response = await apiClient.get(`/coupon-distributions/?${queryParams}`, {
       headers: authHeader(),
     });
     return response.data;
@@ -88,7 +88,7 @@ export const FuelDistributionService = {
 
   // Get distribution by ID
   getDistribution: async (id: string): Promise<FuelDistribution> => {
-    const response = await apiClient.get(`/api/v1/coupon-distributions/${id}/`, {
+    const response = await apiClient.get(`/coupon-distributions/${id}/`, {
       headers: authHeader(),
     });
     return response.data;
@@ -96,7 +96,7 @@ export const FuelDistributionService = {
 
   // Create new distribution
   createDistribution: async (data: CreateDistributionData): Promise<FuelDistribution> => {
-    const response = await apiClient.post('/api/v1/coupon-distributions/', data, {
+    const response = await apiClient.post('/coupon-distributions/', data, {
       headers: authHeader(),
     });
     return response.data;
@@ -104,7 +104,7 @@ export const FuelDistributionService = {
 
   // Update distribution
   updateDistribution: async (id: string, data: Partial<CreateDistributionData>): Promise<FuelDistribution> => {
-    const response = await apiClient.patch(`/api/v1/coupon-distributions/${id}/`, data, {
+    const response = await apiClient.patch(`/coupon-distributions/${id}/`, data, {
       headers: authHeader(),
     });
     return response.data;
@@ -112,7 +112,7 @@ export const FuelDistributionService = {
 
   // Delete distribution
   deleteDistribution: async (id: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/coupon-distributions/${id}/`, {
+    await apiClient.delete(`/coupon-distributions/${id}/`, {
       headers: authHeader(),
     });
   },
@@ -136,7 +136,7 @@ export const FuelDistributionService = {
       });
     }
     
-    const response = await apiClient.get(`/api/v1/fuel-transactions/?${queryParams}`, {
+    const response = await apiClient.get(`/fuel-transactions/?${queryParams}`, {
       headers: authHeader(),
     });
     return response.data;
@@ -144,7 +144,7 @@ export const FuelDistributionService = {
 
   // Get transaction by ID
   getTransaction: async (id: string): Promise<FuelTransaction> => {
-    const response = await apiClient.get(`/api/v1/fuel-transactions/${id}/`, {
+    const response = await apiClient.get(`/fuel-transactions/${id}/`, {
       headers: authHeader(),
     });
     return response.data;
@@ -152,7 +152,7 @@ export const FuelDistributionService = {
 
   // Get distribution statistics
   getDistributionStats: async () => {
-    const response = await apiClient.get('/api/v1/coupon-distributions/statistics/', {
+    const response = await apiClient.get('/coupon-distributions/statistics/', {
       headers: authHeader(),
     });
     return response.data;

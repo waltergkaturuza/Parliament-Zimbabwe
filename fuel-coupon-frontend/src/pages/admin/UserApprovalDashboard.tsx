@@ -27,7 +27,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import axios from 'axios';
+import apiClient from '@/api';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -63,11 +63,7 @@ const UserApprovalDashboard = () => {
   const fetchPendingUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/users/pending_approvals/', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const response = await apiClient.get('/users/pending_approvals/');
       setPendingUsers(response.data.users || []);
     } catch (error) {
       console.error('Error fetching pending users:', error);
@@ -84,11 +80,7 @@ const UserApprovalDashboard = () => {
   const handleApprove = async (userId: number) => {
     try {
       setActionLoading(true);
-      await axios.post(`/api/users/${userId}/approve_user/`, {}, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      await apiClient.post(`/users/${userId}/approve_user/`);
       message.success('User approved successfully');
       fetchPendingUsers(); // Refresh the list
     } catch (error) {
@@ -104,7 +96,7 @@ const UserApprovalDashboard = () => {
 
     try {
       setActionLoading(true);
-      await axios.post(`/api/users/${selectedUser.id}/reject_user/`, {
+      await apiClient.post(`/users/${selectedUser.id}/reject_user/`, {
         reason: values.reason,
       }, {
         headers: {

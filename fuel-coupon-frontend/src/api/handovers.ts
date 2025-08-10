@@ -39,7 +39,7 @@ export const HandoverService = {
   getHandovers: async (): Promise<HandoverRecord[]> => {
     try {
       console.log('HandoverService.getHandovers called');
-      const response = await apiClient.get<{results: HandoverRecord[]}>('/api/v1/handovers/');
+      const response = await apiClient.get<{results: HandoverRecord[]}>('/handovers/');
       console.log('HandoverService.getHandovers response:', response.status, response.data);
       return response.data?.results || [];
     } catch (error: any) {
@@ -51,7 +51,7 @@ export const HandoverService = {
   createHandover: async (data: CreateHandoverRequest): Promise<HandoverRecord | null> => {
     try {
       console.log('HandoverService.createHandover called with:', data);
-      const response = await apiClient.post<HandoverRecord>('/api/v1/handovers/', data);
+      const response = await apiClient.post<HandoverRecord>('/handovers/', data);
       console.log('HandoverService.createHandover response:', response.status, response.data);
       return response.data;
     } catch (error: any) {
@@ -63,7 +63,7 @@ export const HandoverService = {
   updateHandover: async (id: string, data: Partial<HandoverRecord>): Promise<HandoverRecord | null> => {
     try {
       console.log('HandoverService.updateHandover called with:', id, data);
-      const response = await apiClient.patch<HandoverRecord>(`/api/v1/handovers/${id}/`, data);
+      const response = await apiClient.patch<HandoverRecord>(`/handovers/${id}/`, data);
       console.log('HandoverService.updateHandover response:', response.status, response.data);
       return response.data;
     } catch (error: any) {

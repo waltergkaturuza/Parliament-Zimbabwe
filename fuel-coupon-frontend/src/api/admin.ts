@@ -40,7 +40,7 @@ class AdminService {
    * Get admin dashboard statistics
    */
   async getAdminStatistics(): Promise<AdminDashboardStats> {
-    const response = await apiClient.get('/api/v1/admin/dashboard/');
+    const response = await apiClient.get('/admin/dashboard/');
     return response.data;
   }
 
@@ -48,7 +48,7 @@ class AdminService {
    * Get fuel statistics
    */
   async getFuelStatistics(): Promise<FuelStats> {
-    const response = await apiClient.get('/api/v1/fuel-stats/');
+    const response = await apiClient.get('/fuel-stats/');
     return response.data;
   }
 

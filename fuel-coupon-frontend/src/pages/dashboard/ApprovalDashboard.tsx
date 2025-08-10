@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '@/api';
 
 interface ApprovalRequest {
   id: number;
@@ -27,12 +28,8 @@ const ApprovalDashboard = () => {
       setLoading(true);
       setError(null);
       try {
-        // Replace with your actual API endpoint to fetch approval requests
-        const response = await fetch('/api/approvals');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: ApprovalRequest[] = await response.json();
+        const response = await apiClient.get('/approvals/');
+        const data: ApprovalRequest[] = response.data;
         setApprovalRequests(data);
       } catch (e: any) {
         setError(e.message);

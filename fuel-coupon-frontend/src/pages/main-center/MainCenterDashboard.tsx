@@ -31,6 +31,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import apiClient from '@/api';
 
 // Import modular components
 import BoxReceiptManagement from './components/BoxReceiptManagement';
@@ -82,59 +83,37 @@ const MainCenterDashboard: React.FC = () => {
       setLoading(true);
       console.log('Fetching dashboard stats from backend...');
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      
       // Try to fetch from actual Django API
       try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json',
-          },
+        const response = await apiClient.get('/dashboard/');
+        
+        const data = response.data;
+        console.log('Dashboard data from API:', data);
+        setDashboardStats({
+          totalBoxesReceived: data.total_boxes_received || 0,
+          totalBooksDispatched: data.total_books_dispatched || 0,
+          totalCouponsActive: data.total_coupons_active || 0,
+          totalMonetaryValue: data.total_monetary_value || 0,
+          pendingReceipts: data.pending_receipts || 0,
+          activeSubCenters: data.active_subcenters || 0,
+          lowInventoryAlerts: data.low_inventory_alerts || 0,
+          todayReceipts: data.today_receipts || 0,
+          currentPetrolPrice: data.current_petrol_price || 200,
+          currentDieselPrice: data.current_diesel_price || 180,
+          pendingHandovers: data.pending_handovers || 0,
+          completedDispatchesToday: data.completed_dispatches_today || 0,
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Dashboard data from API:', data);
-          setDashboardStats({
-            totalBoxesReceived: data.total_boxes_received || 0,
-            totalBooksDispatched: data.total_books_dispatched || 0,
-            totalCouponsActive: data.total_coupons_active || 0,
-            totalMonetaryValue: data.total_monetary_value || 0,
-            pendingReceipts: data.pending_receipts || 0,
-            activeSubCenters: data.active_subcenters || 0,
-            lowInventoryAlerts: data.low_inventory_alerts || 0,
-            todayReceipts: data.today_receipts || 0,
-            currentPetrolPrice: data.current_petrol_price || 200,
-            currentDieselPrice: data.current_diesel_price || 180,
-            pendingHandovers: data.pending_handovers || 0,
-            completedDispatchesToday: data.completed_dispatches_today || 0,
-          });
-          
-          // Also try to fetch alerts
-          try {
-            const alertsResponse = await fetch(`${API_BASE_URL}/api/v1/analytics/`, {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-                'Content-Type': 'application/json',
-              },
-            });
-            if (alertsResponse.ok) {
-              const alertsData = await alertsResponse.json();
-              setAlerts(alertsData.alerts || []);
-            }
-          } catch (alertError) {
-            console.log('Could not fetch alerts:', alertError);
-          }
-          
-          return; // Exit early if API call was successful
-        } else {
-          console.log('API response not ok:', response.status, response.statusText);
-          // If not found yet, silently continue to mock fallback below
-          if (response.status !== 404) {
-            // Non-404 errors can be surfaced if needed
-          }
+        // Also try to fetch alerts
+        try {
+          const alertsResponse = await apiClient.get('/analytics/');
+          const alertsData = alertsResponse.data;
+          setAlerts(alertsData.alerts || []);
+        } catch (alertError) {
+          console.log('Could not fetch alerts:', alertError);
         }
+        
+        return; // Exit early if API call was successful
       } catch (apiError) {
         console.log('API not available or error occurred:', apiError);
       }

@@ -119,10 +119,10 @@ const ReportsAnalyticsPage: React.FC = () => {
         },
         system_performance: {
           response_times: [
-            { endpoint: '/api/v1/auth/login', avg_time: 0, count: 0 },
-            { endpoint: '/api/v1/coupons/', avg_time: 0, count: 0 },
-            { endpoint: '/api/v1/allocations/', avg_time: 0, count: 0 },
-            { endpoint: '/api/v1/admin/dashboard/', avg_time: 0, count: 0 }
+            { endpoint: '/auth/login', avg_time: 0, count: 0 },
+            { endpoint: '/coupons/', avg_time: 0, count: 0 },
+            { endpoint: '/allocations/', avg_time: 0, count: 0 },
+            { endpoint: '/admin/dashboard/', avg_time: 0, count: 0 }
           ],
           error_rates: Array.from({ length: 30 }, (_, i) => ({
             date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),

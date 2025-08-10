@@ -37,7 +37,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   const refreshStats = async () => {
     try {
-      const response = await apiClient.get('/api/v1/notifications/stats/', {
+      const response = await apiClient.get('/notifications/stats/', {
         params: {
           recipient_type: userRole,
           recipient_id: userId
@@ -80,7 +80,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   const markAllAsRead = async () => {
     try {
-      await apiClient.post('/api/v1/notifications/mark-all-read/', {
+      await apiClient.post('/notifications/mark-all-read/', {
         recipient_type: userRole,
         recipient_id: userId
       });
@@ -115,7 +115,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   useEffect(() => {
     if ('WebSocket' in window) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      const wsUrl = baseUrl.replace('http', 'ws').replace('https', 'wss') + `/ws/notifications/${userRole}/${userId}/`;
+      // Remove /api/v1 from base URL for WebSocket connection
+      const wsBaseUrl = baseUrl.replace('/api/v1', '');
+      const wsUrl = wsBaseUrl.replace('http', 'ws').replace('https', 'wss') + `/ws/notifications/${userRole}/${userId}/`;
       let ws: WebSocket | null = null;
       try {
         ws = new WebSocket(wsUrl);

@@ -1,24 +1,5 @@
 // src/services/homeApi.ts
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-const homeApi = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add response interceptor for error handling
-homeApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error);
-    return Promise.reject(error);
-  }
-);
+import apiClient from '@/api';
 
 export interface HomeStats {
   active_users: number;
@@ -61,7 +42,7 @@ export const homeApiService = {
   // Get homepage statistics
   async getStats(): Promise<HomeStats> {
     try {
-      const response = await homeApi.get<ApiResponse<HomeStats>>('/api/v1/home/stats/');
+      const response = await apiClient.get('/home/stats/');
       if (response.data.status === 'success') {
         return response.data.data;
       }
@@ -84,7 +65,7 @@ export const homeApiService = {
   // Get recent activity
   async getRecentActivity(): Promise<ActivityItem[]> {
     try {
-      const response = await homeApi.get<ApiResponse<ActivityItem[]>>('/api/v1/home/activity/');
+      const response = await apiClient.get('/home/activity/');
       if (response.data.status === 'success') {
         return response.data.data;
       }
@@ -102,7 +83,7 @@ export const homeApiService = {
   // Get system health metrics
   async getSystemHealth(): Promise<SystemHealth> {
     try {
-      const response = await homeApi.get<ApiResponse<SystemHealth>>('/api/v1/home/health/');
+      const response = await apiClient.get('/home/health/');
       if (response.data.status === 'success') {
         return response.data.data;
       }
@@ -116,7 +97,7 @@ export const homeApiService = {
   // Get quick insights
   async getQuickInsights(): Promise<QuickInsights> {
     try {
-      const response = await homeApi.get<ApiResponse<QuickInsights>>('/api/v1/home/insights/');
+      const response = await apiClient.get('/home/insights/');
       if (response.data.status === 'success') {
         return response.data.data;
       }

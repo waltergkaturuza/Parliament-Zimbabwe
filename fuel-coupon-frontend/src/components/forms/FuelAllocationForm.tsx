@@ -32,7 +32,7 @@ const FuelAllocationForm: React.FC<FuelAllocationFormProps> = () => {
     // --- Add your API call logic here ---
     /*
     try {
-      const response = await api.post('/api/v1/coupons/bulk_allocate/', formData); // Example API endpoint
+      const response = await api.post('/coupons/bulk_allocate/', formData); // Example API endpoint
       console.log('Allocation successful:', response.data);
       // Handle success (e.g., show a success message, clear form)
       setCouponNumbers('');
