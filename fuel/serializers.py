@@ -9,7 +9,7 @@ from decimal import Decimal
 from .models import (
     User, SubCenter, Box, Book, Coupon,
     FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
+    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, Program,
     BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, SystemAlert, FuelEntitlement,
     PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
     FuelRequirementConfiguration
@@ -384,6 +384,28 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
                 'id': obj.managing_subcenter.id,
                 'name': obj.managing_subcenter.name,
                 'code': obj.managing_subcenter.code
+            }
+        return None
+
+
+class ProgramSerializer(serializers.ModelSerializer):
+    session_details = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Program
+        fields = [
+            'id', 'name', 'description', 'program_type', 'session', 'session_details',
+            'start_time', 'end_time', 'venue', 'is_active', 'created', 'modified'
+        ]
+        read_only_fields = ('created', 'modified')
+    
+    def get_session_details(self, obj):
+        if obj.session:
+            return {
+                'id': obj.session.id,
+                'title': obj.session.title,
+                'start_date': obj.session.start_date,
+                'end_date': obj.session.end_date
             }
         return None
 

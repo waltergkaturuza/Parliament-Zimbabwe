@@ -2223,6 +2223,48 @@ class ParliamentSession(TimeStampedModel):
         return f"{self.title} ({self.start_date} to {self.end_date})"
 
 
+class Program(TimeStampedModel):
+    """
+    Programs associated with parliament sessions
+    """
+    PROGRAM_TYPES = [
+        ('COMMITTEE', 'Committee Session'),
+        ('DEBATE', 'Parliamentary Debate'),
+        ('WORKSHOP', 'Workshop'),
+        ('CONFERENCE', 'Conference'),
+        ('SPECIAL', 'Special Program'),
+        ('OTHER', 'Other'),
+    ]
+    
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    program_type = models.CharField(
+        max_length=20,
+        choices=PROGRAM_TYPES,
+        default='COMMITTEE'
+    )
+    session = models.ForeignKey(
+        'ParliamentSession',
+        on_delete=models.CASCADE,
+        related_name='programs',
+        null=True,
+        blank=True,
+        help_text="Associated parliament session"
+    )
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    venue = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        verbose_name = "Program"
+        verbose_name_plural = "Programs"
+        ordering = ['-created']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_program_type_display()})"
+
+
 class SessionAttendance(TimeStampedModel):
     """
     Tracks attendance of beneficiaries for specific parliament sessions.

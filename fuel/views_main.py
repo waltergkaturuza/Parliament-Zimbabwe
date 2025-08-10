@@ -21,7 +21,7 @@ import json
 from .models import (
     Coupon, SubCenter, Book, Box,
     User as UserModel, FuelData, CouponDistribution, FuelTransaction, SubCenterOfficer,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, SessionAttendance,
+    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, Program, SessionAttendance,
     BeneficiaryProfile, AuditLog, SystemAlert, BookDispatch, CouponAllocation, FuelEntitlement,
     PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration
 )
@@ -31,7 +31,7 @@ from .serializers import (
     UserRegistrationSerializer,
     FuelStatsSerializer, FuelTransactionSerializer, SimpleUserSerializer, SubCenterOfficerSerializer,
     BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer,
-    ParliamentSessionSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
+    ParliamentSessionSerializer, ProgramSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
     BulkCouponAllocationSerializer,
     BookDispatchSerializer, CouponAllocationSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
@@ -308,49 +308,52 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def overview(self, request):
         """Get overview data for current user's subcenter"""
-        user = request.user
-        if user.role == 'SUB_CENTER' and user.sub_center:
-            subcenter = user.sub_center
-        else:
-            # For admin/main center users, show first subcenter or create mock data
-            subcenter = SubCenter.objects.first()
-        
-        if subcenter:
-            # Calculate real data
-            total_books = Book.objects.filter(box__assigned_to=subcenter).count()
-            books_used = Book.objects.filter(box__assigned_to=subcenter, is_assigned=True).count()
-            total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
-            coupons_used = Coupon.objects.filter(book__box__assigned_to=subcenter, is_used=True).count()
+        try:
+            user = request.user
+            if user.role == 'SUB_CENTER' and user.sub_center:
+                subcenter = user.sub_center
+            else:
+                # For admin/main center users, show first subcenter or create mock data
+                subcenter = SubCenter.objects.first()
             
-            data = {
-                'center_id': subcenter.code or f'SC-{subcenter.id}',
-                'center_name': subcenter.name,
-                'total_books': total_books,
-                'books_used': books_used,
-                'total_coupons': total_coupons,
-                'coupons_used': coupons_used,
-                'active_members': User.objects.filter(sub_center=subcenter, is_active=True).count(),
-                'pending_handovers': BookDispatch.objects.filter(to_subcenter=subcenter, status='PENDING').count(),
-                'last_handover': BookDispatch.objects.filter(to_subcenter=subcenter).order_by('-created_at').first().created_at.strftime('%Y-%m-%d') if BookDispatch.objects.filter(to_subcenter=subcenter).exists() else '',
-                'total_value_usd': total_coupons * 2.5,  # Assume $2.5 average per coupon
-                'monthly_consumption_usd': coupons_used * 2.5,
-            }
-        else:
-            data = {
-                'center_id': 'SC-001',
-                'center_name': 'Demo Sub Center',
-                'total_books': 0,
-                'books_used': 0,
-                'total_coupons': 0,
-                'coupons_used': 0,
-                'active_members': 0,
-                'pending_handovers': 0,
-                'last_handover': '',
-                'total_value_usd': 0,
-                'monthly_consumption_usd': 0,
-            }
-        
-        return Response(data)
+            if subcenter:
+                # Calculate real data
+                total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+                books_used = Book.objects.filter(box__assigned_to=subcenter, is_assigned=True).count()
+                total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
+                coupons_used = Coupon.objects.filter(book__box__assigned_to=subcenter, is_used=True).count()
+                
+                data = {
+                    'center_id': subcenter.code or f'SC-{subcenter.id}',
+                    'center_name': subcenter.name,
+                    'total_books': total_books,
+                    'books_used': books_used,
+                    'total_coupons': total_coupons,
+                    'coupons_used': coupons_used,
+                    'active_members': UserModel.objects.filter(sub_center=subcenter, is_active=True).count(),
+                    'pending_handovers': BookDispatch.objects.filter(to_subcenter=subcenter, status='PENDING').count(),
+                    'last_handover': BookDispatch.objects.filter(to_subcenter=subcenter).order_by('-created_at').first().created_at.strftime('%Y-%m-%d') if BookDispatch.objects.filter(to_subcenter=subcenter).exists() else '',
+                    'total_value_usd': total_coupons * 2.5,  # Assume $2.5 average per coupon
+                    'monthly_consumption_usd': coupons_used * 2.5,
+                }
+            else:
+                data = {
+                    'center_id': 'SC-001',
+                    'center_name': 'Demo Sub Center',
+                    'total_books': 0,
+                    'books_used': 0,
+                    'total_coupons': 0,
+                    'coupons_used': 0,
+                    'active_members': 0,
+                    'pending_handovers': 0,
+                    'last_handover': '',
+                    'total_value_usd': 0,
+                    'monthly_consumption_usd': 0,
+                }
+            
+            return Response(data)
+        except Exception as e:
+            return Response({'error': f'Failed to retrieve subcenter overview: {str(e)}'}, status=500)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def activities(self, request):
@@ -1401,6 +1404,30 @@ class VehicleCategoryViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
+
+
+class ProgramViewSet(viewsets.ModelViewSet):
+    queryset = Program.objects.all()
+    serializer_class = ProgramSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        session_id = self.request.query_params.get('session_id')
+        program_type = self.request.query_params.get('program_type')
+        
+        if session_id:
+            queryset = queryset.filter(session_id=session_id)
+        
+        if program_type:
+            queryset = queryset.filter(program_type=program_type)
+        
+        return queryset.order_by('-created')
 
 
 class ParliamentSessionViewSet(viewsets.ModelViewSet):

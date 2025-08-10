@@ -19,7 +19,7 @@ from .views_main import (
     
     # New Parliament-specific ViewSets
     BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
-    ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
+    ParliamentSessionViewSet, ProgramViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
     FuelEntitlementViewSet,
     
     # Subcenter management ViewSets
@@ -109,8 +109,8 @@ router.register(r'fuel-requirements', FuelRequirementConfigurationViewSet, basen
 router.register(r'system-alerts', SystemAlertViewSet, basename='system-alert')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 
-# Programs and attendance (legacy)
-# router.register(r'programs', ProgramViewSet, basename='program')  # TODO: Implement Program model
+# Programs and attendance
+router.register(r'programs', ProgramViewSet, basename='program')
 # router.register(r'attendances', AttendanceViewSet, basename='attendance')  # TODO: Commented out - no Attendance model
 
 urlpatterns = [
