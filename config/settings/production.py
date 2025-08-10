@@ -58,13 +58,13 @@ else:
         '169.254.130.9',  # Azure worker container
         '169.254.130.11', # Azure worker middleware
         '169.254.130.12', # Azure additional worker
+        'localhost',      # Azure middleware proxy
         '169.254.131.2',  # Azure container internal IPs
+        '169.254.131.3',  # Azure probe IP (seen in logs)
         '169.254.131.4',
         '169.254.131.5',
         '169.254.131.6',
         '169.254.131.7',
-    '169.254.131.3',  # Azure probe occasionally uses this host
-        'localhost',
         '127.0.0.1',
     ]
     print(f"[DEBUG] Using default ALLOWED_HOSTS: {ALLOWED_HOSTS}")
