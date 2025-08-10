@@ -46,6 +46,8 @@ const AnalyticsFinancePage = lazy(() => import('@/pages/main-center/AnalyticsFin
 
 const CouponManagement = lazy(() => import('@/pages/fuel/CouponManagement'));
 const BeneficiaryManagement = lazy(() => import('@/pages/parliament/BeneficiaryManagement'));
+const BeneficiaryFormsPage = lazy(() => import('@/pages/membership/BeneficiaryFormsPage'));
+const MemberProfilesPage = lazy(() => import('@/pages/membership/MemberProfilesPage'));
 const ReportsAnalytics = lazy(() => import('@/pages/reports/ReportsAnalytics'));
 const SubCenterDashboardPage = lazy(() => import('@/pages/subcenter/SubCenterDashboard'));
 const SubCenterInventoryPage = lazy(() => import('@/pages/subcenter/SubCenterInventoryPage'));
@@ -207,6 +209,10 @@ const router = createBrowserRouter(
         <Route path="programs" element={<Suspense fallback={<LoadingSpinner />}><ProgramsPage /></Suspense>} />
         <Route path="attendance" element={<Suspense fallback={<LoadingSpinner />}><AttendanceTracking /></Suspense>} />
         <Route path="fuel-allocations" element={<Suspense fallback={<LoadingSpinner />}><FuelAllocations /></Suspense>} />
+        
+        {/* Membership Management Routes */}
+        <Route path="membership/beneficiary-forms" element={<Suspense fallback={<LoadingSpinner />}><BeneficiaryFormsPage /></Suspense>} />
+        <Route path="membership/profiles" element={<Suspense fallback={<LoadingSpinner />}><MemberProfilesPage /></Suspense>} />
         
         {/* Parliament Oversight Routes (MAIN_CENTER) */}
         <Route path="parliament-reports" element={

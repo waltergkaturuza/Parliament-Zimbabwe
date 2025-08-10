@@ -49,6 +49,8 @@ import {
   SendOutlined,
   HistoryOutlined,
   BankOutlined,
+  FormOutlined,
+  IdcardOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -219,17 +221,37 @@ const UnifiedLayout: React.FC = () => {
       items.push(
         { type: 'divider' } as MenuItem,
         {
-          key: 'parliament-group',
-          label: 'PARLIAMENT OPERATIONS',
+          key: 'membership-group',
+          label: 'MEMBERSHIP MANAGEMENT',
           type: 'group',
-          icon: <CrownOutlined />,
+          icon: <UserSwitchOutlined />,
           path: '',
+        },
+        {
+          key: 'beneficiary-forms',
+          icon: <FormOutlined />,
+          label: 'Beneficiary Forms',
+          path: '/dashboard/membership/beneficiary-forms',
         },
         {
           key: 'beneficiaries',
           icon: <TeamOutlined />,
           label: 'Members Management',
           path: '/dashboard/beneficiaries',
+        },
+        {
+          key: 'member-profiles',
+          icon: <IdcardOutlined />,
+          label: 'Member Profiles',
+          path: '/dashboard/membership/profiles',
+        },
+        { type: 'divider' } as MenuItem,
+        {
+          key: 'parliament-group',
+          label: 'PARLIAMENT OPERATIONS',
+          type: 'group',
+          icon: <CrownOutlined />,
+          path: '',
         },
         {
           key: 'sessions',
@@ -466,6 +488,8 @@ const UnifiedLayout: React.FC = () => {
     if (path.includes('/settings')) return ['system-settings'];
     if (path.includes('/audit-logs')) return ['audit-logs'];
     if (path.includes('/beneficiaries')) return ['beneficiaries'];
+    if (path.includes('/membership/beneficiary-forms')) return ['beneficiary-forms'];
+    if (path.includes('/membership/profiles')) return ['member-profiles'];
     if (path.includes('/sessions')) return ['sessions'];
     if (path.includes('/attendance')) return ['attendance'];
     if (path.includes('/handovers')) return ['handovers'];
