@@ -394,6 +394,11 @@ const BoxReceiptManagement: FC = () => {
             receivedDate,
             receivedTime,
             status: 'RECEIVED' as const,
+            booksGenerated: calculatedBooks.length > 0 ? calculatedBooks : undefined, // Include generated books
+            numberOfBooks: calculatedBooks.length || values.numberOfBooks,
+            totalCoupons: calculatedBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0) || values.totalCoupons,
+            firstCouponId: calculatedBooks.length > 0 ? calculatedBooks[0].firstCouponId : values.firstCouponId,
+            lastCouponId: calculatedBooks.length > 0 ? calculatedBooks[calculatedBooks.length - 1].lastCouponId : values.lastCouponId,
           };
           setBoxReceipts(prev => [newBox, ...prev]);
           message.success(`✅ Box ${values.boxId} received successfully with ${calculatedBooks.length} books!`);
@@ -1008,14 +1013,15 @@ const BoxReceiptManagement: FC = () => {
       throw new Error('First coupon ID is required');
     }
 
-    const match = firstCouponId.match(/^([A-Z]+)(\d+)$/);
+    // Match format: PU006H1355101 (prefix + middle + ending numbers)
+    const match = firstCouponId.match(/^([A-Z]+\d+[A-Z]*\d*)(\d{6})$/);
     if (!match) {
-      throw new Error('Invalid coupon ID format. Expected format: PU00GH355101');
+      throw new Error('Invalid coupon ID format. Expected format: PU006H1355101');
     }
 
-    const prefix = match[1];
-    let currentNumber = parseInt(match[2]);
-    const numberLength = match[2].length;
+    const prefix = match[1]; // PU006H1
+    let currentNumber = parseInt(match[2]); // 355101
+    const numberLength = match[2].length; // 6 digits
     const books: BookInfo[] = [];
 
     for (let i = 0; i < numberOfBooks; i++) {
@@ -1041,14 +1047,15 @@ const BoxReceiptManagement: FC = () => {
       throw new Error('Last coupon ID is required');
     }
 
-    const match = lastCouponId.match(/^([A-Z]+)(\d+)$/);
+    // Match format: PU006H1355200 (prefix + middle + ending numbers)
+    const match = lastCouponId.match(/^([A-Z]+\d+[A-Z]*\d*)(\d{6})$/);
     if (!match) {
-      throw new Error('Invalid coupon ID format. Expected format: PU00GH355200');
+      throw new Error('Invalid coupon ID format. Expected format: PU006H1355200');
     }
 
-    const prefix = match[1];
-    const lastNumber = parseInt(match[2]);
-    const numberLength = match[2].length;
+    const prefix = match[1]; // PU006H1
+    const lastNumber = parseInt(match[2]); // 355200
+    const numberLength = match[2].length; // 6 digits
     const totalCoupons = numberOfBooks * couponsPerBook;
     const firstNumber = lastNumber - totalCoupons + 1;
 
@@ -1066,21 +1073,22 @@ const BoxReceiptManagement: FC = () => {
       throw new Error('Both first and last coupon IDs are required');
     }
 
-    const firstMatch = firstCouponId.match(/^([A-Z]+)(\d+)$/);
-    const lastMatch = lastCouponId.match(/^([A-Z]+)(\d+)$/);
+    // Match format: PU006H1355101 (prefix + middle + ending numbers)
+    const firstMatch = firstCouponId.match(/^([A-Z]+\d+[A-Z]*\d*)(\d{6})$/);
+    const lastMatch = lastCouponId.match(/^([A-Z]+\d+[A-Z]*\d*)(\d{6})$/);
     
     if (!firstMatch || !lastMatch) {
-      throw new Error('Invalid coupon ID format');
+      throw new Error('Invalid coupon ID format. Expected format: PU006H1355101');
     }
 
     if (firstMatch[1] !== lastMatch[1]) {
       throw new Error('First and last coupons must have the same prefix');
     }
 
-    const prefix = firstMatch[1];
-    const firstNumber = parseInt(firstMatch[2]);
-    const lastNumber = parseInt(lastMatch[2]);
-    const numberLength = firstMatch[2].length;
+    const prefix = firstMatch[1]; // PU006H1
+    const firstNumber = parseInt(firstMatch[2]); // 355101
+    const lastNumber = parseInt(lastMatch[2]); // 355200
+    const numberLength = firstMatch[2].length; // 6 digits
     
     const totalCoupons = lastNumber - firstNumber + 1;
     const couponsPerBook = Math.floor(totalCoupons / numberOfBooks);
@@ -1118,15 +1126,16 @@ const BoxReceiptManagement: FC = () => {
       throw new Error('Both first and last coupon IDs are required');
     }
 
-    const firstMatch = firstCouponId.match(/^([A-Z]+)(\d+)$/);
-    const lastMatch = lastCouponId.match(/^([A-Z]+)(\d+)$/);
+    // Match format: PU006H1355101 (prefix + middle + ending numbers)
+    const firstMatch = firstCouponId.match(/^([A-Z]+\d+[A-Z]*\d*)(\d{6})$/);
+    const lastMatch = lastCouponId.match(/^([A-Z]+\d+[A-Z]*\d*)(\d{6})$/);
     
     if (!firstMatch || !lastMatch) {
-      throw new Error('Invalid coupon ID format');
+      throw new Error('Invalid coupon ID format. Expected format: PU006H1355101');
     }
 
-    const firstNumber = parseInt(firstMatch[2]);
-    const lastNumber = parseInt(lastMatch[2]);
+    const firstNumber = parseInt(firstMatch[2]); // 355101
+    const lastNumber = parseInt(lastMatch[2]); // 355200
     const totalCoupons = lastNumber - firstNumber + 1;
 
     // Smart book count calculation
@@ -1833,7 +1842,7 @@ const BoxReceiptManagement: FC = () => {
                     rules={[{ required: true, message: 'Please enter first coupon ID' }]}
                   >
                     <Input 
-                      placeholder="Enter first coupon number (e.g., PU00GH355101)"
+                      placeholder="Enter first coupon number (e.g., PU006H1355101)"
                       style={{ fontFamily: 'monospace' }}
                       onChange={(e) => {
                         // Trigger recalculation when first coupon ID changes
@@ -1954,7 +1963,7 @@ const BoxReceiptManagement: FC = () => {
                         rules={[{ required: true, message: 'Enter first coupon ID' }]}
                       >
                         <Input 
-                          placeholder="PU00GH355101"
+                          placeholder="PU006H1355101"
                           style={{ fontFamily: 'monospace' }}
                         />
                       </Form.Item>
@@ -2184,7 +2193,7 @@ const BoxReceiptManagement: FC = () => {
               </Form.Item>
 
               <Form.Item
-                label="Sample Coupon Verification"
+                label="Book Verification"
                 tooltip="Select random coupons from different books to verify authenticity and print quality"
               >
                 <Row gutter={16}>
