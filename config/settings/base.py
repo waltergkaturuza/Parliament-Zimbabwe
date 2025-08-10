@@ -13,6 +13,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'rest_framework',
     'corsheaders',
     'fuel',
@@ -52,6 +53,27 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+# ASGI / Channels configuration
+ASGI_APPLICATION = 'config.asgi.application'
+
+# Channel layers: prefer Redis if REDIS_URL/CHANNEL_REDIS_URL provided; otherwise in-memory (single-instance only)
+_redis_url = os.environ.get('REDIS_URL') or os.environ.get('CHANNEL_REDIS_URL')
+if _redis_url:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_redis_url],
+            },
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

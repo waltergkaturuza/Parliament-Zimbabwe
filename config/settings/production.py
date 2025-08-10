@@ -63,6 +63,7 @@ else:
         '169.254.131.5',
         '169.254.131.6',
         '169.254.131.7',
+    '169.254.131.3',  # Azure probe occasionally uses this host
         'localhost',
         '127.0.0.1',
     ]
