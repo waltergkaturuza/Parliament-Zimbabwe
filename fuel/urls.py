@@ -112,61 +112,46 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
-    
-    # API v1 Authentication endpoints
-    path('api/v1/auth/register/', RegisterView.as_view(), name='register-v1'),
-    path('api/v1/auth/login/', LoginView.as_view(), name='login-v1'),
-    path('api/v1/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh_v1'),
-    path('api/v1/auth/change-password/', change_password, name='change-password-v1'),
+    # Change password (no hard-coded api/v1 here; config/urls.py adds the prefix)
+    path('auth/change-password/', change_password, name='change-password-v1'),
     
     # CORS bypass endpoints for debugging
     path('auth/login-bypass/', cors_bypass_login, name='login-bypass'),
     path('cors-test/', cors_test_endpoint, name='cors-test-endpoint'),
     
-    # Home page APIs - Updated paths to match frontend expectations
+    # Home page APIs - keep relative paths; config adds /api/v1
     path('home/stats/', home_stats, name='home-stats'),
     path('home/health/', system_health, name='home-health'),
-    path('api/home/stats/', home_stats, name='home-stats-api'),
-    path('api/v1/home/stats/', home_stats, name='home-stats-v1'),
-    path('api/home/activity/', recent_activity, name='home-activity'),
-    path('api/v1/home/activity/', recent_activity, name='home-activity-v1'),
-    path('api/home/health/', system_health, name='home-health-api'),
-    path('api/v1/home/health/', system_health, name='home-health-v1'),
-    path('api/home/insights/', quick_insights, name='home-insights'),
-    path('api/v1/home/insights/', quick_insights, name='home-insights-v1'),
+    path('home/activity/', recent_activity, name='home-activity'),
+    path('home/insights/', quick_insights, name='home-insights'),
     
-    # Admin dashboard endpoints - Fixed to use correct views
-    path('api/v1/admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
-    path('api/v1/dashboard/', main_dashboard, name='main-dashboard-v1'),
-    path('admin/dashboard/', admin_dashboard, name='admin-dashboard'),
+    # Admin dashboard endpoints - use relative paths
+    path('admin/dashboard/', admin_dashboard, name='admin-dashboard-v1'),
+    path('dashboard/', main_dashboard, name='main-dashboard-v1'),
     
     # Fuel statistics endpoint
-    path('api/v1/fuel-stats/', fuel_statistics, name='fuel-statistics'),
+    path('fuel-stats/', fuel_statistics, name='fuel-statistics'),
     
     # Notification endpoints
-    path('api/v1/notifications/stats/', notification_stats, name='notification-stats'),
-    path('api/v1/notifications/mark-all-read/', mark_all_notifications_read, name='notifications-mark-all-read'),
+    path('notifications/stats/', notification_stats, name='notification-stats'),
+    path('notifications/mark-all-read/', mark_all_notifications_read, name='notifications-mark-all-read'),
     
-    # Analytics endpoints - Added missing consumption trend endpoint
+    # Analytics endpoints - keep relative paths only
     path('analytics/', analytics_view, name='analytics-view'),
-    path('api/v1/analytics/', analytics_view, name='analytics-v1'),
-    path('api/v1/analytics/consumption-trend/', analytics_consumption_trend, name='consumption-trend-analytics'),
+    path('analytics/consumption-trend/', analytics_consumption_trend, name='consumption-trend-analytics'),
     path('analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics'),
-    path('api/v1/analytics/fuel-requirements/', analytics_view, name='fuel-requirements-analytics-v1'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
-    path('statistics/', fuel_statistics, name='statistics'),  # Add general statistics endpoint
-    path('api/v1/statistics/', fuel_statistics, name='statistics-v1'),  # Add API v1 statistics endpoint
+    path('statistics/', fuel_statistics, name='statistics'),  # General statistics endpoint
     
     # Fuel pricing endpoints
     path('fuel-prices/', fuel_statistics, name='fuel-prices'),
-    path('api/v1/fuel-prices/', fuel_statistics, name='fuel-prices-v1'),
     
     # Users endpoints with role filtering
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
     path('users/stats/', UserViewSet.as_view({'get': 'stats'}), name='user-stats'),
     
     # Books endpoints
-    path('api/v1/books/received/', BookViewSet.as_view({'get': 'received'}), name='books-received-v1'),
+    path('books/received/', BookViewSet.as_view({'get': 'received'}), name='books-received-v1'),
     
     # Router endpoints for missing paths
     path('users/', UserViewSet.as_view({'get': 'list'}), name='users-list'),
@@ -182,14 +167,13 @@ urlpatterns = [
     path('audit/transaction-stats/', AuditLogViewSet.as_view({'get': 'transaction_stats'}), name='audit-transaction-stats'),
     path('audit/transactions/', AuditLogViewSet.as_view({'get': 'transactions'}), name='audit-transactions'),
     
-    # Subcenter endpoints - Fixed to use new subcenter_statistics view
-    path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview'),
-    path('api/v1/subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview-v1'),
+    # Subcenter endpoints - use relative paths
+    path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview-v1'),
     path('subcenter/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
     # General subcenter statistics endpoint - Using new function-based view
-    path('api/v1/subcenter/statistics/', subcenter_statistics, name='subcenter-statistics-v1'),
+    path('subcenter/statistics/', subcenter_statistics, name='subcenter-statistics-v1'),
     # Individual subcenter statistics endpoint
-    path('api/v1/subcenters/<int:pk>/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-detail-statistics'),
+    path('subcenters/<int:pk>/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-detail-statistics'),
     
     # Business Central Production Integration
     path('api/bc/webhook/', bc_webhook, name='bc-webhook'),
