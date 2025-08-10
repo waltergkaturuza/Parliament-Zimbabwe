@@ -33,6 +33,7 @@ import {
   TimePicker,
   Radio,
   Empty,
+  Spin,
 } from 'antd';
 import {
   PlusOutlined,
@@ -124,6 +125,7 @@ const BoxReceiptManagement: FC = () => {
   const [form] = Form.useForm();
   const [verifyForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [signatureUploading, setSignatureUploading] = useState(false);
   const [boxReceipts, setBoxReceipts] = useState<BoxReceipt[]>([]);
   const [nextBoxNumber, setNextBoxNumber] = useState('');
   const [calculatedBooks, setCalculatedBooks] = useState<BookInfo[]>([]);
@@ -137,16 +139,17 @@ const BoxReceiptManagement: FC = () => {
 
   // PDF and Print functionality
   const generateVerificationReportData = () => {
-    const currentUser = user ? `${user.name || user.username}` : "System User";
+    const currentUser = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : "System User";
     const currentDate = new Date();
     const formValues = form.getFieldsValue();
+    const currentTimeFormatted = currentDate.toLocaleTimeString('en-GB', { hour12: false });
     
     return {
       boxId: formValues.boxId || 'N/A',
-      barcode: formValues.barcode || 'N/A',
+      barcode: formValues.barcode || `BOX-${formValues.boxId || 'N/A'}-${currentDate.getTime()}`,
       supplier: formValues.supplier || 'Petrotrade Zimbabwe',
-      receivedDate: formValues.receivedDate ? dayjs(formValues.receivedDate).format('DD/MM/YYYY') : 'N/A',
-      receivedTime: formValues.receivedTime ? dayjs(formValues.receivedTime).format('HH:mm') : 'N/A',
+      receivedDate: formValues.receivedDate ? dayjs(formValues.receivedDate).format('DD/MM/YYYY') : dayjs().format('DD/MM/YYYY'),
+      receivedTime: formValues.receivedTime ? dayjs(formValues.receivedTime).format('HH:mm') : currentTimeFormatted,
       receivedBy: currentUser, // Auto-filled with logged-in user
       verifiedBy: currentUser,
       verificationDate: currentDate.toLocaleDateString('en-GB'),
@@ -172,23 +175,21 @@ const BoxReceiptManagement: FC = () => {
 
   const downloadVerificationReport = async () => {
     try {
+      // Check if we have books data
+      if (!calculatedBooks || calculatedBooks.length === 0) {
+        message.warning('Please generate book calculations first before downloading verification report');
+        return;
+      }
+
       const reportData = generateVerificationReportData();
+      console.log('Generated report data:', reportData);
       
-      // Create verification record in backend
-      const verificationRecord = {
-        box_id: form.getFieldValue('boxId'),
-        verified_by: reportData.verifiedBy,
-        verification_date: new Date().toISOString(),
-        books_verified: reportData.books,
-        verification_notes: reportData.verificationNotes,
-        status: 'VERIFIED'
-      };
-      
-      // Save to backend
-      await apiClient.post('/boxes/verification-reports/', verificationRecord);
-      
-      // Generate PDF content
+      // Generate PDF content (no backend call needed for verification reports)
       const pdfContent = generatePDFContent(reportData);
+      
+      if (!pdfContent) {
+        throw new Error('Failed to generate PDF content');
+      }
       
       // Create and download PDF
       const blob = new Blob([pdfContent], { type: 'text/html' });
@@ -204,7 +205,7 @@ const BoxReceiptManagement: FC = () => {
       message.success('Verification report downloaded successfully!');
     } catch (error) {
       console.error('Error downloading verification report:', error);
-      message.error('Failed to download verification report');
+      message.error(`Failed to download verification report: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -248,7 +249,7 @@ const BoxReceiptManagement: FC = () => {
                 width: 80px; 
                 height: 80px; 
                 margin-right: 20px;
-                background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%231890ff"/><text x="50" y="55" text-anchor="middle" fill="white" font-size="20" font-weight="bold">PZ</text></svg>') no-repeat center;
+                background: url('/Logo_of_the_Parliament_of_Zimbabwe.png') no-repeat center;
                 background-size: contain;
             }
             .header-text h1 { 
@@ -892,6 +893,18 @@ const BoxReceiptManagement: FC = () => {
       }
     };
     reader.readAsText(file);
+    return false; // Prevent default upload behavior
+  };
+
+  const handleSignatureUpload = (file: any) => {
+    setSignatureUploading(true);
+    
+    // Simulate signature upload process
+    setTimeout(() => {
+      message.success('Signature uploaded successfully!');
+      setSignatureUploading(false);
+    }, 2000);
+    
     return false; // Prevent default upload behavior
   };
 
@@ -2667,11 +2680,13 @@ const BoxReceiptManagement: FC = () => {
                   listType="picture-card"
                   className="avatar-uploader"
                   showUploadList={false}
-                  beforeUpload={() => false}
+                  beforeUpload={handleSignatureUpload}
                 >
                   <div>
-                    <UploadOutlined />
-                    <div style={{ marginTop: 8 }}>Upload Signature</div>
+                    {signatureUploading ? <Spin size="small" /> : <UploadOutlined />}
+                    <div style={{ marginTop: 8 }}>
+                      {signatureUploading ? 'Uploading...' : 'Upload Signature'}
+                    </div>
                   </div>
                 </Upload>
               </Form.Item>

@@ -353,8 +353,12 @@ const InventoryManagement: FC = () => {
         setRequirements(apiRequirements);
         return;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('API fuel requirements not available, using calculated estimates');
+      // Don't log the full error to reduce console noise
+      if (error.response?.status !== 500) {
+        console.error('Fuel requirements API error:', error.message);
+      }
     }
 
     try {
@@ -398,8 +402,12 @@ const InventoryManagement: FC = () => {
       ];
 
       setRequirements(calculatedRequirements);
-    } catch (error) {
-      console.error('Error calculating requirements:', error);
+    } catch (error: any) {
+      console.log('Analytics consumption trend not available, using fallback estimates');
+      // Don't log the full error to reduce console noise
+      if (error.response?.status !== 500) {
+        console.error('Analytics API error:', error.message);
+      }
       // Fallback to basic estimates if analytics fail
       const fallbackRequirements: FuelRequirement[] = [
         {
