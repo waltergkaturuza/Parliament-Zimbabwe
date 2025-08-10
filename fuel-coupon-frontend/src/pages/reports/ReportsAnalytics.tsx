@@ -63,6 +63,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import apiClient from '../../api/apiClient';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -120,60 +121,69 @@ const ReportsAnalytics = () => {
   const { data: reportData, isLoading, refetch } = useQuery<ReportData>({
     queryKey: ['reports', dateRange, selectedCategory, reportType],
     queryFn: async () => {
-      // Simulated data - replace with actual API call
-      const fuelConsumption = Array.from({ length: 30 }, (_, i) => {
-        const date = format(subDays(new Date(), 29 - i), 'MMM dd');
-        const petrol = Math.floor(Math.random() * 500) + 200;
-        const diesel = Math.floor(Math.random() * 300) + 150;
+      try {
+        const response = await apiClient.get('/analytics/', {
+          params: {
+            start_date: format(dateRange[0], 'yyyy-MM-dd'),
+            end_date: format(dateRange[1], 'yyyy-MM-dd'),
+            category: selectedCategory,
+            report_type: reportType,
+            include_reports: true,
+          },
+        });
+
+        const data = response.data;
+
         return {
-          date,
-          petrol,
-          diesel,
-          total: petrol + diesel,
+          fuelConsumption: data.reports?.fuel_consumption || [],
+          categoryBreakdown: data.reports?.category_breakdown || [
+            { category: 'MPs', amount: 0, percentage: 0, color: '#1890ff' },
+            { category: 'Senators', amount: 0, percentage: 0, color: '#52c41a' },
+            { category: 'Staff', amount: 0, percentage: 0, color: '#faad14' },
+            { category: 'Officials', amount: 0, percentage: 0, color: '#f5222d' },
+          ],
+          topConsumers: data.reports?.top_consumers || [],
+          monthlyComparison: data.reports?.monthly_comparison || [],
+          costAnalysis: data.reports?.cost_analysis || [
+            { category: 'MPs', budgeted: 0, actual: 0, variance: 0 },
+            { category: 'Senators', budgeted: 0, actual: 0, variance: 0 },
+            { category: 'Staff', budgeted: 0, actual: 0, variance: 0 },
+            { category: 'Officials', budgeted: 0, actual: 0, variance: 0 },
+          ],
+          efficiencyMetrics: data.reports?.efficiency_metrics || {
+            averageConsumption: 0,
+            costPerLiter: 0,
+            utilizationRate: 0,
+            wastePercentage: 0,
+          },
         };
-      });
-
-      const categoryBreakdown = [
-        { category: 'MPs', amount: 45000, percentage: 45, color: '#1890ff' },
-        { category: 'Senators', amount: 30000, percentage: 30, color: '#52c41a' },
-        { category: 'Staff', amount: 15000, percentage: 15, color: '#faad14' },
-        { category: 'Officials', amount: 10000, percentage: 10, color: '#f5222d' },
-      ];
-
-      const topConsumers = [
-        { name: 'Hon. John Doe', category: 'MP', amount: 1250, efficiency: 95, trend: 5 },
-        { name: 'Hon. Jane Smith', category: 'MP', amount: 1180, efficiency: 92, trend: -2 },
-        { name: 'Sen. Michael Brown', category: 'SENATOR', amount: 1050, efficiency: 88, trend: 8 },
-        { name: 'Hon. Sarah Wilson', category: 'MP', amount: 980, efficiency: 85, trend: -5 },
-        { name: 'Dr. David Johnson', category: 'OFFICIAL', amount: 750, efficiency: 90, trend: 12 },
-      ];
-
-      const monthlyComparison = [
-        { month: 'Jan', currentYear: 95000, previousYear: 88000, target: 90000 },
-        { month: 'Feb', currentYear: 87000, previousYear: 85000, target: 90000 },
-        { month: 'Mar', currentYear: 102000, previousYear: 95000, target: 90000 },
-        { month: 'Apr', currentYear: 94000, previousYear: 92000, target: 90000 },
-        { month: 'May', currentYear: 108000, previousYear: 98000, target: 90000 },
-      ];
-
-      return {
-        fuelConsumption,
-        categoryBreakdown,
-        topConsumers,
-        monthlyComparison,
-        costAnalysis: [
-          { category: 'MPs', budgeted: 50000, actual: 45000, variance: -10 },
-          { category: 'Senators', budgeted: 35000, actual: 30000, variance: -14.3 },
-          { category: 'Staff', budgeted: 18000, actual: 15000, variance: -16.7 },
-          { category: 'Officials', budgeted: 12000, actual: 10000, variance: -16.7 },
-        ],
-        efficiencyMetrics: {
-          averageConsumption: 2.3,
-          costPerLiter: 1.85,
-          utilizationRate: 87.5,
-          wastePercentage: 3.2,
-        },
-      };
+      } catch (error) {
+        console.error('Failed to fetch report data:', error);
+        // Fallback data structure
+        return {
+          fuelConsumption: [],
+          categoryBreakdown: [
+            { category: 'MPs', amount: 0, percentage: 0, color: '#1890ff' },
+            { category: 'Senators', amount: 0, percentage: 0, color: '#52c41a' },
+            { category: 'Staff', amount: 0, percentage: 0, color: '#faad14' },
+            { category: 'Officials', amount: 0, percentage: 0, color: '#f5222d' },
+          ],
+          topConsumers: [],
+          monthlyComparison: [],
+          costAnalysis: [
+            { category: 'MPs', budgeted: 0, actual: 0, variance: 0 },
+            { category: 'Senators', budgeted: 0, actual: 0, variance: 0 },
+            { category: 'Staff', budgeted: 0, actual: 0, variance: 0 },
+            { category: 'Officials', budgeted: 0, actual: 0, variance: 0 },
+          ],
+          efficiencyMetrics: {
+            averageConsumption: 0,
+            costPerLiter: 0,
+            utilizationRate: 0,
+            wastePercentage: 0,
+          },
+        };
+      }
     },
   });
 

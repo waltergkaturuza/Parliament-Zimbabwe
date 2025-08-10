@@ -116,39 +116,33 @@ const UsageAnalytics: FC = () => {
 
       const response = await apiClient.get('/analytics/', { params });
       
-      // Mock data for demonstration - replace with actual API response
-      const mockData: UsageData = {
-        totalCouponsIssued: 2500,
-        totalCouponsUsed: 1875,
-        totalFuelLiters: 18750,
-        totalCostUSD: 23437.50,
-        usageRate: 75,
-        dailyUsage: Array.from({ length: 30 }, (_, i) => ({
-          date: dayjs().subtract(29 - i, 'day').format('YYYY-MM-DD'),
-          coupons: Math.floor(Math.random() * 100) + 50,
-          liters: Math.floor(Math.random() * 1000) + 500,
-          cost: Math.floor(Math.random() * 1250) + 625
-        })),
-        subCenterUsage: [
-          { subCenter: 'Parliament Main', coupons: 650, liters: 6500, cost: 8125 },
-          { subCenter: 'Ministry Block A', coupons: 425, liters: 4250, cost: 5312.50 },
-          { subCenter: 'Ministry Block B', coupons: 380, liters: 3800, cost: 4750 },
-          { subCenter: 'Government House', coupons: 420, liters: 4200, cost: 5250 }
-        ],
-        beneficiaryUsage: [
-          { beneficiary: 'Hon. John Doe', coupons: 85, liters: 850, cost: 1062.50 },
-          { beneficiary: 'Hon. Jane Smith', coupons: 78, liters: 780, cost: 975 },
-          { beneficiary: 'Hon. Peter Jones', coupons: 72, liters: 720, cost: 900 },
-          { beneficiary: 'Hon. Mary Brown', coupons: 69, liters: 690, cost: 862.50 },
-          { beneficiary: 'Hon. David Wilson', coupons: 65, liters: 650, cost: 812.50 }
-        ],
+      // Use real data from backend
+      const backendData = response.data;
+      
+      const realData: UsageData = {
+        totalCouponsIssued: backendData.fuel_summary?.total_coupons_used || 0,
+        totalCouponsUsed: backendData.fuel_summary?.total_coupons_used || 0,
+        totalFuelLiters: backendData.fuel_summary?.total_fuel_dispensed || 0,
+        totalCostUSD: backendData.financial?.total_cost_usd || 0,
+        usageRate: backendData.fuel_summary?.usage_rate || 0,
+        dailyUsage: backendData.fuel_summary?.daily_usage || [],
+        subCenterUsage: backendData.fuel_summary?.by_subcenter || [],
+        beneficiaryUsage: backendData.beneficiary_summary?.top_users || [],
         fuelTypeBreakdown: [
-          { type: 'Petrol', value: 11250, percentage: 60 },
-          { type: 'Diesel', value: 7500, percentage: 40 }
+          { 
+            type: 'Petrol', 
+            value: backendData.fuel_summary?.petrol_usage || 0,
+            percentage: backendData.fuel_summary?.petrol_percentage || 0
+          },
+          { 
+            type: 'Diesel', 
+            value: backendData.fuel_summary?.diesel_usage || 0,
+            percentage: backendData.fuel_summary?.diesel_percentage || 0
+          }
         ]
       };
 
-      setData(mockData);
+      setData(realData);
     } catch (error) {
       console.error('Error loading analytics data:', error);
       message.error('Failed to load analytics data');
