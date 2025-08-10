@@ -497,46 +497,60 @@ class BoxViewSet(viewsets.ModelViewSet):
         """
         Receive a new box and generate all books and coupons based on the coupon range logic
         """
-        serializer = BoxReceiptSerializer(data=request.data, context={'request': request})
-        
-        if serializer.is_valid():
-            try:
-                with transaction.atomic():
-                    box = serializer.save(received_by=request.user)
-                    
-                    # Validate the coupon sequence
-                    is_valid, validation_message = box.validate_coupon_sequence()
-                    if not is_valid:
-                        raise ValueError(f"Invalid coupon sequence: {validation_message}")
-                    
-                    # Generate all books and coupons
-                    books_created = box.generate_books_and_coupons()
-                    
-                    # Create dispatch records for each book in the box
-                    for book in books_created:
-                        BookDispatch.objects.create(
-                            book=book,
-                            assigned_to=box.assigned_to,
-                            dispatched_by=request.user,
-                            dispatch_date=timezone.now(),
-                        status='DISPATCHED',
-                        notes=f"Auto-generated {len(books_created)} books with sequential coupons"
-                    )
-                    
+        try:
+            serializer = BoxReceiptSerializer(data=request.data, context={'request': request})
+            
+            if serializer.is_valid():
+                try:
+                    with transaction.atomic():
+                        # Save the box first
+                        box = serializer.save(received_by=request.user)
+                        
+                        # Validate the coupon sequence
+                        is_valid, validation_message = box.validate_coupon_sequence()
+                        if not is_valid:
+                            raise ValueError(f"Invalid coupon sequence: {validation_message}")
+                        
+                        # Generate all books and coupons
+                        books_created = box.generate_books_and_coupons()
+                        
+                        # Create dispatch records for each book in the box
+                        for book in books_created:
+                            BookDispatch.objects.create(
+                                book=book,
+                                assigned_to=box.assigned_to,
+                                dispatched_by=request.user,
+                                dispatch_date=timezone.now(),
+                                status='DISPATCHED',
+                                notes=f"Auto-generated from box {box.box_code}"
+                            )
+                        
+                        return Response({
+                            'message': 'Box received and coupons generated successfully',
+                            'box': BoxSerializer(box).data,
+                            'books_created': len(books_created),
+                            'total_coupons': box.number_of_books * box.coupons_per_book,
+                            'book_ranges': box.get_book_ranges_summary()
+                        }, status=status.HTTP_201_CREATED)
+                        
+                except ValueError as e:
+                    return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
                     return Response({
-                        'message': 'Box received and coupons generated successfully',
-                        'box': BoxSerializer(box).data,
-                        'books_created': len(books_created),
-                        'total_coupons': box.total_coupons,
-                        'book_ranges': box.get_book_ranges_summary()
-                    }, status=status.HTTP_201_CREATED)
-                    
-            except ValueError as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response({'error': f'Failed to process box: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                        'error': f'Failed to process box: {str(e)}',
+                        'details': 'Check that all required fields are provided and valid'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            return Response({
+                'error': 'Invalid data provided',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Unexpected error: {str(e)}',
+                'details': 'Please check your request data and try again'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
     def coupon_ranges_preview(self, request, pk=None):
@@ -2546,11 +2560,11 @@ def analytics_consumption_trend(request):
         days = int(request.GET.get('days', 30))
         start_date = timezone.now() - timedelta(days=days)
         
-        # Get daily consumption data
+        # Get daily consumption data using TruncDate for database compatibility
         daily_consumption = FuelTransaction.objects.filter(
             timestamp__gte=start_date
-        ).extra(
-            select={'day': 'date(timestamp)'}
+        ).annotate(
+            day=TruncDate('timestamp')
         ).values('day').annotate(
             total_liters=Sum('litres_consumed'),
             transaction_count=Count('id')
@@ -2564,24 +2578,32 @@ def analytics_consumption_trend(request):
             date_str = item['day'].strftime('%Y-%m-%d') if item['day'] else ''
             consumption_data.append({
                 'date': date_str,
-                'liters': item['total_liters'] or 0
+                'liters': float(item['total_liters'] or 0)
             })
             transaction_data.append({
                 'date': date_str,
                 'count': item['transaction_count'] or 0
             })
         
-        # Calculate trend indicators
-        recent_week = daily_consumption.filter(day__gte=timezone.now().date() - timedelta(days=7))
-        previous_week = daily_consumption.filter(
-            day__gte=timezone.now().date() - timedelta(days=14),
-            day__lt=timezone.now().date() - timedelta(days=7)
-        )
-        
-        recent_avg = recent_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
-        previous_avg = previous_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
-        
-        trend_percentage = ((recent_avg - previous_avg) / previous_avg * 100) if previous_avg > 0 else 0
+        # Calculate trend indicators safely
+        try:
+            recent_week_start = timezone.now().date() - timedelta(days=7)
+            previous_week_start = timezone.now().date() - timedelta(days=14)
+            
+            recent_week = daily_consumption.filter(day__gte=recent_week_start)
+            previous_week = daily_consumption.filter(
+                day__gte=previous_week_start,
+                day__lt=recent_week_start
+            )
+            
+            recent_avg = recent_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+            previous_avg = previous_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+            
+            trend_percentage = ((recent_avg - previous_avg) / previous_avg * 100) if previous_avg > 0 else 0
+        except Exception:
+            # Fallback if trend calculation fails
+            recent_avg = 0
+            trend_percentage = 0
         
         return Response({
             'consumption_trend': consumption_data,
@@ -2589,8 +2611,8 @@ def analytics_consumption_trend(request):
             'summary': {
                 'total_consumption': sum(item['liters'] for item in consumption_data),
                 'total_transactions': sum(item['count'] for item in transaction_data),
-                'average_daily_consumption': recent_avg,
-                'trend_percentage': round(trend_percentage, 2),
+                'average_daily_consumption': float(recent_avg),
+                'trend_percentage': round(float(trend_percentage), 2),
                 'trend_direction': 'up' if trend_percentage > 0 else 'down' if trend_percentage < 0 else 'stable'
             },
             'period_days': days,

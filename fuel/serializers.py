@@ -731,16 +731,37 @@ class BulkSessionAttendanceSerializer(serializers.Serializer):
 
 # Box Receipt Serializer for enhanced box reception
 class BoxReceiptSerializer(serializers.ModelSerializer):
-    """Serializer for receiving boxes with validation"""
+    """Serializer for receiving boxes with validation and frontend field mapping"""
+    
+    # Frontend field mappings - same as BoxSerializer
+    coupon_amount = serializers.IntegerField(source='denomination', required=False)
+    couponAmount = serializers.IntegerField(source='denomination', required=False)
+    sub_center = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
+    subCenter = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
+    box_date = serializers.DateTimeField(source='received_at', required=False)
+    boxDate = serializers.DateTimeField(source='received_at', required=False)
+    
+    # Monetary fields
+    monetaryValueUSD = serializers.DecimalField(source='monetary_value_usd', max_digits=12, decimal_places=2, required=False, allow_null=True)
+    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=2, required=False, allow_null=True)
+    exchangeRate = serializers.DecimalField(source='exchange_rate', max_digits=10, decimal_places=2, required=False, allow_null=True)
+    
+    # Additional frontend fields
+    number_of_coupons = serializers.IntegerField(write_only=True, required=False)
+    total_litres = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    notes = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
         model = Box
         fields = [
-            'box_code', 'first_coupon_number', 'last_coupon_number',
-            'number_of_books', 'coupons_per_book', 'litres_per_coupon',
-            'assigned_to', 'received_by', 'received_date', 'notes'
+            'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount', 'couponAmount',
+            'first_coupon_number', 'last_coupon_number',
+            'number_of_books', 'coupons_per_book', 'total_litres',
+            'assigned_to', 'sub_center', 'subCenter', 'received_by', 'received_at', 'box_date', 'boxDate',
+            'monetaryValueUSD', 'fuelPricePerLitreUSD', 'exchangeRate',
+            'number_of_coupons', 'notes', 'created', 'modified'
         ]
-        read_only_fields = ['received_by', 'received_date']
+        read_only_fields = ['id', 'received_by', 'box_code', 'created', 'modified']
     
     def validate(self, data):
         # Validate coupon sequence
