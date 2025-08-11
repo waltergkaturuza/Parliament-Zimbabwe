@@ -53,7 +53,11 @@ const { RangePicker } = DatePicker;
 interface Program {
   id: string;
   title: string;
-  program_type: 'TRAINING' | 'DISTRIBUTION' | 'MEETING' | 'ACTIVITY';
+  program_type: 'SESSION' | 'COMMITTEE' | 'WORKSHOP' | 'OUTREACH' | 'CONFERENCE' | 
+                'CEREMONY' | 'INSPECTION' | 'CAMPAIGN' | 'NATIONAL_EVENT' | 'CONSTITUENCY' |
+                'DEBATE' | 'BUDGET_SESSION' | 'POLICY_MEETING' | 'PUBLIC_HEARING' | 
+                'DIPLOMATIC' | 'OTHER';
+  program_type_display?: string;
   scheduled_date: string;
   end_date?: string;
   description: string;
@@ -94,11 +98,11 @@ const ProgramList = () => {
       setPrograms([
         {
           id: '1',
-          title: 'Parliamentary Orientation Training',
-          program_type: 'TRAINING',
+          title: 'Parliamentary Orientation Workshop',
+          program_type: 'WORKSHOP',
           scheduled_date: '2024-07-15T09:00:00Z',
           end_date: '2024-07-15T17:00:00Z',
-          description: 'Comprehensive training on parliamentary procedures and fuel coupon allocation',
+          description: 'Comprehensive workshop on parliamentary procedures and fuel coupon allocation',
           location: 'Parliament Main Hall',
           organizer: {
             id: '1',
@@ -118,12 +122,12 @@ const ProgramList = () => {
         },
         {
           id: '2',
-          title: 'Monthly Coupon Distribution',
-          program_type: 'DISTRIBUTION',
+          title: 'Constituency Visit Program',
+          program_type: 'CONSTITUENCY',
           scheduled_date: '2024-07-20T08:00:00Z',
           end_date: '2024-07-20T16:00:00Z',
-          description: 'Monthly distribution of fuel coupons to registered beneficiaries',
-          location: 'Sub-Center Office',
+          description: 'MPs visiting their constituencies for community engagement',
+          location: 'Various Constituencies',
           organizer: {
             id: '2',
             username: 'jane.smith',
@@ -142,12 +146,12 @@ const ProgramList = () => {
         },
         {
           id: '3',
-          title: 'Community Feedback Meeting',
-          program_type: 'MEETING',
+          title: 'Parliamentary Committee Session',
+          program_type: 'COMMITTEE',
           scheduled_date: '2024-07-25T14:00:00Z',
           end_date: '2024-07-25T16:00:00Z',
-          description: 'Gathering feedback from community on fuel coupon program effectiveness',
-          location: 'Community Center',
+          description: 'Finance Committee session on fuel allocation budget review',
+          location: 'Committee Room A',
           organizer: {
             id: '3',
             username: 'mike.wilson',
@@ -166,17 +170,41 @@ const ProgramList = () => {
   }, []);
 
   const programTypeColors = {
-    TRAINING: '#1890ff',
-    DISTRIBUTION: '#52c41a',
-    MEETING: '#faad14',
-    ACTIVITY: '#722ed1'
+    SESSION: '#1890ff',
+    COMMITTEE: '#52c41a', 
+    WORKSHOP: '#fa8c16',
+    OUTREACH: '#eb2f96',
+    CONFERENCE: '#722ed1',
+    CEREMONY: '#f5222d',
+    INSPECTION: '#faad14',
+    CAMPAIGN: '#13c2c2',
+    NATIONAL_EVENT: '#ff4d4f',
+    CONSTITUENCY: '#1890ff',
+    DEBATE: '#52c41a',
+    BUDGET_SESSION: '#fa8c16',
+    POLICY_MEETING: '#eb2f96',
+    PUBLIC_HEARING: '#722ed1',
+    DIPLOMATIC: '#f5222d',
+    OTHER: '#8c8c8c'
   };
 
   const programTypeIcons = {
-    TRAINING: <TeamOutlined />,
-    DISTRIBUTION: <ExportOutlined />,
-    MEETING: <UserOutlined />,
-    ACTIVITY: <CalendarOutlined />
+    SESSION: <TeamOutlined />,
+    COMMITTEE: <UserOutlined />,
+    WORKSHOP: <ExportOutlined />,
+    OUTREACH: <CalendarOutlined />,
+    CONFERENCE: <TeamOutlined />,
+    CEREMONY: <CalendarOutlined />,
+    INSPECTION: <ExportOutlined />,
+    CAMPAIGN: <UserOutlined />,
+    NATIONAL_EVENT: <TeamOutlined />,
+    CONSTITUENCY: <CalendarOutlined />,
+    DEBATE: <UserOutlined />,
+    BUDGET_SESSION: <ExportOutlined />,
+    POLICY_MEETING: <TeamOutlined />,
+    PUBLIC_HEARING: <CalendarOutlined />,
+    DIPLOMATIC: <UserOutlined />,
+    OTHER: <ExportOutlined />
   };
 
   const getStatusTag = (program: Program) => {
@@ -235,10 +263,22 @@ const ProgramList = () => {
         </Tag>
       ),
       filters: [
-        { text: 'Training', value: 'TRAINING' },
-        { text: 'Distribution', value: 'DISTRIBUTION' },
-        { text: 'Meeting', value: 'MEETING' },
-        { text: 'Activity', value: 'ACTIVITY' },
+        { text: 'Parliament Session', value: 'SESSION' },
+        { text: 'Committee Meeting', value: 'COMMITTEE' },
+        { text: 'Workshop/Training', value: 'WORKSHOP' },
+        { text: 'Outreach Program', value: 'OUTREACH' },
+        { text: 'Conference', value: 'CONFERENCE' },
+        { text: 'Official Ceremony', value: 'CEREMONY' },
+        { text: 'Site Inspection', value: 'INSPECTION' },
+        { text: 'Political Campaign', value: 'CAMPAIGN' },
+        { text: 'National Event', value: 'NATIONAL_EVENT' },
+        { text: 'Constituency Visit', value: 'CONSTITUENCY' },
+        { text: 'Parliamentary Debate', value: 'DEBATE' },
+        { text: 'Budget Session', value: 'BUDGET_SESSION' },
+        { text: 'Policy Meeting', value: 'POLICY_MEETING' },
+        { text: 'Public Hearing', value: 'PUBLIC_HEARING' },
+        { text: 'Diplomatic Event', value: 'DIPLOMATIC' },
+        { text: 'Other Event', value: 'OTHER' },
       ],
       width: 130,
     },
@@ -550,10 +590,22 @@ const ProgramList = () => {
               allowClear
               style={{ width: '100%' }}
             >
-              <Select.Option value="TRAINING">Training</Select.Option>
-              <Select.Option value="DISTRIBUTION">Distribution</Select.Option>
-              <Select.Option value="MEETING">Meeting</Select.Option>
-              <Select.Option value="ACTIVITY">Activity</Select.Option>
+              <Select.Option value="SESSION">Parliament Session</Select.Option>
+              <Select.Option value="COMMITTEE">Committee Meeting</Select.Option>
+              <Select.Option value="WORKSHOP">Workshop/Training</Select.Option>
+              <Select.Option value="OUTREACH">Outreach Program</Select.Option>
+              <Select.Option value="CONFERENCE">Conference</Select.Option>
+              <Select.Option value="CEREMONY">Official Ceremony</Select.Option>
+              <Select.Option value="INSPECTION">Site Inspection</Select.Option>
+              <Select.Option value="CAMPAIGN">Political Campaign</Select.Option>
+              <Select.Option value="NATIONAL_EVENT">National Event</Select.Option>
+              <Select.Option value="CONSTITUENCY">Constituency Visit</Select.Option>
+              <Select.Option value="DEBATE">Parliamentary Debate</Select.Option>
+              <Select.Option value="BUDGET_SESSION">Budget Session</Select.Option>
+              <Select.Option value="POLICY_MEETING">Policy Meeting</Select.Option>
+              <Select.Option value="PUBLIC_HEARING">Public Hearing</Select.Option>
+              <Select.Option value="DIPLOMATIC">Diplomatic Event</Select.Option>
+              <Select.Option value="OTHER">Other Event</Select.Option>
             </Select>
           </Col>
           <Col xs={24} sm={8} md={4}>
@@ -650,10 +702,22 @@ const ProgramList = () => {
                 rules={[{ required: true, message: 'Please select program type' }]}
               >
                 <Select>
-                  <Select.Option value="TRAINING">Training</Select.Option>
-                  <Select.Option value="DISTRIBUTION">Distribution</Select.Option>
-                  <Select.Option value="MEETING">Meeting</Select.Option>
-                  <Select.Option value="ACTIVITY">Activity</Select.Option>
+                  <Select.Option value="SESSION">Parliament Session</Select.Option>
+                  <Select.Option value="COMMITTEE">Committee Meeting</Select.Option>
+                  <Select.Option value="WORKSHOP">Workshop/Training</Select.Option>
+                  <Select.Option value="OUTREACH">Outreach Program</Select.Option>
+                  <Select.Option value="CONFERENCE">Conference</Select.Option>
+                  <Select.Option value="CEREMONY">Official Ceremony</Select.Option>
+                  <Select.Option value="INSPECTION">Site Inspection</Select.Option>
+                  <Select.Option value="CAMPAIGN">Political Campaign</Select.Option>
+                  <Select.Option value="NATIONAL_EVENT">National Event</Select.Option>
+                  <Select.Option value="CONSTITUENCY">Constituency Visit</Select.Option>
+                  <Select.Option value="DEBATE">Parliamentary Debate</Select.Option>
+                  <Select.Option value="BUDGET_SESSION">Budget Session</Select.Option>
+                  <Select.Option value="POLICY_MEETING">Policy Meeting</Select.Option>
+                  <Select.Option value="PUBLIC_HEARING">Public Hearing</Select.Option>
+                  <Select.Option value="DIPLOMATIC">Diplomatic Event</Select.Option>
+                  <Select.Option value="OTHER">Other Event</Select.Option>
                 </Select>
               </Form.Item>
             </Col>

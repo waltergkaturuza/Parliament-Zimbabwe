@@ -92,7 +92,7 @@ const ProgramsPage: FC = () => {
       const [programsResponse, subCentersResponse, organizersResponse] = await Promise.all([
         apiClient.get('/programs/'),
         apiClient.get('/sub-centers/'),
-        apiClient.get('/api/v1/users/?role__in=MAIN_CENTER,SUB_CENTER')
+        apiClient.get('/users/?role__in=MAIN_CENTER,SUB_CENTER')
       ]);
 
       const programData = programsResponse.data.results || programsResponse.data;
@@ -221,14 +221,38 @@ const ProgramsPage: FC = () => {
 
   const getProgramTypeColor = (type: string) => {
     switch (type) {
-      case 'TRAINING':
-        return 'purple';
-      case 'DISTRIBUTION':
-        return 'green';
-      case 'MEETING':
+      case 'SESSION':
         return 'blue';
-      case 'ACTIVITY':
+      case 'COMMITTEE':
+        return 'green';
+      case 'WORKSHOP':
         return 'orange';
+      case 'OUTREACH':
+        return 'purple';
+      case 'CONFERENCE':
+        return 'cyan';
+      case 'CEREMONY':
+        return 'red';
+      case 'INSPECTION':
+        return 'gold';
+      case 'CAMPAIGN':
+        return 'magenta';
+      case 'NATIONAL_EVENT':
+        return 'volcano';
+      case 'CONSTITUENCY':
+        return 'geekblue';
+      case 'DEBATE':
+        return 'lime';
+      case 'BUDGET_SESSION':
+        return 'orange';
+      case 'POLICY_MEETING':
+        return 'purple';
+      case 'PUBLIC_HEARING':
+        return 'cyan';
+      case 'DIPLOMATIC':
+        return 'red';
+      case 'OTHER':
+        return 'default';
       default:
         return 'default';
     }
@@ -473,10 +497,22 @@ const ProgramsPage: FC = () => {
             rules={[{ required: true, message: 'Please select program type' }]}
           >
             <Select placeholder="Select program type">
-              <Option value="TRAINING">Training Program</Option>
-              <Option value="DISTRIBUTION">Distribution Program</Option>
-              <Option value="MEETING">Community Meeting</Option>
-              <Option value="ACTIVITY">General Activity</Option>
+              <Option value="SESSION">Parliament Session</Option>
+              <Option value="COMMITTEE">Committee Meeting</Option>
+              <Option value="WORKSHOP">Workshop/Training</Option>
+              <Option value="OUTREACH">Outreach Program</Option>
+              <Option value="CONFERENCE">Conference</Option>
+              <Option value="CEREMONY">Official Ceremony</Option>
+              <Option value="INSPECTION">Site Inspection</Option>
+              <Option value="CAMPAIGN">Political Campaign</Option>
+              <Option value="NATIONAL_EVENT">National Event</Option>
+              <Option value="CONSTITUENCY">Constituency Visit</Option>
+              <Option value="DEBATE">Parliamentary Debate</Option>
+              <Option value="BUDGET_SESSION">Budget Session</Option>
+              <Option value="POLICY_MEETING">Policy Meeting</Option>
+              <Option value="PUBLIC_HEARING">Public Hearing</Option>
+              <Option value="DIPLOMATIC">Diplomatic Event</Option>
+              <Option value="OTHER">Other Event</Option>
             </Select>
           </Form.Item>
 

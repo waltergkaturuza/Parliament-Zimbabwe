@@ -5,9 +5,9 @@ from .models import (
     User, SubCenter, SubCenterOfficer, PoolVehicle, Driver, VehicleAssignment,
     Box, Book, BookPage, Coupon, FuelData, FuelTransaction,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
-    Program, BeneficiaryProfile, BookDispatch, CouponAllocation, FuelEntitlement,
+    BeneficiaryProfile, BookDispatch, CouponAllocation, FuelEntitlement,
     CouponDistribution, AuditLog, SystemAlert, SessionAttendance,
-    FuelRequirementConfiguration
+    FuelRequirementConfiguration, Program
 )
 from django import forms
 from django.db import models
@@ -169,142 +169,19 @@ class CouponAdmin(admin.ModelAdmin):
             'book', 'book__box', 'allocated_to'
         )
 
-# Parliament-Related Model Admins
-
-# Beneficiary Category Admin
-@admin.register(BeneficiaryCategory)
-class BeneficiaryCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'monthly_entitlement_litres', 'category_multiplier', 'is_active')
-    list_filter = ('is_active',)
-    search_fields = ('name', 'description')
-    list_editable = ('is_active',)
-    readonly_fields = ('created', 'modified')
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'description', 'is_active')
-        }),
-        ('Entitlement Settings', {
-            'fields': ('monthly_entitlement_litres', 'category_multiplier')
-        }),
-        ('Timestamps', {
-            'fields': ('created', 'modified'),
-            'classes': ('collapse',)
-        })
-    )
-
-# Constituency Admin
-@admin.register(Constituency)
-class ConstituencyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'province', 'district', 'distance_from_parliament_km', 'population', 'is_active')
-    list_filter = ('province', 'district', 'is_active')
-    search_fields = ('name', 'province', 'district')
-    list_editable = ('is_active',)
-    readonly_fields = ('created', 'modified')
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'province', 'district', 'is_active')
-        }),
-        ('Details', {
-            'fields': ('distance_from_parliament_km', 'population')
-        }),
-        ('Timestamps', {
-            'fields': ('created', 'modified'),
-            'classes': ('collapse',)
-        })
-    )
-
-# Parliament Session Admin
-@admin.register(ParliamentSession)
-class ParliamentSessionAdmin(admin.ModelAdmin):
-    list_display = ('title', 'session_type', 'start_date', 'end_date', 'organizer', 'managing_subcenter', 'is_active')
-    list_filter = ('session_type', 'is_active', 'start_date', 'managing_subcenter')
-    search_fields = ('title', 'description')
-    raw_id_fields = ('organizer', 'managing_subcenter')
-    list_editable = ('is_active',)
-    date_hierarchy = 'start_date'
-    readonly_fields = ('created', 'modified')
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('title', 'session_type', 'description', 'is_active')
-        }),
-        ('Schedule', {
-            'fields': ('start_date', 'end_date')
-        }),
-        ('Management', {
-            'fields': ('organizer', 'managing_subcenter')
-        }),
-        ('Timestamps', {
-            'fields': ('created', 'modified'),
-            'classes': ('collapse',)
-        })
-    )
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related('organizer', 'managing_subcenter')
-
 # Program Admin
 @admin.register(Program)
 class ProgramAdmin(admin.ModelAdmin):
-    list_display = ('name', 'program_type', 'session', 'start_time', 'end_time', 'venue', 'is_active')
-    list_filter = ('program_type', 'is_active', 'session__start_date', 'session')
-    search_fields = ('name', 'description', 'venue')
-    raw_id_fields = ('session',)
+    list_display = ('title', 'program_type', 'scheduled_date', 'end_date', 'location', 'sub_center', 'organizer', 'is_active') # Added sub_center
+    list_filter = ('program_type', 'is_active', 'scheduled_date', 'sub_center') # Added sub_center
+    search_fields = ('title', 'location', 'description')
+    raw_id_fields = ('organizer',)
     list_editable = ('is_active',)
-    readonly_fields = ('created', 'modified')
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'description', 'program_type', 'is_active')
-        }),
-        ('Schedule', {
-            'fields': ('session', 'start_time', 'end_time', 'venue')
-        }),
-        ('Timestamps', {
-            'fields': ('created', 'modified'),
-            'classes': ('collapse',)
-        })
-    )
+    date_hierarchy = 'scheduled_date'
+#     readonly_fields = ('created', 'modified') # Added created and modified
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related('session')
-
-# Beneficiary Profile Admin
-@admin.register(BeneficiaryProfile)
-class BeneficiaryProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'category', 'constituency', 'position', 'monthly_entitlement_litres', 'is_active_beneficiary')
-    list_filter = ('category', 'constituency', 'vehicle_category', 'is_active_beneficiary', 'fuel_type')
-    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'employee_id', 'position', 'department')
-    raw_id_fields = ('user', 'category', 'constituency', 'vehicle_category')
-    list_editable = ('is_active_beneficiary',)
-    readonly_fields = ('created', 'modified')
-    
-    fieldsets = (
-        ('User Information', {
-            'fields': ('user', 'employee_id', 'position', 'department', 'office_location')
-        }),
-        ('Classification', {
-            'fields': ('category', 'constituency', 'vehicle_category', 'is_active_beneficiary')
-        }),
-        ('Fuel Entitlement', {
-            'fields': ('monthly_entitlement_litres', 'base_allocation', 'category_multiplier', 'fuel_type')
-        }),
-        ('Vehicle Information', {
-            'fields': ('vehicle_make', 'vehicle_model', 'vehicle_year', 'engine_size', 'vehicle_registration'),
-            'classes': ('collapse',)
-        }),
-        ('Timestamps', {
-            'fields': ('created', 'modified'),
-            'classes': ('collapse',)
-        })
-    )
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related(
-            'user', 'category', 'constituency', 'vehicle_category'
-        )
+#     def get_queryset(self, request):
+#         return super().get_queryset(request).select_related('organizer', 'sub_center') # Select related sub_center
 
 # FuelData Admin
 @admin.register(FuelData)

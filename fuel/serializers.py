@@ -12,7 +12,7 @@ from .models import (
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
     BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, SystemAlert, FuelEntitlement,
     PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
-    FuelRequirementConfiguration
+    FuelRequirementConfiguration, Program
 )
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 # import re # Not used in provided code
@@ -264,17 +264,30 @@ class CouponSerializer(serializers.ModelSerializer):
         read_only_fields = ('status', 'allocated_date', 'used_date', 'expiry_date', 'created', 'modified', 'book_details', 'allocated_to_details')
 
 
-# TODO: Implement Program model and uncomment ProgramSerializer
-# class ProgramSerializer(serializers.ModelSerializer):
-#     # Use SimpleSerializers for related fields
-#     organizer_details = SimpleUserSerializer(source='organizer', read_only=True, allow_null=True)
-#     sub_center_details = SimpleSubCenterSerializer(source='sub_center', read_only=True, allow_null=True)
+# Program Serializer - now implemented with the Program model
+class ProgramSerializer(serializers.ModelSerializer):
+    # Use SimpleSerializers for related fields
+    organizer_details = SimpleUserSerializer(source='organizer', read_only=True, allow_null=True)
+    sub_center_details = SimpleSubCenterSerializer(source='sub_center', read_only=True, allow_null=True)
+    program_type_display = serializers.CharField(source='get_program_type_display', read_only=True)
+    duration_days = serializers.ReadOnlyField()
+    is_upcoming = serializers.ReadOnlyField()
+    is_ongoing = serializers.ReadOnlyField()
 
-#     class Meta:
-#         model = Program
-#         # Added 'created', 'modified' from TimeStampedModel
-#         fields = ['id', 'title', 'program_type', 'scheduled_date', 'end_date', 'description', 'location', 'organizer', 'organizer_details', 'sub_center', 'sub_center_details', 'is_active', 'created', 'modified']
-#         read_only_fields = ['id', 'created', 'modified', 'organizer_details', 'sub_center_details'] # Make related details readonly
+    class Meta:
+        model = Program
+        fields = [
+            'id', 'title', 'program_type', 'program_type_display', 'description',
+            'scheduled_date', 'end_date', 'location', 'organizer', 'organizer_details',
+            'sub_center', 'sub_center_details', 'expected_participants',
+            'fuel_allocation_approved', 'is_active', 'notes',
+            'duration_days', 'is_upcoming', 'is_ongoing',
+            'created', 'modified'
+        ]
+        read_only_fields = [
+            'id', 'created', 'modified', 'organizer_details', 'sub_center_details',
+            'program_type_display', 'duration_days', 'is_upcoming', 'is_ongoing'
+        ]
 
 # class AttendanceSerializer(serializers.ModelSerializer):
 #     # Use SimpleSerializers for related fields

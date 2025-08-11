@@ -10,7 +10,7 @@ from django.conf import settings
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
-from fuel.models import User, ParliamentSession, Program, SubCenter
+from fuel.models import User, ParliamentSession, SubCenter, Program
 
 def check_parliament_managers():
     print("🏛️ PARLIAMENT OF ZIMBABWE FUEL COUPON SYSTEM")

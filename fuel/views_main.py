@@ -21,9 +21,9 @@ import json
 from .models import (
     Coupon, SubCenter, Book, Box,
     User as UserModel, FuelData, CouponDistribution, FuelTransaction, SubCenterOfficer,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, Program, SessionAttendance,
+    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, SessionAttendance,
     BeneficiaryProfile, AuditLog, SystemAlert, BookDispatch, CouponAllocation, FuelEntitlement,
-    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration
+    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program
 )
 from .serializers import (
     CouponSerializer, SubCenterSerializer,
@@ -31,12 +31,12 @@ from .serializers import (
     UserRegistrationSerializer,
     FuelStatsSerializer, FuelTransactionSerializer, SimpleUserSerializer, SubCenterOfficerSerializer,
     BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer,
-    ParliamentSessionSerializer, ProgramSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
+    ParliamentSessionSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
     BulkCouponAllocationSerializer,
     BookDispatchSerializer, CouponAllocationSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
-    FuelRequirementConfigurationSerializer
+    FuelRequirementConfigurationSerializer, ProgramSerializer
 )
 from .permissions import (
     # Role-based permissions
@@ -45,10 +45,7 @@ from .permissions import (
     AuditorPermission, BeneficiaryPermission, CenterBasedObjectPermission,
     
     # Workflow permissions
-    MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission,
-    
-    # Combined permissions
-    MainCenterOrSubCenterPermission, CanManageCoupon, AllStaffPermission
+    MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
 )
 from rest_framework.views import APIView # Ensure this import is present
 
@@ -284,7 +281,7 @@ class UserViewSet(viewsets.ModelViewSet):
 class SubCenterOfficerViewSet(viewsets.ModelViewSet):
     queryset = SubCenterOfficer.objects.all().select_related('user', 'sub_center')
     serializer_class = SubCenterOfficerSerializer
-    permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission] # Fixed permission combination
+    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission] # Adjust permissions
 
 
 class SubCenterViewSet(viewsets.ModelViewSet):
@@ -311,52 +308,49 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def overview(self, request):
         """Get overview data for current user's subcenter"""
-        try:
-            user = request.user
-            if user.role == 'SUB_CENTER' and user.sub_center:
-                subcenter = user.sub_center
-            else:
-                # For admin/main center users, show first subcenter or create mock data
-                subcenter = SubCenter.objects.first()
+        user = request.user
+        if user.role == 'SUB_CENTER' and user.sub_center:
+            subcenter = user.sub_center
+        else:
+            # For admin/main center users, show first subcenter or create mock data
+            subcenter = SubCenter.objects.first()
+        
+        if subcenter:
+            # Calculate real data
+            total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+            books_used = Book.objects.filter(box__assigned_to=subcenter, is_assigned=True).count()
+            total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
+            coupons_used = Coupon.objects.filter(book__box__assigned_to=subcenter, is_used=True).count()
             
-            if subcenter:
-                # Calculate real data
-                total_books = Book.objects.filter(box__assigned_to=subcenter).count()
-                books_used = Book.objects.filter(box__assigned_to=subcenter, is_assigned=True).count()
-                total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
-                coupons_used = Coupon.objects.filter(book__box__assigned_to=subcenter, is_used=True).count()
-                
-                data = {
-                    'center_id': subcenter.code or f'SC-{subcenter.id}',
-                    'center_name': subcenter.name,
-                    'total_books': total_books,
-                    'books_used': books_used,
-                    'total_coupons': total_coupons,
-                    'coupons_used': coupons_used,
-                    'active_members': UserModel.objects.filter(sub_center=subcenter, is_active=True).count(),
-                    'pending_handovers': BookDispatch.objects.filter(to_subcenter=subcenter, status='PENDING').count(),
-                    'last_handover': BookDispatch.objects.filter(to_subcenter=subcenter).order_by('-created_at').first().created_at.strftime('%Y-%m-%d') if BookDispatch.objects.filter(to_subcenter=subcenter).exists() else '',
-                    'total_value_usd': total_coupons * 2.5,  # Assume $2.5 average per coupon
-                    'monthly_consumption_usd': coupons_used * 2.5,
-                }
-            else:
-                data = {
-                    'center_id': 'SC-001',
-                    'center_name': 'Demo Sub Center',
-                    'total_books': 0,
-                    'books_used': 0,
-                    'total_coupons': 0,
-                    'coupons_used': 0,
-                    'active_members': 0,
-                    'pending_handovers': 0,
-                    'last_handover': '',
-                    'total_value_usd': 0,
-                    'monthly_consumption_usd': 0,
-                }
-            
-            return Response(data)
-        except Exception as e:
-            return Response({'error': f'Failed to retrieve subcenter overview: {str(e)}'}, status=500)
+            data = {
+                'center_id': subcenter.code or f'SC-{subcenter.id}',
+                'center_name': subcenter.name,
+                'total_books': total_books,
+                'books_used': books_used,
+                'total_coupons': total_coupons,
+                'coupons_used': coupons_used,
+                'active_members': User.objects.filter(sub_center=subcenter, is_active=True).count(),
+                'pending_handovers': BookDispatch.objects.filter(to_subcenter=subcenter, status='PENDING').count(),
+                'last_handover': BookDispatch.objects.filter(to_subcenter=subcenter).order_by('-created_at').first().created_at.strftime('%Y-%m-%d') if BookDispatch.objects.filter(to_subcenter=subcenter).exists() else '',
+                'total_value_usd': total_coupons * 2.5,  # Assume $2.5 average per coupon
+                'monthly_consumption_usd': coupons_used * 2.5,
+            }
+        else:
+            data = {
+                'center_id': 'SC-001',
+                'center_name': 'Demo Sub Center',
+                'total_books': 0,
+                'books_used': 0,
+                'total_coupons': 0,
+                'coupons_used': 0,
+                'active_members': 0,
+                'pending_handovers': 0,
+                'last_handover': '',
+                'total_value_usd': 0,
+                'monthly_consumption_usd': 0,
+            }
+        
+        return Response(data)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def activities(self, request):
@@ -479,13 +473,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
 class BoxViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Box management with coupon generation"""
     serializer_class = BoxSerializer
-    permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission]
-    
-    def get_serializer_class(self):
-        """Use BoxReceiptSerializer for create operations to handle frontend field mapping"""
-        if self.action == 'create':
-            return BoxReceiptSerializer
-        return BoxSerializer
+    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
     
     def get_queryset(self):
         user = self.request.user
@@ -498,98 +486,51 @@ class BoxViewSet(viewsets.ModelViewSet):
         
         return queryset.none()
     
-    def create(self, request, *args, **kwargs):
-        """Enhanced create method using BoxReceiptSerializer with auto-generation"""
-        serializer = self.get_serializer(data=request.data)
-        
-        if serializer.is_valid():
-            try:
-                with transaction.atomic():
-                    # Save the box with auto-generated required fields
-                    box = serializer.save(received_by=request.user)
-                    
-                    # Return success response
-                    return Response({
-                        'message': 'Box created successfully',
-                        'box': BoxSerializer(box).data,
-                        'auto_generated_fields': {
-                            'first_coupon_number': box.first_coupon_number,
-                            'last_coupon_number': box.last_coupon_number,
-                            'barcode': box.barcode,
-                            'notes': box.notes
-                        }
-                    }, status=status.HTTP_201_CREATED)
-                    
-            except Exception as e:
-                return Response({
-                    'error': f'Failed to create box: {str(e)}',
-                    'details': 'Check that all required fields are valid'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response({
-            'error': 'Invalid data provided',
-            'details': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
     @action(detail=False, methods=['post'])
     def receive_box(self, request):
         """
         Receive a new box and generate all books and coupons based on the coupon range logic
         """
-        try:
-            serializer = BoxReceiptSerializer(data=request.data, context={'request': request})
-            
-            if serializer.is_valid():
-                try:
-                    with transaction.atomic():
-                        # Save the box first
-                        box = serializer.save(received_by=request.user)
-                        
-                        # Validate the coupon sequence
-                        is_valid, validation_message = box.validate_coupon_sequence()
-                        if not is_valid:
-                            raise ValueError(f"Invalid coupon sequence: {validation_message}")
-                        
-                        # Generate all books and coupons
-                        books_created = box.generate_books_and_coupons()
-                        
-                        # Create dispatch records for each book in the box
-                        for book in books_created:
-                            BookDispatch.objects.create(
-                                book=book,
-                                assigned_to=box.assigned_to,
-                                dispatched_by=request.user,
-                                dispatch_date=timezone.now(),
-                                status='DISPATCHED',
-                                notes=f"Auto-generated from box {box.box_code}"
-                            )
-                        
-                        return Response({
-                            'message': 'Box received and coupons generated successfully',
-                            'box': BoxSerializer(box).data,
-                            'books_created': len(books_created),
-                            'total_coupons': box.number_of_books * box.coupons_per_book,
-                            'book_ranges': box.get_book_ranges_summary()
-                        }, status=status.HTTP_201_CREATED)
-                        
-                except ValueError as e:
-                    return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-                except Exception as e:
+        serializer = BoxReceiptSerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            try:
+                with transaction.atomic():
+                    box = serializer.save(received_by=request.user)
+                    
+                    # Validate the coupon sequence
+                    is_valid, validation_message = box.validate_coupon_sequence()
+                    if not is_valid:
+                        raise ValueError(f"Invalid coupon sequence: {validation_message}")
+                    
+                    # Generate all books and coupons
+                    books_created = box.generate_books_and_coupons()
+                    
+                    # Create dispatch records for each book in the box
+                    for book in books_created:
+                        BookDispatch.objects.create(
+                            book=book,
+                            assigned_to=box.assigned_to,
+                            dispatched_by=request.user,
+                            dispatch_date=timezone.now(),
+                        status='DISPATCHED',
+                        notes=f"Auto-generated {len(books_created)} books with sequential coupons"
+                    )
+                    
                     return Response({
-                        'error': f'Failed to process box: {str(e)}',
-                        'details': 'Check that all required fields are provided and valid'
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            return Response({
-                'error': 'Invalid data provided',
-                'details': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-            
-        except Exception as e:
-            return Response({
-                'error': f'Unexpected error: {str(e)}',
-                'details': 'Please check your request data and try again'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                        'message': 'Box received and coupons generated successfully',
+                        'box': BoxSerializer(box).data,
+                        'books_created': len(books_created),
+                        'total_coupons': box.total_coupons,
+                        'book_ranges': box.get_book_ranges_summary()
+                    }, status=status.HTTP_201_CREATED)
+                    
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': f'Failed to process box: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['get'])
     def coupon_ranges_preview(self, request, pk=None):
@@ -799,7 +740,7 @@ class BoxViewSet(viewsets.ModelViewSet):
 class BookViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Book management with sequential allocation"""
     serializer_class = BookSerializer
-    permission_classes = [IsAuthenticated, MainCenterOrSubCenterPermission]
+    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
     
     def get_queryset(self):
         user = self.request.user
@@ -1107,9 +1048,7 @@ class CouponViewSet(viewsets.ModelViewSet):
         # Apply filtering based on user role
         user = self.request.user
         if user.is_authenticated:
-            if user.role in ['SUPERUSER', 'ADMIN']:
-                return self.queryset  # SUPERUSER and ADMIN see all
-            elif user.role == 'MAIN_CENTER':
+            if user.role == 'MAIN_CENTER':
                 return self.queryset # Main Center sees all
             elif user.role == 'SUB_CENTER' and user.sub_center:
                 # Sub Center officer sees coupons in boxes assigned to their sub-center
@@ -1200,7 +1139,7 @@ class CouponViewSet(viewsets.ModelViewSet):
              return Response({"error": f"An error occurred when marking as used: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterOrSubCenterPermission]) # Restrict bulk allocation
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission | SubCenterPermission]) # Restrict bulk allocation
     def bulk_allocate(self, request):
         """Bulk allocate coupons to a beneficiary."""
         serializer = BulkCouponAllocationSerializer(data=request.data)
@@ -1342,23 +1281,82 @@ class CouponViewSet(viewsets.ModelViewSet):
         # Error response for invalid serializer data is handled by raise_exception=True
 
 
-# TODO: Implement Program model and uncomment ProgramViewSet
-# class ProgramViewSet(viewsets.ModelViewSet):
-#     queryset = Program.objects.all().select_related('organizer', 'sub_center') # Select related sub_center
-#     serializer_class = ProgramSerializer
-#     permission_classes = [IsAuthenticated] # Base permission
+# Program ViewSet - now implemented with the Program model
+class ProgramViewSet(viewsets.ModelViewSet):
+    queryset = Program.objects.all().select_related('organizer', 'sub_center')
+    serializer_class = ProgramSerializer
+    permission_classes = [IsAuthenticated]
 
-#     def get_permissions(self):
-#         if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
-#             return [IsAuthenticated()] # All authenticated users can view programs
-#         # Only specific roles can create, update, delete programs
-#         return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()] # Adjust based on who can manage programs
+    def get_permissions(self):
+        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
+            return [IsAuthenticated()]  # All authenticated users can view programs
+        # Only specific roles can create, update, delete programs
+        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
 
-#     def get_queryset(self):
-#         queryset = super().get_queryset()
-#         user = self.request.user
-#         if user.is_authenticated:
-#              if user.role == 'SUB_CENTER' and user.sub_center:
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated:
+            if user.role == 'SUB_CENTER' and user.sub_center:
+                # Sub-center users can only see programs they organize or their sub-center manages
+                queryset = queryset.filter(
+                    models.Q(organizer=user) | models.Q(sub_center=user.sub_center)
+                )
+            elif user.role == 'BENEFICIARY':
+                # Beneficiaries can see all active programs
+                queryset = queryset.filter(is_active=True)
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def upcoming(self, request):
+        """Get upcoming programs"""
+        upcoming_programs = self.get_queryset().filter(
+            scheduled_date__gt=timezone.now(),
+            is_active=True
+        ).order_by('scheduled_date')
+        
+        serializer = self.get_serializer(upcoming_programs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Get programs grouped by type"""
+        program_type = request.query_params.get('type')
+        queryset = self.get_queryset()
+        
+        if program_type:
+            queryset = queryset.filter(program_type=program_type)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def approve_fuel_allocation(self, request, pk=None):
+        """Approve fuel allocation for this program"""
+        program = self.get_object()
+        
+        # Check permissions
+        if not (request.user.role in ['MAIN_CENTER', 'SUB_CENTER'] or 
+                request.user == program.organizer):
+            return Response(
+                {'error': 'You do not have permission to approve fuel allocations'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        program.fuel_allocation_approved = True
+        program.save()
+        
+        # Log the approval
+        AuditLog.log(
+            action='APPROVE',
+            user=request.user,
+            content_object=program,
+            description=f'Fuel allocation approved for program: {program.title}',
+            severity='MEDIUM'
+        )
+        
+        serializer = self.get_serializer(program)
+        return Response(serializer.data)
 #                  # Sub Center officer sees programs associated with their sub-center
 #                  # or programs where they are the organizer
 #                  return queryset.filter(Q(sub_center=user.sub_center) | Q(organizer=user)).distinct()
@@ -1411,7 +1409,7 @@ class FuelTransactionViewSet(viewsets.ReadOnlyModelViewSet): # ReadOnly as trans
     queryset = FuelTransaction.objects.all().select_related('beneficiary', 'coupon', 'recorded_by').order_by('-timestamp') # Default ordering
     serializer_class = FuelTransactionSerializer
     # Adjust permissions as needed - who can view transaction history?
-    permission_classes = [IsAuthenticated, AllStaffPermission]
+    permission_classes = [IsAuthenticated, MainCenterPermission | AuditorPermission | SubCenterPermission | BeneficiaryPermission]
 
     def get_queryset(self):
         user = self.request.user
@@ -1462,30 +1460,6 @@ class VehicleCategoryViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
-
-
-class ProgramViewSet(viewsets.ModelViewSet):
-    queryset = Program.objects.all()
-    serializer_class = ProgramSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
-    
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        session_id = self.request.query_params.get('session_id')
-        program_type = self.request.query_params.get('program_type')
-        
-        if session_id:
-            queryset = queryset.filter(session_id=session_id)
-        
-        if program_type:
-            queryset = queryset.filter(program_type=program_type)
-        
-        return queryset.order_by('-created')
 
 
 class ParliamentSessionViewSet(viewsets.ModelViewSet):
@@ -2599,11 +2573,11 @@ def analytics_consumption_trend(request):
         days = int(request.GET.get('days', 30))
         start_date = timezone.now() - timedelta(days=days)
         
-        # Get daily consumption data using TruncDate for database compatibility
+        # Get daily consumption data
         daily_consumption = FuelTransaction.objects.filter(
             timestamp__gte=start_date
-        ).annotate(
-            day=TruncDate('timestamp')
+        ).extra(
+            select={'day': 'date(timestamp)'}
         ).values('day').annotate(
             total_liters=Sum('litres_consumed'),
             transaction_count=Count('id')
@@ -2617,32 +2591,24 @@ def analytics_consumption_trend(request):
             date_str = item['day'].strftime('%Y-%m-%d') if item['day'] else ''
             consumption_data.append({
                 'date': date_str,
-                'liters': float(item['total_liters'] or 0)
+                'liters': item['total_liters'] or 0
             })
             transaction_data.append({
                 'date': date_str,
                 'count': item['transaction_count'] or 0
             })
         
-        # Calculate trend indicators safely
-        try:
-            recent_week_start = timezone.now().date() - timedelta(days=7)
-            previous_week_start = timezone.now().date() - timedelta(days=14)
-            
-            recent_week = daily_consumption.filter(day__gte=recent_week_start)
-            previous_week = daily_consumption.filter(
-                day__gte=previous_week_start,
-                day__lt=recent_week_start
-            )
-            
-            recent_avg = recent_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
-            previous_avg = previous_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
-            
-            trend_percentage = ((recent_avg - previous_avg) / previous_avg * 100) if previous_avg > 0 else 0
-        except Exception:
-            # Fallback if trend calculation fails
-            recent_avg = 0
-            trend_percentage = 0
+        # Calculate trend indicators
+        recent_week = daily_consumption.filter(day__gte=timezone.now().date() - timedelta(days=7))
+        previous_week = daily_consumption.filter(
+            day__gte=timezone.now().date() - timedelta(days=14),
+            day__lt=timezone.now().date() - timedelta(days=7)
+        )
+        
+        recent_avg = recent_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+        previous_avg = previous_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+        
+        trend_percentage = ((recent_avg - previous_avg) / previous_avg * 100) if previous_avg > 0 else 0
         
         return Response({
             'consumption_trend': consumption_data,
@@ -2650,8 +2616,8 @@ def analytics_consumption_trend(request):
             'summary': {
                 'total_consumption': sum(item['liters'] for item in consumption_data),
                 'total_transactions': sum(item['count'] for item in transaction_data),
-                'average_daily_consumption': float(recent_avg),
-                'trend_percentage': round(float(trend_percentage), 2),
+                'average_daily_consumption': recent_avg,
+                'trend_percentage': round(trend_percentage, 2),
                 'trend_direction': 'up' if trend_percentage > 0 else 'down' if trend_percentage < 0 else 'stable'
             },
             'period_days': days,

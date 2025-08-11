@@ -2184,6 +2184,139 @@ class VehicleCategory(TimeStampedModel):
         return self.name
 
 
+class Program(TimeStampedModel):
+    """
+    Parliamentary programs and events that require fuel allocations
+    """
+    PROGRAM_TYPES = [
+        ('SESSION', 'Parliament Session'),
+        ('COMMITTEE', 'Committee Meeting'),
+        ('WORKSHOP', 'Workshop/Training'),
+        ('OUTREACH', 'Outreach Program'),
+        ('CONFERENCE', 'Conference'),
+        ('CEREMONY', 'Official Ceremony'),
+        ('INSPECTION', 'Site Inspection'),
+        ('CAMPAIGN', 'Political Campaign'),
+        ('NATIONAL_EVENT', 'National Event'),
+        ('CONSTITUENCY', 'Constituency Visit'),
+        ('DEBATE', 'Parliamentary Debate'),
+        ('BUDGET_SESSION', 'Budget Session'),
+        ('POLICY_MEETING', 'Policy Meeting'),
+        ('PUBLIC_HEARING', 'Public Hearing'),
+        ('DIPLOMATIC', 'Diplomatic Event'),
+        ('OTHER', 'Other Event'),
+    ]
+    
+    title = models.CharField(
+        max_length=200,
+        default='Untitled Program',
+        help_text="Program title or name"
+    )
+    program_type = models.CharField(
+        max_length=20,
+        choices=PROGRAM_TYPES,
+        default='SESSION'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Detailed description of the program"
+    )
+    scheduled_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the program is scheduled to start"
+    )
+    end_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the program is scheduled to end"
+    )
+    location = models.CharField(
+        max_length=200,
+        help_text="Program venue or location"
+    )
+    sub_center = models.ForeignKey(
+        'SubCenter',
+        on_delete=models.CASCADE,
+        related_name='programs',
+        null=True,
+        blank=True,
+        help_text="Sub-center responsible for this program"
+    )
+    organizer = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='organized_programs',
+        null=True,
+        blank=True,
+        help_text="User responsible for organizing this program"
+    )
+    expected_participants = models.PositiveIntegerField(
+        default=0,
+        help_text="Expected number of participants"
+    )
+    fuel_allocation_approved = models.BooleanField(
+        default=False,
+        help_text="Whether fuel allocation has been approved for this program"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this program is active/upcoming"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about the program"
+    )
+    
+    class Meta:
+        db_table = 'fuel_program'
+        verbose_name = "Program"
+        verbose_name_plural = "Programs"
+        ordering = ['-scheduled_date']
+        indexes = [
+            models.Index(fields=['program_type']),
+            models.Index(fields=['scheduled_date']),
+            models.Index(fields=['sub_center']),
+            models.Index(fields=['organizer']),
+            models.Index(fields=['is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} ({self.get_program_type_display()}) - {self.scheduled_date.date()}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-set is_active based on dates
+        from django.utils import timezone
+        now = timezone.now()
+        
+        if self.end_date and self.end_date < now:
+            self.is_active = False
+        elif self.scheduled_date > now:
+            self.is_active = True
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def duration_days(self):
+        """Calculate program duration in days"""
+        if self.end_date:
+            return (self.end_date.date() - self.scheduled_date.date()).days + 1
+        return 1
+    
+    @property
+    def is_upcoming(self):
+        """Check if program is upcoming"""
+        from django.utils import timezone
+        return self.scheduled_date > timezone.now()
+    
+    @property
+    def is_ongoing(self):
+        """Check if program is currently ongoing"""
+        from django.utils import timezone
+        now = timezone.now()
+        return self.scheduled_date <= now <= (self.end_date or self.scheduled_date)
+
+
 class ParliamentSession(TimeStampedModel):
     """
     Parliament sessions for which fuel entitlements are allocated
@@ -3312,13 +3445,13 @@ class CouponDistribution(TimeStampedModel):
         related_name='coupon_distributions',
         limit_choices_to={'role': 'BENEFICIARY'}
     )
-    # program = models.ForeignKey(
-    #     'Program',  # Use string reference to avoid circular import
-    #     on_delete=models.SET_NULL,
-    #     null=True,
-    #     blank=True,
-    #     related_name='coupon_distributions'
-    # )  # TODO: Uncomment when Program model is implemented
+    program = models.ForeignKey(
+        'Program',  # Use string reference to avoid circular import
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='coupon_distributions'
+    )
     distributed_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -3335,7 +3468,7 @@ class CouponDistribution(TimeStampedModel):
         verbose_name_plural = "Coupon Distributions"
         indexes = [
             models.Index(fields=['beneficiary']),
-            # models.Index(fields=['program']),  # TODO: Uncomment when Program model is implemented
+            models.Index(fields=['program']),
             models.Index(fields=['distribution_date']),
         ]
 

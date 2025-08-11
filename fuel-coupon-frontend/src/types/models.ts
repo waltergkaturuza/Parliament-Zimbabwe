@@ -65,7 +65,11 @@ export interface User {
   export interface Program {
     id: number;
     title: string;
-    program_type: 'TRAINING' | 'DISTRIBUTION' | 'MEETING' | 'ACTIVITY';
+    program_type: 'SESSION' | 'COMMITTEE' | 'WORKSHOP' | 'OUTREACH' | 'CONFERENCE' | 
+                  'CEREMONY' | 'INSPECTION' | 'CAMPAIGN' | 'NATIONAL_EVENT' | 'CONSTITUENCY' |
+                  'DEBATE' | 'BUDGET_SESSION' | 'POLICY_MEETING' | 'PUBLIC_HEARING' | 
+                  'DIPLOMATIC' | 'OTHER';
+    program_type_display?: string;
     scheduled_date: string;
     end_date?: string;
     description?: string;
@@ -74,6 +78,14 @@ export interface User {
     sub_center?: SubCenter;
     is_active: boolean;
     attendees?: User[];
+    expected_participants?: number;
+    fuel_allocation_approved?: boolean;
+    notes?: string;
+    duration_days?: number;
+    is_upcoming?: boolean;
+    is_ongoing?: boolean;
+    created?: string;
+    modified?: string;
   }
   
   export interface Attendance {
