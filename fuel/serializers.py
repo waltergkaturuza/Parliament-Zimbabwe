@@ -218,6 +218,11 @@ class BoxSerializer(serializers.ModelSerializer):
     last_coupon_id = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
     coupon_amount = serializers.IntegerField(source='denomination', required=False)
     
+    # Handle the new frontend complex data structure
+    book_details = serializers.ListField(required=False, write_only=True, allow_empty=True)
+    calculation_mode = serializers.CharField(required=False, write_only=True)
+    total_coupons = serializers.IntegerField(required=False, write_only=True)
+    
     # Handle frontend fields that don't exist in model (accept but ignore)
     monetary_value_usd = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, write_only=True)
     fuel_price_per_litre_usd = serializers.DecimalField(max_digits=6, decimal_places=4, required=False, write_only=True)
@@ -240,7 +245,7 @@ class BoxSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Box
-        # Include all fields including the mapped ones
+        # Include all fields including the mapped ones and new complex data fields
         fields = [
             'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount',
             'first_coupon_number', 'last_coupon_number',
@@ -249,6 +254,8 @@ class BoxSerializer(serializers.ModelSerializer):
             'total_litres', 'received_at', 'assigned_to', 
             'assigned_to_details', 'received_by', 'received_by_details',
             'notes', 'barcode', 'created', 'modified',
+            # Frontend complex data fields (write-only)
+            'book_details', 'calculation_mode', 'total_coupons',
             # Frontend-only fields (write-only)
             'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
             'fuelPriceUSD', 'monetaryValueUSD',
@@ -263,7 +270,7 @@ class BoxSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'first_coupon_number': {'required': False},
             'last_coupon_number': {'required': False},
-            'box_code': {'required': False},
+            'box_code': {'required': False},  # We'll validate this in validate() method
             'fuel_type': {'required': False},
             'denomination': {'required': False},
             'number_of_books': {'required': False},
@@ -275,30 +282,39 @@ class BoxSerializer(serializers.ModelSerializer):
         """
         Custom validation to ensure required fields are provided through any of their possible names
         """
-        # Check box_code
-        if not data.get('box_code'):
-            raise serializers.ValidationError({'box_code': 'This field is required.'})
+        # Debug: print what we received
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"BoxSerializer received data keys: {list(data.keys())}")
+        logger.info(f"box_code value: '{data.get('box_code')}'")
         
-        # Check coupon numbers
-        has_first = data.get('first_coupon_number')
-        has_last = data.get('last_coupon_number')
-        
-        if not has_first or not has_last:
+        # Check box_code - it's required and should be provided
+        box_code = data.get('box_code')
+        if not box_code or (isinstance(box_code, str) and box_code.strip() == ''):
             raise serializers.ValidationError({
-                'first_coupon_number': 'This field is required.',
-                'last_coupon_number': 'This field is required.'
+                'box_code': ['This field is required. Please ensure Box ID is provided.']
             })
+        
+        # Check coupon numbers - they should be provided
+        first_coupon = data.get('first_coupon_number')
+        last_coupon = data.get('last_coupon_number')
+        
+        if not first_coupon:
+            raise serializers.ValidationError({'first_coupon_number': ['This field is required.']})
+        
+        if not last_coupon:
+            raise serializers.ValidationError({'last_coupon_number': ['This field is required.']})
         
         return data
     
     def create(self, validated_data):
         """
-        Custom create method to handle frontend-only fields
+        Custom create method to handle frontend-only fields and complex data
         """
         # Remove frontend-only fields before creating the object
         frontend_only_fields = [
             'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
-            'fuelPriceUSD', 'monetaryValueUSD'
+            'fuelPriceUSD', 'monetaryValueUSD', 'book_details', 'calculation_mode', 'total_coupons'
         ]
         for field in frontend_only_fields:
             validated_data.pop(field, None)
@@ -307,12 +323,12 @@ class BoxSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         """
-        Custom update method to handle frontend-only fields
+        Custom update method to handle frontend-only fields and complex data
         """
         # Remove frontend-only fields before updating the object
         frontend_only_fields = [
             'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
-            'fuelPriceUSD', 'monetaryValueUSD'
+            'fuelPriceUSD', 'monetaryValueUSD', 'book_details', 'calculation_mode', 'total_coupons'
         ]
         for field in frontend_only_fields:
             validated_data.pop(field, None)
