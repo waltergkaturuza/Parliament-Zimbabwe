@@ -9,7 +9,7 @@ from decimal import Decimal
 from .models import (
     User, SubCenter, Box, Book, Coupon,
     FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, Program,
+    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
     BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, SystemAlert, FuelEntitlement,
     PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
     FuelRequirementConfiguration
@@ -210,47 +210,19 @@ class BoxSerializer(serializers.ModelSerializer):
     assigned_to_details = SimpleSubCenterSerializer(source='assigned_to', read_only=True, allow_null=True)
     received_by_details = SimpleUserSerializer(source='received_by', read_only=True, allow_null=True)
     
-    # Map frontend field names to model field names
-    coupon_amount = serializers.IntegerField(source='denomination', required=False)
-    couponAmount = serializers.IntegerField(source='denomination', required=False)  # Frontend camelCase
-    first_coupon_id = serializers.CharField(source='first_coupon_number', required=False)
-    last_coupon_id = serializers.CharField(source='last_coupon_number', required=False)
-    
-    # Additional frontend field mappings
-    sub_center = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
-    subCenter = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
-    box_date = serializers.DateField(source='received_at', required=False)
-    boxDate = serializers.DateField(source='received_at', required=False)
-    
-    # Additional fields that frontend sends (now stored in model)
-    monetary_value_usd = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True)
-    monetaryValueUSD = serializers.DecimalField(source='monetary_value_usd', max_digits=12, decimal_places=2, required=False, allow_null=True)  # Frontend camelCase
-    fuel_price_per_litre_usd = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
-    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=2, required=False, allow_null=True)  # Frontend camelCase
-    exchange_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
-    exchangeRate = serializers.DecimalField(source='exchange_rate', max_digits=10, decimal_places=2, required=False, allow_null=True)  # Frontend camelCase
-    
-    # Additional frontend fields (write-only)
-    total_coupons = serializers.IntegerField(write_only=True, required=False)
-    number_of_coupons = serializers.IntegerField(source='total_coupons', write_only=True, required=False)
-    book_details = serializers.ListField(write_only=True, required=False)
-    calculation_mode = serializers.CharField(write_only=True, required=False)
-    status = serializers.CharField(write_only=True, required=False)
-    notes = serializers.CharField(write_only=True, required=False)
-    barcode = serializers.CharField(write_only=True, required=False)
+    # Handle received_at field to accept both date and datetime
+    received_at = serializers.DateTimeField(required=False, allow_null=True)
 
     class Meta:
         model = Box
+        # Include all fields including the new ones we added
         fields = [
-            'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount', 'couponAmount',
-            'first_coupon_number', 'first_coupon_id', 'last_coupon_number', 'last_coupon_id',
-            'number_of_books', 'coupons_per_book', 'total_litres', 'received_at', 
-            'assigned_to', 'assigned_to_details', 'received_by', 'received_by_details',
-            'sub_center', 'subCenter', 'box_date', 'boxDate',
-            'monetary_value_usd', 'monetaryValueUSD', 'fuel_price_per_litre_usd', 'fuelPricePerLitreUSD', 
-            'exchange_rate', 'exchangeRate', 'created', 'modified',
-            # Additional frontend fields (write-only)
-            'total_coupons', 'number_of_coupons', 'book_details', 'calculation_mode', 'status', 'notes', 'barcode'
+            'id', 'box_code', 'fuel_type', 'denomination', 
+            'first_coupon_number', 'last_coupon_number', 
+            'number_of_books', 'coupons_per_book',
+            'total_litres', 'received_at', 'assigned_to', 
+            'assigned_to_details', 'received_by', 'received_by_details',
+            'notes', 'barcode', 'created', 'modified'
         ]
         read_only_fields = [
             'id', 'box_code', 'total_litres', 'assigned_to_details', 
@@ -395,15 +367,11 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
     organizer_details = SimpleUserSerializer(source='organizer', read_only=True)
     managing_subcenter_details = serializers.SerializerMethodField()
     
-    # Field mapping for frontend compatibility
-    session_manager = serializers.IntegerField(source='organizer_id', write_only=True, required=False)
-    
     class Meta:
         model = ParliamentSession
         fields = [
             'id', 'title', 'session_type', 'start_date', 'end_date', 'description',
-            'venue', 'fuel_entitlement_litres', 'is_mandatory',
-            'is_active', 'organizer', 'organizer_details', 'session_manager',
+            'is_active', 'organizer', 'organizer_details', 
             'managing_subcenter', 'managing_subcenter_details',
             'attendance_count', 'total_fuel_allocated',
             'created', 'modified'
@@ -429,32 +397,6 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
                 'id': obj.managing_subcenter.id,
                 'name': obj.managing_subcenter.name,
                 'code': obj.managing_subcenter.code
-            }
-        return None
-
-
-class ProgramSerializer(serializers.ModelSerializer):
-    session_details = serializers.SerializerMethodField()
-    
-    # Field mapping for frontend compatibility
-    title = serializers.CharField(source='name', required=False)
-    
-    class Meta:
-        model = Program
-        fields = [
-            'id', 'name', 'title', 'description', 'program_type', 'session', 'session_details',
-            'start_time', 'end_time', 'venue', 'scheduled_date', 'end_date', 
-            'location', 'organizer', 'sub_center', 'is_active', 'created', 'modified'
-        ]
-        read_only_fields = ('created', 'modified')
-    
-    def get_session_details(self, obj):
-        if obj.session:
-            return {
-                'id': obj.session.id,
-                'title': obj.session.title,
-                'start_date': obj.session.start_date,
-                'end_date': obj.session.end_date
             }
         return None
 
@@ -731,175 +673,33 @@ class BulkSessionAttendanceSerializer(serializers.Serializer):
 
 # Box Receipt Serializer for enhanced box reception
 class BoxReceiptSerializer(serializers.ModelSerializer):
-    """Serializer for receiving boxes with validation and frontend field mapping"""
-    
-    # Frontend field mappings - same as BoxSerializer
-    coupon_amount = serializers.IntegerField(source='denomination', required=False)
-    couponAmount = serializers.IntegerField(source='denomination', required=False)
-    sub_center = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
-    subCenter = serializers.PrimaryKeyRelatedField(source='assigned_to', queryset=SubCenter.objects.all(), required=False, allow_null=True)
-    box_date = serializers.DateTimeField(source='received_at', required=False)
-    boxDate = serializers.DateTimeField(source='received_at', required=False)
-    
-    # Coupon number field mappings - REQUIRED fields
-    firstCouponNumber = serializers.CharField(source='first_coupon_number', required=False, allow_blank=False)
-    lastCouponNumber = serializers.CharField(source='last_coupon_number', required=False, allow_blank=False)
-    
-    # Additional frontend field mappings
-    numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
-    couponsPerBook = serializers.IntegerField(source='coupons_per_book', required=False)
-    fuelType = serializers.CharField(source='fuel_type', required=False)
-    boxCode = serializers.CharField(source='box_code', required=False)
-    
-    # Monetary fields
-    monetaryValueUSD = serializers.DecimalField(source='monetary_value_usd', max_digits=12, decimal_places=2, required=False, allow_null=True)
-    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=2, required=False, allow_null=True)
-    exchangeRate = serializers.DecimalField(source='exchange_rate', max_digits=10, decimal_places=2, required=False, allow_null=True)
-    
-    # Additional frontend fields
-    number_of_coupons = serializers.IntegerField(write_only=True, required=False)
-    total_litres = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    notes = serializers.CharField(required=False, allow_blank=True, default='Default box notes')
-    barcode = serializers.CharField(required=False, allow_blank=False, default='AUTO_GENERATED')
+    """Serializer for receiving boxes with validation"""
     
     class Meta:
         model = Box
         fields = [
-            'id', 'box_code', 'boxCode', 'fuel_type', 'fuelType', 'denomination', 'coupon_amount', 'couponAmount',
-            'first_coupon_number', 'firstCouponNumber', 'last_coupon_number', 'lastCouponNumber',
-            'number_of_books', 'numberOfBooks', 'coupons_per_book', 'couponsPerBook', 'total_litres',
-            'assigned_to', 'sub_center', 'subCenter', 'received_by', 'received_at', 'box_date', 'boxDate',
-            'monetaryValueUSD', 'fuelPricePerLitreUSD', 'exchangeRate',
-            'number_of_coupons', 'notes', 'barcode', 'created', 'modified'
+            'box_code', 'first_coupon_number', 'last_coupon_number',
+            'number_of_books', 'coupons_per_book', 'litres_per_coupon',
+            'assigned_to', 'received_by', 'received_date', 'notes'
         ]
-        read_only_fields = ['id', 'received_by', 'created', 'modified']
-    
-    def to_internal_value(self, data):
-        """Handle camelCase to snake_case field mapping"""
-        # Create a copy to avoid modifying original data
-        mapped_data = data.copy()
-        
-        # Map camelCase fields to snake_case
-        field_mappings = {
-            'boxCode': 'box_code',
-            'fuelType': 'fuel_type', 
-            'firstCouponNumber': 'first_coupon_number',
-            'lastCouponNumber': 'last_coupon_number',
-            'numberOfBooks': 'number_of_books',
-            'couponsPerBook': 'coupons_per_book',
-            'couponAmount': 'denomination',
-            'subCenter': 'assigned_to',
-            'monetaryValueUSD': 'monetary_value_usd',
-            'fuelPricePerLitreUSD': 'fuel_price_per_litre_usd',
-            'exchangeRate': 'exchange_rate',
-            'boxDate': 'received_at'
-        }
-        
-        for camel_case, snake_case in field_mappings.items():
-            if camel_case in mapped_data:
-                mapped_data[snake_case] = mapped_data.pop(camel_case)
-        
-        # Auto-generate box_code if not provided (CRITICAL FIX for Azure production)
-        if 'box_code' not in mapped_data or not mapped_data.get('box_code'):
-            # Generate a unique box code like FCB-2025-0001
-            timestamp = timezone.now()
-            year = timestamp.strftime('%Y')
-            # Create a unique identifier based on timestamp and random component
-            unique_id = f"{timestamp.strftime('%m%d%H%M%S')}"
-            mapped_data['box_code'] = f"FCB-{year}-{unique_id}"
-        
-        # Handle required fields - provide meaningful defaults if missing
-        if 'first_coupon_number' not in mapped_data or not mapped_data.get('first_coupon_number'):
-            # Generate a default first coupon number if not provided
-            mapped_data['first_coupon_number'] = f"FCN{timezone.now().strftime('%Y%m%d%H%M%S')}001"
-            
-        if 'last_coupon_number' not in mapped_data or not mapped_data.get('last_coupon_number'):
-            # Generate a default last coupon number based on first + calculation
-            first_coupon = mapped_data.get('first_coupon_number', '')
-            num_books = mapped_data.get('number_of_books', 1)
-            coupons_per_book = mapped_data.get('coupons_per_book', 50)
-            total_coupons = num_books * coupons_per_book
-            
-            if first_coupon and first_coupon.startswith('FCN'):
-                # Extract number and add total coupons
-                try:
-                    base_number = int(first_coupon[-3:])
-                    last_number = base_number + total_coupons - 1
-                    mapped_data['last_coupon_number'] = f"{first_coupon[:-3]}{last_number:03d}"
-                except (ValueError, IndexError):
-                    mapped_data['last_coupon_number'] = f"LCN{timezone.now().strftime('%Y%m%d%H%M%S')}{total_coupons:03d}"
-            else:
-                mapped_data['last_coupon_number'] = f"LCN{timezone.now().strftime('%Y%m%d%H%M%S')}{total_coupons:03d}"
-            
-        if 'notes' not in mapped_data or mapped_data['notes'] is None:
-            mapped_data['notes'] = 'Box received via API'
-            
-        if 'barcode' not in mapped_data or not mapped_data.get('barcode'):
-            # Generate a meaningful barcode
-            box_code = mapped_data.get('box_code', 'UNKNOWN')
-            mapped_data['barcode'] = f"BC_{box_code}_{timezone.now().strftime('%Y%m%d')}"
-        
-        return super().to_internal_value(mapped_data)
-        
-        # Map camelCase fields to snake_case
-        field_mappings = {
-            'boxCode': 'box_code',
-            'fuelType': 'fuel_type', 
-            'firstCouponNumber': 'first_coupon_number',
-            'lastCouponNumber': 'last_coupon_number',
-            'numberOfBooks': 'number_of_books',
-            'couponsPerBook': 'coupons_per_book',
-            'couponAmount': 'denomination',
-            'subCenter': 'assigned_to',
-            'monetaryValueUSD': 'monetary_value_usd',
-            'fuelPricePerLitreUSD': 'fuel_price_per_litre_usd',
-            'exchangeRate': 'exchange_rate',
-            'boxDate': 'received_at'
-        }
-        
-        for camel_case, snake_case in field_mappings.items():
-            if camel_case in mapped_data:
-                mapped_data[snake_case] = mapped_data.pop(camel_case)
-        
-        # Ensure required fields have defaults if not provided
-        if 'first_coupon_number' not in mapped_data or not mapped_data['first_coupon_number']:
-            mapped_data['first_coupon_number'] = ''
-            
-        if 'last_coupon_number' not in mapped_data or not mapped_data['last_coupon_number']:
-            mapped_data['last_coupon_number'] = ''
-            
-        if 'notes' not in mapped_data or mapped_data['notes'] is None:
-            mapped_data['notes'] = ''
-            
-        if 'barcode' not in mapped_data or mapped_data['barcode'] is None:
-            mapped_data['barcode'] = ''
-        
-        return super().to_internal_value(mapped_data)
+        read_only_fields = ['received_by', 'received_date']
     
     def validate(self, data):
-        """Validate coupon sequence and required fields"""
-        # Handle optional coupon numbers validation
-        first_coupon = data.get('first_coupon_number', '')
-        last_coupon = data.get('last_coupon_number', '')
+        # Validate coupon sequence
+        first_coupon = data.get('first_coupon_number')
+        last_coupon = data.get('last_coupon_number')
         num_books = data.get('number_of_books')
         coupons_per_book = data.get('coupons_per_book')
         
-        # Only validate coupon sequence if both numbers are provided and numeric
-        if first_coupon and last_coupon and first_coupon.isdigit() and last_coupon.isdigit():
-            try:
-                first_num = int(first_coupon)
-                last_num = int(last_coupon)
-                expected_total = (last_num - first_num + 1)
-                calculated_total = num_books * coupons_per_book
-                
-                if expected_total != calculated_total:
-                    raise serializers.ValidationError(
-                        f"Coupon range ({first_coupon}-{last_coupon}) doesn't match "
-                        f"calculated total ({num_books} books × {coupons_per_book} coupons = {calculated_total})"
-                    )
-            except (ValueError, TypeError):
-                # If coupon numbers aren't numeric, skip validation
-                pass
+        if first_coupon and last_coupon:
+            expected_total = (last_coupon - first_coupon + 1)
+            calculated_total = num_books * coupons_per_book
+            
+            if expected_total != calculated_total:
+                raise serializers.ValidationError(
+                    f"Coupon range ({first_coupon}-{last_coupon}) doesn't match "
+                    f"calculated total ({num_books} books × {coupons_per_book} coupons = {calculated_total})"
+                )
         
         return data
 

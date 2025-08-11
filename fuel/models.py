@@ -537,8 +537,6 @@ class Box(ArchivableModel):
     box_code = models.CharField(
         max_length=50,
         unique=True,
-        blank=True,
-        default='',
         help_text="Unique identifier for the box (e.g., FCB-2025-0001)"
     )
     fuel_type = models.CharField(
@@ -554,14 +552,10 @@ class Box(ArchivableModel):
     )
     first_coupon_number = models.CharField(
         max_length=50,
-        blank=True,
-        default='',
         help_text="First coupon number in the box (e.g., PU00GH355101)"
     )
     last_coupon_number = models.CharField(
         max_length=50,
-        blank=True,
-        default='',
         help_text="Last coupon number in the box (e.g., PU00GH355200)"
     )
     number_of_books = models.IntegerField(
@@ -579,43 +573,6 @@ class Box(ArchivableModel):
         decimal_places=2,
         validators=[MinValueValidator(0)]
     )
-    
-    # Pricing and monetary fields
-    monetary_value_usd = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Total monetary value in USD"
-    )
-    fuel_price_per_litre_usd = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Fuel price per litre in USD"
-    )
-    exchange_rate = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="USD to ZWL exchange rate"
-    )
-    
-    # Additional fields for frontend compatibility
-    notes = models.TextField(
-        blank=True,
-        default='',
-        help_text="Additional notes about this box"
-    )
-    barcode = models.CharField(
-        max_length=255,
-        blank=True,
-        default='',
-        help_text="Barcode for the box (if applicable)"
-    )
-    
     received_at = models.DateTimeField(default=timezone.now)
     assigned_to = models.ForeignKey(
         SubCenter,
@@ -630,6 +587,17 @@ class Box(ArchivableModel):
         null=True,
         related_name='received_boxes',
         limit_choices_to={'role__in': ['MAIN_CENTER', 'SUB_CENTER']}
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Additional notes about this box"
+    )
+    barcode = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Barcode identifier for the box"
     )
 
     class Meta:
@@ -2238,25 +2206,6 @@ class ParliamentSession(TimeStampedModel):
     end_date = models.DateField()
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
-    
-    # Venue and management fields
-    venue = models.CharField(
-        max_length=200,
-        blank=True,
-        help_text="Venue where the session will be held"
-    )
-    fuel_entitlement_litres = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Fuel entitlement in litres for this session"
-    )
-    is_mandatory = models.BooleanField(
-        default=False,
-        help_text="Whether attendance is mandatory for this session"
-    )
-    
     organizer = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -2283,86 +2232,6 @@ class ParliamentSession(TimeStampedModel):
     
     def __str__(self):
         return f"{self.title} ({self.start_date} to {self.end_date})"
-
-
-class Program(TimeStampedModel):
-    """
-    Programs associated with parliament sessions
-    """
-    PROGRAM_TYPES = [
-        ('COMMITTEE', 'Committee Session'),
-        ('DEBATE', 'Parliamentary Debate'),
-        ('WORKSHOP', 'Workshop'),
-        ('CONFERENCE', 'Conference'),
-        ('SPECIAL', 'Special Program'),
-        ('OTHER', 'Other'),
-    ]
-    
-    name = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    program_type = models.CharField(
-        max_length=20,
-        choices=PROGRAM_TYPES,
-        default='COMMITTEE'
-    )
-    
-    # Schedule fields
-    scheduled_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Date when the program is scheduled"
-    )
-    end_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="End date of the program"
-    )
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
-    
-    # Location and management
-    venue = models.CharField(max_length=200, blank=True)
-    location = models.CharField(
-        max_length=200,
-        blank=True,
-        help_text="Alternative location field (alias for venue)"
-    )
-    
-    # Management fields
-    organizer = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='organized_programs',
-        help_text="User organizing this program"
-    )
-    sub_center = models.ForeignKey(
-        'SubCenter',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='managed_programs',
-        help_text="SubCenter managing this program"
-    )
-    
-    session = models.ForeignKey(
-        'ParliamentSession',
-        on_delete=models.CASCADE,
-        related_name='programs',
-        null=True,
-        blank=True,
-        help_text="Associated parliament session"
-    )
-    is_active = models.BooleanField(default=True)
-    
-    class Meta:
-        verbose_name = "Program"
-        verbose_name_plural = "Programs"
-        ordering = ['-created']
-    
-    def __str__(self):
-        return f"{self.name} ({self.get_program_type_display()})"
 
 
 class SessionAttendance(TimeStampedModel):
