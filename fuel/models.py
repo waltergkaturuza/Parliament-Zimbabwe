@@ -552,11 +552,11 @@ class Box(ArchivableModel):
     )
     first_coupon_number = models.CharField(
         max_length=50,
-        help_text="First coupon number in the box (e.g., PU00GH355101)"
+        help_text="First coupon number in the box (e.g., PU006GH355101)"
     )
     last_coupon_number = models.CharField(
         max_length=50,
-        help_text="Last coupon number in the box (e.g., PU00GH355200)"
+        help_text="Last coupon number in the box (e.g., PU006GH355200)"
     )
     number_of_books = models.IntegerField(
         default=10,

@@ -212,22 +212,112 @@ class BoxSerializer(serializers.ModelSerializer):
     
     # Handle received_at field to accept both date and datetime
     received_at = serializers.DateTimeField(required=False, allow_null=True)
+    
+    # Map frontend field names to backend field names
+    first_coupon_id = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
+    last_coupon_id = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    coupon_amount = serializers.IntegerField(source='denomination', required=False)
+    
+    # Handle frontend fields that don't exist in model (accept but ignore)
+    monetary_value_usd = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, write_only=True)
+    fuel_price_per_litre_usd = serializers.DecimalField(max_digits=6, decimal_places=4, required=False, write_only=True)
+    exchange_rate = serializers.DecimalField(max_digits=8, decimal_places=4, required=False, write_only=True)
+    status = serializers.CharField(required=False, write_only=True)
+    
+    # Handle alternative field names that might be sent
+    fuelPriceUSD = serializers.DecimalField(max_digits=6, decimal_places=4, required=False, write_only=True)
+    monetaryValueUSD = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, write_only=True)
+    
+    # Frontend form field names that might differ from submission names
+    boxId = serializers.CharField(source='box_code', required=False)
+    fuelType = serializers.CharField(source='fuel_type', required=False)
+    couponAmount = serializers.IntegerField(source='denomination', required=False)
+    numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
+    couponsPerBook = serializers.IntegerField(source='coupons_per_book', required=False)
+    totalLitres = serializers.DecimalField(max_digits=10, decimal_places=2, source='total_litres', required=False)
+    firstCouponId = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
+    lastCouponId = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
 
     class Meta:
         model = Box
-        # Include all fields including the new ones we added
+        # Include all fields including the mapped ones
         fields = [
-            'id', 'box_code', 'fuel_type', 'denomination', 
-            'first_coupon_number', 'last_coupon_number', 
+            'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount',
+            'first_coupon_number', 'last_coupon_number',
+            'first_coupon_id', 'last_coupon_id', 
             'number_of_books', 'coupons_per_book',
             'total_litres', 'received_at', 'assigned_to', 
             'assigned_to_details', 'received_by', 'received_by_details',
-            'notes', 'barcode', 'created', 'modified'
+            'notes', 'barcode', 'created', 'modified',
+            # Frontend-only fields (write-only)
+            'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
+            'fuelPriceUSD', 'monetaryValueUSD',
+            # Alternative frontend field names
+            'boxId', 'fuelType', 'couponAmount', 'numberOfBooks', 'couponsPerBook', 
+            'totalLitres', 'firstCouponId', 'lastCouponId'
         ]
         read_only_fields = [
-            'id', 'box_code', 'total_litres', 'assigned_to_details', 
+            'id', 'assigned_to_details', 
             'received_by_details', 'created', 'modified'
         ]
+        extra_kwargs = {
+            'first_coupon_number': {'required': False},
+            'last_coupon_number': {'required': False},
+            'box_code': {'required': False},
+            'fuel_type': {'required': False},
+            'denomination': {'required': False},
+            'number_of_books': {'required': False},
+            'coupons_per_book': {'required': False},
+            'total_litres': {'required': False},
+        }
+    
+    def validate(self, data):
+        """
+        Custom validation to ensure required fields are provided through any of their possible names
+        """
+        # Check box_code
+        if not data.get('box_code'):
+            raise serializers.ValidationError({'box_code': 'This field is required.'})
+        
+        # Check coupon numbers
+        has_first = data.get('first_coupon_number')
+        has_last = data.get('last_coupon_number')
+        
+        if not has_first or not has_last:
+            raise serializers.ValidationError({
+                'first_coupon_number': 'This field is required.',
+                'last_coupon_number': 'This field is required.'
+            })
+        
+        return data
+    
+    def create(self, validated_data):
+        """
+        Custom create method to handle frontend-only fields
+        """
+        # Remove frontend-only fields before creating the object
+        frontend_only_fields = [
+            'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
+            'fuelPriceUSD', 'monetaryValueUSD'
+        ]
+        for field in frontend_only_fields:
+            validated_data.pop(field, None)
+        
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """
+        Custom update method to handle frontend-only fields
+        """
+        # Remove frontend-only fields before updating the object
+        frontend_only_fields = [
+            'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
+            'fuelPriceUSD', 'monetaryValueUSD'
+        ]
+        for field in frontend_only_fields:
+            validated_data.pop(field, None)
+        
+        return super().update(instance, validated_data)
 
 class BookSerializer(serializers.ModelSerializer):
     # Use SimpleBoxSerializer for the box field
@@ -247,6 +337,16 @@ class CouponSerializer(serializers.ModelSerializer):
     book_details = SimpleBookSerializer(source='book', read_only=True, allow_null=True)
     allocated_to_details = SimpleUserSerializer(source='allocated_to', read_only=True, allow_null=True)
 
+    # Map frontend field names to backend field names
+    serialNumber = serializers.CharField(source='serial_number', required=False, allow_blank=True)
+    fuelType = serializers.CharField(source='fuel_type', read_only=True)
+    
+    # Handle alternative field names for comprehensive compatibility
+    couponNumber = serializers.CharField(source='coupon_number', required=False, allow_blank=True)
+    issuedDate = serializers.DateTimeField(source='created', read_only=True)
+    expiryDate = serializers.DateField(source='expiry_date', read_only=True)
+    usedDate = serializers.DateTimeField(source='used_date', read_only=True)
+
     # New fields added to the model
     expiry_date = serializers.DateField(read_only=True) # Often readonly if auto-calculated or set on creation, depends on workflow
     transaction_location = serializers.CharField(allow_null=True, required=False) # Can be written when marking used
@@ -256,12 +356,14 @@ class CouponSerializer(serializers.ModelSerializer):
         model = Coupon
         # Specify all fields explicitly for clarity
         fields = (
-            'id', 'book', 'book_details', 'coupon_number', 'litres', 'status',
+            'id', 'book', 'book_details', 'coupon_number', 'serial_number', 'litres', 'status',
             'allocated_to', 'allocated_to_details', 'allocated_date', 'used_date',
-            'expiry_date', 'transaction_location', 'created', 'modified'
+            'expiry_date', 'transaction_location', 'created', 'modified',
+            # Frontend compatible field names
+            'serialNumber', 'fuelType', 'couponNumber', 'issuedDate', 'expiryDate', 'usedDate'
         )
-        # Make status, dates/timestamps readonly, allow transaction_location to be written
-        read_only_fields = ('status', 'allocated_date', 'used_date', 'expiry_date', 'created', 'modified', 'book_details', 'allocated_to_details')
+        # Make coupon_number optional since it's often auto-generated, make status, dates/timestamps readonly
+        read_only_fields = ('coupon_number', 'status', 'allocated_date', 'used_date', 'expiry_date', 'created', 'modified', 'book_details', 'allocated_to_details', 'serialNumber', 'fuelType', 'couponNumber', 'issuedDate', 'expiryDate', 'usedDate')
 
 
 # Program Serializer - now implemented with the Program model
