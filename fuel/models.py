@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 import re
 from model_utils.models import TimeStampedModel, SoftDeletableModel
 from decimal import Decimal
@@ -565,9 +566,11 @@ class Box(ArchivableModel):
     ]
     
     STATUS_CHOICES = [
+        ('PENDING', 'Pending Receipt'),
         ('RECEIVED', 'Received'),
         ('VERIFIED', 'Verified'),
-        ('DISTRIBUTED', 'Distributed'),
+        ('DISPATCHED', 'Dispatched'),
+        ('DAMAGED', 'Damaged'),
         ('ARCHIVED', 'Archived'),
     ]
     
@@ -613,8 +616,8 @@ class Box(ArchivableModel):
     )
     coupons_per_book = models.IntegerField(
         default=100,
-        validators=[MinValueValidator(1)],
-        help_text="Number of coupons per book (usually 100 pages/coupons)"
+        validators=[MinValueValidator(1), MaxValueValidator(100)],
+        help_text="Number of coupons per book (1-100 range, usually 100 pages/coupons)"
     )
     
     # Calculated Fields (Auto-computed from frontend data)
@@ -725,6 +728,53 @@ class Box(ArchivableModel):
         related_name='verified_boxes',
         help_text="User who verified this box"
     )
+    
+    # Missing Frontend Fields - Added for Complete Harmonization
+    supplier = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Supplier or vendor name"
+    )
+    received_by_signature = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Digital signature data of person who received the box"
+    )
+    damage_report = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Report of any damage found during receipt or verification"
+    )
+    delivery_note = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Delivery note reference number"
+    )
+    invoice_number = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Invoice reference number for this box"
+    )
+    qr_code_data = models.TextField(
+        blank=True,
+        null=True,
+        help_text="QR code data for quick identification"
+    )
+    
+    # Frontend Date/Time Handling
+    received_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when box was received (extracted from received_at)"
+    )
+    received_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time when box was received (extracted from received_at)"
+    )
 
     class Meta:
         verbose_name = "Coupon Box"
@@ -792,6 +842,15 @@ class Box(ArchivableModel):
         self.total_value_zwg = self.total_value_usd * self.exchange_rate_zwg_usd
 
     def save(self, *args, **kwargs):
+        # Sync received_at with received_date and received_time
+        if self.received_date and self.received_time:
+            from datetime import datetime, time
+            self.received_at = datetime.combine(self.received_date, self.received_time)
+        elif self.received_at:
+            # Extract date and time from received_at if set
+            self.received_date = self.received_at.date()
+            self.received_time = self.received_at.time()
+        
         # Auto-generate box_code if not set
         if not self.box_code:
             now = timezone.now()
@@ -2726,7 +2785,7 @@ class Program(TimeStampedModel):
         ]
     
     def __str__(self):
-        return f"{self.title} ({self.get_program_type_display()}) - {self.scheduled_date.date()}"
+        return f"{self.title} ({self.get_program_type_display()}) - {self.scheduled_date.date() if self.scheduled_date else 'No Date'}"
     
     def save(self, *args, **kwargs):
         # Auto-set is_active based on dates
@@ -2735,10 +2794,148 @@ class Program(TimeStampedModel):
         
         if self.end_date and self.end_date < now:
             self.is_active = False
-        elif self.scheduled_date > now:
+        elif self.scheduled_date and self.scheduled_date > now:
             self.is_active = True
         
         super().save(*args, **kwargs)
+    
+    # === COMPUTED PROPERTIES FOR FRONTEND COMPATIBILITY ===
+    
+    @property
+    def duration_days(self):
+        """Calculate program duration in days"""
+        if self.scheduled_date and self.end_date:
+            duration = self.end_date - self.scheduled_date
+            return max(1, duration.days + 1)  # Include start day, minimum 1 day
+        return 1  # Default single day program
+    
+    @property
+    def is_upcoming(self):
+        """Check if program is scheduled in the future"""
+        from django.utils import timezone
+        if not self.scheduled_date:
+            return False
+        return self.scheduled_date > timezone.now()
+    
+    @property
+    def is_ongoing(self):
+        """Check if program is currently happening"""
+        from django.utils import timezone
+        now = timezone.now()
+        
+        if not self.scheduled_date:
+            return False
+        
+        # If no end date, consider ongoing only on scheduled date
+        if not self.end_date:
+            start_of_day = self.scheduled_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_of_day = self.scheduled_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            return start_of_day <= now <= end_of_day
+        
+        # Program is ongoing if current time is between start and end
+        return self.scheduled_date <= now <= self.end_date
+    
+    @property
+    def is_completed(self):
+        """Check if program is completed"""
+        from django.utils import timezone
+        now = timezone.now()
+        
+        if self.end_date:
+            return self.end_date < now
+        elif self.scheduled_date:
+            # If no end date, consider completed if scheduled date has passed
+            end_of_day = self.scheduled_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            return end_of_day < now
+        
+        return False
+    
+    @property
+    def status_display(self):
+        """Get human-readable status"""
+        if self.is_ongoing:
+            return "Ongoing"
+        elif self.is_upcoming:
+            return "Upcoming"
+        elif self.is_completed:
+            return "Completed"
+        elif not self.is_active:
+            return "Cancelled"
+        else:
+            return "Scheduled"
+    
+    @property
+    def attendees_count(self):
+        """Get count of attendees (from SessionAttendance if program is linked to sessions)"""
+        try:
+            from .models import SessionAttendance
+            # Count attendees from related session attendance
+            return SessionAttendance.objects.filter(
+                program=self,
+                attended=True
+            ).count()
+        except:
+            # If no attendance tracking, return expected participants or 0
+            return self.expected_participants or 0
+    
+    @property
+    def completion_percentage(self):
+        """Calculate completion percentage based on program status and attendance"""
+        if self.is_completed:
+            return 100
+        elif self.is_ongoing:
+            # For ongoing programs, base on current time vs duration
+            from django.utils import timezone
+            now = timezone.now()
+            
+            if self.end_date and self.scheduled_date:
+                total_duration = (self.end_date - self.scheduled_date).total_seconds()
+                elapsed_duration = (now - self.scheduled_date).total_seconds()
+                
+                if total_duration > 0:
+                    percentage = min(100, max(0, (elapsed_duration / total_duration) * 100))
+                    return round(percentage)
+            
+            return 50  # Default for ongoing without clear timeline
+        elif self.is_upcoming:
+            return 0
+        else:
+            return 0
+    
+    def get_attendees(self):
+        """Get list of program attendees"""
+        try:
+            from .models import SessionAttendance
+            attendances = SessionAttendance.objects.filter(
+                program=self,
+                attended=True
+            ).select_related('user')
+            return [attendance.user for attendance in attendances]
+        except:
+            return []
+    
+    def get_program_summary(self):
+        """Get comprehensive program summary for API responses"""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'program_type': self.program_type,
+            'program_type_display': self.get_program_type_display(),
+            'status': self.status_display,
+            'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'duration_days': self.duration_days,
+            'location': self.location,
+            'is_upcoming': self.is_upcoming,
+            'is_ongoing': self.is_ongoing,
+            'is_completed': self.is_completed,
+            'attendees_count': self.attendees_count,
+            'completion_percentage': self.completion_percentage,
+            'expected_participants': self.expected_participants,
+            'fuel_allocation_approved': self.fuel_allocation_approved,
+            'organizer_name': f"{self.organizer.get_full_name()}" if self.organizer else None,
+            'sub_center_name': self.sub_center.name if self.sub_center else None,
+        }
     
     @property
     def duration_days(self):
@@ -2800,6 +2997,28 @@ class ParliamentSession(TimeStampedModel):
         blank=True,
         related_name='managed_parliament_sessions',
         help_text="SubCenter responsible for managing this session (optional)"
+    )
+    
+    # === ENHANCED FIELDS FOR DYNAMIC ALLOCATION SYSTEM ===
+    fuel_top_up_litres = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Additional fuel litres for session attendees"
+    )
+    fuel_top_up_percentage = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Percentage-based fuel top-up for session attendees"
+    )
+    expected_attendance = models.IntegerField(
+        default=0,
+        help_text="Expected number of attendees"
+    )
+    attendance_tracked = models.BooleanField(
+        default=False,
+        help_text="Whether attendance is being tracked for this session"
     )
     
     class Meta:
@@ -2956,6 +3175,18 @@ class BeneficiaryProfile(TimeStampedModel):
         help_text="Engine size-based multiplier"
     )
     
+    # === ENHANCED FIELDS FOR DYNAMIC ALLOCATION SYSTEM ===
+    engine_capacity_cc = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Engine capacity in cubic centimeters for allocation calculations"
+    )
+    distance_from_parliament_km = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Distance from Parliament in kilometers (auto-populated from constituency)"
+    )
+    
     # Status tracking (Added for frontend enhancements)
     last_allocation_date = models.DateTimeField(
         null=True, 
@@ -3018,6 +3249,33 @@ class BeneficiaryProfile(TimeStampedModel):
         
         # Update monthly entitlement based on calculated final allocation
         self.monthly_entitlement_litres = self.calculate_final_allocation()
+        
+        # Auto-populate distance from constituency
+        if self.constituency and self.constituency.distance_from_parliament_km:
+            self.distance_from_parliament_km = self.constituency.distance_from_parliament_km
+        
+        # Extract engine capacity from engine_size if available
+        if self.engine_size and not self.engine_capacity_cc:
+            self.engine_capacity_cc = self._extract_engine_capacity_cc()
+    
+    def _extract_engine_capacity_cc(self):
+        """Extract engine capacity in CC from engine_size string"""
+        if not self.engine_size:
+            return None
+        
+        import re
+        # Look for patterns like "2.2L", "3000cc", "3.0L V6"
+        pattern = r'(\d+\.?\d*)\s*(?:L|cc|litre|liter)'
+        match = re.search(pattern, self.engine_size, re.IGNORECASE)
+        if match:
+            size = float(match.group(1))
+            # Convert to CC if in litres
+            if 'L' in self.engine_size or 'litre' in self.engine_size.lower():
+                return int(size * 1000)  # Convert litres to CC
+            else:
+                return int(size)  # Already in CC
+        
+        return None
     
     def save(self, *args, **kwargs):
         # Auto-update allocation profile on save
@@ -3061,13 +3319,23 @@ class BeneficiaryProfile(TimeStampedModel):
 
 class BookDispatch(TimeStampedModel):
     """
-    Track dispatch of books from main center to subcenters
+    Enhanced dispatch tracking with intelligent generation support
     """
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
+        ('CONFIGURED', 'Configured'),
+        ('VERIFIED', 'Verified'),
         ('DISPATCHED', 'Dispatched'),
         ('RECEIVED', 'Received'),
+        ('CONFIRMED', 'Confirmed'),
         ('CANCELLED', 'Cancelled'),
+    ]
+    
+    TRANSPORT_METHODS = [
+        ('DIRECT_DELIVERY', 'Direct Delivery'),
+        ('PICKUP', 'Pickup'),
+        ('COURIER', 'Courier Service'),
+        ('GOVERNMENT_VEHICLE', 'Government Vehicle'),
     ]
     
     from_center = models.ForeignKey(
@@ -3121,6 +3389,84 @@ class BookDispatch(TimeStampedModel):
         help_text="Total number of coupons in this dispatch"
     )
     
+    # Enhanced fields for intelligent generation
+    generation_mode = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Mode used for intelligent generation"
+    )
+    
+    # Transport details
+    transport_method = models.CharField(
+        max_length=50,
+        choices=TRANSPORT_METHODS,
+        default='DIRECT_DELIVERY',
+        help_text="Method of transport for delivery"
+    )
+    vehicle_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Vehicle registration number"
+    )
+    driver_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of the driver"
+    )
+    driver_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Driver's phone number"
+    )
+    courier_service = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Courier service name"
+    )
+    tracking_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Tracking number for shipment"
+    )
+    
+    # Receipt confirmation
+    receiver_signature = models.TextField(
+        blank=True,
+        help_text="Digital signature data of receiver"
+    )
+    
+    # Documentation
+    delivery_note = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Delivery note reference"
+    )
+    special_instructions = models.TextField(
+        blank=True,
+        help_text="Special delivery instructions"
+    )
+    
+    # Verification
+    verification_checks = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of completed verification checks"
+    )
+    verification_notes = models.TextField(
+        blank=True,
+        help_text="Notes from verification process"
+    )
+    verified_by = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of person who verified"
+    )
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When verification was completed"
+    )
+    
     dispatch_date = models.DateTimeField(auto_now_add=True)
     received_date = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
@@ -3140,6 +3486,136 @@ class BookDispatch(TimeStampedModel):
     
     @property
     def total_books(self):
+        """Total number of books in this dispatch"""
+        return self.books.count()
+    
+    @property
+    def total_value_usd(self):
+        """Calculate total USD value of dispatch"""
+        total = 0
+        for book in self.books.all():
+            coupon_count = book.initial_coupon_count or 100
+            denomination = book.box.denomination if book.box else 20
+            total += coupon_count * denomination
+        return total
+    
+    def get_dispatch_summary(self):
+        """Get comprehensive dispatch summary"""
+        books = self.books.all().select_related('box')
+        
+        fuel_types = {}
+        denominations = {}
+        total_value = 0
+        
+        for book in books:
+            fuel_type = book.box.fuel_type if book.box else 'UNKNOWN'
+            denomination = book.box.denomination if book.box else 20
+            coupon_count = book.initial_coupon_count or 100
+            book_value = coupon_count * denomination
+            
+            # Group by fuel type
+            if fuel_type not in fuel_types:
+                fuel_types[fuel_type] = {'books': 0, 'coupons': 0, 'value': 0}
+            fuel_types[fuel_type]['books'] += 1
+            fuel_types[fuel_type]['coupons'] += coupon_count
+            fuel_types[fuel_type]['value'] += book_value
+            
+            # Group by denomination
+            denom_key = f"{denomination}L"
+            if denom_key not in denominations:
+                denominations[denom_key] = {'books': 0, 'coupons': 0, 'value': 0}
+            denominations[denom_key]['books'] += 1
+            denominations[denom_key]['coupons'] += coupon_count
+            denominations[denom_key]['value'] += book_value
+            
+            total_value += book_value
+        
+        return {
+            'total_books': self.total_books,
+            'total_coupons': self.total_coupons,
+            'total_value': total_value,
+            'by_fuel_type': fuel_types,
+            'by_denomination': denominations,
+            'generation_mode': self.generation_mode,
+            'transport_method': self.get_transport_method_display(),
+            'status': self.get_status_display()
+        }
+    
+    def validate_dispatch_integrity(self):
+        """Validate the integrity of the dispatch"""
+        errors = []
+        warnings = []
+        
+        # Check if books exist
+        if not self.books.exists():
+            errors.append("No books assigned to this dispatch")
+            return {'errors': errors, 'warnings': warnings}
+        
+        books = self.books.all().select_related('box')
+        
+        # Check serial continuity
+        serials = []
+        for book in books:
+            if book.first_coupon_number and book.last_coupon_number:
+                try:
+                    first_num = int(book.first_coupon_number[-6:])
+                    last_num = int(book.last_coupon_number[-6:])
+                    serials.append((first_num, last_num, book.book_code or f"BOOK-{book.id}"))
+                except ValueError:
+                    warnings.append(f"Cannot parse serial numbers for book {book.book_code}")
+        
+        # Check for gaps in serial ranges
+        serials.sort()
+        for i in range(len(serials) - 1):
+            current_end = serials[i][1]
+            next_start = serials[i + 1][0]
+            if next_start != current_end + 1:
+                warnings.append(f"Serial gap between books: {current_end} to {next_start}")
+        
+        # Check fuel type consistency
+        fuel_types = set(book.box.fuel_type for book in books if book.box)
+        if len(fuel_types) > 1:
+            warnings.append(f"Mixed fuel types in dispatch: {', '.join(fuel_types)}")
+        
+        # Check if books are available for dispatch
+        unavailable_books = []
+        for book in books:
+            if book.is_assigned or book.dispatches.exclude(id=self.id).exists():
+                unavailable_books.append(book.book_code or f"BOOK-{book.id}")
+        
+        if unavailable_books:
+            errors.append(f"Books not available for dispatch: {', '.join(unavailable_books)}")
+        
+        return {'errors': errors, 'warnings': warnings}
+    
+    def mark_as_received(self, received_by_user, signature_data=None):
+        """Mark dispatch as received"""
+        self.status = 'RECEIVED'
+        self.received_by = received_by_user
+        self.received_date = timezone.now()
+        if signature_data:
+            self.receiver_signature = signature_data
+        self.save()
+        
+        # Update book statuses
+        self.books.update(is_assigned=True)
+    
+    def calculate_totals(self):
+        """Recalculate and update totals"""
+        books = self.books.all().select_related('box')
+        total_coupons = sum(book.initial_coupon_count or 100 for book in books)
+        
+        if books.exists():
+            first_serials = [book.first_coupon_number for book in books if book.first_coupon_number]
+            last_serials = [book.last_coupon_number for book in books if book.last_coupon_number]
+            
+            if first_serials:
+                self.first_serial = min(first_serials)
+            if last_serials:
+                self.last_serial = max(last_serials)
+        
+        self.total_coupons = total_coupons
+        self.save()
         return self.books.count()
     
     @property
@@ -4008,3 +4484,2051 @@ class FuelRequirementConfiguration(TimeStampedModel):
         if not self.required_coupons:
             self.required_coupons = self.calculate_required_coupons()
         super().save(*args, **kwargs)
+
+
+class CouponHandover(TimeStampedModel):
+    """
+    Enhanced model for tracking physical handover of coupons to beneficiaries.
+    This handles the actual distribution of coupons with intelligent generation,
+    verification, and confirmation workflow similar to Box Receipt and Book Dispatch.
+    """
+    HANDOVER_MODES = [
+        ('entitlement-based', 'Entitlement-Based Handover'),
+        ('serial-range', 'Serial Range Handover'),
+        ('quantity-based', 'Quantity-Based Handover'),
+        ('emergency-allocation', 'Emergency Allocation'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('CONFIGURED', 'Configured'),
+        ('VERIFIED', 'Verified'),
+        ('HANDED_OVER', 'Handed Over'),
+        ('RECEIVED', 'Received'),
+        ('CONFIRMED', 'Confirmed'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    
+    HANDOVER_METHODS = [
+        ('DIRECT_PICKUP', 'Direct Pickup'),
+        ('OFFICE_DELIVERY', 'Office Delivery'),
+        ('COURIER', 'Courier Service'),
+        ('REPRESENTATIVE', 'Authorized Representative'),
+    ]
+    
+    # Core handover information
+    handover_id = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique handover identifier'
+    )
+    handover_mode = models.CharField(
+        max_length=50,
+        choices=HANDOVER_MODES,
+        default='entitlement-based',
+        help_text='Intelligent generation mode used'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='PENDING',
+        help_text='Current status of handover'
+    )
+    
+    # Relationships
+    beneficiary = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='coupon_handovers',
+        help_text='Beneficiary receiving the coupons'
+    )
+    sub_center = models.ForeignKey(
+        SubCenter,
+        on_delete=models.CASCADE,
+        related_name='coupon_handovers',
+        help_text='Sub-center managing this handover'
+    )
+    handed_over_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='handovers_given',
+        help_text='User who performed the handover'
+    )
+    received_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='handovers_received',
+        help_text='User who received the coupons'
+    )
+    
+    # Coupon tracking
+    coupons = models.ManyToManyField(
+        'Coupon',
+        related_name='handovers',
+        help_text='Coupons included in this handover'
+    )
+    first_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='First coupon serial in handover'
+    )
+    last_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Last coupon serial in handover'
+    )
+    total_coupons = models.IntegerField(
+        default=0,
+        help_text='Total number of coupons in handover'
+    )
+    total_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text='Total litres in handover'
+    )
+    total_value = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text='Total value of handover in USD'
+    )
+    
+    # Handover method and logistics
+    handover_method = models.CharField(
+        max_length=30,
+        choices=HANDOVER_METHODS,
+        default='DIRECT_PICKUP',
+        help_text='Method of handover'
+    )
+    
+    # Representative details
+    representative_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Name of authorized representative'
+    )
+    representative_id = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Representative ID number'
+    )
+    representative_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text='Representative contact number'
+    )
+    authorization_letter = models.TextField(
+        blank=True,
+        help_text='Authorization letter details'
+    )
+    
+    # Handover logistics
+    scheduled_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Scheduled handover date'
+    )
+    scheduled_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text='Scheduled handover time'
+    )
+    handover_location = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Location where handover took place'
+    )
+    special_instructions = models.TextField(
+        blank=True,
+        help_text='Special handling instructions'
+    )
+    
+    # Date/time tracking
+    handed_over_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Actual handover date'
+    )
+    handed_over_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text='Actual handover time'
+    )
+    received_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Date when beneficiary received'
+    )
+    received_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text='Time when beneficiary received'
+    )
+    
+    # Verification and signatures
+    verification_checks = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of completed verification checks'
+    )
+    verification_notes = models.TextField(
+        blank=True,
+        help_text='Notes from verification process'
+    )
+    verified_by = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Name of person who verified'
+    )
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When verification was completed'
+    )
+    
+    # Digital signatures
+    beneficiary_signature = models.TextField(
+        blank=True,
+        help_text='Digital signature of beneficiary'
+    )
+    representative_signature = models.TextField(
+        blank=True,
+        help_text='Digital signature of representative'
+    )
+    witness_signature = models.TextField(
+        blank=True,
+        help_text='Digital signature of witness'
+    )
+    witness_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Name of witness'
+    )
+    
+    # Documentation
+    handover_document = models.TextField(
+        blank=True,
+        help_text='Generated handover document data'
+    )
+    receipt_generated = models.BooleanField(
+        default=False,
+        help_text='Whether receipt has been generated'
+    )
+    delivery_note = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Delivery note reference'
+    )
+    handover_notes = models.TextField(
+        blank=True,
+        help_text='Additional handover notes'
+    )
+    
+    # Entitlement tracking
+    based_on_entitlement = models.BooleanField(
+        default=True,
+        help_text='Whether handover was based on entitlement calculation'
+    )
+    entitlement_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Entitlement amount this handover fulfills'
+    )
+    overrides_entitlement = models.BooleanField(
+        default=False,
+        help_text='Whether this handover overrides normal entitlement limits'
+    )
+    emergency_reason = models.TextField(
+        blank=True,
+        help_text='Reason for emergency allocation'
+    )
+    approved_by = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Who approved emergency allocation'
+    )
+    
+    class Meta:
+        ordering = ['-created']
+        verbose_name = 'Coupon Handover'
+        verbose_name_plural = 'Coupon Handovers'
+        indexes = [
+            models.Index(fields=['beneficiary']),
+            models.Index(fields=['status']),
+            models.Index(fields=['handed_over_date']),
+            models.Index(fields=['sub_center']),
+            models.Index(fields=['handover_mode']),
+        ]
+    
+    def __str__(self):
+        return f"Handover {self.handover_id} to {self.beneficiary.get_full_name()}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate handover ID if not set
+        if not self.handover_id:
+            now = timezone.now()
+            year = now.strftime("%Y")
+            month = now.strftime("%m")
+            last_handover = CouponHandover.objects.filter(
+                handover_id__startswith=f"HO-{year}{month}-"
+            ).order_by('-id').first()
+            
+            if last_handover:
+                last_code_part = last_handover.handover_id.split('-')[-1]
+                try:
+                    next_number = int(last_code_part) + 1
+                except ValueError:
+                    next_number = 1
+            else:
+                next_number = 1
+            
+            self.handover_id = f"HO-{year}{month}-{next_number:04d}"
+        
+        # Calculate totals from selected coupons
+        if self.pk:
+            self.calculate_totals()
+        
+        super().save(*args, **kwargs)
+    
+    def calculate_totals(self):
+        """Calculate totals from associated coupons"""
+        coupons = self.coupons.all()
+        self.total_coupons = coupons.count()
+        self.total_litres = sum(coupon.litres for coupon in coupons)
+        self.total_value = sum(coupon.usd_value or 0 for coupon in coupons)
+        
+        # Update serial range
+        if coupons.exists():
+            ordered_coupons = coupons.order_by('coupon_number')
+            self.first_serial = ordered_coupons.first().coupon_number
+            self.last_serial = ordered_coupons.last().coupon_number
+    
+    def add_coupons(self, coupon_list):
+        """Add coupons to this handover"""
+        for coupon in coupon_list:
+            if coupon.status == 'AVAILABLE':
+                coupon.status = 'ALLOCATED'
+                coupon.allocated_to = self.beneficiary
+                coupon.allocated_date = timezone.now()
+                coupon.save()
+                self.coupons.add(coupon)
+        
+        self.calculate_totals()
+        self.save()
+    
+    def remove_coupons(self, coupon_list):
+        """Remove coupons from this handover"""
+        for coupon in coupon_list:
+            if coupon in self.coupons.all():
+                coupon.status = 'AVAILABLE'
+                coupon.allocated_to = None
+                coupon.allocated_date = None
+                coupon.save()
+                self.coupons.remove(coupon)
+        
+        self.calculate_totals()
+        self.save()
+    
+    def complete_handover(self, handed_over_by_user, verification_data=None):
+        """Complete the handover process"""
+        from django.utils import timezone
+        
+        self.status = 'HANDED_OVER'
+        self.handed_over_by = handed_over_by_user
+        self.handed_over_date = timezone.now().date()
+        self.handed_over_time = timezone.now().time()
+        
+        if verification_data:
+            self.verification_checks = verification_data.get('checks', [])
+            self.verification_notes = verification_data.get('notes', '')
+            self.verified_by = verification_data.get('verified_by', '')
+            self.verified_at = timezone.now()
+        
+        # Update coupon status to reflect handover
+        for coupon in self.coupons.all():
+            coupon.status = 'ALLOCATED'  # Still allocated until used
+            coupon.save()
+        
+        self.save()
+    
+    def confirm_receipt(self, received_by_user, signature_data=None):
+        """Confirm receipt by beneficiary"""
+        from django.utils import timezone
+        
+        self.status = 'CONFIRMED'
+        self.received_by = received_by_user
+        self.received_date = timezone.now().date()
+        self.received_time = timezone.now().time()
+        
+        if signature_data:
+            self.beneficiary_signature = signature_data.get('beneficiary_signature', '')
+            self.representative_signature = signature_data.get('representative_signature', '')
+            self.witness_signature = signature_data.get('witness_signature', '')
+            self.witness_name = signature_data.get('witness_name', '')
+        
+        self.save()
+    
+    def cancel_handover(self, reason=''):
+        """Cancel the handover and make coupons available again"""
+        self.status = 'CANCELLED'
+        self.handover_notes = f"Cancelled: {reason}"
+        
+        # Make coupons available again
+        for coupon in self.coupons.all():
+            coupon.status = 'AVAILABLE'
+            coupon.allocated_to = None
+            coupon.allocated_date = None
+            coupon.save()
+        
+        self.save()
+    
+    def generate_intelligent_selection(self, mode, config):
+        """
+        Generate intelligent coupon selection based on mode and configuration.
+        This is the core logic for different handover modes.
+        """
+        available_coupons = Coupon.objects.filter(
+            status='AVAILABLE',
+            book__box__assigned_to=self.sub_center
+        )
+        
+        selected_coupons = []
+        
+        if mode == 'entitlement-based':
+            selected_coupons = self._generate_by_entitlement(available_coupons, config)
+        elif mode == 'serial-range':
+            selected_coupons = self._generate_by_serial_range(available_coupons, config)
+        elif mode == 'quantity-based':
+            selected_coupons = self._generate_by_quantity(available_coupons, config)
+        elif mode == 'emergency-allocation':
+            selected_coupons = self._generate_emergency_allocation(available_coupons, config)
+        
+        return selected_coupons
+    
+    def _generate_by_entitlement(self, available_coupons, config):
+        """Generate selection based on beneficiary entitlement"""
+        # Get beneficiary profile
+        try:
+            profile = self.beneficiary.beneficiary_profile
+            balance = profile.current_balance
+        except:
+            balance = config.get('custom_amount', 100)
+        
+        # Filter by fuel type if specified
+        fuel_type = getattr(self.beneficiary, 'vehicle_fuel_type', 'DIESEL')
+        filtered_coupons = available_coupons.filter(
+            book__box__fuel_type=fuel_type
+        )
+        
+        # Select coupons up to entitlement amount
+        total_litres = 0
+        selected = []
+        
+        for coupon in filtered_coupons:
+            if total_litres >= balance:
+                break
+            selected.append(coupon)
+            total_litres += coupon.litres
+        
+        return selected
+    
+    def _generate_by_serial_range(self, available_coupons, config):
+        """Generate selection based on serial range"""
+        start_serial = config.get('start_serial')
+        end_serial = config.get('end_serial')
+        
+        if not start_serial or not end_serial:
+            return []
+        
+        return available_coupons.filter(
+            coupon_number__gte=start_serial,
+            coupon_number__lte=end_serial
+        ).order_by('coupon_number')
+    
+    def _generate_by_quantity(self, available_coupons, config):
+        """Generate selection based on quantity requirements"""
+        quantity = config.get('requested_quantity', 10)
+        fuel_type = config.get('preferred_fuel_type')
+        denomination = config.get('preferred_denomination')
+        
+        filtered = available_coupons
+        
+        if fuel_type:
+            filtered = filtered.filter(book__box__fuel_type=fuel_type)
+        
+        if denomination:
+            filtered = filtered.filter(book__box__denomination=denomination)
+        
+        return filtered[:quantity]
+    
+    def _generate_emergency_allocation(self, available_coupons, config):
+        """Generate emergency allocation selection"""
+        quantity = config.get('requested_quantity', 10)
+        reason = config.get('emergency_reason', '')
+        
+        # Emergency allocations can override some restrictions
+        self.emergency_reason = reason
+        self.overrides_entitlement = True
+        
+        return available_coupons[:quantity]
+    
+    def get_handover_summary(self):
+        """Get comprehensive handover summary for frontend"""
+        return {
+            'handover_id': self.handover_id,
+            'status': self.status,
+            'beneficiary': {
+                'id': self.beneficiary.id,
+                'name': self.beneficiary.get_full_name(),
+                'employee_id': getattr(self.beneficiary, 'employee_id', ''),
+                'role': self.beneficiary.role,
+            },
+            'summary': {
+                'total_coupons': self.total_coupons,
+                'total_litres': float(self.total_litres),
+                'total_value': float(self.total_value),
+                'first_serial': self.first_serial,
+                'last_serial': self.last_serial,
+            },
+            'handover_details': {
+                'method': self.handover_method,
+                'location': self.handover_location,
+                'scheduled_date': self.scheduled_date,
+                'scheduled_time': self.scheduled_time,
+                'handed_over_date': self.handed_over_date,
+                'handed_over_time': self.handed_over_time,
+            },
+            'verification': {
+                'checks': self.verification_checks,
+                'notes': self.verification_notes,
+                'verified_by': self.verified_by,
+                'verified_at': self.verified_at,
+            },
+            'documentation': {
+                'receipt_generated': self.receipt_generated,
+                'delivery_note': self.delivery_note,
+                'notes': self.handover_notes,
+            }
+        }
+    
+    @property
+    def is_verified(self):
+        """Check if handover has been verified"""
+        return self.status in ['VERIFIED', 'HANDED_OVER', 'RECEIVED', 'CONFIRMED']
+    
+    @property
+    def is_completed(self):
+        """Check if handover is completed"""
+        return self.status == 'CONFIRMED'
+    
+    @property
+    def can_be_modified(self):
+        """Check if handover can still be modified"""
+        return self.status in ['PENDING', 'CONFIGURED']
+
+
+# ======================= HARMONIZED BENEFICIARY MODEL =======================
+
+class HarmonizedBeneficiaryProfile(TimeStampedModel):
+    """
+    Completely harmonized beneficiary profile with 100% frontend compatibility.
+    
+    This model ensures perfect field alignment with frontend TypeScript interfaces:
+    - BeneficiaryManagement.tsx (19 fields)
+    - BeneficiaryAccountDashboard.tsx (12 structured fields)
+    
+    Field Mapping Strategy:
+    - Direct mapping for simple fields
+    - Computed properties for complex frontend requirements
+    - Structured data methods for nested objects
+    """
+    
+    # === CORE IDENTITY ===
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='harmonized_beneficiary_profile',
+        help_text="Associated user account"
+    )
+    
+    parliamentary_id = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Official parliamentary ID (maps to frontend 'parliamentaryId')"
+    )
+    
+    employee_id = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Legacy employee ID for backward compatibility"
+    )
+    
+    # === ROLE & CLASSIFICATION ===
+    category = models.ForeignKey(
+        BeneficiaryCategory,
+        on_delete=models.PROTECT,
+        related_name='harmonized_beneficiaries',
+        help_text="Beneficiary category (MP, SENATOR, STAFF, etc.)"
+    )
+    
+    constituency = models.ForeignKey(
+        Constituency,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='harmonized_constituency_beneficiaries',
+        help_text="Associated constituency"
+    )
+    
+    vehicle_category = models.ForeignKey(
+        VehicleCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='harmonized_vehicle_beneficiaries',
+        help_text="Vehicle category for allocation calculations"
+    )
+    
+    position = models.CharField(
+        max_length=100,
+        help_text="Official position title (maps to frontend 'title')"
+    )
+    
+    department = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Department/Ministry"
+    )
+    
+    party_affiliation = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Political party affiliation (maps to frontend 'party')"
+    )
+    
+    # === PERSONAL INFORMATION ===
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date of birth (maps to frontend 'dateOfBirth')"
+    )
+    
+    national_id = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="National ID number (maps to frontend 'nationalId')"
+    )
+    
+    full_address = models.TextField(
+        help_text="Complete residential address (maps to frontend 'address')"
+    )
+    
+    # === CONTACT INFORMATION ===
+    office_location = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Office location/room number"
+    )
+    
+    office_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Office phone number"
+    )
+    
+    mobile_phone = models.CharField(
+        max_length=20,
+        help_text="Mobile phone number (maps to frontend 'phoneNumber')"
+    )
+    
+    official_email = models.EmailField(
+        help_text="Official email address (maps to frontend 'email')"
+    )
+    
+    personal_email = models.EmailField(
+        blank=True,
+        help_text="Personal email address"
+    )
+    
+    # === VEHICLE INFORMATION ===
+    vehicle_make = models.CharField(
+        max_length=50,
+        help_text="Vehicle manufacturer (e.g., Toyota, Mercedes)"
+    )
+    
+    vehicle_model = models.CharField(
+        max_length=50,
+        help_text="Vehicle model (e.g., Prado, C-Class)"
+    )
+    
+    vehicle_year = models.IntegerField(
+        validators=[MinValueValidator(1990), MaxValueValidator(2030)],
+        help_text="Year of manufacture"
+    )
+    
+    engine_size = models.CharField(
+        max_length=20,
+        help_text="Engine size (e.g., 2.0L, 3.0L V6)"
+    )
+    
+    vehicle_registration = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="Vehicle registration number"
+    )
+    
+    fuel_type = models.CharField(
+        max_length=10,
+        choices=[('PETROL', 'Petrol'), ('DIESEL', 'Diesel')],
+        default='DIESEL',
+        help_text="Type of fuel the vehicle uses"
+    )
+    
+    # === ALLOCATION PROFILE ===
+    base_allocation = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('200'),
+        help_text="Base monthly allocation before multipliers"
+    )
+    
+    category_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal('1.0'),
+        help_text="Role-based multiplier (MP: 1.5, Senator: 1.4, etc.)"
+    )
+    
+    engine_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal('1.0'),
+        help_text="Engine size-based multiplier"
+    )
+    
+    monthly_entitlement_litres = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        help_text="Final monthly fuel entitlement in litres"
+    )
+    
+    max_per_transaction = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('50'),
+        help_text="Maximum litres per single transaction"
+    )
+    
+    # === STATUS TRACKING ===
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('ACTIVE', 'Active'),
+            ('INACTIVE', 'Inactive'),
+            ('SUSPENDED', 'Suspended')
+        ],
+        default='ACTIVE',
+        help_text="Current beneficiary status (maps to frontend 'status')"
+    )
+    
+    is_active_beneficiary = models.BooleanField(
+        default=True,
+        help_text="Boolean flag for active status"
+    )
+    
+    # === USAGE TRACKING ===
+    current_balance = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Current fuel balance in litres"
+    )
+    
+    used_this_month = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Fuel used in current month"
+    )
+    
+    last_month_usage = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Fuel used in previous month"
+    )
+    
+    year_to_date_usage = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Total fuel used this year"
+    )
+    
+    total_usage_all_time = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Total fuel used since registration"
+    )
+    
+    last_allocation_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date of last fuel allocation"
+    )
+    
+    # === METADATA ===
+    join_date = models.DateField(
+        auto_now_add=True,
+        help_text="Date when beneficiary joined (maps to frontend 'createdAt')"
+    )
+    
+    last_login = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last login timestamp"
+    )
+    
+    class Meta:
+        verbose_name = "Harmonized Beneficiary Profile"
+        verbose_name_plural = "Harmonized Beneficiary Profiles"
+        ordering = ['user__username']
+        db_table = 'fuel_harmonized_beneficiary_profile'
+    
+    def __str__(self):
+        return f"{self.get_full_name()} - {self.category.name} ({self.constituency.name if self.constituency else 'No Constituency'})"
+    
+    # === COMPUTED PROPERTIES FOR FRONTEND COMPATIBILITY ===
+    
+    def get_full_name(self):
+        """Get full name for frontend 'name' field"""
+        return f"{self.user.first_name} {self.user.last_name}".strip()
+    
+    @property
+    def name(self):
+        """Frontend-compatible name property"""
+        return self.get_full_name()
+    
+    @property
+    def title(self):
+        """Frontend-compatible title property"""
+        return self.position
+    
+    @property
+    def phoneNumber(self):
+        """Frontend-compatible phoneNumber property"""
+        return self.mobile_phone
+    
+    @property
+    def email(self):
+        """Frontend-compatible email property"""
+        return self.official_email
+    
+    @property
+    def address(self):
+        """Frontend-compatible address property"""
+        return self.full_address
+    
+    @property
+    def dateOfBirth(self):
+        """Frontend-compatible dateOfBirth property"""
+        return self.date_of_birth.isoformat() if self.date_of_birth else None
+    
+    @property
+    def nationalId(self):
+        """Frontend-compatible nationalId property"""
+        return self.national_id
+    
+    @property
+    def profilePhoto(self):
+        """Frontend-compatible profilePhoto property"""
+        return self.user.profile_picture
+    
+    @property
+    def lastActivity(self):
+        """Frontend-compatible lastActivity property"""
+        return self.user.last_activity.isoformat() if self.user.last_activity else None
+    
+    @property
+    def createdAt(self):
+        """Frontend-compatible createdAt property"""
+        return self.join_date.isoformat()
+    
+    @property
+    def party(self):
+        """Frontend-compatible party property"""
+        return self.party_affiliation
+    
+    # === STRUCTURED DATA METHODS FOR FRONTEND ===
+    
+    def get_contact_info(self):
+        """Get contact information as structured object"""
+        return {
+            'email': self.official_email,
+            'phone': self.mobile_phone,
+            'office': self.office_location,
+            'address': self.full_address
+        }
+    
+    def get_vehicle_info(self):
+        """Get vehicle information as structured object"""
+        return {
+            'make': self.vehicle_make,
+            'model': self.vehicle_model,
+            'year': self.vehicle_year,
+            'engineSize': self.engine_size,
+            'registrationNumber': self.vehicle_registration,
+            'fuelType': self.fuel_type
+        }
+    
+    def get_allocation_profile(self):
+        """Get allocation profile as structured object"""
+        return {
+            'monthlyAllocation': float(self.monthly_entitlement_litres),
+            'currentBalance': float(self.current_balance),
+            'usedThisMonth': float(self.used_this_month),
+            'lastUpdated': self.last_allocation_date.isoformat() if self.last_allocation_date else None,
+            'baseAllocation': float(self.base_allocation),
+            'multiplier': float(self.category_multiplier)
+        }
+    
+    def get_entitlements(self):
+        """Get entitlements as structured object"""
+        return {
+            'monthlyAllocation': float(self.monthly_entitlement_litres),
+            'maxPerTransaction': float(self.max_per_transaction),
+            'vehicleCount': 1  # Single vehicle per beneficiary
+        }
+    
+    def get_fuel_usage(self):
+        """Get fuel usage as structured object"""
+        return {
+            'currentMonth': float(self.used_this_month),
+            'lastMonth': float(self.last_month_usage),
+            'yearToDate': float(self.year_to_date_usage),
+            'totalUsed': float(self.total_usage_all_time)
+        }
+    
+    def get_vehicles(self):
+        """Get vehicles array for frontend compatibility"""
+        return [{
+            'id': str(self.id),
+            'registration': self.vehicle_registration,
+            'make': self.vehicle_make,
+            'model': self.vehicle_model,
+            'year': self.vehicle_year,
+            'fuelType': self.fuel_type
+        }]
+    
+    # === BUSINESS LOGIC METHODS ===
+    
+    def calculate_final_allocation(self):
+        """Calculate final monthly allocation based on multipliers"""
+        return self.base_allocation * self.category_multiplier * self.engine_multiplier
+    
+    def calculate_engine_multiplier_from_size(self):
+        """Calculate engine multiplier based on engine size string"""
+        if not self.engine_size:
+            return Decimal('1.0')
+        
+        import re
+        match = re.search(r'(\d+\.?\d*)', self.engine_size)
+        if match:
+            engine_numeric = float(match.group(1))
+            if engine_numeric <= 1.5:
+                return Decimal('0.8')
+            elif engine_numeric <= 2.0:
+                return Decimal('1.0')
+            elif engine_numeric <= 3.0:
+                return Decimal('1.3')
+            elif engine_numeric <= 4.0:
+                return Decimal('1.6')
+            else:
+                return Decimal('2.0')
+        return Decimal('1.0')
+    
+    def update_allocation_profile(self):
+        """Update allocation profile based on category and engine size"""
+        if self.category:
+            self.category_multiplier = getattr(self.category, 'category_multiplier', Decimal('1.0'))
+        
+        self.engine_multiplier = self.calculate_engine_multiplier_from_size()
+        self.monthly_entitlement_litres = self.calculate_final_allocation()
+    
+    def clean(self):
+        """Model validation"""
+        super().clean()
+        
+        # Validate parliamentary_id format
+        if self.parliamentary_id and not self.parliamentary_id.strip():
+            raise ValidationError({'parliamentary_id': 'Parliamentary ID cannot be empty'})
+        
+        # Validate vehicle year
+        current_year = timezone.now().year
+        if self.vehicle_year and (self.vehicle_year < 1990 or self.vehicle_year > current_year + 1):
+            raise ValidationError({'vehicle_year': f'Vehicle year must be between 1990 and {current_year + 1}'})
+        
+        # Validate allocation amounts
+        if self.base_allocation < 0:
+            raise ValidationError({'base_allocation': 'Base allocation cannot be negative'})
+        
+        if self.monthly_entitlement_litres < 0:
+            raise ValidationError({'monthly_entitlement_litres': 'Monthly entitlement cannot be negative'})
+    
+    def save(self, *args, **kwargs):
+        """Override save to auto-update allocation profile"""
+        self.update_allocation_profile()
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    # === MIGRATION HELPER METHODS ===
+    
+    @classmethod
+    def migrate_from_existing_profile(cls, existing_profile):
+        """
+        Migrate data from existing BeneficiaryProfile to HarmonizedBeneficiaryProfile
+        """
+        harmonized_data = {
+            'user': existing_profile.user,
+            'parliamentary_id': existing_profile.employee_id or f"PARL-{existing_profile.id}",
+            'employee_id': existing_profile.employee_id,
+            'category': existing_profile.category,
+            'constituency': existing_profile.constituency,
+            'vehicle_category': existing_profile.vehicle_category,
+            'position': existing_profile.position,
+            'department': existing_profile.department,
+            'party_affiliation': '',  # New field, default empty
+            'date_of_birth': None,  # New field, needs manual entry
+            'national_id': existing_profile.user.national_id or f"NID-{existing_profile.id}",
+            'full_address': existing_profile.user.full_address or '',
+            'office_location': getattr(existing_profile, 'office_location', ''),
+            'office_phone': '',  # New field, default empty
+            'mobile_phone': existing_profile.user.phone or '',
+            'official_email': existing_profile.user.email or '',
+            'personal_email': '',  # New field, default empty
+            'vehicle_make': getattr(existing_profile, 'vehicle_make', ''),
+            'vehicle_model': getattr(existing_profile, 'vehicle_model', ''),
+            'vehicle_year': getattr(existing_profile, 'vehicle_year', None),
+            'engine_size': getattr(existing_profile, 'engine_size', ''),
+            'vehicle_registration': getattr(existing_profile, 'vehicle_registration', ''),
+            'fuel_type': getattr(existing_profile, 'fuel_type', 'DIESEL'),
+            'base_allocation': getattr(existing_profile, 'base_allocation', Decimal('200')),
+            'category_multiplier': getattr(existing_profile, 'category_multiplier', Decimal('1.0')),
+            'engine_multiplier': getattr(existing_profile, 'engine_multiplier', Decimal('1.0')),
+            'monthly_entitlement_litres': existing_profile.monthly_entitlement_litres,
+            'max_per_transaction': Decimal('50'),  # New field, reasonable default
+            'status': 'ACTIVE' if getattr(existing_profile, 'is_active_beneficiary', True) else 'INACTIVE',
+            'is_active_beneficiary': getattr(existing_profile, 'is_active_beneficiary', True),
+            'current_balance': getattr(existing_profile, 'current_balance', Decimal('0')),
+            'used_this_month': getattr(existing_profile, 'used_this_month', Decimal('0')),
+            'last_month_usage': Decimal('0'),  # New field, default zero
+            'year_to_date_usage': Decimal('0'),  # New field, default zero
+            'total_usage_all_time': Decimal('0'),  # New field, default zero
+            'last_allocation_date': getattr(existing_profile, 'last_allocation_date', None),
+            'last_login': existing_profile.user.last_activity,
+        }
+        
+        return cls.objects.create(**harmonized_data)
+
+
+# ======================= DYNAMIC FUEL ALLOCATION SYSTEM =======================
+
+class FuelAllocationRule(TimeStampedModel):
+    """
+    Dynamic fuel allocation rules based on comprehensive calculation engine.
+    Supports engine capacity bands, distance factors, session top-ups, and period-based allocations.
+    """
+    ENGINE_CAPACITY_BANDS = [
+        ('UNDER_2800', 'Under 2800cc'),
+        ('2800_TO_3199', '2800cc - 3199cc'),
+        ('3200_AND_ABOVE', '3200cc and above'),
+    ]
+    
+    PERIOD_TYPES = [
+        ('DAILY', 'Daily'),
+        ('WEEKLY', 'Weekly'),
+        ('MONTHLY', 'Monthly'),
+        ('QUARTERLY', 'Quarterly'),
+        ('YEARLY', 'Yearly'),
+    ]
+    
+    RULE_TYPES = [
+        ('BASE_ALLOCATION', 'Base Allocation Rule'),
+        ('ENGINE_MULTIPLIER', 'Engine Capacity Multiplier'),
+        ('DISTANCE_FACTOR', 'Distance-Based Factor'),
+        ('SESSION_SUPPLEMENT', 'Parliament Session Supplement'),
+        ('CATEGORY_BONUS', 'Category-Based Bonus'),
+        ('EMERGENCY_ALLOCATION', 'Emergency Allocation'),
+    ]
+    
+    # Rule Identification
+    rule_name = models.CharField(
+        max_length=200,
+        unique=True,
+        help_text="Unique name for this allocation rule"
+    )
+    rule_type = models.CharField(
+        max_length=30,
+        choices=RULE_TYPES,
+        help_text="Type of allocation rule"
+    )
+    rule_code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Unique code for API/system reference"
+    )
+    description = models.TextField(
+        help_text="Detailed description of the rule and its purpose"
+    )
+    
+    # Rule Application Criteria
+    applies_to_engine_band = models.CharField(
+        max_length=20,
+        choices=ENGINE_CAPACITY_BANDS,
+        null=True,
+        blank=True,
+        help_text="Engine capacity band this rule applies to"
+    )
+    applies_to_category = models.ForeignKey(
+        BeneficiaryCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='allocation_rules',
+        help_text="Beneficiary category this rule applies to"
+    )
+    applies_to_distance_min = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Minimum distance from parliament (km) for this rule"
+    )
+    applies_to_distance_max = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum distance from parliament (km) for this rule"
+    )
+    
+    # Allocation Calculation Parameters
+    period_type = models.CharField(
+        max_length=20,
+        choices=PERIOD_TYPES,
+        default='MONTHLY',
+        help_text="Period for which this allocation applies"
+    )
+    
+    # Engine-based constants (from POZ CSV analysis)
+    engine_constant_under_2800 = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        default=Decimal('0.39'),
+        help_text="Rate constant for engines under 2800cc"
+    )
+    engine_constant_2800_3199 = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        default=Decimal('0.43'),
+        help_text="Rate constant for engines 2800-3199cc"
+    )
+    engine_constant_3200_plus = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        default=Decimal('0.56'),
+        help_text="Rate constant for engines 3200cc and above"
+    )
+    
+    # Distance-based factors
+    distance_factor_base = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        default=Decimal('1.0'),
+        help_text="Base distance factor (no distance adjustment)"
+    )
+    distance_factor_per_km = models.DecimalField(
+        max_digits=8,
+        decimal_places=6,
+        default=Decimal('0.001'),
+        help_text="Additional factor per kilometer from parliament"
+    )
+    max_distance_factor = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        default=Decimal('2.0'),
+        help_text="Maximum distance factor cap"
+    )
+    
+    # Allocation Limits and Caps
+    minimum_allocation_litres = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('20'),
+        help_text="Minimum allocation regardless of calculation"
+    )
+    maximum_allocation_litres = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('500'),
+        help_text="Maximum allocation cap"
+    )
+    
+    # Session-based top-ups
+    session_top_up_litres = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Additional litres for parliament session attendance"
+    )
+    session_top_up_percentage = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Percentage-based session top-up"
+    )
+    
+    # Rule Status and Validity
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this rule is currently active"
+    )
+    effective_from = models.DateField(
+        help_text="Date from which this rule is effective"
+    )
+    effective_until = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date until which this rule is effective"
+    )
+    priority = models.IntegerField(
+        default=100,
+        help_text="Rule priority (lower numbers = higher priority)"
+    )
+    
+    # Formula Override
+    custom_formula = models.TextField(
+        blank=True,
+        help_text="Custom allocation formula (Python expression)"
+    )
+    
+    # Metadata
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_allocation_rules',
+        help_text="User who created this rule"
+    )
+    last_modified_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='modified_allocation_rules',
+        help_text="User who last modified this rule"
+    )
+    
+    class Meta:
+        verbose_name = "Fuel Allocation Rule"
+        verbose_name_plural = "Fuel Allocation Rules"
+        ordering = ['priority', 'rule_name']
+        indexes = [
+            models.Index(fields=['rule_type', 'is_active']),
+            models.Index(fields=['applies_to_engine_band']),
+            models.Index(fields=['applies_to_category']),
+            models.Index(fields=['effective_from', 'effective_until']),
+            models.Index(fields=['priority']),
+        ]
+    
+    def __str__(self):
+        return f"{self.rule_name} ({self.get_rule_type_display()})"
+    
+    def get_engine_constant(self, engine_capacity_cc):
+        """Get appropriate engine constant based on engine capacity"""
+        if engine_capacity_cc < 2800:
+            return self.engine_constant_under_2800
+        elif 2800 <= engine_capacity_cc <= 3199:
+            return self.engine_constant_2800_3199
+        else:
+            return self.engine_constant_3200_plus
+    
+    def get_distance_factor(self, distance_km):
+        """Calculate distance factor based on distance from parliament"""
+        factor = self.distance_factor_base + (distance_km * self.distance_factor_per_km)
+        return min(factor, self.max_distance_factor)
+    
+    def calculate_allocation(self, beneficiary_profile, parliament_session=None, fuel_price_usd=None):
+        """
+        Calculate fuel allocation using the master formula:
+        AA_USD = Mileage × EngineConstant × DistanceFactor
+        Litres = AA_USD / FuelPriceUSD + SessionTopUp
+        Apply caps and floors
+        """
+        try:
+            # Get beneficiary data
+            if hasattr(beneficiary_profile, 'constituency') and beneficiary_profile.constituency:
+                distance_km = beneficiary_profile.constituency.distance_from_parliament_km
+            else:
+                distance_km = 0
+            
+            # Extract engine capacity from engine_size or use default
+            engine_capacity_cc = self._extract_engine_capacity(beneficiary_profile)
+            
+            # Get calculation components
+            engine_constant = self.get_engine_constant(engine_capacity_cc)
+            distance_factor = self.get_distance_factor(distance_km)
+            
+            # Calculate AA_USD (Allocation Amount in USD)
+            aa_usd = distance_km * engine_constant * distance_factor
+            
+            # Get current fuel price
+            if not fuel_price_usd:
+                fuel_price_usd = self._get_current_fuel_price()
+            
+            # Calculate base litres
+            base_litres = aa_usd / fuel_price_usd if fuel_price_usd > 0 else 0
+            
+            # Add session top-up if applicable
+            session_litres = 0
+            if parliament_session and hasattr(parliament_session, 'fuel_top_up_litres'):
+                session_litres = parliament_session.fuel_top_up_litres
+            elif self.session_top_up_litres > 0:
+                session_litres = self.session_top_up_litres
+            elif self.session_top_up_percentage > 0:
+                session_litres = base_litres * (self.session_top_up_percentage / 100)
+            
+            total_litres = base_litres + session_litres
+            
+            # Apply caps and floors
+            final_litres = max(
+                self.minimum_allocation_litres,
+                min(total_litres, self.maximum_allocation_litres)
+            )
+            
+            return {
+                'base_litres': float(base_litres),
+                'session_litres': float(session_litres),
+                'total_litres': float(final_litres),
+                'aa_usd': float(aa_usd),
+                'engine_constant': float(engine_constant),
+                'distance_factor': float(distance_factor),
+                'distance_km': distance_km,
+                'engine_capacity_cc': engine_capacity_cc,
+                'fuel_price_usd': float(fuel_price_usd),
+                'rule_applied': self.rule_name
+            }
+        
+        except Exception as e:
+            return {
+                'error': str(e),
+                'base_litres': 0,
+                'session_litres': 0,
+                'total_litres': 0,
+                'rule_applied': self.rule_name
+            }
+    
+    def _extract_engine_capacity(self, beneficiary_profile):
+        """Extract engine capacity in CC from beneficiary profile"""
+        # Check if profile has engine_capacity_cc field
+        if hasattr(beneficiary_profile, 'engine_capacity_cc') and beneficiary_profile.engine_capacity_cc:
+            return beneficiary_profile.engine_capacity_cc
+        
+        # Try to extract from engine_size string
+        if hasattr(beneficiary_profile, 'engine_size') and beneficiary_profile.engine_size:
+            import re
+            # Look for patterns like "2.2L", "3000cc", "3.0L V6"
+            pattern = r'(\d+\.?\d*)\s*(?:L|cc|litre|liter)'
+            match = re.search(pattern, beneficiary_profile.engine_size, re.IGNORECASE)
+            if match:
+                size = float(match.group(1))
+                # Convert to CC if in litres
+                if 'L' in beneficiary_profile.engine_size or 'litre' in beneficiary_profile.engine_size.lower():
+                    return int(size * 1000)  # Convert litres to CC
+                else:
+                    return int(size)  # Already in CC
+        
+        # Default assumption for calculation
+        return 2500  # Conservative mid-range estimate
+    
+    def _get_current_fuel_price(self):
+        """Get current fuel price from FuelPrice model or FuelData"""
+        try:
+            # Try FuelPrice model first
+            latest_price = FuelPrice.objects.filter(is_active=True).latest('effective_date')
+            return latest_price.price_per_litre_usd
+        except:
+            # Fallback to FuelData
+            try:
+                latest_data = FuelData.objects.latest('timestamp')
+                return latest_data.diesel_price_usd or Decimal('1.40')  # Default price
+            except:
+                return Decimal('1.40')  # Fallback default price
+    
+    def applies_to_beneficiary(self, beneficiary_profile):
+        """Check if this rule applies to a specific beneficiary"""
+        # Check category
+        if self.applies_to_category and beneficiary_profile.category != self.applies_to_category:
+            return False
+        
+        # Check engine capacity
+        if self.applies_to_engine_band:
+            engine_cc = self._extract_engine_capacity(beneficiary_profile)
+            if self.applies_to_engine_band == 'UNDER_2800' and engine_cc >= 2800:
+                return False
+            elif self.applies_to_engine_band == '2800_TO_3199' and not (2800 <= engine_cc <= 3199):
+                return False
+            elif self.applies_to_engine_band == '3200_AND_ABOVE' and engine_cc < 3200:
+                return False
+        
+        # Check distance
+        if (self.applies_to_distance_min is not None or self.applies_to_distance_max is not None):
+            if hasattr(beneficiary_profile, 'constituency') and beneficiary_profile.constituency:
+                distance = beneficiary_profile.constituency.distance_from_parliament_km
+                if self.applies_to_distance_min and distance < self.applies_to_distance_min:
+                    return False
+                if self.applies_to_distance_max and distance > self.applies_to_distance_max:
+                    return False
+            else:
+                return False  # No constituency data, can't apply distance rules
+        
+        return True
+    
+    def is_effective_on_date(self, date=None):
+        """Check if rule is effective on a given date"""
+        if date is None:
+            date = timezone.now().date()
+        
+        if not self.is_active:
+            return False
+        
+        if date < self.effective_from:
+            return False
+        
+        if self.effective_until and date > self.effective_until:
+            return False
+        
+        return True
+
+
+class FuelPrice(TimeStampedModel):
+    """
+    Auditable fuel price tracking for allocation calculations.
+    Maintains price history and supports different fuel types.
+    """
+    FUEL_TYPE_CHOICES = [
+        ('PETROL', 'Petrol'),
+        ('DIESEL', 'Diesel'),
+        ('BOTH', 'Both (same price)'),
+    ]
+    
+    PRICE_SOURCE_CHOICES = [
+        ('MANUAL', 'Manual Entry'),
+        ('GOVERNMENT_GAZETTE', 'Government Gazette'),
+        ('ENERGY_MINISTRY', 'Ministry of Energy'),
+        ('MARKET_RATE', 'Market Rate'),
+        ('API_FEED', 'API Data Feed'),
+    ]
+    
+    # Price Information
+    fuel_type = models.CharField(
+        max_length=10,
+        choices=FUEL_TYPE_CHOICES,
+        help_text="Type of fuel this price applies to"
+    )
+    price_per_litre_usd = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        help_text="Price per litre in USD"
+    )
+    price_per_litre_zwg = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Price per litre in ZWG (optional, for reference)"
+    )
+    exchange_rate_usd_zwg = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="USD to ZWG exchange rate used"
+    )
+    
+    # Validity and Source
+    effective_date = models.DateField(
+        help_text="Date from which this price is effective"
+    )
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date until which this price is valid"
+    )
+    price_source = models.CharField(
+        max_length=30,
+        choices=PRICE_SOURCE_CHOICES,
+        default='MANUAL',
+        help_text="Source of this price information"
+    )
+    source_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Reference number or document from source"
+    )
+    
+    # Status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this price is currently active"
+    )
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Whether this is the default price when no specific price found"
+    )
+    
+    # Metadata
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this price"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_fuel_prices',
+        help_text="User who created this price record"
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_fuel_prices',
+        help_text="User who approved this price"
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this price was approved"
+    )
+    
+    class Meta:
+        verbose_name = "Fuel Price"
+        verbose_name_plural = "Fuel Prices"
+        ordering = ['-effective_date', '-created']
+        indexes = [
+            models.Index(fields=['fuel_type', 'effective_date']),
+            models.Index(fields=['is_active', 'is_default']),
+            models.Index(fields=['effective_date', 'expiry_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_fuel_type_display()} - ${self.price_per_litre_usd}/L (from {self.effective_date})"
+    
+    def is_effective_on_date(self, date=None):
+        """Check if this price is effective on a given date"""
+        if date is None:
+            date = timezone.now().date()
+        
+        if not self.is_active:
+            return False
+        
+        if date < self.effective_date:
+            return False
+        
+        if self.expiry_date and date > self.expiry_date:
+            return False
+        
+        return True
+    
+    @classmethod
+    def get_current_price(cls, fuel_type='DIESEL', date=None):
+        """Get current effective price for fuel type"""
+        if date is None:
+            date = timezone.now().date()
+        
+        # Try exact fuel type first
+        price = cls.objects.filter(
+            fuel_type__in=[fuel_type, 'BOTH'],
+            is_active=True,
+            effective_date__lte=date
+        ).filter(
+            models.Q(expiry_date__isnull=True) | models.Q(expiry_date__gte=date)
+        ).order_by('-effective_date').first()
+        
+        if price:
+            return price
+        
+        # Fallback to default price
+        default_price = cls.objects.filter(
+            is_default=True,
+            is_active=True
+        ).first()
+        
+        return default_price
+    
+    def clean(self):
+        """Model validation"""
+        super().clean()
+        
+        # Validate price is positive
+        if self.price_per_litre_usd <= 0:
+            raise ValidationError({'price_per_litre_usd': 'Price must be positive'})
+        
+        # Validate date logic
+        if self.expiry_date and self.expiry_date <= self.effective_date:
+            raise ValidationError({'expiry_date': 'Expiry date must be after effective date'})
+        
+        # Check for overlapping active prices
+        overlapping = FuelPrice.objects.filter(
+            fuel_type__in=[self.fuel_type, 'BOTH'],
+            is_active=True,
+            effective_date__lte=self.expiry_date or timezone.now().date() + timezone.timedelta(days=365*10)
+        ).filter(
+            models.Q(expiry_date__isnull=True) | 
+            models.Q(expiry_date__gte=self.effective_date)
+        ).exclude(pk=self.pk)
+        
+        if overlapping.exists():
+            raise ValidationError(
+                'This price period overlaps with existing active prices for the same fuel type'
+            )
+    
+    def save(self, *args, **kwargs):
+        # Calculate ZWG price if exchange rate is provided
+        if self.exchange_rate_usd_zwg and not self.price_per_litre_zwg:
+            self.price_per_litre_zwg = self.price_per_litre_usd * self.exchange_rate_usd_zwg
+        
+        super().save(*args, **kwargs)
+
+
+class DynamicAllocation(TimeStampedModel):
+    """
+    Records of dynamic fuel allocations calculated and assigned to beneficiaries.
+    Provides audit trail and supports preview/commit workflow.
+    """
+    ALLOCATION_STATUS_CHOICES = [
+        ('PREVIEW', 'Preview (Not Committed)'),
+        ('COMMITTED', 'Committed'),
+        ('PARTIALLY_FULFILLED', 'Partially Fulfilled'),
+        ('FULFILLED', 'Fully Fulfilled'),
+        ('EXPIRED', 'Expired'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    
+    ALLOCATION_TYPE_CHOICES = [
+        ('REGULAR', 'Regular Allocation'),
+        ('SESSION_BASED', 'Parliament Session'),
+        ('EMERGENCY', 'Emergency Allocation'),
+        ('ADJUSTMENT', 'Adjustment/Correction'),
+        ('BONUS', 'Bonus Allocation'),
+    ]
+    
+    # Allocation Identification
+    allocation_id = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Unique allocation identifier"
+    )
+    allocation_type = models.CharField(
+        max_length=20,
+        choices=ALLOCATION_TYPE_CHOICES,
+        default='REGULAR',
+        help_text="Type of allocation"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=ALLOCATION_STATUS_CHOICES,
+        default='PREVIEW',
+        help_text="Current status of allocation"
+    )
+    
+    # Relationships
+    beneficiary = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='dynamic_allocations',
+        help_text="Beneficiary receiving this allocation"
+    )
+    rule_applied = models.ForeignKey(
+        FuelAllocationRule,
+        on_delete=models.PROTECT,
+        related_name='allocations',
+        help_text="Allocation rule used for calculation"
+    )
+    parliament_session = models.ForeignKey(
+        ParliamentSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dynamic_allocations',
+        help_text="Related parliament session (if applicable)"
+    )
+    fuel_price = models.ForeignKey(
+        FuelPrice,
+        on_delete=models.PROTECT,
+        related_name='allocations',
+        help_text="Fuel price used for calculation"
+    )
+    
+    # Allocation Period
+    allocation_period_start = models.DateField(
+        help_text="Start date of allocation period"
+    )
+    allocation_period_end = models.DateField(
+        help_text="End date of allocation period"
+    )
+    period_type = models.CharField(
+        max_length=20,
+        choices=FuelAllocationRule.PERIOD_TYPES,
+        default='MONTHLY',
+        help_text="Type of allocation period"
+    )
+    
+    # Calculated Amounts
+    base_allocation_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Base allocation before supplements"
+    )
+    session_supplement_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Additional litres for session attendance"
+    )
+    total_allocation_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Total allocated litres"
+    )
+    allocated_value_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        help_text="USD value of allocation"
+    )
+    
+    # Calculation Details (for audit and transparency)
+    calculation_details = models.JSONField(
+        default=dict,
+        help_text="Detailed calculation breakdown"
+    )
+    engine_capacity_cc = models.IntegerField(
+        help_text="Engine capacity used in calculation"
+    )
+    distance_from_parliament_km = models.IntegerField(
+        help_text="Distance from parliament used in calculation"
+    )
+    engine_constant_applied = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        help_text="Engine constant rate used"
+    )
+    distance_factor_applied = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        help_text="Distance factor applied"
+    )
+    fuel_price_used = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        help_text="Fuel price per litre used"
+    )
+    
+    # Fulfillment Tracking
+    coupons_allocated = models.IntegerField(
+        default=0,
+        help_text="Number of coupons allocated to fulfill this allocation"
+    )
+    litres_fulfilled = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Litres actually provided via coupons"
+    )
+    remaining_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text="Remaining litres to be fulfilled"
+    )
+    
+    # Workflow and Approval
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_dynamic_allocations',
+        help_text="User who created this allocation"
+    )
+    committed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='committed_dynamic_allocations',
+        help_text="User who committed this allocation"
+    )
+    committed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this allocation was committed"
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_dynamic_allocations',
+        help_text="User who approved this allocation"
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this allocation was approved"
+    )
+    
+    # Metadata
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this allocation"
+    )
+    preview_generated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the allocation preview was generated"
+    )
+    
+    class Meta:
+        verbose_name = "Dynamic Allocation"
+        verbose_name_plural = "Dynamic Allocations"
+        ordering = ['-created']
+        indexes = [
+            models.Index(fields=['beneficiary', 'status']),
+            models.Index(fields=['allocation_period_start', 'allocation_period_end']),
+            models.Index(fields=['status', 'allocation_type']),
+            models.Index(fields=['parliament_session']),
+        ]
+        unique_together = [
+            ('beneficiary', 'allocation_period_start', 'allocation_period_end', 'allocation_type')
+        ]
+    
+    def __str__(self):
+        return f"{self.allocation_id} - {self.beneficiary.get_full_name()} ({self.total_allocation_litres}L)"
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate allocation ID
+        if not self.allocation_id:
+            now = timezone.now()
+            year = now.strftime("%Y")
+            month = now.strftime("%m")
+            last_allocation = DynamicAllocation.objects.filter(
+                allocation_id__startswith=f"DA-{year}{month}-"
+            ).order_by('-id').first()
+            
+            if last_allocation:
+                last_code_part = last_allocation.allocation_id.split('-')[-1]
+                try:
+                    next_number = int(last_code_part) + 1
+                except ValueError:
+                    next_number = 1
+            else:
+                next_number = 1
+            
+            self.allocation_id = f"DA-{year}{month}-{next_number:04d}"
+        
+        # Calculate remaining litres
+        self.remaining_litres = self.total_allocation_litres - self.litres_fulfilled
+        
+        super().save(*args, **kwargs)
+    
+    def commit_allocation(self, committed_by_user):
+        """Commit the allocation (change from preview to committed)"""
+        if self.status != 'PREVIEW':
+            raise ValueError("Only preview allocations can be committed")
+        
+        self.status = 'COMMITTED'
+        self.committed_by = committed_by_user
+        self.committed_at = timezone.now()
+        self.save()
+        
+        # Create audit log
+        AuditLog.log(
+            action='ALLOCATE',
+            user=committed_by_user,
+            content_object=self,
+            description=f"Dynamic allocation committed: {self.total_allocation_litres}L to {self.beneficiary.get_full_name()}",
+            changes={'status': 'COMMITTED'},
+            severity='MEDIUM'
+        )
+    
+    def cancel_allocation(self, cancelled_by_user, reason=""):
+        """Cancel the allocation"""
+        if self.status == 'FULFILLED':
+            raise ValueError("Cannot cancel fulfilled allocations")
+        
+        old_status = self.status
+        self.status = 'CANCELLED'
+        self.notes = f"{self.notes}\nCancelled: {reason}" if self.notes else f"Cancelled: {reason}"
+        self.save()
+        
+        # Create audit log
+        AuditLog.log(
+            action='UPDATE',
+            user=cancelled_by_user,
+            content_object=self,
+            description=f"Dynamic allocation cancelled: {reason}",
+            changes={'status': old_status + ' -> CANCELLED'},
+            severity='MEDIUM'
+        )
+    
+    def fulfill_with_coupons(self, coupon_list, fulfilled_by_user):
+        """Fulfill allocation by assigning coupons"""
+        total_litres = sum(coupon.litres for coupon in coupon_list)
+        
+        # Update fulfillment tracking
+        self.coupons_allocated += len(coupon_list)
+        self.litres_fulfilled += total_litres
+        self.remaining_litres = self.total_allocation_litres - self.litres_fulfilled
+        
+        # Update status
+        if self.remaining_litres <= 0:
+            self.status = 'FULFILLED'
+        elif self.litres_fulfilled > 0:
+            self.status = 'PARTIALLY_FULFILLED'
+        
+        self.save()
+        
+        # Link coupons to this allocation
+        for coupon in coupon_list:
+            coupon.allocated_to = self.beneficiary
+            coupon.allocated_date = timezone.now()
+            coupon.save()
+        
+        # Create audit log
+        AuditLog.log(
+            action='ALLOCATE',
+            user=fulfilled_by_user,
+            content_object=self,
+            description=f"Allocation fulfilled with {len(coupon_list)} coupons ({total_litres}L)",
+            changes={'litres_fulfilled': float(self.litres_fulfilled)},
+            severity='LOW'
+        )
+    
+    def get_allocation_summary(self):
+        """Get comprehensive allocation summary"""
+        return {
+            'allocation_id': self.allocation_id,
+            'status': self.status,
+            'allocation_type': self.allocation_type,
+            'beneficiary': {
+                'name': self.beneficiary.get_full_name(),
+                'category': self.beneficiary.beneficiary_profile.category.name if hasattr(self.beneficiary, 'beneficiary_profile') else None,
+                'constituency': self.beneficiary.beneficiary_profile.constituency.name if hasattr(self.beneficiary, 'beneficiary_profile') and self.beneficiary.beneficiary_profile.constituency else None,
+            },
+            'allocation_details': {
+                'base_litres': float(self.base_allocation_litres),
+                'session_supplement': float(self.session_supplement_litres),
+                'total_litres': float(self.total_allocation_litres),
+                'value_usd': float(self.allocated_value_usd),
+            },
+            'calculation_inputs': {
+                'engine_capacity_cc': self.engine_capacity_cc,
+                'distance_km': self.distance_from_parliament_km,
+                'engine_constant': float(self.engine_constant_applied),
+                'distance_factor': float(self.distance_factor_applied),
+                'fuel_price_usd': float(self.fuel_price_used),
+            },
+            'fulfillment': {
+                'coupons_allocated': self.coupons_allocated,
+                'litres_fulfilled': float(self.litres_fulfilled),
+                'remaining_litres': float(self.remaining_litres),
+                'fulfillment_percentage': round((self.litres_fulfilled / self.total_allocation_litres) * 100, 2) if self.total_allocation_litres > 0 else 0,
+            },
+            'period': {
+                'start_date': self.allocation_period_start.isoformat(),
+                'end_date': self.allocation_period_end.isoformat(),
+                'period_type': self.period_type,
+            },
+            'rule_applied': self.rule_applied.rule_name,
+            'created_at': self.created.isoformat(),
+            'committed_at': self.committed_at.isoformat() if self.committed_at else None,
+        }
+    
+    @property
+    def is_expired(self):
+        """Check if allocation has expired"""
+        return timezone.now().date() > self.allocation_period_end
+    
+    @property
+    def fulfillment_percentage(self):
+        """Calculate fulfillment percentage"""
+        if self.total_allocation_litres > 0:
+            return round((self.litres_fulfilled / self.total_allocation_litres) * 100, 2)
+        return 0
+    
+    @classmethod
+    def generate_preview(cls, beneficiary, rule, parliament_session=None, period_start=None, period_end=None):
+        """Generate allocation preview without committing"""
+        # Get beneficiary profile
+        if hasattr(beneficiary, 'beneficiary_profile'):
+            profile = beneficiary.beneficiary_profile
+        elif hasattr(beneficiary, 'harmonized_beneficiary_profile'):
+            profile = beneficiary.harmonized_beneficiary_profile
+        else:
+            raise ValueError("Beneficiary must have a profile")
+        
+        # Set default period if not provided
+        if not period_start:
+            period_start = timezone.now().date().replace(day=1)  # First of current month
+        if not period_end:
+            # Last day of current month
+            next_month = period_start.replace(day=28) + timezone.timedelta(days=4)
+            period_end = next_month - timezone.timedelta(days=next_month.day)
+        
+        # Get current fuel price
+        fuel_price = FuelPrice.get_current_price(
+            fuel_type=getattr(profile, 'fuel_type', 'DIESEL'),
+            date=period_start
+        )
+        if not fuel_price:
+            raise ValueError("No fuel price available for calculation")
+        
+        # Calculate allocation using rule
+        calculation_result = rule.calculate_allocation(
+            beneficiary_profile=profile,
+            parliament_session=parliament_session,
+            fuel_price_usd=fuel_price.price_per_litre_usd
+        )
+        
+        if 'error' in calculation_result:
+            raise ValueError(f"Calculation error: {calculation_result['error']}")
+        
+        # Create preview allocation
+        allocation = cls(
+            beneficiary=beneficiary,
+            rule_applied=rule,
+            parliament_session=parliament_session,
+            fuel_price=fuel_price,
+            allocation_period_start=period_start,
+            allocation_period_end=period_end,
+            period_type=rule.period_type,
+            base_allocation_litres=Decimal(str(calculation_result['base_litres'])),
+            session_supplement_litres=Decimal(str(calculation_result['session_litres'])),
+            total_allocation_litres=Decimal(str(calculation_result['total_litres'])),
+            allocated_value_usd=Decimal(str(calculation_result['total_litres'])) * fuel_price.price_per_litre_usd,
+            calculation_details=calculation_result,
+            engine_capacity_cc=calculation_result['engine_capacity_cc'],
+            distance_from_parliament_km=calculation_result['distance_km'],
+            engine_constant_applied=Decimal(str(calculation_result['engine_constant'])),
+            distance_factor_applied=Decimal(str(calculation_result['distance_factor'])),
+            fuel_price_used=fuel_price.price_per_litre_usd,
+            status='PREVIEW',
+        )
+        
+        return allocation

@@ -219,6 +219,9 @@ urlpatterns = [
     # Include profile URLs 
     path('', include('fuel.urls_profile')),
     
+    # Dynamic Fuel Allocation System URLs
+    path('dynamic-allocation/', include('fuel.dynamic_allocation_urls')),
+    
     # Include router URLs 
     path('', include(router.urls)),
 ]

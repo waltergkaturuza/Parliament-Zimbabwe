@@ -10,9 +10,11 @@ from .models import (
     User, SubCenter, Box, Book, Coupon,
     FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
-    BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, SystemAlert, FuelEntitlement,
+    BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, CouponHandover, SystemAlert, FuelEntitlement,
     PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
-    FuelRequirementConfiguration, Program
+    FuelRequirementConfiguration, Program, HarmonizedBeneficiaryProfile,
+    # Dynamic Fuel Allocation System Models
+    FuelAllocationRule, FuelPrice, DynamicAllocation
 )
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 # import re # Not used in provided code
@@ -52,6 +54,7 @@ class SimpleBookSerializer(serializers.ModelSerializer):
 
 
 class BookDispatchSerializer(serializers.ModelSerializer):
+    """Enhanced serializer for book dispatch with intelligent coupon generation support"""
     from_center = SimpleSubCenterSerializer(read_only=True)
     to_center = SimpleSubCenterSerializer(read_only=True)
     dispatched_by = SimpleUserSerializer(read_only=True)
@@ -60,9 +63,128 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     total_books = serializers.ReadOnlyField()
     total_value_usd = serializers.ReadOnlyField()
     
+    # Enhanced fields for intelligent dispatch
+    dispatch_id = serializers.SerializerMethodField()
+    subcenter_name = serializers.CharField(source='to_center.name', read_only=True)
+    dispatched_date = serializers.DateField(source='dispatch_date', read_only=True)
+    dispatched_time = serializers.TimeField(source='dispatch_date', read_only=True)
+    
+    # Generation mode and configuration
+    generation_mode = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    
+    # Transport and receipt details
+    transport_method = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    vehicle_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    driver_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    driver_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    courier_service = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    tracking_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    
+    # Receipt confirmation
+    receiver_signature = serializers.CharField(required=False, allow_blank=True)
+    received_date = serializers.DateField(source='received_date', required=False, allow_null=True)
+    received_time = serializers.TimeField(source='received_date', required=False, allow_null=True)
+    
+    # Documentation
+    delivery_note = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    dispatch_notes = serializers.CharField(source='notes', required=False, allow_blank=True)
+    special_instructions = serializers.CharField(required=False, allow_blank=True)
+    
+    # Verification
+    verification_checks = serializers.JSONField(required=False, default=list)
+    verification_notes = serializers.CharField(required=False, allow_blank=True)
+    verified_by = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    verified_at = serializers.DateTimeField(required=False, allow_null=True)
+    
+    # Calculated fields
+    total_coupons = serializers.SerializerMethodField()
+    total_value = serializers.SerializerMethodField()
+    
     class Meta:
         model = BookDispatch
-        fields = '__all__'
+        fields = [
+            'id', 'dispatch_id', 'from_center', 'to_center', 'subcenter_name',
+            'dispatched_by', 'received_by', 'books', 'total_books',
+            'dispatch_date', 'dispatched_date', 'dispatched_time',
+            'received_date', 'received_time', 'status', 'notes',
+            
+            # Enhanced fields
+            'generation_mode', 'transport_method', 'vehicle_number',
+            'driver_name', 'driver_phone', 'courier_service', 'tracking_number',
+            'receiver_signature', 'delivery_note', 'dispatch_notes',
+            'special_instructions', 'verification_checks', 'verification_notes',
+            'verified_by', 'verified_at',
+            
+            # Calculated fields
+            'total_coupons', 'total_value', 'total_value_usd',
+            'first_serial', 'last_serial'
+        ]
+        read_only_fields = [
+            'id', 'dispatch_id', 'dispatched_date', 'dispatched_time',
+            'total_books', 'total_coupons', 'total_value', 'total_value_usd'
+        ]
+    
+    def get_dispatch_id(self, obj):
+        """Generate dispatch ID"""
+        return f"DISP-{obj.id}" if obj.id else f"DISP-NEW"
+    
+    def get_total_coupons(self, obj):
+        """Calculate total coupons in dispatch"""
+        return sum(book.initial_coupon_count or 100 for book in obj.books.all())
+    
+    def get_total_value(self, obj):
+        """Calculate total value of dispatch"""
+        total = 0
+        for book in obj.books.all():
+            coupon_count = book.initial_coupon_count or 100
+            denomination = book.box.denomination if book.box else 20
+            total += coupon_count * denomination
+        return total
+    
+    def create(self, validated_data):
+        """Enhanced create method for dispatch with intelligent generation"""
+        # Extract books data if provided
+        books_data = self.context.get('books_data', [])
+        
+        # Create the dispatch
+        dispatch = BookDispatch.objects.create(**validated_data)
+        
+        # Add books to dispatch if provided
+        if books_data:
+            book_ids = [book_data.get('id') for book_data in books_data if book_data.get('id')]
+            books = Book.objects.filter(id__in=book_ids)
+            dispatch.books.set(books)
+            
+            # Update serial range based on books
+            if books.exists():
+                first_serials = [book.first_coupon_number for book in books if book.first_coupon_number]
+                last_serials = [book.last_coupon_number for book in books if book.last_coupon_number]
+                
+                if first_serials:
+                    dispatch.first_serial = min(first_serials)
+                if last_serials:
+                    dispatch.last_serial = max(last_serials)
+                
+                dispatch.total_coupons = sum(book.initial_coupon_count or 100 for book in books)
+                dispatch.save()
+        
+        return dispatch
+    
+    def update(self, instance, validated_data):
+        """Enhanced update method"""
+        # Handle date/time fields
+        if 'received_date' in validated_data and 'received_time' in validated_data:
+            received_date = validated_data.pop('received_date', None)
+            received_time = validated_data.pop('received_time', None)
+            
+            if received_date and received_time:
+                # Combine date and time
+                from datetime import datetime, time
+                if isinstance(received_time, time):
+                    received_datetime = datetime.combine(received_date, received_time)
+                    validated_data['received_date'] = received_datetime
+        
+        return super().update(instance, validated_data)
 
 
 class CouponAllocationSerializer(serializers.ModelSerializer):
@@ -76,6 +198,183 @@ class CouponAllocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CouponAllocation
         fields = '__all__'
+
+
+# Simple serializer for coupon data in handovers
+class SimpleCouponSerializer(serializers.ModelSerializer):
+    book_number = serializers.CharField(source='book.book_number', read_only=True)
+    box_code = serializers.CharField(source='book.box.box_code', read_only=True)
+    fuel_type = serializers.CharField(source='book.box.fuel_type', read_only=True)
+    denomination = serializers.IntegerField(source='book.box.denomination', read_only=True)
+    
+    class Meta:
+        model = Coupon
+        fields = [
+            'id', 'coupon_number', 'status', 'litres', 'usd_value',
+            'book_number', 'box_code', 'fuel_type', 'denomination'
+        ]
+
+
+class CouponHandoverSerializer(serializers.ModelSerializer):
+    """Enhanced serializer for coupon handover with intelligent generation support"""
+    beneficiary = SimpleUserSerializer(read_only=True)
+    sub_center = SimpleSubCenterSerializer(read_only=True)
+    handed_over_by = SimpleUserSerializer(read_only=True)
+    received_by = SimpleUserSerializer(read_only=True)
+    coupons = SimpleCouponSerializer(many=True, read_only=True)
+    
+    # Enhanced fields for intelligent handover
+    handover_id = serializers.CharField(read_only=True)
+    handover_mode = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    
+    # Date/time fields with separation for frontend
+    scheduled_date = serializers.DateField(required=False, allow_null=True)
+    scheduled_time = serializers.TimeField(required=False, allow_null=True)
+    handed_over_date = serializers.DateField(required=False, allow_null=True)
+    handed_over_time = serializers.TimeField(required=False, allow_null=True)
+    received_date = serializers.DateField(required=False, allow_null=True)
+    received_time = serializers.TimeField(required=False, allow_null=True)
+    
+    # Handover method and logistics
+    handover_method = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    representative_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    representative_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    representative_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    authorization_letter = serializers.CharField(required=False, allow_blank=True)
+    
+    # Location and instructions
+    handover_location = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    special_instructions = serializers.CharField(required=False, allow_blank=True)
+    
+    # Verification and signatures
+    verification_checks = serializers.JSONField(required=False, default=list)
+    verification_notes = serializers.CharField(required=False, allow_blank=True)
+    verified_by = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    verified_at = serializers.DateTimeField(required=False, allow_null=True)
+    
+    # Digital signatures
+    beneficiary_signature = serializers.CharField(required=False, allow_blank=True)
+    representative_signature = serializers.CharField(required=False, allow_blank=True)
+    witness_signature = serializers.CharField(required=False, allow_blank=True)
+    witness_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    
+    # Documentation
+    handover_document = serializers.CharField(required=False, allow_blank=True)
+    receipt_generated = serializers.BooleanField(required=False, default=False)
+    delivery_note = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    handover_notes = serializers.CharField(required=False, allow_blank=True)
+    
+    # Entitlement tracking
+    based_on_entitlement = serializers.BooleanField(required=False, default=True)
+    entitlement_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    overrides_entitlement = serializers.BooleanField(required=False, default=False)
+    emergency_reason = serializers.CharField(required=False, allow_blank=True)
+    approved_by = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    
+    # Calculated fields
+    total_coupons = serializers.IntegerField(read_only=True)
+    total_litres = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total_value = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    first_serial = serializers.CharField(read_only=True)
+    last_serial = serializers.CharField(read_only=True)
+    
+    # Status and workflow
+    status = serializers.CharField(max_length=20, required=False)
+    is_verified = serializers.BooleanField(read_only=True)
+    is_completed = serializers.BooleanField(read_only=True)
+    can_be_modified = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = CouponHandover
+        fields = [
+            'id', 'handover_id', 'beneficiary', 'sub_center', 'handover_mode',
+            'status', 'handed_over_by', 'received_by', 'coupons',
+            
+            # Date/time fields
+            'scheduled_date', 'scheduled_time', 'handed_over_date', 'handed_over_time',
+            'received_date', 'received_time',
+            
+            # Handover details
+            'handover_method', 'representative_name', 'representative_id',
+            'representative_phone', 'authorization_letter', 'handover_location',
+            'special_instructions',
+            
+            # Verification
+            'verification_checks', 'verification_notes', 'verified_by', 'verified_at',
+            
+            # Signatures
+            'beneficiary_signature', 'representative_signature', 'witness_signature',
+            'witness_name',
+            
+            # Documentation
+            'handover_document', 'receipt_generated', 'delivery_note', 'handover_notes',
+            
+            # Entitlement
+            'based_on_entitlement', 'entitlement_amount', 'overrides_entitlement',
+            'emergency_reason', 'approved_by',
+            
+            # Calculated fields
+            'total_coupons', 'total_litres', 'total_value', 'first_serial', 'last_serial',
+            
+            # Status
+            'is_verified', 'is_completed', 'can_be_modified',
+            
+            # Timestamps
+            'created', 'updated'
+        ]
+        read_only_fields = [
+            'id', 'handover_id', 'total_coupons', 'total_litres', 'total_value',
+            'first_serial', 'last_serial', 'is_verified', 'is_completed', 'can_be_modified',
+            'created', 'updated'
+        ]
+    
+    def create(self, validated_data):
+        """Enhanced create method for handover with coupon association"""
+        # Extract coupon data if provided in context
+        coupons_data = self.context.get('coupons_data', [])
+        
+        # Create the handover
+        handover = CouponHandover.objects.create(**validated_data)
+        
+        # Add coupons to handover if provided
+        if coupons_data:
+            coupon_ids = [coupon_data.get('id') for coupon_data in coupons_data if coupon_data.get('id')]
+            coupons = Coupon.objects.filter(id__in=coupon_ids, status='AVAILABLE')
+            
+            if coupons.exists():
+                handover.add_coupons(list(coupons))
+        
+        return handover
+    
+    def update(self, instance, validated_data):
+        """Enhanced update method with workflow validation"""
+        # Prevent modification if handover is completed
+        if not instance.can_be_modified and instance.status not in ['VERIFIED', 'HANDED_OVER']:
+            raise serializers.ValidationError("Cannot modify completed handover")
+        
+        # Handle status transitions
+        new_status = validated_data.get('status', instance.status)
+        if new_status != instance.status:
+            self._validate_status_transition(instance.status, new_status)
+        
+        return super().update(instance, validated_data)
+    
+    def _validate_status_transition(self, current_status, new_status):
+        """Validate status transitions are logical"""
+        valid_transitions = {
+            'PENDING': ['CONFIGURED', 'CANCELLED'],
+            'CONFIGURED': ['VERIFIED', 'CANCELLED'],
+            'VERIFIED': ['HANDED_OVER', 'CANCELLED'],
+            'HANDED_OVER': ['RECEIVED', 'CANCELLED'],
+            'RECEIVED': ['CONFIRMED'],
+            'CONFIRMED': [],  # Final state
+            'CANCELLED': []   # Final state
+        }
+        
+        if new_status not in valid_transitions.get(current_status, []):
+            raise serializers.ValidationError(
+                f"Invalid status transition from {current_status} to {new_status}"
+            )
 
 
 
@@ -210,6 +509,9 @@ class BoxSerializer(serializers.ModelSerializer):
     assigned_to_details = SimpleSubCenterSerializer(source='assigned_to', read_only=True, allow_null=True)
     received_by_details = SimpleUserSerializer(source='received_by', read_only=True, allow_null=True)
     
+    # Current user's full name for auto-fill functionality
+    current_user_full_name = serializers.SerializerMethodField(read_only=True)
+    
     # Handle received_at field to accept both date and datetime
     received_at = serializers.DateTimeField(required=False, allow_null=True)
     
@@ -243,29 +545,79 @@ class BoxSerializer(serializers.ModelSerializer):
     totalLitres = serializers.DecimalField(max_digits=10, decimal_places=2, source='total_litres', required=False)
     firstCouponId = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
     lastCouponId = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    
+    # New harmonized fields for complete frontend support
+    supplier = serializers.CharField(required=False, allow_blank=True)
+    receivedBySignature = serializers.CharField(source='received_by_signature', required=False, allow_blank=True)
+    damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
+    deliveryNote = serializers.CharField(source='delivery_note', required=False, allow_blank=True)
+    invoiceNumber = serializers.CharField(source='invoice_number', required=False, allow_blank=True)
+    qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
+    
+    # Date/Time handling - frontend sends separate fields
+    receivedDate = serializers.DateField(source='received_date', required=False, allow_null=True)
+    receivedTime = serializers.TimeField(source='received_time', required=False, allow_null=True)
+    receivedBy = serializers.CharField(source='received_by.get_full_name', read_only=True)
+    
+    # Status harmonization
+    status = serializers.ChoiceField(
+        choices=[
+            ('PENDING', 'Pending Receipt'),
+            ('RECEIVED', 'Received'),
+            ('VERIFIED', 'Verified'),
+            ('DISPATCHED', 'Dispatched'),
+            ('DAMAGED', 'Damaged'),
+            ('ARCHIVED', 'Archived'),
+        ],
+        required=False
+    )
+    
+    # Books generated data
+    booksGenerated = serializers.ListField(source='book_details_json', required=False, allow_empty=True)
 
     class Meta:
         model = Box
-        # Include all fields including the mapped ones and new complex data fields
+        # Complete harmonized field list - all frontend fields mapped
         fields = [
-            'id', 'box_code', 'fuel_type', 'denomination', 'coupon_amount',
-            'first_coupon_number', 'last_coupon_number',
-            'first_coupon_id', 'last_coupon_id', 
-            'number_of_books', 'coupons_per_book',
-            'total_litres', 'received_at', 'assigned_to', 
-            'assigned_to_details', 'received_by', 'received_by_details',
-            'notes', 'barcode', 'created', 'modified',
-            # Enhanced fields for frontend calculations
-            'total_coupons_calculated', 'fuel_price_per_litre_usd', 'exchange_rate_zwg_usd',
-            'total_value_usd', 'total_value_zwg', 'calculation_mode', 'book_details_json',
+            # Core identification
+            'id', 'box_code', 'boxId', 'box_id', 'barcode',
+            
+            # Fuel and structure info
+            'fuel_type', 'fuelType', 'denomination', 'coupon_amount', 'couponAmount',
+            'number_of_books', 'numberOfBooks', 'coupons_per_book', 'couponsPerBook',
+            
+            # Coupon serial numbers
+            'first_coupon_number', 'last_coupon_number', 'first_coupon_id', 'last_coupon_id',
+            'firstCouponId', 'lastCouponId',
+            
+            # Calculated totals
+            'total_coupons_calculated', 'total_coupons', 'total_litres', 'totalLitres',
+            
+            # Financial calculations
+            'fuel_price_per_litre_usd', 'fuelPriceUSD', 'fuel_price_per_litre_usd',
+            'exchange_rate_zwg_usd', 'exchange_rate', 'total_value_usd', 'total_value_zwg',
+            'monetary_value_usd', 'monetaryValueUSD',
+            
+            # Receipt information
+            'received_at', 'received_date', 'received_time', 'receivedDate', 'receivedTime',
+            'received_by', 'received_by_details', 'receivedBy', 'current_user_full_name',
+            'supplier', 'delivery_note', 'deliveryNote', 'invoice_number', 'invoiceNumber',
+            
+            # Status and workflow
             'status', 'verification_notes', 'verified_at', 'verified_by',
-            # Frontend complex data fields (write-only)
-            'book_details', 'total_coupons',
-            # Frontend-only fields (write-only)
-            'monetary_value_usd', 'exchange_rate', 'fuelPriceUSD', 'monetaryValueUSD',
-            # Alternative frontend field names
-            'boxId', 'box_id', 'fuelType', 'couponAmount', 'numberOfBooks', 'couponsPerBook', 
-            'totalLitres', 'firstCouponId', 'lastCouponId'
+            
+            # Quality and documentation
+            'received_by_signature', 'receivedBySignature', 'damage_report', 'damageReport',
+            'qr_code_data', 'qrCodeData', 'notes',
+            
+            # Assignment and processing
+            'assigned_to', 'assigned_to_details',
+            
+            # Complex data structures
+            'calculation_mode', 'book_details_json', 'book_details', 'booksGenerated',
+            
+            # Timestamps
+            'created', 'modified',
         ]
         read_only_fields = [
             'id', 'assigned_to_details', 
@@ -278,9 +630,23 @@ class BoxSerializer(serializers.ModelSerializer):
             'fuel_type': {'required': False},
             'denomination': {'required': False},
             'number_of_books': {'required': False},
-            'coupons_per_book': {'required': False},
+            'coupons_per_book': {
+                'required': False,
+                'min_value': 1,
+                'max_value': 100,
+                'help_text': 'Number of coupons per book (1-100 range)'
+            },
             'total_litres': {'required': False},
         }
+    
+    def get_current_user_full_name(self, obj):
+        """
+        Return the current user's full name for auto-fill functionality
+        """
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            return f"{request.user.first_name} {request.user.last_name}".strip()
+        return ""
     
     def validate(self, data):
         """
@@ -295,17 +661,71 @@ class BoxSerializer(serializers.ModelSerializer):
         box_code = data.get('box_code') or data.get('boxId') or data.get('box_id')
         logger.info(f"box_code value: '{box_code}'")
         
-        # Generate box_code if not provided (make it optional)
+        # Generate unique box_code if not provided or empty
         if not box_code or (isinstance(box_code, str) and box_code.strip() == ''):
-            # Auto-generate box_code instead of raising error
+            # Auto-generate unique box_code
             import datetime
-            auto_box_code = f"FCB-{datetime.datetime.now().year}-AUTO-{datetime.datetime.now().strftime('%m%d%H%M')}"
-            logger.info(f"Auto-generated box_code: {auto_box_code}")
-            data['box_code'] = auto_box_code
+            import uuid
+            from django.db import models
+            
+            base_code = f"FCB-{datetime.datetime.now().year}"
+            attempt = 0
+            max_attempts = 10
+            
+            # Try to generate a unique box_code
+            while attempt < max_attempts:
+                if attempt == 0:
+                    # First attempt: use timestamp
+                    auto_box_code = f"{base_code}-AUTO-{datetime.datetime.now().strftime('%m%d%H%M%S')}"
+                else:
+                    # Subsequent attempts: add random suffix
+                    random_suffix = str(uuid.uuid4())[:8].upper()
+                    auto_box_code = f"{base_code}-AUTO-{datetime.datetime.now().strftime('%m%d%H%M')}-{random_suffix}"
+                
+                # Check if this box_code already exists
+                from .models import Box
+                if not Box.objects.filter(box_code=auto_box_code).exists():
+                    logger.info(f"Generated unique box_code: {auto_box_code}")
+                    data['box_code'] = auto_box_code
+                    break
+                    
+                attempt += 1
+                logger.warning(f"box_code {auto_box_code} already exists, trying again (attempt {attempt})")
+            
+            if attempt >= max_attempts:
+                # Fallback: use UUID
+                unique_suffix = str(uuid.uuid4())[:12].upper()
+                auto_box_code = f"{base_code}-{unique_suffix}"
+                logger.info(f"Fallback unique box_code: {auto_box_code}")
+                data['box_code'] = auto_box_code
+                
         else:
+            # Validate provided box_code for uniqueness
+            from .models import Box
+            if Box.objects.filter(box_code=box_code).exists():
+                raise serializers.ValidationError({
+                    'box_code': f'Coupon Box with box code "{box_code}" already exists. Please use a different code.'
+                })
+            
             # Ensure box_code is set in the data for model creation
             if not data.get('box_code') and box_code:
                 data['box_code'] = box_code
+        
+        # Validate coupons_per_book range (1-100)
+        coupons_per_book = data.get('coupons_per_book') or data.get('couponsPerBook')
+        if coupons_per_book is not None:
+            try:
+                coupons_count = int(coupons_per_book)
+                if coupons_count < 1 or coupons_count > 100:
+                    raise serializers.ValidationError({
+                        'coupons_per_book': 'Number of coupons per book must be between 1 and 100'
+                    })
+                # Ensure the field is set correctly
+                data['coupons_per_book'] = coupons_count
+            except (ValueError, TypeError):
+                raise serializers.ValidationError({
+                    'coupons_per_book': 'Coupons per book must be a valid number between 1 and 100'
+                })
         
         # All fields are now optional - no validation required
         return data
@@ -546,25 +966,171 @@ class ProgramSerializer(serializers.ModelSerializer):
     # Use SimpleSerializers for related fields
     organizer_details = SimpleUserSerializer(source='organizer', read_only=True, allow_null=True)
     sub_center_details = SimpleSubCenterSerializer(source='sub_center', read_only=True, allow_null=True)
+    
+    # Computed display fields
     program_type_display = serializers.CharField(source='get_program_type_display', read_only=True)
+    status_display = serializers.CharField(read_only=True)
+    
+    # Computed status fields
     duration_days = serializers.ReadOnlyField()
     is_upcoming = serializers.ReadOnlyField()
     is_ongoing = serializers.ReadOnlyField()
+    is_completed = serializers.ReadOnlyField()
+    
+    # Computed metrics
+    attendees_count = serializers.ReadOnlyField()
+    completion_percentage = serializers.ReadOnlyField()
+    
+    # Attendees list (for detailed views)
+    attendees = serializers.SerializerMethodField()
+    
+    # Formatted names for convenience
+    organizer_name = serializers.SerializerMethodField()
+    sub_center_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Program
         fields = [
-            'id', 'title', 'program_type', 'program_type_display', 'description',
-            'scheduled_date', 'end_date', 'location', 'organizer', 'organizer_details',
-            'sub_center', 'sub_center_details', 'expected_participants',
-            'fuel_allocation_approved', 'is_active', 'notes',
-            'duration_days', 'is_upcoming', 'is_ongoing',
+            # Core identity
+            'id', 'title', 'program_type', 'program_type_display', 
+            
+            # Scheduling
+            'scheduled_date', 'end_date', 'duration_days',
+            
+            # Details
+            'description', 'location', 'notes',
+            
+            # Relationships
+            'organizer', 'organizer_details', 'organizer_name',
+            'sub_center', 'sub_center_details', 'sub_center_name',
+            
+            # Management
+            'expected_participants', 'fuel_allocation_approved', 'is_active',
+            
+            # Status & Progress
+            'status_display', 'is_upcoming', 'is_ongoing', 'is_completed',
+            'attendees_count', 'completion_percentage',
+            
+            # Attendees (for detailed views)
+            'attendees',
+            
+            # Timestamps
             'created', 'modified'
         ]
         read_only_fields = [
             'id', 'created', 'modified', 'organizer_details', 'sub_center_details',
-            'program_type_display', 'duration_days', 'is_upcoming', 'is_ongoing'
+            'program_type_display', 'status_display', 'duration_days', 'is_upcoming', 
+            'is_ongoing', 'is_completed', 'attendees_count', 'completion_percentage',
+            'attendees', 'organizer_name', 'sub_center_name'
         ]
+    
+    def get_attendees(self, obj):
+        """Get list of attendees for detailed program views"""
+        attendees = obj.get_attendees()
+        return SimpleUserSerializer(attendees, many=True).data
+    
+    def get_organizer_name(self, obj):
+        """Get formatted organizer name"""
+        if obj.organizer:
+            return f"{obj.organizer.first_name} {obj.organizer.last_name}".strip()
+        return None
+    
+    def get_sub_center_name(self, obj):
+        """Get sub-center name"""
+        return obj.sub_center.name if obj.sub_center else None
+
+
+class ProgramListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for program list views"""
+    
+    program_type_display = serializers.CharField(source='get_program_type_display', read_only=True)
+    status_display = serializers.CharField(read_only=True)
+    organizer_name = serializers.SerializerMethodField()
+    sub_center_name = serializers.SerializerMethodField()
+    
+    # Essential computed fields for list view
+    duration_days = serializers.ReadOnlyField()
+    is_upcoming = serializers.ReadOnlyField()
+    is_ongoing = serializers.ReadOnlyField()
+    attendees_count = serializers.ReadOnlyField()
+    completion_percentage = serializers.ReadOnlyField()
+
+    class Meta:
+        model = Program
+        fields = [
+            'id', 'title', 'program_type', 'program_type_display',
+            'scheduled_date', 'end_date', 'duration_days',
+            'location', 'organizer_name', 'sub_center_name',
+            'expected_participants', 'is_active', 'status_display',
+            'is_upcoming', 'is_ongoing', 'attendees_count', 
+            'completion_percentage', 'fuel_allocation_approved'
+        ]
+    
+    def get_organizer_name(self, obj):
+        """Get formatted organizer name"""
+        if obj.organizer:
+            return f"{obj.organizer.first_name} {obj.organizer.last_name}".strip()
+        return None
+    
+    def get_sub_center_name(self, obj):
+        """Get sub-center name"""
+        return obj.sub_center.name if obj.sub_center else None
+
+
+class ProgramWriteSerializer(serializers.ModelSerializer):
+    """Serializer for creating and updating programs"""
+    
+    class Meta:
+        model = Program
+        fields = [
+            'title', 'program_type', 'description', 'location',
+            'scheduled_date', 'end_date', 'organizer', 'sub_center',
+            'expected_participants', 'fuel_allocation_approved', 
+            'is_active', 'notes'
+        ]
+    
+    def validate(self, data):
+        """Validate program data"""
+        scheduled_date = data.get('scheduled_date')
+        end_date = data.get('end_date')
+        
+        # Validate dates
+        if scheduled_date and end_date:
+            if end_date <= scheduled_date:
+                raise serializers.ValidationError(
+                    "End date must be after scheduled date."
+                )
+        
+        # Validate organizer permissions
+        organizer = data.get('organizer')
+        if organizer and hasattr(organizer, 'role'):
+            valid_roles = ['MAIN_CENTER', 'SUB_CENTER', 'ADMIN', 'SUPER_ADMIN']
+            if organizer.role not in valid_roles:
+                raise serializers.ValidationError(
+                    "Organizer must have appropriate role permissions."
+                )
+        
+        return data
+    
+    def validate_title(self, value):
+        """Validate program title"""
+        if len(value.strip()) < 3:
+            raise serializers.ValidationError(
+                "Program title must be at least 3 characters long."
+            )
+        return value.strip()
+    
+    def validate_expected_participants(self, value):
+        """Validate expected participants count"""
+        if value < 0:
+            raise serializers.ValidationError(
+                "Expected participants cannot be negative."
+            )
+        if value > 10000:
+            raise serializers.ValidationError(
+                "Expected participants seems unusually high. Please verify."
+            )
+        return value
 
 # class AttendanceSerializer(serializers.ModelSerializer):
 #     # Use SimpleSerializers for related fields
@@ -1026,3 +1592,485 @@ class FuelRequirementConfigurationSerializer(serializers.ModelSerializer):
                 )
         
         return data
+
+
+# ======================= HARMONIZED BENEFICIARY SERIALIZER =======================
+
+class HarmonizedBeneficiaryProfileSerializer(serializers.ModelSerializer):
+    """
+    Complete harmonized serializer with 100% frontend compatibility.
+    
+    This serializer ensures perfect field alignment with frontend TypeScript interfaces:
+    - BeneficiaryManagement.tsx (19 fields)
+    - BeneficiaryAccountDashboard.tsx (12 structured fields)
+    
+    Field Mapping Strategy:
+    - SerializerMethodField for computed properties
+    - Field aliases for frontend-compatible naming
+    - Structured data methods for nested objects
+    """
+    
+    # === FRONTEND-COMPATIBLE FIELD MAPPINGS ===
+    
+    # Basic identity fields (direct mapping)
+    id = serializers.ReadOnlyField()
+    parliamentaryId = serializers.CharField(source='parliamentary_id', read_only=True)
+    
+    # Computed user fields for frontend compatibility
+    name = serializers.SerializerMethodField()
+    title = serializers.CharField(source='position', read_only=True)
+    phoneNumber = serializers.CharField(source='mobile_phone', read_only=True)
+    email = serializers.CharField(source='official_email', read_only=True)
+    address = serializers.CharField(source='full_address', read_only=True)
+    
+    # Date fields with proper formatting
+    dateOfBirth = serializers.SerializerMethodField()
+    createdAt = serializers.SerializerMethodField()
+    lastActivity = serializers.SerializerMethodField()
+    
+    # Simple fields with frontend naming
+    nationalId = serializers.CharField(source='national_id', read_only=True)
+    profilePhoto = serializers.SerializerMethodField()
+    party = serializers.CharField(source='party_affiliation', read_only=True)
+    status = serializers.CharField(read_only=True)
+    
+    # Related object fields (nested)
+    category = serializers.StringRelatedField(read_only=True)
+    constituency = serializers.StringRelatedField(read_only=True)
+    vehicleCategory = serializers.StringRelatedField(source='vehicle_category', read_only=True)
+    
+    # === STRUCTURED DATA FIELDS FOR DASHBOARD ===
+    
+    contactInfo = serializers.SerializerMethodField()
+    vehicleInfo = serializers.SerializerMethodField()
+    allocationProfile = serializers.SerializerMethodField()
+    entitlements = serializers.SerializerMethodField()
+    fuelUsage = serializers.SerializerMethodField()
+    vehicles = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = HarmonizedBeneficiaryProfile
+        fields = [
+            # BeneficiaryManagement.tsx fields (19 fields)
+            'id',
+            'parliamentaryId',
+            'name',
+            'title',
+            'phoneNumber',
+            'email',
+            'address',
+            'dateOfBirth',
+            'nationalId',
+            'profilePhoto',
+            'lastActivity',
+            'createdAt',
+            'category',
+            'constituency',
+            'vehicleCategory',
+            'party',
+            'status',
+            'position',
+            'department',
+            
+            # BeneficiaryAccountDashboard.tsx structured fields (12 structured fields)
+            'contactInfo',
+            'vehicleInfo',
+            'allocationProfile',
+            'entitlements',
+            'fuelUsage',
+            'vehicles',
+            
+            # Additional detailed fields for comprehensive API
+            'employeeId',
+            'officeLocation',
+            'officePhone',
+            'personalEmail',
+            'vehicleMake',
+            'vehicleModel',
+            'vehicleYear',
+            'engineSize',
+            'vehicleRegistration',
+            'fuelType',
+            'baseAllocation',
+            'categoryMultiplier',
+            'engineMultiplier',
+            'monthlyEntitlementLitres',
+            'maxPerTransaction',
+            'isActiveBeneficiary',
+            'currentBalance',
+            'usedThisMonth',
+            'lastMonthUsage',
+            'yearToDateUsage',
+            'totalUsageAllTime',
+            'lastAllocationDate',
+            'joinDate',
+            'lastLogin'
+        ]
+        read_only_fields = ['id', 'created', 'modified']
+    
+    # === COMPUTED FIELD METHODS ===
+    
+    def get_name(self, obj):
+        """Get full name combining first and last name"""
+        return obj.get_full_name()
+    
+    def get_dateOfBirth(self, obj):
+        """Format date of birth for frontend"""
+        return obj.date_of_birth.isoformat() if obj.date_of_birth else None
+    
+    def get_createdAt(self, obj):
+        """Format creation date for frontend"""
+        return obj.join_date.isoformat() if obj.join_date else None
+    
+    def get_lastActivity(self, obj):
+        """Get last activity from user model"""
+        return obj.user.last_activity.isoformat() if obj.user.last_activity else None
+    
+    def get_profilePhoto(self, obj):
+        """Get profile photo from user model"""
+        if hasattr(obj.user, 'profile_picture') and obj.user.profile_picture:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.user.profile_picture.url)
+        return None
+    
+    # === STRUCTURED DATA METHODS ===
+    
+    def get_contactInfo(self, obj):
+        """Get contact information as structured object"""
+        return obj.get_contact_info()
+    
+    def get_vehicleInfo(self, obj):
+        """Get vehicle information as structured object"""
+        return obj.get_vehicle_info()
+    
+    def get_allocationProfile(self, obj):
+        """Get allocation profile as structured object"""
+        return obj.get_allocation_profile()
+    
+    def get_entitlements(self, obj):
+        """Get entitlements as structured object"""
+        return obj.get_entitlements()
+    
+    def get_fuelUsage(self, obj):
+        """Get fuel usage as structured object"""
+        return obj.get_fuel_usage()
+    
+    def get_vehicles(self, obj):
+        """Get vehicles array for frontend compatibility"""
+        return obj.get_vehicles()
+
+
+class HarmonizedBeneficiaryProfileWriteSerializer(serializers.ModelSerializer):
+    """
+    Write serializer for creating/updating harmonized beneficiary profiles.
+    Separate from read serializer to handle different field requirements.
+    """
+    
+    class Meta:
+        model = HarmonizedBeneficiaryProfile
+        fields = [
+            'parliamentary_id',
+            'employee_id',
+            'category',
+            'constituency',
+            'vehicle_category',
+            'position',
+            'department',
+            'party_affiliation',
+            'date_of_birth',
+            'national_id',
+            'full_address',
+            'office_location',
+            'office_phone',
+            'mobile_phone',
+            'official_email',
+            'personal_email',
+            'vehicle_make',
+            'vehicle_model',
+            'vehicle_year',
+            'engine_size',
+            'vehicle_registration',
+            'fuel_type',
+            'base_allocation',
+            'max_per_transaction',
+            'status',
+            'is_active_beneficiary'
+        ]
+    
+    def validate_parliamentary_id(self, value):
+        """Validate parliamentary ID uniqueness"""
+        if self.instance:
+            existing = HarmonizedBeneficiaryProfile.objects.filter(
+                parliamentary_id=value
+            ).exclude(id=self.instance.id)
+        else:
+            existing = HarmonizedBeneficiaryProfile.objects.filter(
+                parliamentary_id=value
+            )
+        
+        if existing.exists():
+            raise serializers.ValidationError("Parliamentary ID must be unique.")
+        
+        return value
+    
+    def validate_national_id(self, value):
+        """Validate national ID uniqueness"""
+        if self.instance:
+            existing = HarmonizedBeneficiaryProfile.objects.filter(
+                national_id=value
+            ).exclude(id=self.instance.id)
+        else:
+            existing = HarmonizedBeneficiaryProfile.objects.filter(
+                national_id=value
+            )
+        
+        if existing.exists():
+            raise serializers.ValidationError("National ID must be unique.")
+        
+        return value
+    
+    def validate_vehicle_registration(self, value):
+        """Validate vehicle registration uniqueness"""
+        if self.instance:
+            existing = HarmonizedBeneficiaryProfile.objects.filter(
+                vehicle_registration=value
+            ).exclude(id=self.instance.id)
+        else:
+            existing = HarmonizedBeneficiaryProfile.objects.filter(
+                vehicle_registration=value
+            )
+        
+        if existing.exists():
+            raise serializers.ValidationError("Vehicle registration must be unique.")
+        
+        return value
+
+
+class HarmonizedBeneficiaryProfileListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for list views with essential fields only.
+    Optimized for performance when listing many beneficiaries.
+    """
+    
+    name = serializers.SerializerMethodField()
+    category = serializers.StringRelatedField(read_only=True)
+    constituency = serializers.StringRelatedField(read_only=True)
+    
+    class Meta:
+        model = HarmonizedBeneficiaryProfile
+        fields = [
+            'id',
+            'parliamentary_id',
+            'name',
+            'category',
+            'constituency',
+            'position',
+            'status',
+            'monthly_entitlement_litres',
+            'current_balance',
+            'join_date'
+        ]
+    
+    def get_name(self, obj):
+        """Get full name combining first and last name"""
+        return obj.get_full_name()
+
+
+# ===================================================================
+# DYNAMIC FUEL ALLOCATION SYSTEM SERIALIZERS
+# ===================================================================
+
+class FuelAllocationRuleSerializer(serializers.ModelSerializer):
+    """Serializer for Fuel Allocation Rules"""
+    
+    class Meta:
+        model = FuelAllocationRule
+        fields = [
+            'id', 'rule_name', 'description', 'is_active',
+            'engine_capacity_bands', 'distance_calculation_mode',
+            'session_top_up_mode', 'created_date', 'last_modified'
+        ]
+        read_only_fields = ['id', 'created_date', 'last_modified']
+
+    def validate_engine_capacity_bands(self, value):
+        """Validate engine capacity bands structure"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Engine capacity bands must be a dictionary")
+        
+        required_keys = ['small_engine', 'medium_engine', 'large_engine']
+        for key in required_keys:
+            if key not in value:
+                raise serializers.ValidationError(f"Missing required key: {key}")
+            if not isinstance(value[key], dict):
+                raise serializers.ValidationError(f"{key} must be a dictionary")
+            if 'min_cc' not in value[key] or 'max_cc' not in value[key] or 'constant' not in value[key]:
+                raise serializers.ValidationError(f"{key} must have min_cc, max_cc, and constant")
+        
+        return value
+
+
+class FuelPriceSerializer(serializers.ModelSerializer):
+    """Serializer for Fuel Prices"""
+    
+    class Meta:
+        model = FuelPrice
+        fields = [
+            'id', 'fuel_type', 'price_usd_per_litre', 'price_zwg_per_litre',
+            'exchange_rate_usd_to_zwg', 'effective_from', 'effective_to',
+            'is_current', 'created_date', 'last_modified'
+        ]
+        read_only_fields = ['id', 'created_date', 'last_modified']
+
+    def validate(self, data):
+        """Validate fuel price data"""
+        if data.get('effective_to') and data.get('effective_from'):
+            if data['effective_to'] <= data['effective_from']:
+                raise serializers.ValidationError("Effective to date must be after effective from date")
+        
+        if data.get('price_usd_per_litre', 0) <= 0:
+            raise serializers.ValidationError("USD price must be greater than 0")
+        
+        if data.get('exchange_rate_usd_to_zwg', 0) <= 0:
+            raise serializers.ValidationError("Exchange rate must be greater than 0")
+        
+        return data
+
+
+class DynamicAllocationSerializer(serializers.ModelSerializer):
+    """Serializer for Dynamic Allocations"""
+    
+    beneficiary_name = serializers.CharField(source='beneficiary.get_full_name', read_only=True)
+    constituency_name = serializers.CharField(source='beneficiary.constituency.name', read_only=True)
+    session_name = serializers.CharField(source='session.name', read_only=True)
+    rule_name = serializers.CharField(source='allocation_rule.rule_name', read_only=True)
+    
+    class Meta:
+        model = DynamicAllocation
+        fields = [
+            'id', 'beneficiary', 'beneficiary_name', 'constituency_name',
+            'session', 'session_name', 'allocation_rule', 'rule_name',
+            'calculated_allocation_usd', 'calculated_allocation_litres',
+            'final_allocation_litres', 'is_committed', 'committed_by',
+            'committed_date', 'calculation_details', 'created_date',
+            'last_modified'
+        ]
+        read_only_fields = [
+            'id', 'beneficiary_name', 'constituency_name', 'session_name',
+            'rule_name', 'committed_date', 'created_date', 'last_modified'
+        ]
+
+    def validate(self, data):
+        """Validate dynamic allocation data"""
+        if data.get('is_committed') and not data.get('committed_by'):
+            raise serializers.ValidationError("Committed by is required when allocation is committed")
+        
+        if data.get('final_allocation_litres', 0) < 0:
+            raise serializers.ValidationError("Final allocation cannot be negative")
+        
+        return data
+
+
+class DynamicAllocationPreviewSerializer(serializers.Serializer):
+    """Serializer for allocation preview requests"""
+    
+    beneficiary_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text="List of beneficiary IDs to calculate allocations for"
+    )
+    session_id = serializers.IntegerField(help_text="Parliament session ID")
+    allocation_rule_id = serializers.IntegerField(help_text="Allocation rule ID to use")
+    
+    def validate_beneficiary_ids(self, value):
+        """Validate beneficiary IDs"""
+        if not value:
+            raise serializers.ValidationError("At least one beneficiary ID is required")
+        
+        # Check if all beneficiaries exist
+        from .models import BeneficiaryProfile
+        existing_ids = set(BeneficiaryProfile.objects.filter(id__in=value).values_list('id', flat=True))
+        missing_ids = set(value) - existing_ids
+        if missing_ids:
+            raise serializers.ValidationError(f"Beneficiaries not found: {list(missing_ids)}")
+        
+        return value
+    
+    def validate_session_id(self, value):
+        """Validate session ID"""
+        from .models import ParliamentSession
+        if not ParliamentSession.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Parliament session not found")
+        return value
+    
+    def validate_allocation_rule_id(self, value):
+        """Validate allocation rule ID"""
+        from .models import FuelAllocationRule
+        if not FuelAllocationRule.objects.filter(id=value, is_active=True).exists():
+            raise serializers.ValidationError("Active allocation rule not found")
+        return value
+
+
+class AllocationPreviewResultSerializer(serializers.Serializer):
+    """Serializer for allocation preview results"""
+    
+    beneficiary_id = serializers.IntegerField()
+    beneficiary_name = serializers.CharField()
+    constituency_name = serializers.CharField()
+    engine_capacity_cc = serializers.IntegerField()
+    distance_from_parliament_km = serializers.DecimalField(max_digits=10, decimal_places=2)
+    calculated_allocation_usd = serializers.DecimalField(max_digits=10, decimal_places=2)
+    calculated_allocation_litres = serializers.DecimalField(max_digits=10, decimal_places=2)
+    session_top_up_litres = serializers.DecimalField(max_digits=10, decimal_places=2)
+    final_allocation_litres = serializers.DecimalField(max_digits=10, decimal_places=2)
+    calculation_breakdown = serializers.DictField()
+
+
+class DynamicAllocationAnalyticsSerializer(serializers.Serializer):
+    """Serializer for allocation analytics data"""
+    
+    total_allocations = serializers.IntegerField()
+    total_litres_allocated = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_usd_allocated = serializers.DecimalField(max_digits=15, decimal_places=2)
+    committed_allocations = serializers.IntegerField()
+    pending_allocations = serializers.IntegerField()
+    average_allocation_per_beneficiary = serializers.DecimalField(max_digits=10, decimal_places=2)
+    top_constituencies = serializers.ListField(child=serializers.DictField())
+    allocation_trends = serializers.ListField(child=serializers.DictField())
+    engine_capacity_distribution = serializers.DictField()
+
+
+class CalculationRequestSerializer(serializers.Serializer):
+    """Serializer for individual allocation calculation requests"""
+    
+    beneficiary_id = serializers.IntegerField()
+    session_id = serializers.IntegerField()
+    allocation_rule_id = serializers.IntegerField()
+    override_distance = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False,
+        help_text="Optional override for distance calculation"
+    )
+    override_engine_capacity = serializers.IntegerField(
+        required=False,
+        help_text="Optional override for engine capacity"
+    )
+    
+    def validate_beneficiary_id(self, value):
+        """Validate beneficiary ID"""
+        from .models import BeneficiaryProfile
+        if not BeneficiaryProfile.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Beneficiary not found")
+        return value
+    
+    def validate_session_id(self, value):
+        """Validate session ID"""
+        from .models import ParliamentSession
+        if not ParliamentSession.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Parliament session not found")
+        return value
+    
+    def validate_allocation_rule_id(self, value):
+        """Validate allocation rule ID"""
+        from .models import FuelAllocationRule
+        if not FuelAllocationRule.objects.filter(id=value, is_active=True).exists():
+            raise serializers.ValidationError("Active allocation rule not found")
+        return value
