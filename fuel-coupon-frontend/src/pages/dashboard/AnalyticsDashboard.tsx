@@ -61,9 +61,6 @@ import {
   Pie,
 } from 'recharts';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../../contexts/AuthContext';
-import apiClient from '../../api/apiClient';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -108,83 +105,53 @@ const AnalyticsDashboard = () => {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<DashboardStats>({
     queryKey: ['analytics-dashboard-stats', dateRange],
     queryFn: async () => {
-      try {
-        const response = await apiClient.get('/analytics/', {
-          params: {
-            start_date: format(dateRange[0], 'yyyy-MM-dd'),
-            end_date: format(dateRange[1], 'yyyy-MM-dd'),
-          },
-        });
-        
-        const data = response.data;
-        
-        return {
-          totalCoupons: data.fuel_summary?.total_coupons_issued || 0,
-          activeCoupons: data.fuel_summary?.active_coupons || 0,
-          totalBeneficiaries: data.beneficiary_summary?.total_active || 0,
-          totalAllocations: data.allocation_summary?.total_allocations || 0,
-          pendingApprovals: data.allocation_summary?.pending_approvals || 0,
-          monthlyUsage: data.fuel_summary?.usage_rate || 0,
-          fuelSavings: data.financial?.fuel_savings || 0,
-          systemEfficiency: data.system_summary?.efficiency_rate || 0,
-        };
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
-        // Fallback data structure
-        return {
-          totalCoupons: 0,
-          activeCoupons: 0,
-          totalBeneficiaries: 0,
-          totalAllocations: 0,
-          pendingApprovals: 0,
-          monthlyUsage: 0,
-          fuelSavings: 0,
-          systemEfficiency: 0,
-        };
-      }
+      // Simulated data - replace with actual API call
+      return {
+        totalCoupons: 15420,
+        activeCoupons: 12340,
+        totalBeneficiaries: 890,
+        totalAllocations: 45,
+        pendingApprovals: 23,
+        monthlyUsage: 78.5,
+        fuelSavings: 234567,
+        systemEfficiency: 94.2,
+      };
     },
   });
 
   const { data: chartData, isLoading: chartLoading } = useQuery<ChartData>({
     queryKey: ['analytics-dashboard-charts', dateRange],
     queryFn: async () => {
-      try {
-        const response = await apiClient.get('/analytics/', {
-          params: {
-            start_date: format(dateRange[0], 'yyyy-MM-dd'),
-            end_date: format(dateRange[1], 'yyyy-MM-dd'),
-            include_charts: true,
-          },
-        });
-        
-        const data = response.data;
-        
-        return {
-          usageTrend: data.charts?.usage_trend || [],
-          allocationByCategory: data.charts?.allocation_by_category || [
-            { category: 'MPs', amount: 0, color: '#1890ff' },
-            { category: 'Senators', amount: 0, color: '#52c41a' },
-            { category: 'Staff', amount: 0, color: '#faad14' },
-            { category: 'Officials', amount: 0, color: '#f5222d' },
-          ],
-          monthlyComparison: data.charts?.monthly_comparison || [],
-          topBeneficiaries: data.beneficiary_summary?.top_users || [],
-        };
-      } catch (error) {
-        console.error('Failed to fetch chart data:', error);
-        // Fallback data structure
-        return {
-          usageTrend: [],
-          allocationByCategory: [
-            { category: 'MPs', amount: 0, color: '#1890ff' },
-            { category: 'Senators', amount: 0, color: '#52c41a' },
-            { category: 'Staff', amount: 0, color: '#faad14' },
-            { category: 'Officials', amount: 0, color: '#f5222d' },
-          ],
-          monthlyComparison: [],
-          topBeneficiaries: [],
-        };
-      }
+      // Simulated data - replace with actual API call
+      const usageTrend = Array.from({ length: 30 }, (_, i) => ({
+        date: format(subDays(new Date(), 29 - i), 'MMM dd'),
+        amount: Math.floor(Math.random() * 1000) + 500,
+        efficiency: Math.floor(Math.random() * 20) + 80,
+      }));
+
+      return {
+        usageTrend,
+        allocationByCategory: [
+          { category: 'MPs', amount: 45, color: '#1890ff' },
+          { category: 'Senators', amount: 30, color: '#52c41a' },
+          { category: 'Staff', amount: 25, color: '#faad14' },
+          { category: 'Officials', amount: 15, color: '#f5222d' },
+        ],
+        monthlyComparison: [
+          { month: 'Jan', current: 4000, previous: 3800 },
+          { month: 'Feb', current: 3500, previous: 3200 },
+          { month: 'Mar', current: 4200, previous: 3900 },
+          { month: 'Apr', current: 3800, previous: 3600 },
+          { month: 'May', current: 4500, previous: 4100 },
+        ],
+        topBeneficiaries: [
+          { name: 'Hon. John Doe', usage: 156, efficiency: 95 },
+          { name: 'Hon. Jane Smith', usage: 142, efficiency: 92 },
+          { name: 'Hon. Mike Johnson', usage: 138, efficiency: 89 },
+          { name: 'Hon. Sarah Wilson', usage: 134, efficiency: 87 },
+          { name: 'Hon. David Brown', usage: 128, efficiency: 85 },
+        ],
+      };
     },
   });
 

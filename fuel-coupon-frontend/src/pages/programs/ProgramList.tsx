@@ -42,6 +42,7 @@ import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import type { ColumnsType } from 'antd/es/table';
+import { Program } from '../../types/models'; // Import harmonized Program interface
 
 // Extend dayjs with isBetween plugin
 dayjs.extend(isBetween);
@@ -50,34 +51,7 @@ const { Title, Text } = Typography;
 const { Search } = Input;
 const { RangePicker } = DatePicker;
 
-interface Program {
-  id: string;
-  title: string;
-  program_type: 'SESSION' | 'COMMITTEE' | 'WORKSHOP' | 'OUTREACH' | 'CONFERENCE' | 
-                'CEREMONY' | 'INSPECTION' | 'CAMPAIGN' | 'NATIONAL_EVENT' | 'CONSTITUENCY' |
-                'DEBATE' | 'BUDGET_SESSION' | 'POLICY_MEETING' | 'PUBLIC_HEARING' | 
-                'DIPLOMATIC' | 'OTHER';
-  program_type_display?: string;
-  scheduled_date: string;
-  end_date?: string;
-  description: string;
-  location: string;
-  organizer: {
-    id: string;
-    username: string;
-    first_name: string;
-    last_name: string;
-  };
-  is_active: boolean;
-  sub_center?: {
-    id: string;
-    name: string;
-  };
-  attendees_count?: number;
-  completion_percentage?: number;
-  created: string;
-  modified: string;
-}
+// Remove duplicate Program interface - using harmonized version from types/models
 
 const ProgramList = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -208,20 +182,20 @@ const ProgramList = () => {
   };
 
   const getStatusTag = (program: Program) => {
-    const now = dayjs();
-    const scheduledDate = dayjs(program.scheduled_date);
-    const endDate = program.end_date ? dayjs(program.end_date) : scheduledDate;
-
+    // Use computed status fields from enhanced serializer
     if (!program.is_active) {
       return <Tag color="red">Inactive</Tag>;
     }
     
-    if (now.isBefore(scheduledDate)) {
+    // Use computed status fields instead of manual date calculations
+    if (program.is_upcoming) {
       return <Tag color="blue">Upcoming</Tag>;
-    } else if (now.isBetween(scheduledDate, endDate)) {
+    } else if (program.is_ongoing) {
       return <Tag color="orange">In Progress</Tag>;
-    } else {
+    } else if (program.is_completed) {
       return <Tag color="green">Completed</Tag>;
+    } else {
+      return <Tag color="default">{program.status_display || 'Scheduled'}</Tag>;
     }
   };
 
@@ -315,12 +289,14 @@ const ProgramList = () => {
           <div className="flex items-center gap-1">
             <UserOutlined className="text-gray-500" />
             <Text type="secondary" className="text-xs">
-              {record.organizer.first_name} {record.organizer.last_name}
+              {record.organizer_name || (record.organizer_details ? 
+                `${record.organizer_details.first_name} ${record.organizer_details.last_name}` : 
+                'No organizer')}
             </Text>
           </div>
-          {record.sub_center && (
+          {(record.sub_center_name || record.sub_center_details) && (
             <Badge 
-              count={record.sub_center.name} 
+              count={record.sub_center_name || record.sub_center_details?.name} 
               style={{ backgroundColor: '#f0f0f0', color: '#666', fontSize: '10px' }}
               className="mt-1"
             />
@@ -405,7 +381,7 @@ const ProgramList = () => {
     setIsModalVisible(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: number) => {
     Modal.confirm({
       title: 'Are you sure you want to delete this program?',
       content: 'This action cannot be undone.',
@@ -462,26 +438,23 @@ const ProgramList = () => {
 
   const filteredPrograms = programs.filter(program => {
     const matchesSearch = program.title.toLowerCase().includes(searchText.toLowerCase()) ||
-                         program.description.toLowerCase().includes(searchText.toLowerCase()) ||
+                         (program.description?.toLowerCase().includes(searchText.toLowerCase()) ?? false) ||
                          program.location.toLowerCase().includes(searchText.toLowerCase());
     
     const matchesType = !selectedType || program.program_type === selectedType;
     
     let matchesStatus = true;
     if (selectedStatus) {
-      const now = dayjs();
-      const scheduledDate = dayjs(program.scheduled_date);
-      const endDate = program.end_date ? dayjs(program.end_date) : scheduledDate;
-      
+      // Use computed status fields instead of manual date calculations
       switch (selectedStatus) {
         case 'upcoming':
-          matchesStatus = now.isBefore(scheduledDate) && program.is_active;
+          matchesStatus = program.is_upcoming && program.is_active;
           break;
         case 'active':
-          matchesStatus = now.isBetween(scheduledDate, endDate) && program.is_active;
+          matchesStatus = program.is_ongoing && program.is_active;
           break;
         case 'completed':
-          matchesStatus = now.isAfter(endDate) && program.is_active;
+          matchesStatus = program.is_completed && program.is_active;
           break;
         case 'inactive':
           matchesStatus = !program.is_active;
@@ -500,17 +473,9 @@ const ProgramList = () => {
 
   const stats = {
     total: programs.length,
-    upcoming: programs.filter(p => dayjs().isBefore(dayjs(p.scheduled_date)) && p.is_active).length,
-    active: programs.filter(p => {
-      const now = dayjs();
-      const start = dayjs(p.scheduled_date);
-      const end = p.end_date ? dayjs(p.end_date) : start;
-      return now.isBetween(start, end) && p.is_active;
-    }).length,
-    completed: programs.filter(p => {
-      const end = p.end_date ? dayjs(p.end_date) : dayjs(p.scheduled_date);
-      return dayjs().isAfter(end) && p.is_active;
-    }).length,
+    upcoming: programs.filter(p => p.is_upcoming && p.is_active).length,
+    active: programs.filter(p => p.is_ongoing && p.is_active).length,
+    completed: programs.filter(p => p.is_completed && p.is_active).length,
   };
 
   return (

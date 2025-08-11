@@ -16,7 +16,7 @@ const ApiTest = () => {
     try {
       console.log('Making direct API call...');
       
-      const result = await fetch('http://localhost:8000/api/v1/auth/login/', {
+  const result = await fetch('/api/v1/auth/login/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ const ApiTest = () => {
     try {
       console.log('Making axios API call...');
       
-      const result = await axios.post('http://localhost:8000/api/v1/auth/login/', {
+  const result = await axios.post('/api/v1/auth/login/', {
         username: 'superuser',
         password: 'admin123'
       }, {

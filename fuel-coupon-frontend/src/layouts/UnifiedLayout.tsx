@@ -48,9 +48,8 @@ import {
   ClockCircleOutlined,
   SendOutlined,
   HistoryOutlined,
+  CalculatorOutlined,
   BankOutlined,
-  FormOutlined,
-  IdcardOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -221,37 +220,17 @@ const UnifiedLayout: React.FC = () => {
       items.push(
         { type: 'divider' } as MenuItem,
         {
-          key: 'membership-group',
-          label: 'MEMBERSHIP MANAGEMENT',
+          key: 'parliament-group',
+          label: 'PARLIAMENT OPERATIONS',
           type: 'group',
-          icon: <UserSwitchOutlined />,
+          icon: <CrownOutlined />,
           path: '',
-        },
-        {
-          key: 'beneficiary-forms',
-          icon: <FormOutlined />,
-          label: 'Beneficiary Forms',
-          path: '/dashboard/membership/beneficiary-forms',
         },
         {
           key: 'beneficiaries',
           icon: <TeamOutlined />,
           label: 'Members Management',
           path: '/dashboard/beneficiaries',
-        },
-        {
-          key: 'member-profiles',
-          icon: <IdcardOutlined />,
-          label: 'Member Profiles',
-          path: '/dashboard/membership/profiles',
-        },
-        { type: 'divider' } as MenuItem,
-        {
-          key: 'parliament-group',
-          label: 'PARLIAMENT OPERATIONS',
-          type: 'group',
-          icon: <CrownOutlined />,
-          path: '',
         },
         {
           key: 'sessions',
@@ -276,6 +255,12 @@ const UnifiedLayout: React.FC = () => {
           icon: <CarOutlined />,
           label: 'Fuel Allocations',
           path: '/dashboard/fuel-allocations',
+        },
+        {
+          key: 'dynamic-allocations',
+          icon: <CalculatorOutlined />,
+          label: 'Dynamic Allocations',
+          path: '/dashboard/dynamic-allocations',
         }
       );
     }
@@ -488,8 +473,6 @@ const UnifiedLayout: React.FC = () => {
     if (path.includes('/settings')) return ['system-settings'];
     if (path.includes('/audit-logs')) return ['audit-logs'];
     if (path.includes('/beneficiaries')) return ['beneficiaries'];
-    if (path.includes('/membership/beneficiary-forms')) return ['beneficiary-forms'];
-    if (path.includes('/membership/profiles')) return ['member-profiles'];
     if (path.includes('/sessions')) return ['sessions'];
     if (path.includes('/attendance')) return ['attendance'];
     if (path.includes('/handovers')) return ['handovers'];
@@ -498,6 +481,7 @@ const UnifiedLayout: React.FC = () => {
     if (path.includes('/local-inventory')) return ['local-inventory'];
     if (path.includes('/subcenter-inventory')) return ['subcenter-inventory'];
     if (path.includes('/fuel-allocations')) return ['fuel-allocations'];
+    if (path.includes('/dynamic-allocations')) return ['dynamic-allocations'];
     if (path.includes('/analytics')) return ['usage-analytics'];
     
     return ['dashboard'];

@@ -129,12 +129,53 @@ export interface SubCenter {
 }
 
 export interface Box {
+  // Core identification
   id: string;
-  box_id: string;
+  box_id: string;        // Main identifier
+  box_code?: string;     // Backend field name
+  barcode?: string;
+  
+  // Supply chain
+  supplier?: string;
+  delivery_note?: string;
+  invoice_number?: string;
+  
+  // Structure and fuel
+  fuel_type?: 'PETROL' | 'DIESEL';
+  denomination?: number;
   number_of_books?: number;
+  coupons_per_book?: number;
+  total_coupons_calculated?: number;
+  total_litres?: number;
+  
+  // Coupon serials
+  first_coupon_number?: string;
+  last_coupon_number?: string;
+  
+  // Financial
+  fuel_price_per_litre_usd?: number;
+  total_value_usd?: number;
+  
+  // Receipt and assignment
+  received_at?: string;
+  received_date?: string;
+  received_time?: string;
+  received_by_signature?: string;
+  
+  // Workflow
   status: string;
+  verification_notes?: string;
+  damage_report?: string;
+  
+  // Relations
   sub_center?: SubCenter;
   books?: Book[];
+  
+  // Additional
+  qr_code_data?: string;
+  notes?: string;
+  
+  // Timestamps
   created_at: string;
   updated_at: string;
 }

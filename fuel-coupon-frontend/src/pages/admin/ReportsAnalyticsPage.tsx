@@ -78,72 +78,73 @@ const ReportsAnalyticsPage: React.FC = () => {
   const { data: reportData, isLoading } = useQuery({
     queryKey: ['reports-analytics', dateRange, reportType],
     queryFn: async () => {
-      try {
-        // Call real analytics API
-        const response = await fetch('/api/v1/analytics/', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch analytics data');
+      // Mock data for now - replace with actual API call
+      return {
+        fuel_consumption: {
+          daily: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            petrol: Math.floor(Math.random() * 500) + 200,
+            diesel: Math.floor(Math.random() * 300) + 150,
+            total: 0 // Will be calculated
+          })).map(item => ({ ...item, total: item.petrol + item.diesel })),
+          monthly: Array.from({ length: 12 }, (_, i) => ({
+            month: dayjs().subtract(11 - i, 'months').format('MMM YYYY'),
+            petrol: 0,
+            diesel: 0,
+            total: 0
+          })),
+          by_subcenter: [
+            { subcenter: 'Bulawayo Regional Office', total: 0, percentage: 0 },
+            { subcenter: 'Harare Main Center', total: 0, percentage: 0 },
+            { subcenter: 'Gweru District Office', total: 0, percentage: 0 },
+            { subcenter: 'Mutare Regional Office', total: 0, percentage: 0 }
+          ]
+        },
+        user_activity: {
+          registrations: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            count: 0
+          })),
+          logins: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            count: 0
+          })),
+          by_role: [
+            { role: 'BENEFICIARY', count: 0, percentage: 0 },
+            { role: 'SUB_CENTER', count: 0, percentage: 0 },
+            { role: 'MAIN_CENTER', count: 0, percentage: 0 },
+            { role: 'ADMIN', count: 0, percentage: 0 },
+            { role: 'AUDITOR', count: 0, percentage: 0 }
+          ]
+        },
+        system_performance: {
+          response_times: [
+            { endpoint: '/auth/login', avg_time: 0, count: 0 },
+            { endpoint: '/coupons/', avg_time: 0, count: 0 },
+            { endpoint: '/allocations/', avg_time: 0, count: 0 },
+            { endpoint: '/admin/dashboard/', avg_time: 0, count: 0 }
+          ],
+          error_rates: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            errors: 0,
+            total: 0,
+            rate: 0
+          })).map(item => ({ ...item, rate: (item.errors / item.total) * 100 })),
+          uptime: 99.87
+        },
+        financial: {
+          fuel_costs: Array.from({ length: 30 }, (_, i) => ({
+            date: dayjs().subtract(29 - i, 'days').format('YYYY-MM-DD'),
+            usd_cost: Math.floor(Math.random() * 5000) + 2000,
+            zwg_cost: Math.floor(Math.random() * 137500) + 55000
+          })),
+          savings: [
+            // All savings data should come from backend API
+            // For now, return empty array to avoid hard-coded data
+          ],
+          budget_utilization: 0 // Should come from backend API
         }
-        
-        const backendData = await response.json();
-        
-        // Transform backend data to match frontend interface
-        return {
-          fuel_consumption: {
-            daily: backendData.fuel_summary?.daily_consumption || [],
-            monthly: backendData.fuel_summary?.monthly_consumption || [],
-            by_subcenter: backendData.fuel_summary?.by_subcenter || []
-          },
-          user_activity: {
-            registrations: backendData.user_activity?.registrations || [],
-            logins: backendData.user_activity?.logins || [],
-            by_role: backendData.user_activity?.by_role || []
-          },
-          system_performance: {
-            response_times: backendData.system_performance?.response_times || [],
-            error_rates: backendData.system_performance?.error_rates || [],
-            uptime: backendData.system_performance?.uptime || 0
-          },
-          financial: {
-            fuel_costs: backendData.financial?.fuel_costs || [],
-            savings: backendData.financial?.savings || [],
-            budget_utilization: backendData.financial?.budget_utilization || 0
-          }
-        } as ReportData;
-      } catch (error) {
-        console.error('Error fetching analytics data:', error);
-        // Return fallback empty data structure
-        return {
-          fuel_consumption: {
-            daily: [],
-            monthly: [],
-            by_subcenter: []
-          },
-          user_activity: {
-            registrations: [],
-            logins: [],
-            by_role: []
-          },
-          system_performance: {
-            response_times: [],
-            error_rates: [],
-            uptime: 0
-          },
-          financial: {
-            fuel_costs: [],
-            savings: [],
-            budget_utilization: 0
-          }
-        } as ReportData;
-      }
+      } as ReportData;
     }
   });
 

@@ -2,7 +2,9 @@
 import { fetchUtils } from 'react-admin';
 import { stringify } from 'query-string';
 
-const apiUrl = import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/api/v1` : 'http://localhost:8000/api/v1';
+const apiUrl = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')}/api/v1`
+  : (import.meta.env.DEV ? '/api/v1' : 'http://localhost:8000/api/v1');
 const httpClient = fetchUtils.fetchJson;
 
 export const dataProvider = {

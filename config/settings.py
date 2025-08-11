@@ -13,25 +13,12 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-1*p133x5+uzwh8
 
 # Enable DEBUG mode for local development
 DEBUG = True  # Force DEBUG to True for local development
-print(f"DEBUG INITIAL SETTING: {DEBUG}")
-
-# Check environment variables
-print(f"DJANGO_DEBUG environment: {os.environ.get('DJANGO_DEBUG')}")
-print(f"DEBUG environment: {os.environ.get('DEBUG')}")
-
-# Force DEBUG to True regardless of environment
-DEBUG = True
-print(f"DEBUG FINAL SETTING: {DEBUG}")
 
 # Azure-specific hostname configuration
 AZURE_HOSTNAME = os.environ.get('AZURE_HOSTNAME', 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net')
 FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'jolly-ocean-0e0dee90f.2.azurestaticapps.net')
 
-# For local development, always allow all hosts
-ALLOWED_HOSTS = ['*']
-
-# Original production hosts (commented for debugging)
-PRODUCTION_HOSTS = [
+ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost', 
     '0.0.0.0',  # Allow all interfaces for local development
@@ -47,6 +34,14 @@ PRODUCTION_HOSTS = [
     '169.254.130.1',  # Additional Azure internal range
     '169.254.130.10', # Additional Azure internal range
 ]
+
+# For local development, allow all hosts if DEBUG is True
+if DEBUG:
+    ALLOWED_HOSTS.append('*')
+
+# For local development, allow all hosts if DEBUG is True
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
 
 # Add environment variable support for additional hosts
 if os.environ.get('DJANGO_ALLOWED_HOSTS'):
@@ -91,8 +86,12 @@ MIDDLEWARE = [
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174", 
+    "http://localhost:5175",
+    "http://localhost:5176",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:5176",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # Production URLs
@@ -106,8 +105,12 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # React Vite dev server
     "http://localhost:5174",  # Alternative Vite port
+    "http://localhost:5175",
+    "http://localhost:5176",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:5176",
     "http://localhost:8000",  # Django backend
     "http://127.0.0.1:8000",  # Django backend
     # Production URLs

@@ -1,34 +1,13 @@
 // src/api/programs.ts
 import apiClient from './index';
+import { Program } from '../types/models';
 
-export interface Program {
-  id: string;
-  title: string;
-  program_type: 'TRAINING' | 'DISTRIBUTION' | 'MEETING' | 'ACTIVITY';
-  scheduled_date: string;
-  end_date?: string;
-  description: string;
-  location: string;
-  organizer: {
-    id: string;
-    username: string;
-    first_name: string;
-    last_name: string;
-  };
-  is_active: boolean;
-  sub_center?: {
-    id: string;
-    name: string;
-  };
-  attendees_count?: number;
-  completion_percentage?: number;
-  created: string;
-  modified: string;
-}
+// Remove conflicting Program interface - using harmonized version from types/models
+// This ensures consistency with Django model and DRF serializers
 
 export interface CreateProgramData {
   title: string;
-  program_type: 'TRAINING' | 'DISTRIBUTION' | 'MEETING' | 'ACTIVITY';
+  program_type: Program['program_type']; // Use the comprehensive 16 parliamentary types
   scheduled_date: string;
   end_date?: string;
   description: string;
@@ -36,11 +15,14 @@ export interface CreateProgramData {
   organizer?: string;
   is_active?: boolean;
   sub_center?: string;
+  expected_participants?: number;
+  fuel_allocation_approved?: boolean;
+  notes?: string;
 }
 
 export interface UpdateProgramData {
   title?: string;
-  program_type?: 'TRAINING' | 'DISTRIBUTION' | 'MEETING' | 'ACTIVITY';
+  program_type?: Program['program_type']; // Use the comprehensive 16 parliamentary types
   scheduled_date?: string;
   end_date?: string;
   description?: string;
@@ -48,6 +30,9 @@ export interface UpdateProgramData {
   organizer?: string;
   is_active?: boolean;
   sub_center?: string;
+  expected_participants?: number;
+  fuel_allocation_approved?: boolean;
+  notes?: string;
 }
 
 export const ProgramService = {

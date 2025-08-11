@@ -25,14 +25,59 @@ export interface User {
   }
   
   export interface Box {
+    // Core identification
     id: number;
     box_code: string;
+    boxId?: string;      // Frontend alias for box_code
+    barcode?: string;
+    
+    // Supply chain
+    supplier?: string;
+    delivery_note?: string;
+    invoice_number?: string;
+    
+    // Fuel specifications
+    fuel_type: 'PETROL' | 'DIESEL';
+    denomination: number; // 5, 10, 20, 50 litres
+    
+    // Structure
+    number_of_books: number;
+    coupons_per_book: number;
+    total_coupons_calculated: number;
+    total_litres: number;
+    
+    // Coupon serial numbers
     first_coupon_number: string;
     last_coupon_number: string;
-    total_litres: number;
+    
+    // Financial
+    fuel_price_per_litre_usd: number;
+    exchange_rate_zwg_usd: number;
+    total_value_usd: number;
+    total_value_zwg: number;
+    
+    // Receipt tracking
     received_at: string;
-    assigned_to?: SubCenter;
+    received_date?: string;
+    received_time?: string;
     received_by?: User;
+    received_by_signature?: string;
+    
+    // Assignment and workflow
+    assigned_to?: SubCenter;
+    status: 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED';
+    
+    // Quality control
+    verification_notes?: string;
+    damage_report?: string;
+    verified_at?: string;
+    verified_by?: User;
+    
+    // Additional data
+    qr_code_data?: string;
+    notes?: string;
+    calculation_mode?: string;
+    book_details_json?: any[];
   }
   
   export interface Book {
@@ -63,29 +108,54 @@ export interface User {
   }
   
   export interface Program {
+    // === CORE IDENTITY ===
     id: number;
     title: string;
+    
+    // === TYPE & DISPLAY ===
     program_type: 'SESSION' | 'COMMITTEE' | 'WORKSHOP' | 'OUTREACH' | 'CONFERENCE' | 
                   'CEREMONY' | 'INSPECTION' | 'CAMPAIGN' | 'NATIONAL_EVENT' | 'CONSTITUENCY' |
                   'DEBATE' | 'BUDGET_SESSION' | 'POLICY_MEETING' | 'PUBLIC_HEARING' | 
                   'DIPLOMATIC' | 'OTHER';
-    program_type_display?: string;
+    program_type_display: string;
+    status_display: string;
+    
+    // === SCHEDULING ===
     scheduled_date: string;
     end_date?: string;
+    duration_days: number;
+    
+    // === DETAILS ===
     description?: string;
-    location?: string;
-    organizer?: User;
-    sub_center?: SubCenter;
-    is_active: boolean;
-    attendees?: User[];
-    expected_participants?: number;
-    fuel_allocation_approved?: boolean;
+    location: string;
     notes?: string;
-    duration_days?: number;
-    is_upcoming?: boolean;
-    is_ongoing?: boolean;
-    created?: string;
-    modified?: string;
+    
+    // === RELATIONSHIPS ===
+    organizer?: number;           // User ID (backend format)
+    organizer_details?: User;     // Nested user object
+    organizer_name?: string;      // Formatted name for display
+    
+    sub_center?: number;          // SubCenter ID (backend format)
+    sub_center_details?: SubCenter; // Nested sub-center object
+    sub_center_name?: string;     // Sub-center name for display
+    
+    attendees?: User[];           // Full attendees list (detailed views)
+    
+    // === MANAGEMENT ===
+    expected_participants: number;
+    fuel_allocation_approved: boolean;
+    is_active: boolean;
+    
+    // === COMPUTED STATUS & PROGRESS ===
+    is_upcoming: boolean;
+    is_ongoing: boolean;
+    is_completed: boolean;
+    attendees_count: number;
+    completion_percentage: number;
+    
+    // === TIMESTAMPS ===
+    created: string;    // ISO datetime string
+    modified: string;   // ISO datetime string
   }
   
   export interface Attendance {

@@ -51,21 +51,6 @@ class BeneficiaryPermission(RoleBasedPermission):
     allowed_roles = ['BENEFICIARY']
 
 
-class MainCenterOrSubCenterPermission(RoleBasedPermission):
-    """Permission for either main center or sub center access"""
-    allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
-
-
-class CanManageCoupon(RoleBasedPermission):
-    """Permission for coupon management"""
-    allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
-
-
-class AllStaffPermission(RoleBasedPermission):
-    """Permission for all staff members (any role except beneficiary only)"""
-    allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'MAIN_CENTER_APPROVER', 'SUB_CENTER_APPROVER']
-
-
 class CenterBasedObjectPermission(AdminPermissionMixin, CenterAccessMixin):
     """
     Object-level permission that checks center-based access.

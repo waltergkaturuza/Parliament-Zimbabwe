@@ -58,7 +58,7 @@ const SubCenterSettings: FC = () => {
       setLoading(true);
       
       // Get current user's sub center
-      const userResponse = await apiClient.get('/api/v1/users/me/');
+  const userResponse = await apiClient.get('/users/me/');
       const currentUser = userResponse.data;
       
       if (currentUser.sub_center) {
@@ -67,7 +67,7 @@ const SubCenterSettings: FC = () => {
         setSubCenter(subCenterData);
 
         // Load sub center users
-        const usersResponse = await apiClient.get('/api/v1/users/', {
+  const usersResponse = await apiClient.get('/users/', {
           params: { sub_center: currentUser.sub_center }
         });
         const userData = usersResponse.data.results || usersResponse.data;

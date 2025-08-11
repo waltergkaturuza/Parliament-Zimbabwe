@@ -127,7 +127,7 @@ const ParliamentSessionsPage: FC = () => {
   const loadUsers = async () => {
     try {
       setUsersLoading(true);
-      const response = await apiClient.get('/api/v1/users/?role=MAIN_CENTER,SUB_CENTER');
+      const response = await apiClient.get('/users/?role=MAIN_CENTER,SUB_CENTER');
       setUsers(response.data.results || response.data);
     } catch (error) {
       console.error('Error loading users:', error);

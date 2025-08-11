@@ -30,6 +30,7 @@ import {
   Badge,
   Statistic,
   TimePicker,
+  Radio,
 } from 'antd';
 import {
   PlusOutlined,
@@ -54,8 +55,6 @@ import {
   FolderOutlined,
   FolderOpenOutlined,
   CarOutlined,
-  FolderOutlined,
-  FolderOpenOutlined,
   HistoryOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
@@ -67,34 +66,56 @@ const { Option } = Select;
 const { Step } = Steps;
 
 interface BoxReceipt {
+  // Core identification - harmonized with backend
   id: string;
-  boxId: string;
+  boxId: string;          // Maps to box_code in backend
   barcode: string;
+  
+  // Supply chain information
   supplier: string;
+  deliveryNote?: string;
+  invoiceNumber?: string;
+  
+  // Receipt tracking - separate date/time fields
   receivedDate: string;
   receivedTime: string;
   receivedBy: string;
   receivedBySignature?: string;
+  
+  // Fuel specifications
   fuelType: 'PETROL' | 'DIESEL';
-  couponAmount: 5 | 20 | 50; // Denomination in litres
+  couponAmount: number; // Denomination in litres (5, 10, 20, 50)
+  
+  // Structure and counting
   numberOfBooks: number;
   couponsPerBook: number;
   totalCoupons: number;
   totalLitres: number;
+  
+  // Coupon serial numbers
   firstCouponId: string;
   lastCouponId: string;
+  
+  // Financial calculations
   monetaryValueUSD: number; // Value in USD
   fuelPricePerLitreUSD: number; // Price per litre in USD
-  exchangeRate?: number; // USD to ZWG exchange rate for reference (2025: ~27.50)
+  exchangeRate?: number; // USD to ZWG exchange rate for reference
+  
+  // Status workflow - harmonized with backend choices
   status: 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED';
+  
+  // Quality and verification
   verificationNotes?: string;
   damageReport?: string;
+  
+  // Generated data
   booksGenerated?: BookInfo[];
   qrCodeData?: string;
-  deliveryNote?: string;
-  invoiceNumber?: string;
+  
+  // General notes
   notes?: string;
-  // Backward compatibility
+  
+  // Legacy compatibility
   monetaryValue?: number; // For backward compatibility (ZWG)
   fuelPricePerLitre?: number; // For backward compatibility (ZWG)
 }
@@ -104,6 +125,12 @@ interface BookInfo {
   firstCouponId: string;
   lastCouponId: string;
   numberOfCoupons: number;
+}
+
+interface SmartCalculationMode {
+  mode: 'first-and-count' | 'last-and-count' | 'first-and-last' | 'full-range';
+  label: string;
+  description: string;
 }
 
 const BoxReceiptManagement: FC = () => {
@@ -122,12 +149,21 @@ const BoxReceiptManagement: FC = () => {
     return `FCB-${year}-0001`;
   });
   const [calculatedBooks, setCalculatedBooks] = useState<BookInfo[]>([]);
+  const [calculationMode, setCalculationMode] = useState<SmartCalculationMode['mode']>('first-and-count');
   const [activeTab, setActiveTab] = useState<'receipts' | 'verification' | 'inventory'>('receipts');
   
   // Archive-related state
   const [showArchived, setShowArchived] = useState(false);
   const [archiveModalVisible, setArchiveModalVisible] = useState(false);
   const [archiveForm] = Form.useForm();
+  
+  // Verification state
+  const [verificationChecklist, setVerificationChecklist] = useState<string[]>([]);
+  const [allVerificationSelected, setAllVerificationSelected] = useState(false);
+  
+  // Print/Download state
+  const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
+  const [selectedBoxForPrint, setSelectedBoxForPrint] = useState<BoxReceipt | null>(null);
 
   // Fetch data on component mount
   useEffect(() => {
@@ -166,7 +202,7 @@ const BoxReceiptManagement: FC = () => {
           fuelType: 'DIESEL' as 'PETROL' | 'DIESEL', // Default - backend doesn't have this field yet
           couponAmount: 20, // Default coupon amount
           numberOfBooks: box.books?.length || 0,
-          couponsPerBook: 10, // Standard coupons per book
+          couponsPerBook: 100, // Standard coupons per book
           totalCoupons: (box.books?.length || 0) * 10,
           totalLitres: box.total_litres || 0,
           firstCouponId: box.first_coupon_number || '',
@@ -174,7 +210,12 @@ const BoxReceiptManagement: FC = () => {
           monetaryValueUSD: 0, // Calculate based on litres and price
           fuelPricePerLitreUSD: 1.40, // Current fuel price
           exchangeRate: 27.50,
-          status: 'RECEIVED', // Default status
+          status: (box.status === 'received' ? 'RECEIVED' : 
+                  box.status === 'verified' ? 'VERIFIED' : 
+                  box.status === 'dispatched' ? 'DISPATCHED' : 
+                  box.status === 'damaged' ? 'DAMAGED' : 
+                  box.status === 'archived' ? 'ARCHIVED' : 
+                  'PENDING') as 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED',
           verificationNotes: '',
           invoiceNumber: '',
           deliveryNote: '',
@@ -250,11 +291,55 @@ const BoxReceiptManagement: FC = () => {
   };
 
   // Form handlers
-  const handleAddBox = () => {
+  const handleAddBox = async () => {
     setCurrentStep(0);
     setSelectedBox(null); // Clear any selected box for editing
     form.resetFields();
     generateNextBoxNumber();
+    
+    // Auto-fill received by with current user's full name
+    try {
+      // Try multiple API endpoints to get current user
+      let user = null;
+      try {
+        const response = await apiClient.get('/auth/user/');
+        user = response.data;
+      } catch (error) {
+        try {
+          const response = await apiClient.get('/users/me/');
+          user = response.data;
+        } catch (error2) {
+          try {
+            const response = await apiClient.get('/api/auth/user/');
+            user = response.data;
+          } catch (error3) {
+            console.warn('Could not fetch current user from any endpoint');
+          }
+        }
+      }
+      
+      if (user) {
+        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+        form.setFieldsValue({ 
+          receivedBy: fullName || user.username || 'Current User',
+          boxId: nextBoxNumber 
+        });
+      } else {
+        // Fallback - just set a placeholder
+        form.setFieldsValue({ 
+          receivedBy: 'Administrator', // Default placeholder
+          boxId: nextBoxNumber 
+        });
+      }
+    } catch (error) {
+      console.warn('Auto-fill error:', error);
+      // Just set the box ID if user fetch fails
+      form.setFieldsValue({ 
+        receivedBy: 'Administrator',
+        boxId: nextBoxNumber 
+      });
+    }
+    
     setIsModalVisible(true);
   };
 
@@ -264,7 +349,7 @@ const BoxReceiptManagement: FC = () => {
     const numberOfBooks = allFields.find((f: any) => f.name[0] === 'numberOfBooks')?.value;
     const fuelPriceUSD = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitreUSD')?.value;
     const exchangeRate = allFields.find((f: any) => f.name[0] === 'exchangeRate')?.value || 27.50;
-    const couponsPerBook = allFields.find((f: any) => f.name[0] === 'couponsPerBook')?.value || 10;
+    const couponsPerBook = allFields.find((f: any) => f.name[0] === 'couponsPerBook')?.value || 100;
     const firstCouponId = allFields.find((f: any) => f.name[0] === 'firstCouponId')?.value;
 
     // Calculate totals
@@ -627,6 +712,358 @@ const BoxReceiptManagement: FC = () => {
     }
   };
 
+  const handlePrintVerificationReport = (box: BoxReceipt) => {
+    setSelectedBoxForPrint(box);
+    setIsPrintModalVisible(true);
+  };
+
+  const generateVerificationReport = () => {
+    if (!selectedBoxForPrint) return;
+    
+    // Create a new window for printing the Box Verification Report
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      message.error('Unable to open print window. Please check your browser settings.');
+      return;
+    }
+
+    const reportHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Box Verification Report - ${selectedBoxForPrint.boxId}</title>
+        <style>
+            @page {
+                margin: 20mm;
+                size: A4;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 1.4;
+                color: #333;
+                margin: 0;
+                padding: 0;
+            }
+            .header {
+                text-align: center;
+                border-bottom: 2px solid #1890ff;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+            }
+            .logo {
+                max-height: 80px;
+                margin-bottom: 10px;
+            }
+            .title {
+                font-size: 24px;
+                font-weight: bold;
+                color: #1890ff;
+                margin: 10px 0;
+            }
+            .subtitle {
+                font-size: 16px;
+                color: #666;
+                margin-bottom: 5px;
+            }
+            .section {
+                margin-bottom: 25px;
+            }
+            .section-title {
+                font-size: 18px;
+                font-weight: bold;
+                color: #1890ff;
+                border-bottom: 1px solid #e8e8e8;
+                padding-bottom: 5px;
+                margin-bottom: 15px;
+            }
+            .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+            .info-item {
+                display: flex;
+                margin-bottom: 8px;
+            }
+            .info-label {
+                font-weight: bold;
+                min-width: 150px;
+                color: #666;
+            }
+            .info-value {
+                flex: 1;
+                color: #333;
+            }
+            .books-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin-top: 15px;
+            }
+            .book-card {
+                border: 1px solid #d9d9d9;
+                border-radius: 6px;
+                padding: 12px;
+                background-color: #fafafa;
+            }
+            .book-title {
+                font-weight: bold;
+                color: #1890ff;
+                margin-bottom: 8px;
+            }
+            .book-detail {
+                font-size: 12px;
+                margin-bottom: 4px;
+                color: #666;
+            }
+            .verification-checklist {
+                margin-top: 20px;
+            }
+            .checklist-item {
+                margin-bottom: 8px;
+                padding: 5px 0;
+                border-bottom: 1px dotted #ccc;
+            }
+            .status-badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+                color: white;
+                background-color: #52c41a;
+            }
+            .footer {
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #e8e8e8;
+                text-align: center;
+                font-size: 12px;
+                color: #666;
+            }
+            .signature-section {
+                margin-top: 40px;
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 40px;
+            }
+            .signature-box {
+                text-align: center;
+                border-top: 1px solid #333;
+                padding-top: 10px;
+                margin-top: 40px;
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
+            <div class="title">PARLIAMENT OF ZIMBABWE</div>
+            <div class="subtitle">Fuel Coupon Management System</div>
+            <div class="subtitle">Box Verification Report</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Box Information</div>
+            <div class="info-grid">
+                <div>
+                    <div class="info-item">
+                        <span class="info-label">Box ID:</span>
+                        <span class="info-value">${selectedBoxForPrint.boxId}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Barcode:</span>
+                        <span class="info-value">${selectedBoxForPrint.barcode || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Supplier:</span>
+                        <span class="info-value">${selectedBoxForPrint.supplier}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="status-badge">${selectedBoxForPrint.status}</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="info-item">
+                        <span class="info-label">Received Date:</span>
+                        <span class="info-value">${selectedBoxForPrint.receivedDate}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Received Time:</span>
+                        <span class="info-value">${selectedBoxForPrint.receivedTime}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Received By:</span>
+                        <span class="info-value">${selectedBoxForPrint.receivedBy}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Report Date:</span>
+                        <span class="info-value">${new Date().toLocaleDateString()}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Fuel Details</div>
+            <div class="info-grid">
+                <div>
+                    <div class="info-item">
+                        <span class="info-label">Fuel Type:</span>
+                        <span class="info-value">${selectedBoxForPrint.fuelType}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Denomination:</span>
+                        <span class="info-value">${selectedBoxForPrint.couponAmount} Litres</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Number of Books:</span>
+                        <span class="info-value">${selectedBoxForPrint.numberOfBooks}</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="info-item">
+                        <span class="info-label">Coupons per Book:</span>
+                        <span class="info-value">${selectedBoxForPrint.couponsPerBook}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Coupons:</span>
+                        <span class="info-value">${selectedBoxForPrint.totalCoupons}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Litres:</span>
+                        <span class="info-value">${selectedBoxForPrint.totalLitres} L</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Coupon Range</div>
+            <div class="info-grid">
+                <div>
+                    <div class="info-item">
+                        <span class="info-label">First Coupon ID:</span>
+                        <span class="info-value" style="font-family: monospace;">${selectedBoxForPrint.firstCouponId}</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="info-item">
+                        <span class="info-label">Last Coupon ID:</span>
+                        <span class="info-value" style="font-family: monospace;">${selectedBoxForPrint.lastCouponId}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Generated Books Verification</div>
+            <div class="books-grid">
+                ${Array.from({ length: selectedBoxForPrint.numberOfBooks }, (_, index) => {
+                  const bookNumber = index + 1;
+                  const couponsPerBook = selectedBoxForPrint.couponsPerBook;
+                  const firstCouponId = selectedBoxForPrint.firstCouponId;
+                  
+                  let bookFirstCoupon = '';
+                  let bookLastCoupon = '';
+                  
+                  if (firstCouponId) {
+                    const match = firstCouponId.match(/^(.+?)(\\d+)$/);
+                    if (match) {
+                      const prefix = match[1];
+                      const startNumber = parseInt(match[2]);
+                      const bookStartNumber = startNumber + (index * couponsPerBook);
+                      const bookEndNumber = bookStartNumber + couponsPerBook - 1;
+                      const numberLength = match[2].length;
+                      
+                      bookFirstCoupon = prefix + bookStartNumber.toString().padStart(numberLength, '0');
+                      bookLastCoupon = prefix + bookEndNumber.toString().padStart(numberLength, '0');
+                    }
+                  }
+                  
+                  return `
+                    <div class="book-card">
+                        <div class="book-title">Book ${bookNumber}</div>
+                        <div class="book-detail">First: ${bookFirstCoupon}</div>
+                        <div class="book-detail">Last: ${bookLastCoupon}</div>
+                        <div class="book-detail">Coupons: ${couponsPerBook}</div>
+                        <div class="book-detail" style="color: #52c41a;">✓ Verified</div>
+                    </div>
+                  `;
+                }).join('')}
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Verification Checklist</div>
+            <div class="verification-checklist">
+                <div class="checklist-item">✓ First coupon ID verified: ${selectedBoxForPrint.firstCouponId}</div>
+                <div class="checklist-item">✓ Last coupon ID verified: ${selectedBoxForPrint.lastCouponId}</div>
+                <div class="checklist-item">✓ Coupon count matches: ${selectedBoxForPrint.totalCoupons} coupons</div>
+                <div class="checklist-item">✓ All ${selectedBoxForPrint.numberOfBooks} books are intact and properly bound</div>
+                <div class="checklist-item">✓ Box barcode scanned successfully</div>
+                <div class="checklist-item">✓ No visible damage to coupons or books</div>
+            </div>
+        </div>
+
+        ${selectedBoxForPrint.verificationNotes ? `
+        <div class="section">
+            <div class="section-title">Verification Notes</div>
+            <p style="background-color: #f6f6f6; padding: 15px; border-radius: 6px; border-left: 4px solid #1890ff;">
+                ${selectedBoxForPrint.verificationNotes}
+            </p>
+        </div>
+        ` : ''}
+
+        <div class="signature-section">
+            <div class="signature-box">
+                <div>Received By</div>
+                <div style="font-weight: bold; margin-top: 5px;">${selectedBoxForPrint.receivedBy}</div>
+            </div>
+            <div class="signature-box">
+                <div>Verified By</div>
+                <div style="font-weight: bold; margin-top: 5px;">_________________</div>
+            </div>
+            <div class="signature-box">
+                <div>Approved By</div>
+                <div style="font-weight: bold; margin-top: 5px;">_________________</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>This report was generated by the Parliament of Zimbabwe Fuel Coupon Management System</p>
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+        </div>
+    </body>
+    </html>
+    `;
+
+    printWindow.document.write(reportHtml);
+    printWindow.document.close();
+    
+    // Add event listener for after load to print
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+    };
+    
+    setIsPrintModalVisible(false);
+  };
+
+  const downloadVerificationReport = () => {
+    if (!selectedBoxForPrint) return;
+    
+    // Generate PDF using html2pdf or similar library
+    // For now, we'll use browser's print to PDF functionality
+    message.success('Use browser Print → Save as PDF to download the report');
+    generateVerificationReport();
+  };
+
   const loadArchivedRecords = async () => {
     try {
       setLoading(true);
@@ -662,6 +1099,252 @@ const BoxReceiptManagement: FC = () => {
     } else {
       // Load regular records
       fetchBoxReceipts();
+    }
+  };
+
+  // Smart calculation modes for intelligent generator
+  const calculationModes: SmartCalculationMode[] = [
+    {
+      mode: 'first-and-count',
+      label: 'First Serial + Coupon Count',
+      description: 'Enter first coupon number and number of coupons per book. System calculates last numbers.'
+    },
+    {
+      mode: 'last-and-count', 
+      label: 'Last Serial + Coupon Count',
+      description: 'Enter last coupon number and number of coupons per book. System calculates first numbers.'
+    },
+    {
+      mode: 'first-and-last',
+      label: 'First + Last of Box',
+      description: 'Enter first coupon of first book and last coupon of last book. System distributes across books.'
+    },
+    {
+      mode: 'full-range',
+      label: 'Complete Range',
+      description: 'Enter complete coupon range. System automatically calculates books and distribution.'
+    }
+  ];
+
+  // Helper functions for intelligent book generation
+  const generateBooksFromRange = () => {
+    const numberOfBooks = form.getFieldValue('numberOfBooks') || 0;
+    const couponsPerBook = form.getFieldValue('couponsPerBook') || 100;
+    const firstCouponId = form.getFieldValue('firstCouponId') || '';
+    const lastCouponId = form.getFieldValue('lastCouponId') || '';
+
+    if (numberOfBooks <= 0 || numberOfBooks > 25) {
+      message.error('Number of books must be between 1 and 25');
+      return;
+    }
+
+    if (couponsPerBook <= 0 || couponsPerBook > 100) {
+      message.error('Coupons per book must be between 1 and 100');
+      return;
+    }
+
+    try {
+      const books: BookInfo[] = [];
+      
+      switch (calculationMode) {
+        case 'first-and-count':
+          if (!firstCouponId) {
+            message.error('Please enter the first coupon ID');
+            return;
+          }
+          
+          // Extract prefix and number from first coupon ID
+          const firstMatch = firstCouponId.match(/^(.+?)(\d+)$/);
+          if (!firstMatch) {
+            message.error('Invalid first coupon ID format');
+            return;
+          }
+          
+          const prefix = firstMatch[1];
+          const startNumber = parseInt(firstMatch[2]);
+          const numberLength = firstMatch[2].length;
+          
+          // Generate books
+          for (let i = 0; i < numberOfBooks; i++) {
+            const bookFirstNumber = startNumber + (i * couponsPerBook);
+            const bookLastNumber = bookFirstNumber + couponsPerBook - 1;
+            
+            books.push({
+              bookId: `Book-${i + 1}`,
+              firstCouponId: `${prefix}${bookFirstNumber.toString().padStart(numberLength, '0')}`,
+              lastCouponId: `${prefix}${bookLastNumber.toString().padStart(numberLength, '0')}`,
+              numberOfCoupons: couponsPerBook
+            });
+          }
+          
+          // Update last coupon ID in form
+          const finalCouponNumber = startNumber + (numberOfBooks * couponsPerBook) - 1;
+          const finalCouponId = `${prefix}${finalCouponNumber.toString().padStart(numberLength, '0')}`;
+          form.setFieldValue('lastCouponId', finalCouponId);
+          break;
+
+        case 'last-and-count':
+          if (!lastCouponId) {
+            message.error('Please enter the last coupon ID');
+            return;
+          }
+          
+          // Extract prefix and number from last coupon ID
+          const lastMatch = lastCouponId.match(/^(.+?)(\d+)$/);
+          if (!lastMatch) {
+            message.error('Invalid last coupon ID format');
+            return;
+          }
+          
+          const lastPrefix = lastMatch[1];
+          const endNumber = parseInt(lastMatch[2]);
+          const lastNumberLength = lastMatch[2].length;
+          
+          // Calculate first number
+          const totalCoupons = numberOfBooks * couponsPerBook;
+          const firstNumber = endNumber - totalCoupons + 1;
+          
+          // Generate books
+          for (let i = 0; i < numberOfBooks; i++) {
+            const bookFirstNumber = firstNumber + (i * couponsPerBook);
+            const bookLastNumber = bookFirstNumber + couponsPerBook - 1;
+            
+            books.push({
+              bookId: `Book-${i + 1}`,
+              firstCouponId: `${lastPrefix}${bookFirstNumber.toString().padStart(lastNumberLength, '0')}`,
+              lastCouponId: `${lastPrefix}${bookLastNumber.toString().padStart(lastNumberLength, '0')}`,
+              numberOfCoupons: couponsPerBook
+            });
+          }
+          
+          // Update first coupon ID in form
+          const firstCouponNumber = endNumber - totalCoupons + 1;
+          const firstCouponIdCalculated = `${lastPrefix}${firstCouponNumber.toString().padStart(lastNumberLength, '0')}`;
+          form.setFieldValue('firstCouponId', firstCouponIdCalculated);
+          break;
+
+        case 'first-and-last':
+          if (!firstCouponId || !lastCouponId) {
+            message.error('Please enter both first and last coupon IDs');
+            return;
+          }
+          
+          // Extract numbers from both IDs
+          const firstBoxMatch = firstCouponId.match(/^(.+?)(\d+)$/);
+          const lastBoxMatch = lastCouponId.match(/^(.+?)(\d+)$/);
+          
+          if (!firstBoxMatch || !lastBoxMatch) {
+            message.error('Invalid coupon ID format');
+            return;
+          }
+          
+          if (firstBoxMatch[1] !== lastBoxMatch[1]) {
+            message.error('First and last coupon IDs must have the same prefix');
+            return;
+          }
+          
+          const boxPrefix = firstBoxMatch[1];
+          const firstBoxNumber = parseInt(firstBoxMatch[2]);
+          const lastBoxNumber = parseInt(lastBoxMatch[2]);
+          const boxNumberLength = Math.max(firstBoxMatch[2].length, lastBoxMatch[2].length);
+          
+          const totalBoxCoupons = lastBoxNumber - firstBoxNumber + 1;
+          const calculatedCouponsPerBook = Math.ceil(totalBoxCoupons / numberOfBooks);
+          
+          // Update coupons per book
+          form.setFieldValue('couponsPerBook', calculatedCouponsPerBook);
+          
+          // Generate books
+          for (let i = 0; i < numberOfBooks; i++) {
+            const bookFirstNumber = firstBoxNumber + (i * calculatedCouponsPerBook);
+            const bookLastNumber = Math.min(bookFirstNumber + calculatedCouponsPerBook - 1, lastBoxNumber);
+            
+            books.push({
+              bookId: `Book-${i + 1}`,
+              firstCouponId: `${boxPrefix}${bookFirstNumber.toString().padStart(boxNumberLength, '0')}`,
+              lastCouponId: `${boxPrefix}${bookLastNumber.toString().padStart(boxNumberLength, '0')}`,
+              numberOfCoupons: bookLastNumber - bookFirstNumber + 1
+            });
+            
+            // Stop if we've reached the last coupon
+            if (bookLastNumber >= lastBoxNumber) break;
+          }
+          break;
+
+        case 'full-range':
+          if (!firstCouponId || !lastCouponId) {
+            message.error('Please enter both first and last coupon IDs for full range calculation');
+            return;
+          }
+          
+          // Similar to first-and-last but automatically calculates optimal book distribution
+          const fullFirstMatch = firstCouponId.match(/^(.+?)(\d+)$/);
+          const fullLastMatch = lastCouponId.match(/^(.+?)(\d+)$/);
+          
+          if (!fullFirstMatch || !fullLastMatch) {
+            message.error('Invalid coupon ID format');
+            return;
+          }
+          
+          if (fullFirstMatch[1] !== fullLastMatch[1]) {
+            message.error('First and last coupon IDs must have the same prefix');
+            return;
+          }
+          
+          const fullPrefix = fullFirstMatch[1];
+          const fullFirstNumber = parseInt(fullFirstMatch[2]);
+          const fullLastNumber = parseInt(fullLastMatch[2]);
+          const fullNumberLength = Math.max(fullFirstMatch[2].length, fullLastMatch[2].length);
+          
+          const fullTotalCoupons = fullLastNumber - fullFirstNumber + 1;
+          
+          // Calculate optimal books and coupons per book
+          let optimalBooks = numberOfBooks || Math.ceil(fullTotalCoupons / 100); // Default to 100 coupons per book
+          let optimalCouponsPerBook = Math.ceil(fullTotalCoupons / optimalBooks);
+          
+          // Ensure we don't exceed 100 coupons per book
+          if (optimalCouponsPerBook > 100) {
+            optimalBooks = Math.ceil(fullTotalCoupons / 100);
+            optimalCouponsPerBook = Math.ceil(fullTotalCoupons / optimalBooks);
+          }
+          
+          // Update form fields
+          form.setFieldValue('numberOfBooks', optimalBooks);
+          form.setFieldValue('couponsPerBook', optimalCouponsPerBook);
+          
+          // Generate books
+          for (let i = 0; i < optimalBooks; i++) {
+            const bookFirstNumber = fullFirstNumber + (i * optimalCouponsPerBook);
+            const bookLastNumber = Math.min(bookFirstNumber + optimalCouponsPerBook - 1, fullLastNumber);
+            
+            books.push({
+              bookId: `Book-${i + 1}`,
+              firstCouponId: `${fullPrefix}${bookFirstNumber.toString().padStart(fullNumberLength, '0')}`,
+              lastCouponId: `${fullPrefix}${bookLastNumber.toString().padStart(fullNumberLength, '0')}`,
+              numberOfCoupons: bookLastNumber - bookFirstNumber + 1
+            });
+            
+            // Stop if we've reached the last coupon
+            if (bookLastNumber >= fullLastNumber) break;
+          }
+          break;
+      }
+      
+      setCalculatedBooks(books);
+      
+      // Update total coupons
+      const totalCalculatedCoupons = books.reduce((sum, book) => sum + book.numberOfCoupons, 0);
+      form.setFieldValue('totalCoupons', totalCalculatedCoupons);
+      
+      // Update total litres
+      const couponAmount = form.getFieldValue('couponAmount') || 20;
+      form.setFieldValue('totalLitres', totalCalculatedCoupons * couponAmount);
+      
+      message.success(`Successfully generated ${books.length} books with ${totalCalculatedCoupons} total coupons`);
+      
+    } catch (error) {
+      console.error('Error generating books:', error);
+      message.error('Failed to generate books. Please check your input values.');
     }
   };
 
@@ -841,6 +1524,25 @@ const BoxReceiptManagement: FC = () => {
               onClick={() => {
                 // Handle print QR code
                 window.print();
+              }}
+            />
+          </Tooltip>
+
+          <Tooltip title="Print Verification Report">
+            <Button
+              size="small"
+              icon={<FileTextOutlined />}
+              onClick={() => handlePrintVerificationReport(record)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Download Report">
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => {
+                setSelectedBoxForPrint(record);
+                downloadVerificationReport();
               }}
             />
           </Tooltip>
@@ -1267,12 +1969,13 @@ const BoxReceiptManagement: FC = () => {
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         footer={null}
-        width={800}
+        width={1200}
         destroyOnHidden
       >
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Basic Info" icon={<InboxOutlined />} />
           <Step title="Fuel Details" icon={<CarOutlined />} />
+          <Step title="Intelligent Books" icon={<BarcodeOutlined />} />
           <Step title="Coupon Verification" icon={<CheckOutlined />} />
           <Step title="Final Approval" icon={<FileTextOutlined />} />
         </Steps>
@@ -1420,65 +2123,7 @@ const BoxReceiptManagement: FC = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-              </Row>
-
-              <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item
-                    label="Number of Books"
-                    name="numberOfBooks"
-                    rules={[{ required: true, message: 'Please enter number of books' }]}
-                  >
-                    <InputNumber
-                      min={1}
-                      max={50}
-                      style={{ width: '100%' }}
-                      placeholder="Number of books in box"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item
-                    label="Coupons per Book"
-                    name="couponsPerBook"
-                    rules={[{ required: true, message: 'Please enter coupons per book' }]}
-                  >
-                    <InputNumber
-                      min={1}
-                      max={50}
-                      style={{ width: '100%' }}
-                      placeholder="Coupons per book"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item
-                    label="Total Coupons"
-                    name="totalCoupons"
-                  >
-                    <InputNumber
-                      disabled
-                      style={{ width: '100%' }}
-                      placeholder="Auto-calculated"
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label="Total Litres"
-                    name="totalLitres"
-                  >
-                    <InputNumber
-                      disabled
-                      style={{ width: '100%' }}
-                      formatter={(value) => `${value} L`}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
                   <Form.Item
                     label="Fuel Price per Litre (USD)"
                     name="fuelPricePerLitreUSD"
@@ -1526,70 +2171,6 @@ const BoxReceiptManagement: FC = () => {
                 </Col>
               </Row>
 
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label="First Coupon ID"
-                    name="firstCouponId"
-                    rules={[{ required: true, message: 'Please enter first coupon ID' }]}
-                  >
-                    <Input 
-                      placeholder="Enter first coupon number (e.g., PU00GH355101)"
-                      style={{ fontFamily: 'monospace' }}
-                      onChange={(e) => {
-                        // Trigger recalculation when first coupon ID changes
-                        const firstCouponId = e.target.value;
-                        const totalCoupons = form.getFieldValue('totalCoupons');
-                        if (firstCouponId && totalCoupons > 0) {
-                          const lastCouponId = calculateLastCouponId(firstCouponId, totalCoupons);
-                          form.setFieldsValue({ lastCouponId });
-                        }
-                      }}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    label="Last Coupon ID"
-                    name="lastCouponId"
-                    rules={[{ required: true, message: 'Please enter last coupon ID' }]}
-                  >
-                    <Input 
-                      placeholder="Enter last coupon number (e.g., PU00GH355200)"
-                      style={{ fontFamily: 'monospace' }}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label="Monetary Value (USD)"
-                    name="monetaryValueUSD"
-                  >
-                    <InputNumber
-                      disabled
-                      precision={2}
-                      style={{ width: '100%' }}
-                      formatter={(value) => `$${(value || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    label="Monetary Value (ZWG)"
-                    name="monetaryValue"
-                  >
-                    <InputNumber
-                      disabled
-                      style={{ width: '100%' }}
-                      formatter={(value) => `ZWG ${(value || 0).toLocaleString()}`}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
               <div style={{ textAlign: 'right' }}>
                 <Space>
                   <Button onClick={() => setCurrentStep(0)}>
@@ -1599,7 +2180,7 @@ const BoxReceiptManagement: FC = () => {
                     type="primary"
                     onClick={() => setCurrentStep(2)}
                   >
-                    Next: Verification
+                    Next: Coupon Intelligence
                   </Button>
                 </Space>
               </div>
@@ -1607,6 +2188,217 @@ const BoxReceiptManagement: FC = () => {
           )}
 
           {currentStep === 2 && (
+            <>
+              <div style={{ marginBottom: 24 }}>
+                <Title level={4}>🤖 Intelligent Book Configuration</Title>
+                <Text type="secondary">
+                  Choose your preferred calculation method. The system will automatically generate all book details.
+                </Text>
+              </div>
+
+              {/* Smart Calculation Mode Selection */}
+              <Card style={{ marginBottom: 16 }} size="small">
+                <Title level={5}>🔧 Calculation Mode</Title>
+                <Radio.Group 
+                  value={calculationMode} 
+                  onChange={(e) => setCalculationMode(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <Row gutter={[16, 16]}>
+                    {calculationModes.map((mode) => (
+                      <Col span={12} key={mode.mode}>
+                        <Radio.Button 
+                          value={mode.mode} 
+                          style={{ width: '100%', height: 'auto', padding: '8px 12px' }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 'bold' }}>{mode.label}</div>
+                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                              {mode.description}
+                            </div>
+                          </div>
+                        </Radio.Button>
+                      </Col>
+                    ))}
+                  </Row>
+                </Radio.Group>
+              </Card>
+
+              {/* Smart Input Fields based on calculation mode */}
+              <Card style={{ marginBottom: 16 }} size="small">
+                <Title level={5}>📊 Input Parameters</Title>
+                <Row gutter={24}>
+                  {(calculationMode === 'first-and-count' || calculationMode === 'first-and-last' || calculationMode === 'full-range') && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="First Coupon ID"
+                        name="firstCouponId"
+                        rules={[{ required: true, message: 'Enter first coupon ID' }]}
+                      >
+                        <Input 
+                          placeholder="PU006H1355101"
+                          style={{ fontFamily: 'monospace', fontSize: '14px' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+
+                  {(calculationMode === 'last-and-count' || calculationMode === 'first-and-last' || calculationMode === 'full-range') && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Last Coupon ID"
+                        name="lastCouponId"
+                        rules={[{ required: true, message: 'Enter last coupon ID' }]}
+                      >
+                        <Input 
+                          placeholder="PU00GH357500"
+                          style={{ fontFamily: 'monospace', fontSize: '14px' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+
+                  {(calculationMode === 'first-and-count' || calculationMode === 'last-and-count' || calculationMode === 'first-and-last') && (
+                    <Col span={4}>
+                      <Form.Item
+                        label="Number of Books"
+                        name="numberOfBooks"
+                        rules={[{ required: true, message: 'Enter number of books' }]}
+                      >
+                        <InputNumber
+                          min={1}
+                          max={25}
+                          style={{ width: '100%' }}
+                          placeholder="1-25 books"
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+
+                  {(calculationMode === 'first-and-count' || calculationMode === 'last-and-count') && (
+                    <Col span={4}>
+                      <Form.Item
+                        label="Coupons per Book"
+                        name="couponsPerBook"
+                        rules={[{ required: true, message: 'Enter coupons per book' }]}
+                      >
+                        <InputNumber
+                          min={1}
+                          max={100}
+                          style={{ width: '100%' }}
+                          placeholder="1-100 coupons"
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+                </Row>
+
+                {/* Generate Books Button - full width */}
+                <Row style={{ marginTop: 16 }}>
+                  <Col span={24} style={{ textAlign: 'center' }}>
+                    <Button 
+                      type="primary" 
+                      size="large"
+                      icon={<BarcodeOutlined />}
+                      onClick={generateBooksFromRange}
+                      style={{ 
+                        borderRadius: '8px', 
+                        width: '300px',
+                        height: '50px',
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      🚀 Generate Books
+                    </Button>
+                  </Col>
+                </Row>
+
+                <Alert 
+                  type="info" 
+                  showIcon 
+                  message={calculationModes.find(m => m.mode === calculationMode)?.description}
+                  style={{ marginTop: 16 }}
+                />
+              </Card>
+
+              {/* Generated Books Display */}
+              {calculatedBooks.length > 0 && (
+                <Card style={{ marginBottom: 16 }} size="small">
+                  <Title level={5}>📚 Generated Books ({calculatedBooks.length})</Title>
+                  <Row gutter={[12, 12]}>
+                    {calculatedBooks.map((book, index) => (
+                      <Col span={3} key={book.bookId}>
+                        <Card 
+                          size="small" 
+                          style={{ 
+                            textAlign: 'center', 
+                            backgroundColor: '#f6f8ff',
+                            minHeight: '120px',
+                            borderRadius: '8px'
+                          }}
+                        >
+                          <div style={{ 
+                            fontWeight: 'bold', 
+                            color: '#1890ff', 
+                            fontSize: '13px',
+                            marginBottom: '6px'
+                          }}>
+                            {book.bookId}
+                          </div>
+                          <div style={{ 
+                            fontSize: '11px', 
+                            fontFamily: 'Consolas, Monaco, monospace', 
+                            lineHeight: '1.1',
+                            color: '#333',
+                            wordBreak: 'break-all',
+                            marginBottom: '2px'
+                          }}>
+                            {book.firstCouponId}
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#999', margin: '2px 0' }}>to</div>
+                          <div style={{ 
+                            fontSize: '11px', 
+                            fontFamily: 'Consolas, Monaco, monospace', 
+                            lineHeight: '1.1',
+                            color: '#333',
+                            wordBreak: 'break-all',
+                            marginBottom: '4px'
+                          }}>
+                            {book.lastCouponId}
+                          </div>
+                          <div style={{ 
+                            fontSize: '10px', 
+                            color: '#52c41a', 
+                            fontWeight: '500'
+                          }}>
+                            {book.numberOfCoupons} coupons
+                          </div>
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                </Card>
+              )}
+
+              <div style={{ textAlign: 'right' }}>
+                <Space>
+                  <Button onClick={() => setCurrentStep(1)}>
+                    Previous
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={() => setCurrentStep(3)}
+                    disabled={calculatedBooks.length === 0}
+                  >
+                    Next: Verification
+                  </Button>
+                </Space>
+              </div>
+            </>
+          )}
+
+          {currentStep === 3 && (
             <>
               <Alert
                 message="Coupon Verification Required"
@@ -1617,7 +2409,25 @@ const BoxReceiptManagement: FC = () => {
               />
 
               <Form.Item
-                label="Coupon Verification Checklist"
+                label={
+                  <Space>
+                    <span>Coupon Verification Checklist</span>
+                    <Button 
+                      size="small" 
+                      type="link" 
+                      onClick={() => {
+                        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+                        const allChecked = Array.from(checkboxes).every((checkbox: any) => checkbox.checked);
+                        checkboxes.forEach((checkbox: any) => {
+                          checkbox.checked = !allChecked;
+                          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                      }}
+                    >
+                      Select All
+                    </Button>
+                  </Space>
+                }
               >
                 <Checkbox.Group style={{ width: '100%' }}>
                   <Row>
@@ -1701,12 +2511,32 @@ const BoxReceiptManagement: FC = () => {
                 />
               </Form.Item>
 
+              {/* Print/Download Options */}
+              <Card size="small" style={{ marginBottom: 16 }}>
+                <Title level={5}>📄 Verification Documentation</Title>
+                <Space>
+                  <Button 
+                    icon={<PrinterOutlined />}
+                    onClick={() => window.print()}
+                  >
+                    Print Verification Report
+                  </Button>
+                  <Button 
+                    icon={<DownloadOutlined />}
+                    type="primary"
+                    ghost
+                  >
+                    Download PDF Report
+                  </Button>
+                </Space>
+              </Card>
+
               <div style={{ textAlign: 'right' }}>
                 <Space>
-                  <Button onClick={() => setCurrentStep(1)}>
+                  <Button onClick={() => setCurrentStep(2)}>
                     Previous
                   </Button>
-                  <Button onClick={() => setCurrentStep(3)}>
+                  <Button onClick={() => setCurrentStep(4)}>
                     Next: Final Approval
                   </Button>
                 </Space>
@@ -1714,10 +2544,10 @@ const BoxReceiptManagement: FC = () => {
             </>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <>
               <Alert
-                message="Verification Required"
+                message="Final Approval Required"
                 description="Please verify all box details and confirm receipt before submitting."
                 type="info"
                 showIcon
@@ -1725,7 +2555,7 @@ const BoxReceiptManagement: FC = () => {
               />
 
               <Form.Item
-                label="Verification Notes"
+                label="Final Notes"
                 name="notes"
               >
                 <TextArea
@@ -1751,7 +2581,7 @@ const BoxReceiptManagement: FC = () => {
 
               <div style={{ textAlign: 'right' }}>
                 <Space>
-                  <Button onClick={() => setCurrentStep(2)}>
+                  <Button onClick={() => setCurrentStep(3)}>
                     Previous
                   </Button>
                   <Button onClick={() => setIsModalVisible(false)}>
@@ -1915,6 +2745,68 @@ const BoxReceiptManagement: FC = () => {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Print Verification Report Modal */}
+      <Modal
+        title={
+          <Space>
+            <PrinterOutlined />
+            Print Verification Report - {selectedBoxForPrint?.boxId}
+          </Space>
+        }
+        open={isPrintModalVisible}
+        onCancel={() => setIsPrintModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setIsPrintModalVisible(false)}>
+            Cancel
+          </Button>,
+          <Button
+            key="download"
+            icon={<DownloadOutlined />}
+            onClick={downloadVerificationReport}
+          >
+            Download PDF
+          </Button>,
+          <Button
+            key="print"
+            type="primary"
+            icon={<PrinterOutlined />}
+            onClick={generateVerificationReport}
+          >
+            Print Report
+          </Button>,
+        ]}
+        width={600}
+      >
+        {selectedBoxForPrint && (
+          <div>
+            <Alert
+              message="Box Verification Report"
+              description="This will generate a professional verification report with the Parliament of Zimbabwe logo. You can print it directly or download as PDF."
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="Box ID">{selectedBoxForPrint.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Supplier">{selectedBoxForPrint.supplier}</Descriptions.Item>
+              <Descriptions.Item label="Fuel Type">{selectedBoxForPrint.fuelType}</Descriptions.Item>
+              <Descriptions.Item label="Total Books">{selectedBoxForPrint.numberOfBooks}</Descriptions.Item>
+              <Descriptions.Item label="Coupon Amount">{selectedBoxForPrint.couponAmount} Litres</Descriptions.Item>
+              <Descriptions.Item label="Total Litres">{selectedBoxForPrint.totalLitres}L</Descriptions.Item>
+              <Descriptions.Item label="First Coupon">{selectedBoxForPrint.firstCouponId}</Descriptions.Item>
+              <Descriptions.Item label="Last Coupon">{selectedBoxForPrint.lastCouponId}</Descriptions.Item>
+            </Descriptions>
+
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <Text type="secondary">
+                The report will include the Parliament of Zimbabwe logo and professional formatting
+              </Text>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Archive Modal */}

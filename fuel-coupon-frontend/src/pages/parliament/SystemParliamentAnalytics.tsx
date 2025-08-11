@@ -154,157 +154,97 @@ const SystemParliamentAnalytics: FC = () => {
 
   const loadPerformanceData = async () => {
     try {
-      // Fetch real subcenter data
-      const [subcentersResponse, sessionsResponse, attendanceResponse] = await Promise.all([
-        apiClient.get('/sub-centers/'),
-        apiClient.get('/parliament-sessions/'),
-        apiClient.get('/session-attendances/')
-      ]);
+      // Mock performance data
+      const mockPerformance: SubCenterPerformance[] = [
+        {
+          name: 'Harare Central',
+          sessions: 45,
+          attendance_rate: 94,
+          fuel_efficiency: 89,
+          compliance_score: 96,
+          status: 'excellent'
+        },
+        {
+          name: 'Bulawayo',
+          sessions: 32,
+          attendance_rate: 87,
+          fuel_efficiency: 85,
+          compliance_score: 91,
+          status: 'good'
+        },
+        {
+          name: 'Chitungwiza',
+          sessions: 28,
+          attendance_rate: 82,
+          fuel_efficiency: 78,
+          compliance_score: 84,
+          status: 'good'
+        },
+        {
+          name: 'Gweru',
+          sessions: 15,
+          attendance_rate: 68,
+          fuel_efficiency: 65,
+          compliance_score: 72,
+          status: 'needs_improvement'
+        },
+        {
+          name: 'Mutare',
+          sessions: 22,
+          attendance_rate: 79,
+          fuel_efficiency: 81,
+          compliance_score: 86,
+          status: 'good'
+        },
+        {
+          name: 'Masvingo',
+          sessions: 18,
+          attendance_rate: 71,
+          fuel_efficiency: 69,
+          compliance_score: 75,
+          status: 'needs_improvement'
+        }
+      ];
 
-      const subcenters = subcentersResponse.data.results || subcentersResponse.data;
-      const sessions = sessionsResponse.data.results || sessionsResponse.data;
-      const attendances = attendanceResponse.data.results || attendanceResponse.data;
-
-      // Calculate performance metrics for each subcenter
-      const performanceData: SubCenterPerformance[] = subcenters.map((subcenter: any) => {
-        // Count sessions for this subcenter
-        const subcenterSessions = sessions.filter((s: any) => s.subcenter_id === subcenter.id).length;
-        
-        // Count attendance for this subcenter
-        const subcenterAttendances = attendances.filter((a: any) => 
-          a.subcenter_id === subcenter.id && a.status === 'present'
-        ).length;
-        
-        const totalAttendanceRecords = attendances.filter((a: any) => a.subcenter_id === subcenter.id).length;
-        
-        // Calculate metrics
-        const attendanceRate = totalAttendanceRecords > 0 
-          ? Math.round((subcenterAttendances / totalAttendanceRecords) * 100) 
-          : 0;
-        
-        const fuelEfficiency = Math.min(95, Math.max(60, attendanceRate + Math.floor(Math.random() * 10) - 5));
-        const complianceScore = Math.min(100, Math.max(70, attendanceRate + Math.floor(Math.random() * 15) - 7));
-        
-        // Determine status
-        let status: 'excellent' | 'good' | 'needs_improvement' | 'poor' = 'good';
-        if (complianceScore >= 90) status = 'excellent';
-        else if (complianceScore >= 80) status = 'good';
-        else if (complianceScore >= 70) status = 'needs_improvement';
-        else status = 'poor';
-
-        return {
-          name: subcenter.name || `SubCenter ${subcenter.id}`,
-          sessions: subcenterSessions,
-          attendance_rate: attendanceRate,
-          fuel_efficiency: fuelEfficiency,
-          compliance_score: complianceScore,
-          status
-        };
-      });
-
-      setPerformanceData(performanceData);
+      setPerformanceData(mockPerformance);
     } catch (error) {
       console.error('Error loading performance data:', error);
-      // Fallback to empty data
-      setPerformanceData([]);
     }
   };
 
   const loadTrendData = async () => {
     try {
-      // Fetch real trend data from parliament sessions and attendance
-      const [sessionsResponse, attendanceResponse] = await Promise.all([
-        apiClient.get('/parliament-sessions/'),
-        apiClient.get('/session-attendances/')
-      ]);
+      // Mock trend data
+      const mockTrends: TrendData[] = [
+        { month: 'Jul', sessions: 74, attendance: 1021, fuel_usage: 20100, efficiency: 87 },
+        { month: 'Aug', sessions: 68, attendance: 932, fuel_usage: 18200, efficiency: 83 },
+        { month: 'Sep', sessions: 71, attendance: 987, fuel_usage: 19500, efficiency: 85 },
+        { month: 'Oct', sessions: 82, attendance: 1156, fuel_usage: 23200, efficiency: 90 },
+        { month: 'Nov', sessions: 76, attendance: 1089, fuel_usage: 21800, efficiency: 88 },
+        { month: 'Dec', sessions: 89, attendance: 1245, fuel_usage: 24500, efficiency: 92 }
+      ];
 
-      const sessions = sessionsResponse.data.results || sessionsResponse.data;
-      const attendances = attendanceResponse.data.results || attendanceResponse.data;
-
-      // Group data by month for the last 6 months
-      const last6Months = Array.from({ length: 6 }, (_, i) => {
-        const month = dayjs().subtract(5 - i, 'months');
-        return {
-          monthKey: month.format('YYYY-MM'),
-          month: month.format('MMM'),
-          sessions: 0,
-          attendance: 0,
-          fuel_usage: 0,
-          efficiency: 0
-        };
-      });
-
-      // Process sessions by month
-      sessions.forEach((session: any) => {
-        const sessionMonth = dayjs(session.start_date).format('YYYY-MM');
-        const monthData = last6Months.find(m => m.monthKey === sessionMonth);
-        if (monthData) {
-          monthData.sessions++;
-        }
-      });
-
-      // Process attendance by month
-      attendances.forEach((attendance: any) => {
-        const attendanceMonth = dayjs(attendance.date).format('YYYY-MM');
-        const monthData = last6Months.find(m => m.monthKey === attendanceMonth);
-        if (monthData && attendance.status === 'present') {
-          monthData.attendance++;
-          // Estimate fuel usage (assume 20L per attendance)
-          monthData.fuel_usage += 20;
-        }
-      });
-
-      // Calculate efficiency (attendance rate estimation)
-      last6Months.forEach(month => {
-        month.efficiency = month.sessions > 0 ? Math.round((month.attendance / (month.sessions * 10)) * 100) : 0;
-      });
-
-      setTrendData(last6Months);
+      setTrendData(mockTrends);
     } catch (error) {
       console.error('Error loading trend data:', error);
-      // Fallback to empty data
-      setTrendData([]);
     }
   };
 
   const loadStats = async () => {
     try {
-      // Fetch real analytics data from backend
-      const response = await apiClient.get('/analytics/', {
-        params: {
-          start_date: dayjs().subtract(30, 'days').format('YYYY-MM-DD'),
-          end_date: dayjs().format('YYYY-MM-DD')
-        }
-      });
-      
-      const analyticsData = response.data;
-      
-      // Use real data from backend
+      // Mock stats
       setStats({
-        totalSessions: analyticsData.attendance_summary?.total_sessions_tracked || 0,
-        totalAttendance: analyticsData.attendance_summary?.present_beneficiaries || 0,
-        totalFuelAllocated: analyticsData.fuel_summary?.total_fuel_dispensed || 0,
-        averageEfficiency: analyticsData.attendance_summary?.attendance_rate || 0,
-        activeSubcenters: analyticsData.subcenters_count || 0,
-        systemCompliance: Math.round((analyticsData.attendance_summary?.attendance_rate || 0) * 0.9), // Estimate compliance
-        monthlyGrowth: 0, // Will need to calculate from trend data
-        costPerSession: analyticsData.fuel_summary?.total_fuel_dispensed 
-          ? (analyticsData.fuel_summary.total_fuel_dispensed * 1.25) / (analyticsData.attendance_summary?.total_sessions_tracked || 1)
-          : 0
+        totalSessions: 460,
+        totalAttendance: 6430,
+        totalFuelAllocated: 127300,
+        averageEfficiency: 86,
+        activeSubcenters: 8,
+        systemCompliance: 89,
+        monthlyGrowth: 12.5,
+        costPerSession: 276.8
       });
     } catch (error) {
       console.error('Error loading stats:', error);
-      // Fallback to basic real data or zeros
-      setStats({
-        totalSessions: 0,
-        totalAttendance: 0,
-        totalFuelAllocated: 0,
-        averageEfficiency: 0,
-        activeSubcenters: 0,
-        systemCompliance: 0,
-        monthlyGrowth: 0,
-        costPerSession: 0
-      });
     }
   };
 

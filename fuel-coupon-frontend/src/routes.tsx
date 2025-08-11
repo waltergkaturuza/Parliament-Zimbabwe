@@ -34,6 +34,9 @@ const OverviewDashboard = lazy(() => import('@/pages/OverviewDashboard'));
 const AnalyticsDashboard = lazy(() => import('@/pages/dashboard/AnalyticsDashboard'));
 const MainCenterDashboard = lazy(() => import('@/pages/main-center/MainCenterDashboard'));
 
+// Dynamic Allocation Components
+const DynamicAllocations = lazy(() => import('@/pages/fuel/DynamicAllocations'));
+
 // Main Center Dedicated Pages
 const BoxReceiptPage = lazy(() => import('@/pages/main-center/BoxReceiptPage'));
 const BoxVerificationPage = lazy(() => import('@/pages/main-center/components/BoxVerificationPage'));
@@ -46,8 +49,6 @@ const AnalyticsFinancePage = lazy(() => import('@/pages/main-center/AnalyticsFin
 
 const CouponManagement = lazy(() => import('@/pages/fuel/CouponManagement'));
 const BeneficiaryManagement = lazy(() => import('@/pages/parliament/BeneficiaryManagement'));
-const BeneficiaryFormsPage = lazy(() => import('@/pages/membership/BeneficiaryFormsPage'));
-const MemberProfilesPage = lazy(() => import('@/pages/membership/MemberProfilesPage'));
 const ReportsAnalytics = lazy(() => import('@/pages/reports/ReportsAnalytics'));
 const SubCenterDashboardPage = lazy(() => import('@/pages/subcenter/SubCenterDashboard'));
 const SubCenterInventoryPage = lazy(() => import('@/pages/subcenter/SubCenterInventoryPage'));
@@ -209,10 +210,7 @@ const router = createBrowserRouter(
         <Route path="programs" element={<Suspense fallback={<LoadingSpinner />}><ProgramsPage /></Suspense>} />
         <Route path="attendance" element={<Suspense fallback={<LoadingSpinner />}><AttendanceTracking /></Suspense>} />
         <Route path="fuel-allocations" element={<Suspense fallback={<LoadingSpinner />}><FuelAllocations /></Suspense>} />
-        
-        {/* Membership Management Routes */}
-        <Route path="membership/beneficiary-forms" element={<Suspense fallback={<LoadingSpinner />}><BeneficiaryFormsPage /></Suspense>} />
-        <Route path="membership/profiles" element={<Suspense fallback={<LoadingSpinner />}><MemberProfilesPage /></Suspense>} />
+        <Route path="dynamic-allocations" element={<Suspense fallback={<LoadingSpinner />}><DynamicAllocations /></Suspense>} />
         
         {/* Parliament Oversight Routes (MAIN_CENTER) */}
         <Route path="parliament-reports" element={

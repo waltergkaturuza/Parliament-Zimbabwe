@@ -23,7 +23,7 @@ from .models import (
     User as UserModel, FuelData, CouponDistribution, FuelTransaction, SubCenterOfficer,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, SessionAttendance,
     BeneficiaryProfile, AuditLog, SystemAlert, BookDispatch, CouponAllocation, FuelEntitlement,
-    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program
+    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program, CouponHandover
 )
 from .serializers import (
     CouponSerializer, SubCenterSerializer,
@@ -486,6 +486,63 @@ class BoxViewSet(viewsets.ModelViewSet):
         
         return queryset.none()
     
+    def perform_create(self, serializer):
+        """Auto-fill received_by with current user's full name"""
+        # Auto-fill received_by with current user
+        serializer.save(received_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def verification_options(self, request):
+        """
+        Get available verification process options for frontend select-all functionality
+        """
+        verification_processes = [
+            {'id': 'serial_verification', 'name': 'Serial Number Verification', 'description': 'Verify all coupon serial numbers'},
+            {'id': 'physical_inspection', 'name': 'Physical Inspection', 'description': 'Visual inspection of books and coupons'},
+            {'id': 'count_verification', 'name': 'Count Verification', 'description': 'Verify coupon counts match declared numbers'},
+            {'id': 'quality_check', 'name': 'Quality Check', 'description': 'Check print quality and authenticity'},
+            {'id': 'database_sync', 'name': 'Database Synchronization', 'description': 'Sync with central database'},
+        ]
+        
+        return Response({
+            'verification_processes': verification_processes,
+            'select_all_available': True,
+            'current_user': {
+                'full_name': f"{request.user.first_name} {request.user.last_name}".strip(),
+                'role': request.user.role
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def coupon_book_options(self, request):
+        """
+        Get available options for coupon book generation
+        """
+        return Response({
+            'coupons_per_book_range': {
+                'min': 1,
+                'max': 100,
+                'default': 100,
+                'step': 1
+            },
+            'number_of_books_range': {
+                'min': 1,
+                'max': 50,
+                'default': 10,
+                'step': 1
+            },
+            'denomination_options': [
+                {'value': 5, 'label': '5 Litres'},
+                {'value': 10, 'label': '10 Litres'},
+                {'value': 20, 'label': '20 Litres'},
+                {'value': 50, 'label': '50 Litres'},
+            ],
+            'fuel_type_options': [
+                {'value': 'PETROL', 'label': 'Petrol'},
+                {'value': 'DIESEL', 'label': 'Diesel'},
+            ]
+        })
+    
     @action(detail=False, methods=['post'])
     def receive_box(self, request):
         """
@@ -882,6 +939,290 @@ class BookViewSet(viewsets.ModelViewSet):
             'errors': errors,
             'validation_timestamp': timezone.now()
         })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def available_for_dispatch(self, request):
+        """
+        Get books available for dispatch - enhanced for intelligent generator
+        """
+        try:
+            # Books that are received but not yet dispatched
+            available_books = Book.objects.filter(
+                box__is_received=True,
+                is_assigned=False,
+                dispatches__isnull=True
+            ).select_related('box', 'box__assigned_to').order_by('-generated_at')
+            
+            # Add query parameters for filtering
+            fuel_type = request.query_params.get('fuel_type')
+            denomination = request.query_params.get('denomination')
+            subcenter = request.query_params.get('subcenter')
+            
+            if fuel_type:
+                available_books = available_books.filter(box__fuel_type=fuel_type)
+            if denomination:
+                available_books = available_books.filter(box__denomination=denomination)
+            if subcenter:
+                available_books = available_books.filter(box__assigned_to_id=subcenter)
+            
+            # Prepare enhanced book data for intelligent generator
+            books_data = []
+            for book in available_books:
+                coupon_count = book.initial_coupon_count or 100
+                estimated_value = coupon_count * book.box.denomination
+                
+                books_data.append({
+                    'id': book.id,
+                    'bookId': book.id,
+                    'bookCode': book.book_code or f"BOOK-{book.id}",
+                    'boxId': book.box.box_code,
+                    'fuelType': book.box.fuel_type,
+                    'denomination': book.box.denomination,
+                    'firstCouponNumber': book.first_coupon_number,
+                    'lastCouponNumber': book.last_coupon_number,
+                    'numberOfCoupons': coupon_count,
+                    'estimatedValue': estimated_value,
+                    'pricePerLitre': float(book.box.fuel_price_per_litre_usd or 1.45),
+                    'generatedAt': book.generated_at.isoformat() if book.generated_at else None,
+                    'boxReceiveDate': book.box.received_at.isoformat() if book.box.received_at else None,
+                    'isSelected': False,
+                    'status': 'AVAILABLE_FOR_DISPATCH'
+                })
+            
+            # Summary statistics
+            total_books = len(books_data)
+            total_coupons = sum(book['numberOfCoupons'] for book in books_data)
+            total_value = sum(book['estimatedValue'] for book in books_data)
+            
+            # Group by fuel type and denomination for summary
+            summary_by_type = {}
+            for book in books_data:
+                key = f"{book['fuelType']}_{book['denomination']}L"
+                if key not in summary_by_type:
+                    summary_by_type[key] = {
+                        'fuel_type': book['fuelType'],
+                        'denomination': book['denomination'],
+                        'book_count': 0,
+                        'coupon_count': 0,
+                        'total_value': 0
+                    }
+                summary_by_type[key]['book_count'] += 1
+                summary_by_type[key]['coupon_count'] += book['numberOfCoupons']
+                summary_by_type[key]['total_value'] += book['estimatedValue']
+            
+            return Response({
+                'results': books_data,
+                'summary': {
+                    'total_books': total_books,
+                    'total_coupons': total_coupons,
+                    'total_value': total_value,
+                    'by_type': list(summary_by_type.values())
+                },
+                'filters_applied': {
+                    'fuel_type': fuel_type,
+                    'denomination': denomination,
+                    'subcenter': subcenter
+                },
+                'message': f'Found {total_books} books available for dispatch'
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load available books: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def validate_dispatch_selection(self, request):
+        """
+        Validate a selection of books for dispatch
+        """
+        try:
+            book_ids = request.data.get('book_ids', [])
+            target_subcenter = request.data.get('target_subcenter')
+            
+            if not book_ids:
+                return Response({
+                    'error': 'No books selected for validation'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get selected books
+            selected_books = Book.objects.filter(
+                id__in=book_ids,
+                box__is_received=True,
+                is_assigned=False,
+                dispatches__isnull=True
+            ).select_related('box')
+            
+            if len(selected_books) != len(book_ids):
+                return Response({
+                    'error': 'Some selected books are not available for dispatch'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validation checks
+            validation_results = {
+                'is_valid': True,
+                'warnings': [],
+                'errors': [],
+                'statistics': {}
+            }
+            
+            # Check 1: Serial number continuity
+            serial_ranges = []
+            for book in selected_books:
+                try:
+                    first_num = int(book.first_coupon_number[-6:]) if book.first_coupon_number else 0
+                    last_num = int(book.last_coupon_number[-6:]) if book.last_coupon_number else 0
+                    serial_ranges.append((first_num, last_num, book.id))
+                except ValueError:
+                    validation_results['warnings'].append(f"Book {book.book_code}: Cannot parse serial numbers")
+            
+            # Check for gaps in serial ranges
+            serial_ranges.sort()
+            for i in range(len(serial_ranges) - 1):
+                current_end = serial_ranges[i][1]
+                next_start = serial_ranges[i + 1][0]
+                if next_start != current_end + 1:
+                    validation_results['warnings'].append(
+                        f"Serial gap detected between books: {current_end} to {next_start}"
+                    )
+            
+            # Check 2: Fuel type consistency
+            fuel_types = set(book.box.fuel_type for book in selected_books)
+            if len(fuel_types) > 1:
+                validation_results['warnings'].append(
+                    f"Mixed fuel types selected: {', '.join(fuel_types)}"
+                )
+            
+            # Check 3: Denomination consistency
+            denominations = set(book.box.denomination for book in selected_books)
+            if len(denominations) > 1:
+                validation_results['warnings'].append(
+                    f"Mixed denominations selected: {', '.join(map(str, denominations))}"
+                )
+            
+            # Check 4: Target subcenter capacity (if provided)
+            if target_subcenter:
+                try:
+                    subcenter = SubCenter.objects.get(id=target_subcenter)
+                    total_coupons = sum(book.initial_coupon_count or 100 for book in selected_books)
+                    
+                    # Simple capacity check (assuming field exists)
+                    if hasattr(subcenter, 'capacity') and subcenter.capacity:
+                        if total_coupons > subcenter.capacity:
+                            validation_results['warnings'].append(
+                                f"Selected quantity ({total_coupons}) exceeds subcenter capacity ({subcenter.capacity})"
+                            )
+                except SubCenter.DoesNotExist:
+                    validation_results['errors'].append("Target subcenter not found")
+            
+            # Calculate statistics
+            total_books = len(selected_books)
+            total_coupons = sum(book.initial_coupon_count or 100 for book in selected_books)
+            total_value = sum((book.initial_coupon_count or 100) * book.box.denomination for book in selected_books)
+            
+            validation_results['statistics'] = {
+                'total_books': total_books,
+                'total_coupons': total_coupons,
+                'total_value': total_value,
+                'average_coupons_per_book': total_coupons / total_books if total_books > 0 else 0,
+                'fuel_types': list(fuel_types),
+                'denominations': list(denominations)
+            }
+            
+            # Set overall validity
+            validation_results['is_valid'] = len(validation_results['errors']) == 0
+            
+            return Response(validation_results)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Validation failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def dispatch_options(self, request):
+        """
+        Get options for book dispatch intelligent generator
+        """
+        try:
+            # Get available books summary
+            available_books = Book.objects.filter(
+                box__is_received=True,
+                is_assigned=False,
+                dispatches__isnull=True
+            ).select_related('box')
+            
+            # Summary by fuel type and denomination
+            summary = available_books.values(
+                'box__fuel_type', 
+                'box__denomination'
+            ).annotate(
+                book_count=models.Count('id'),
+                total_coupons=models.Sum('initial_coupon_count')
+            ).order_by('box__fuel_type', 'box__denomination')
+            
+            # Serial number ranges
+            if available_books.exists():
+                first_serial = available_books.aggregate(
+                    min_serial=models.Min('first_coupon_number')
+                )['min_serial']
+                last_serial = available_books.aggregate(
+                    max_serial=models.Max('last_coupon_number')
+                )['max_serial']
+            else:
+                first_serial = last_serial = None
+            
+            return Response({
+                'generation_modes': [
+                    {
+                        'id': 'book-selection',
+                        'name': '📚 Book Selection',
+                        'description': 'Select specific books to dispatch',
+                        'recommended_for': 'Precise book control'
+                    },
+                    {
+                        'id': 'serial-range',
+                        'name': '🔢 Serial Range',
+                        'description': 'Generate based on coupon serial number range',
+                        'recommended_for': 'Sequential serial dispatch'
+                    },
+                    {
+                        'id': 'quantity-based',
+                        'name': '📊 Quantity Based',
+                        'description': 'Generate based on target quantities',
+                        'recommended_for': 'Meeting specific quotas'
+                    },
+                    {
+                        'id': 'mixed-allocation',
+                        'name': '🎯 Mixed Allocation',
+                        'description': 'Complex allocation with multiple rules',
+                        'recommended_for': 'Multi-subcenter dispatch'
+                    }
+                ],
+                'available_summary': list(summary),
+                'serial_range': {
+                    'first_available': first_serial,
+                    'last_available': last_serial
+                },
+                'fuel_type_options': [
+                    {'value': 'PETROL', 'label': 'Petrol'},
+                    {'value': 'DIESEL', 'label': 'Diesel'},
+                    {'value': 'MIXED', 'label': 'Mixed (Both)'}
+                ],
+                'denomination_options': [
+                    {'value': 5, 'label': '5 Litres'},
+                    {'value': 10, 'label': '10 Litres'},
+                    {'value': 20, 'label': '20 Litres'},
+                    {'value': 50, 'label': '50 Litres'}
+                ],
+                'total_available_books': available_books.count(),
+                'total_available_coupons': sum(book.initial_coupon_count or 100 for book in available_books)
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load dispatch options: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):
@@ -1554,17 +1895,427 @@ class ParliamentSessionViewSet(viewsets.ModelViewSet):
 # ========================= MISSING VIEWSETS =========================
 
 class BookDispatchViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing book dispatches"""
+    """Enhanced ViewSet for managing book dispatches with intelligent coupon generation"""
     serializer_class = BookDispatchSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return BookDispatch.objects.all()
+        user = self.request.user
+        queryset = BookDispatch.objects.all().select_related('to_center', 'dispatched_by', 'received_by')
+        
+        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+            return queryset
+        elif user.role == 'SUB_CENTER' and user.sub_center:
+            return queryset.filter(to_center=user.sub_center)
+        
+        return queryset.none()
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission()]
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def available_books(self, request):
+        """Get books available for dispatch"""
+        try:
+            # Get books that are received but not yet dispatched
+            available_books = Book.objects.filter(
+                box__is_received=True,
+                is_assigned=False,
+                dispatches__isnull=True
+            ).select_related('box').order_by('-generated_at')
+            
+            books_data = []
+            for book in available_books:
+                books_data.append({
+                    'id': book.id,
+                    'bookId': book.id,
+                    'bookCode': book.book_code or f"BOOK-{book.id}",
+                    'boxId': book.box.box_code,
+                    'fuelType': book.box.fuel_type,
+                    'denomination': book.box.denomination,
+                    'firstCouponNumber': book.first_coupon_number,
+                    'lastCouponNumber': book.last_coupon_number,
+                    'numberOfCoupons': book.initial_coupon_count or 100,
+                    'isSelected': False,
+                    'generatedAt': book.generated_at.isoformat() if book.generated_at else None
+                })
+            
+            return Response({
+                'results': books_data,
+                'total_available': len(books_data),
+                'message': f'Found {len(books_data)} books available for dispatch'
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load available books: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def generate_coupons(self, request):
+        """
+        Intelligent coupon generation for book dispatch
+        Supports multiple generation modes similar to box receipt
+        """
+        try:
+            data = request.data
+            mode = data.get('mode', 'book-selection')
+            
+            generated_data = {
+                'coupons': [],
+                'books': [],
+                'total_books': 0,
+                'total_coupons': 0,
+                'total_value': 0,
+                'generation_mode': mode
+            }
+            
+            if mode == 'book-selection':
+                # Mode 1: Select specific books
+                book_ids = data.get('selectedBookIds', [])
+                if not book_ids:
+                    return Response({
+                        'error': 'No books selected for dispatch'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                selected_books = Book.objects.filter(
+                    id__in=book_ids,
+                    box__is_received=True,
+                    is_assigned=False,
+                    dispatches__isnull=True
+                ).select_related('box')
+                
+                if not selected_books.exists():
+                    return Response({
+                        'error': 'Selected books are not available for dispatch'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Generate coupons for selected books
+                generated_data = self._generate_coupons_for_books(selected_books)
+                
+            elif mode == 'serial-range':
+                # Mode 2: Generate based on serial number range
+                start_serial = data.get('startSerial')
+                end_serial = data.get('endSerial')
+                
+                if not start_serial or not end_serial:
+                    return Response({
+                        'error': 'Both start and end serial numbers are required'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Find books within the serial range
+                books_in_range = Book.objects.filter(
+                    first_coupon_number__lte=end_serial,
+                    last_coupon_number__gte=start_serial,
+                    box__is_received=True,
+                    is_assigned=False,
+                    dispatches__isnull=True
+                ).select_related('box')
+                
+                if not books_in_range.exists():
+                    return Response({
+                        'error': f'No available books found in serial range {start_serial} to {end_serial}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                generated_data = self._generate_coupons_for_books(books_in_range)
+                
+            elif mode == 'quantity-based':
+                # Mode 3: Generate based on target quantities
+                target_coupon_count = data.get('targetCouponCount')
+                target_book_count = data.get('targetBookCount')
+                preferred_denomination = data.get('preferredDenomination')
+                fuel_type_preference = data.get('fuelTypePreference')
+                
+                if not target_coupon_count and not target_book_count:
+                    return Response({
+                        'error': 'Either target coupon count or book count must be specified'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Build query filters
+                filters = {
+                    'box__is_received': True,
+                    'is_assigned': False,
+                    'dispatches__isnull': True
+                }
+                
+                if preferred_denomination:
+                    filters['box__denomination'] = preferred_denomination
+                
+                if fuel_type_preference and fuel_type_preference != 'MIXED':
+                    filters['box__fuel_type'] = fuel_type_preference
+                
+                available_books = Book.objects.filter(**filters).select_related('box')
+                
+                # Select books to meet target
+                selected_books = self._select_books_for_target(
+                    available_books, 
+                    target_coupon_count, 
+                    target_book_count
+                )
+                
+                if not selected_books:
+                    return Response({
+                        'error': 'No suitable books found to meet the target requirements'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                generated_data = self._generate_coupons_for_books(selected_books)
+                
+            elif mode == 'mixed-allocation':
+                # Mode 4: Mixed allocation with specific rules
+                allocation_rules = data.get('allocationRules', [])
+                
+                if not allocation_rules:
+                    return Response({
+                        'error': 'Allocation rules are required for mixed allocation mode'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Process allocation rules
+                selected_books = []
+                for rule in allocation_rules:
+                    rule_books = self._find_books_for_allocation_rule(rule)
+                    selected_books.extend(rule_books)
+                
+                if not selected_books:
+                    return Response({
+                        'error': 'No books found matching the allocation rules'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                generated_data = self._generate_coupons_for_books(selected_books)
+            
+            else:
+                return Response({
+                    'error': f'Unsupported generation mode: {mode}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response(generated_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to generate coupons: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _generate_coupons_for_books(self, books):
+        """Generate coupon data for selected books"""
+        generated_coupons = []
+        books_data = []
+        total_value = 0
+        
+        for book in books:
+            coupon_count = book.initial_coupon_count or 100
+            denomination = book.box.denomination
+            book_value = coupon_count * denomination
+            total_value += book_value
+            
+            # Generate individual coupon data
+            for i in range(coupon_count):
+                coupon_number = self._generate_coupon_number(book, i)
+                generated_coupons.append({
+                    'id': f"{book.id}-coupon-{i+1}",
+                    'couponNumber': coupon_number,
+                    'bookId': str(book.id),
+                    'fuelType': book.box.fuel_type,
+                    'denomination': denomination,
+                    'value': denomination,
+                    'pricePerLitre': float(book.box.fuel_price_per_litre_usd or 1.45),
+                    'generatedAt': timezone.now().isoformat(),
+                    'status': 'GENERATED'
+                })
+            
+            # Book data
+            books_data.append({
+                'id': str(book.id),
+                'bookId': str(book.id),
+                'bookCode': book.book_code or f"BOOK-{book.id}",
+                'boxId': book.box.box_code,
+                'fuelType': book.box.fuel_type,
+                'denomination': denomination,
+                'firstCouponNumber': book.first_coupon_number,
+                'lastCouponNumber': book.last_coupon_number,
+                'numberOfCoupons': coupon_count,
+                'isSelected': True
+            })
+        
+        return {
+            'coupons': generated_coupons,
+            'books': books_data,
+            'total_books': len(books_data),
+            'total_coupons': len(generated_coupons),
+            'total_value': total_value
+        }
+
+    def _generate_coupon_number(self, book, index):
+        """Generate sequential coupon number for a book"""
+        try:
+            # Extract numeric part from first coupon number
+            first_coupon = book.first_coupon_number
+            # Simple sequential generation - can be enhanced with proper serial logic
+            if first_coupon and first_coupon[-6:].isdigit():
+                base_number = int(first_coupon[-6:])
+                new_number = base_number + index
+                return first_coupon[:-6] + f"{new_number:06d}"
+            else:
+                return f"{first_coupon}-{index+1:03d}"
+        except:
+            return f"COUPON-{book.id}-{index+1:03d}"
+
+    def _select_books_for_target(self, available_books, target_coupon_count, target_book_count):
+        """Select books to meet target quantities"""
+        selected_books = []
+        current_coupon_count = 0
+        
+        for book in available_books:
+            if target_book_count and len(selected_books) >= target_book_count:
+                break
+            
+            book_coupon_count = book.initial_coupon_count or 100
+            
+            if target_coupon_count:
+                if current_coupon_count >= target_coupon_count:
+                    break
+                # Don't add if it would exceed target by too much
+                if current_coupon_count + book_coupon_count > target_coupon_count * 1.1:
+                    continue
+            
+            selected_books.append(book)
+            current_coupon_count += book_coupon_count
+        
+        return selected_books
+
+    def _find_books_for_allocation_rule(self, rule):
+        """Find books matching allocation rule"""
+        filters = {
+            'box__is_received': True,
+            'is_assigned': False,
+            'dispatches__isnull': True,
+            'box__fuel_type': rule.get('fuelType'),
+            'box__denomination': rule.get('denomination')
+        }
+        
+        quantity = rule.get('quantity', 1)
+        
+        books = Book.objects.filter(**filters).select_related('box')[:quantity]
+        return list(books)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def generation_options(self, request):
+        """Get available options for intelligent generation"""
+        try:
+            # Count available books by fuel type and denomination
+            available_summary = Book.objects.filter(
+                box__is_received=True,
+                is_assigned=False,
+                dispatches__isnull=True
+            ).values('box__fuel_type', 'box__denomination').annotate(
+                book_count=models.Count('id'),
+                total_coupons=models.Sum('initial_coupon_count')
+            )
+            
+            return Response({
+                'generation_modes': [
+                    {
+                        'id': 'book-selection',
+                        'name': 'Book Selection',
+                        'description': 'Select specific books to dispatch',
+                        'icon': 'book'
+                    },
+                    {
+                        'id': 'serial-range',
+                        'name': 'Serial Range',
+                        'description': 'Generate based on coupon serial number range',
+                        'icon': 'number'
+                    },
+                    {
+                        'id': 'quantity-based',
+                        'name': 'Quantity Based',
+                        'description': 'Generate based on target quantities',
+                        'icon': 'calculator'
+                    },
+                    {
+                        'id': 'mixed-allocation',
+                        'name': 'Mixed Allocation',
+                        'description': 'Complex allocation with multiple rules',
+                        'icon': 'setting'
+                    }
+                ],
+                'available_summary': list(available_summary),
+                'fuel_type_options': [
+                    {'value': 'PETROL', 'label': 'Petrol'},
+                    {'value': 'DIESEL', 'label': 'Diesel'},
+                    {'value': 'MIXED', 'label': 'Mixed (Both)'}
+                ],
+                'denomination_options': [
+                    {'value': 5, 'label': '5 Litres'},
+                    {'value': 10, 'label': '10 Litres'},
+                    {'value': 20, 'label': '20 Litres'},
+                    {'value': 50, 'label': '50 Litres'}
+                ],
+                'transport_methods': [
+                    {'value': 'DIRECT_DELIVERY', 'label': 'Direct Delivery'},
+                    {'value': 'PICKUP', 'label': 'Pickup'},
+                    {'value': 'COURIER', 'label': 'Courier Service'},
+                    {'value': 'GOVERNMENT_VEHICLE', 'label': 'Government Vehicle'}
+                ]
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load generation options: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def dispatch_preview(self, request, pk=None):
+        """Preview dispatch details before confirmation"""
+        try:
+            dispatch = self.get_object()
+            
+            # Get detailed book and coupon information
+            books = dispatch.books.all().select_related('box')
+            total_coupons = sum(book.initial_coupon_count or 100 for book in books)
+            total_value = sum((book.initial_coupon_count or 100) * book.box.denomination for book in books)
+            
+            book_details = []
+            for book in books:
+                book_details.append({
+                    'bookCode': book.book_code or f"BOOK-{book.id}",
+                    'fuelType': book.box.fuel_type,
+                    'denomination': book.box.denomination,
+                    'firstCouponNumber': book.first_coupon_number,
+                    'lastCouponNumber': book.last_coupon_number,
+                    'numberOfCoupons': book.initial_coupon_count or 100,
+                    'value': (book.initial_coupon_count or 100) * book.box.denomination
+                })
+            
+            return Response({
+                'dispatch_summary': {
+                    'dispatch_id': f"DISP-{dispatch.id}",
+                    'to_subcenter': dispatch.to_center.name,
+                    'dispatch_date': dispatch.dispatch_date.isoformat(),
+                    'total_books': len(books),
+                    'total_coupons': total_coupons,
+                    'total_value': total_value,
+                    'status': dispatch.status
+                },
+                'book_details': book_details,
+                'validation': {
+                    'ready_for_dispatch': dispatch.status in ['PENDING', 'DISPATCHED'],
+                    'all_books_verified': True,  # Add verification logic
+                    'transport_details_complete': bool(dispatch.notes)
+                }
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to generate dispatch preview: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def perform_create(self, serializer):
+        """Auto-assign dispatch details when creating"""
+        serializer.save(
+            dispatched_by=self.request.user,
+            dispatch_date=timezone.now()
+        )
 
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):
@@ -3495,3 +4246,439 @@ class CouponDistributionViewSet(viewsets.ModelViewSet):
         }
         
         return Response(stats)
+
+
+class CouponHandoverViewSet(viewsets.ModelViewSet):
+    """
+    Enhanced ViewSet for Coupon Handover Management with intelligent generation.
+    Handles physical distribution of coupons to beneficiaries with multi-step workflow:
+    Configuration → Generation → Verification → Handover → Confirmation
+    """
+    serializer_class = 'CouponHandoverSerializer'  # Will be defined in serializers.py
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        queryset = CouponHandover.objects.all().select_related(
+            'beneficiary', 'sub_center', 'handed_over_by', 'received_by'
+        ).prefetch_related('coupons')
+        
+        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+            return queryset
+        elif user.role == 'SUB_CENTER' and user.sub_center:
+            return queryset.filter(sub_center=user.sub_center)
+        elif user.role == 'BENEFICIARY':
+            return queryset.filter(beneficiary=user)
+        
+        return queryset.none()
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission | SubCenterPermission])
+    def intelligent_generation(self, request):
+        """
+        Intelligent coupon generation for handover based on different modes:
+        1. entitlement-based: Use beneficiary entitlement calculations
+        2. serial-range: Specify first and last coupon serials
+        3. quantity-based: Specify number of coupons needed
+        4. emergency-allocation: Emergency or special circumstances
+        """
+        try:
+            data = request.data
+            beneficiary_id = data.get('beneficiary_id')
+            mode = data.get('mode', 'entitlement-based')
+            config = data.get('config', {})
+            
+            # Validate beneficiary
+            try:
+                beneficiary = User.objects.get(id=beneficiary_id, role='BENEFICIARY')
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Beneficiary not found'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get or create handover record
+            sub_center = request.user.sub_center if hasattr(request.user, 'sub_center') else None
+            if not sub_center:
+                return Response({
+                    'error': 'Sub-center required for handover operations'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create temporary handover for generation
+            handover = CouponHandover(
+                beneficiary=beneficiary,
+                sub_center=sub_center,
+                handover_mode=mode,
+                status='CONFIGURED'
+            )
+            
+            # Generate intelligent selection
+            selected_coupons = handover.generate_intelligent_selection(mode, config)
+            
+            if not selected_coupons:
+                return Response({
+                    'error': 'No coupons available for the specified criteria'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Calculate totals
+            total_coupons = len(selected_coupons)
+            total_litres = sum(coupon.litres for coupon in selected_coupons)
+            total_value = sum(coupon.usd_value or 0 for coupon in selected_coupons)
+            
+            # Prepare response data
+            generation_data = {
+                'generation_mode': mode,
+                'beneficiary': {
+                    'id': beneficiary.id,
+                    'name': beneficiary.get_full_name(),
+                    'employee_id': getattr(beneficiary, 'employee_id', ''),
+                    'role': beneficiary.role
+                },
+                'selected_coupons': [
+                    {
+                        'coupon_id': coupon.id,
+                        'coupon_number': coupon.coupon_number,
+                        'book_id': coupon.book.id,
+                        'book_number': coupon.book.book_number,
+                        'box_code': coupon.book.box.box_code,
+                        'fuel_type': coupon.book.box.fuel_type,
+                        'denomination': coupon.book.box.denomination,
+                        'litres': float(coupon.litres),
+                        'value': float(coupon.usd_value or 0),
+                        'serial_number': coupon.coupon_number
+                    }
+                    for coupon in selected_coupons
+                ],
+                'summary': {
+                    'total_coupons': total_coupons,
+                    'total_litres': float(total_litres),
+                    'total_value': float(total_value),
+                    'first_serial': selected_coupons[0].coupon_number if selected_coupons else '',
+                    'last_serial': selected_coupons[-1].coupon_number if selected_coupons else '',
+                },
+                'config_used': config,
+                'timestamp': timezone.now().isoformat()
+            }
+            
+            return Response(generation_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Generation failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def available_beneficiaries(self, request):
+        """Get list of available beneficiaries for handover"""
+        try:
+            user = self.request.user
+            
+            # Base queryset for beneficiaries
+            beneficiaries = User.objects.filter(
+                role='BENEFICIARY',
+                is_active=True
+            ).select_related('beneficiary_profile')
+            
+            # Filter by sub-center if user is SUB_CENTER
+            if user.role == 'SUB_CENTER' and hasattr(user, 'sub_center'):
+                beneficiaries = beneficiaries.filter(sub_center=user.sub_center)
+            
+            beneficiary_data = []
+            for beneficiary in beneficiaries:
+                try:
+                    profile = beneficiary.beneficiary_profile
+                    entitlement_data = {
+                        'monthly_entitlement': float(profile.monthly_entitlement_litres),
+                        'current_balance': float(profile.current_balance),
+                        'used_this_month': float(profile.used_this_month),
+                        'last_handover_date': profile.last_allocation_date
+                    }
+                except:
+                    entitlement_data = {
+                        'monthly_entitlement': 0,
+                        'current_balance': 0,
+                        'used_this_month': 0,
+                        'last_handover_date': None
+                    }
+                
+                beneficiary_data.append({
+                    'id': beneficiary.id,
+                    'name': beneficiary.get_full_name(),
+                    'employee_id': getattr(beneficiary, 'employee_id', ''),
+                    'role': beneficiary.role,
+                    'category': getattr(beneficiary, 'category', 'Unknown'),
+                    'constituency': getattr(beneficiary, 'constituency', ''),
+                    'department': getattr(beneficiary, 'department', ''),
+                    'contact_info': {
+                        'email': beneficiary.email,
+                        'phone': getattr(beneficiary, 'phone', ''),
+                        'office': getattr(beneficiary, 'office_location', '')
+                    },
+                    'vehicle_info': {
+                        'make': getattr(beneficiary, 'vehicle_make', ''),
+                        'model': getattr(beneficiary, 'vehicle_model', ''),
+                        'year': getattr(beneficiary, 'vehicle_year', None),
+                        'engine_size': getattr(beneficiary, 'engine_size', ''),
+                        'registration': getattr(beneficiary, 'vehicle_registration', ''),
+                        'fuel_type': getattr(beneficiary, 'fuel_type', 'DIESEL')
+                    },
+                    'entitlement_profile': entitlement_data
+                })
+            
+            return Response({
+                'beneficiaries': beneficiary_data,
+                'total_count': len(beneficiary_data),
+                'timestamp': timezone.now().isoformat()
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load beneficiaries: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def available_coupons(self, request):
+        """Get available coupons for handover"""
+        try:
+            user = self.request.user
+            
+            # Base queryset for available coupons
+            coupons = Coupon.objects.filter(
+                status='AVAILABLE'
+            ).select_related('book__box')
+            
+            # Filter by sub-center if user is SUB_CENTER
+            if user.role == 'SUB_CENTER' and hasattr(user, 'sub_center'):
+                coupons = coupons.filter(book__box__assigned_to=user.sub_center)
+            
+            # Optional filters
+            fuel_type = request.query_params.get('fuel_type')
+            denomination = request.query_params.get('denomination')
+            box_code = request.query_params.get('box_code')
+            
+            if fuel_type:
+                coupons = coupons.filter(book__box__fuel_type=fuel_type)
+            if denomination:
+                coupons = coupons.filter(book__box__denomination=denomination)
+            if box_code:
+                coupons = coupons.filter(book__box__box_code__icontains=box_code)
+            
+            # Limit results for performance
+            coupons = coupons[:1000]  # Limit to 1000 coupons
+            
+            coupon_data = [
+                {
+                    'coupon_id': coupon.id,
+                    'coupon_number': coupon.coupon_number,
+                    'book_id': coupon.book.id,
+                    'book_number': coupon.book.book_number,
+                    'box_code': coupon.book.box.box_code,
+                    'fuel_type': coupon.book.box.fuel_type,
+                    'denomination': coupon.book.box.denomination,
+                    'status': coupon.status,
+                    'serial_number': coupon.coupon_number,
+                    'litres': float(coupon.litres),
+                    'value': float(coupon.usd_value or 0)
+                }
+                for coupon in coupons
+            ]
+            
+            return Response({
+                'coupons': coupon_data,
+                'total_count': len(coupon_data),
+                'filters_applied': {
+                    'fuel_type': fuel_type,
+                    'denomination': denomination,
+                    'box_code': box_code
+                },
+                'timestamp': timezone.now().isoformat()
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load available coupons: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def handover_options(self, request):
+        """Get handover options and configuration"""
+        try:
+            options = {
+                'handover_modes': [
+                    {
+                        'value': 'entitlement-based',
+                        'title': 'Entitlement-Based Handover',
+                        'description': 'Use beneficiary entitlement calculations',
+                        'supports_config': ['use_monthly_entitlement', 'custom_amount', 'respect_balance']
+                    },
+                    {
+                        'value': 'serial-range',
+                        'title': 'Serial Range Handover',
+                        'description': 'Specify first and last coupon serials',
+                        'supports_config': ['start_serial', 'end_serial', 'validate_sequence']
+                    },
+                    {
+                        'value': 'quantity-based',
+                        'title': 'Quantity-Based Handover',
+                        'description': 'Specify number of coupons needed',
+                        'supports_config': ['requested_quantity', 'preferred_fuel_type', 'preferred_denomination', 'allow_mixed']
+                    },
+                    {
+                        'value': 'emergency-allocation',
+                        'title': 'Emergency Allocation',
+                        'description': 'Emergency or special circumstances',
+                        'supports_config': ['emergency_reason', 'approved_by', 'override_entitlement', 'requested_quantity']
+                    }
+                ],
+                'handover_methods': [
+                    {'value': 'DIRECT_PICKUP', 'label': 'Direct Pickup'},
+                    {'value': 'OFFICE_DELIVERY', 'label': 'Office Delivery'},
+                    {'value': 'COURIER', 'label': 'Courier Service'},
+                    {'value': 'REPRESENTATIVE', 'label': 'Authorized Representative'}
+                ],
+                'status_choices': [
+                    {'value': 'PENDING', 'label': 'Pending'},
+                    {'value': 'CONFIGURED', 'label': 'Configured'},
+                    {'value': 'VERIFIED', 'label': 'Verified'},
+                    {'value': 'HANDED_OVER', 'label': 'Handed Over'},
+                    {'value': 'RECEIVED', 'label': 'Received'},
+                    {'value': 'CONFIRMED', 'label': 'Confirmed'},
+                    {'value': 'CANCELLED', 'label': 'Cancelled'}
+                ],
+                'verification_checklist': [
+                    'Beneficiary identity verified',
+                    'Representative authorization confirmed',
+                    'Coupon serial numbers validated',
+                    'Entitlement limits checked',
+                    'Vehicle registration confirmed',
+                    'Handover documentation complete',
+                    'Digital signatures obtained',
+                    'System records updated'
+                ],
+                'fuel_types': [
+                    {'value': 'PETROL', 'label': 'Petrol'},
+                    {'value': 'DIESEL', 'label': 'Diesel'}
+                ],
+                'denominations': [
+                    {'value': 5, 'label': '5 Litres'},
+                    {'value': 10, 'label': '10 Litres'},
+                    {'value': 20, 'label': '20 Litres'},
+                    {'value': 50, 'label': '50 Litres'}
+                ]
+            }
+            
+            return Response(options)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load handover options: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def complete_handover(self, request, pk=None):
+        """Complete the handover process with verification"""
+        try:
+            handover = self.get_object()
+            
+            if handover.status != 'VERIFIED':
+                return Response({
+                    'error': 'Handover must be verified before completion'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            verification_data = request.data.get('verification_data', {})
+            handover.complete_handover(request.user, verification_data)
+            
+            return Response({
+                'message': 'Handover completed successfully',
+                'handover_id': handover.handover_id,
+                'status': handover.status,
+                'summary': handover.get_handover_summary()
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to complete handover: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def confirm_receipt(self, request, pk=None):
+        """Confirm receipt by beneficiary"""
+        try:
+            handover = self.get_object()
+            
+            if handover.status != 'HANDED_OVER':
+                return Response({
+                    'error': 'Handover must be completed before confirmation'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            signature_data = request.data.get('signature_data', {})
+            handover.confirm_receipt(request.user, signature_data)
+            
+            return Response({
+                'message': 'Receipt confirmed successfully',
+                'handover_id': handover.handover_id,
+                'status': handover.status,
+                'summary': handover.get_handover_summary()
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to confirm receipt: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def handover_statistics(self, request):
+        """Get handover statistics and analytics"""
+        try:
+            user = self.request.user
+            queryset = self.get_queryset()
+            
+            # Basic statistics
+            total_handovers = queryset.count()
+            completed_handovers = queryset.filter(status='CONFIRMED').count()
+            pending_handovers = queryset.filter(status__in=['PENDING', 'CONFIGURED', 'VERIFIED']).count()
+            
+            # Monthly statistics
+            from django.db.models import Sum, Count
+            monthly_stats = queryset.filter(
+                handed_over_date__month=timezone.now().month,
+                handed_over_date__year=timezone.now().year
+            ).aggregate(
+                total_coupons=Sum('total_coupons'),
+                total_litres=Sum('total_litres'),
+                total_value=Sum('total_value'),
+                handover_count=Count('id')
+            )
+            
+            # Top beneficiaries
+            top_beneficiaries = queryset.filter(
+                status='CONFIRMED'
+            ).values(
+                'beneficiary__first_name',
+                'beneficiary__last_name'
+            ).annotate(
+                total_handovers=Count('id'),
+                total_litres=Sum('total_litres')
+            ).order_by('-total_litres')[:10]
+            
+            stats = {
+                'summary': {
+                    'total_handovers': total_handovers,
+                    'completed_handovers': completed_handovers,
+                    'pending_handovers': pending_handovers,
+                    'completion_rate': round((completed_handovers / total_handovers * 100) if total_handovers > 0 else 0, 1)
+                },
+                'monthly_stats': {
+                    'total_coupons': monthly_stats['total_coupons'] or 0,
+                    'total_litres': float(monthly_stats['total_litres'] or 0),
+                    'total_value': float(monthly_stats['total_value'] or 0),
+                    'handover_count': monthly_stats['handover_count'] or 0
+                },
+                'top_beneficiaries': list(top_beneficiaries),
+                'last_updated': timezone.now().isoformat()
+            }
+            
+            return Response(stats)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to load statistics: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

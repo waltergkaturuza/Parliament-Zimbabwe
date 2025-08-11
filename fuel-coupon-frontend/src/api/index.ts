@@ -1,15 +1,18 @@
 // src/api/index.ts
 import axios from 'axios';
 
-// Load base URL from environment or fallback to localhost
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000';
-
-// Ensure the base URL includes /api/v1 if not already present
-const finalBaseURL = API_BASE_URL.includes('/api/v1') ? API_BASE_URL : `${API_BASE_URL}/api/v1`;
+// Prefer Vite dev proxy during local development to avoid CORS issues.
+// In production, use VITE_API_BASE_URL if provided.
+const API_BASE_URL = (() => {
+  const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
+  if (fromEnv) return fromEnv;
+  // Use proxy path in dev, otherwise default to backend path.
+  return import.meta.env.DEV ? '/api/v1' : 'http://localhost:8000/api/v1';
+})();
 
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: finalBaseURL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -59,9 +62,9 @@ apiClient.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        // Try to refresh the token
-        const refreshResponse = await axios.post('/token/refresh/', {
-          refresh: refreshToken
+        // Try to refresh the token using the same apiClient and the /auth/refresh/ endpoint under /api/v1
+        const refreshResponse = await apiClient.post('/auth/refresh/', {
+          refresh: refreshToken,
         });
         
         const newAccessToken = refreshResponse.data.access;
