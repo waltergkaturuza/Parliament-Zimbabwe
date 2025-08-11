@@ -164,6 +164,20 @@ const BoxReceiptManagement: FC = () => {
   // Print/Download state
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [selectedBoxForPrint, setSelectedBoxForPrint] = useState<BoxReceipt | null>(null);
+  
+  // Sample Coupon Verification state
+  const [sampleCouponVerification, setSampleCouponVerification] = useState({
+    book1: {
+      firstCouponId: '',
+      lastCouponId: '',
+      verified: false
+    },
+    book2: {
+      firstCouponId: '',
+      lastCouponId: '',
+      verified: false
+    }
+  });
 
   // Fetch data on component mount
   useEffect(() => {
@@ -1090,6 +1104,33 @@ const BoxReceiptManagement: FC = () => {
     // For now, just show box details in a modal or navigate to details
     // You can expand this to show a detailed modal
     message.info(`Viewing details for Box ${box.boxId}`);
+  };
+
+  // Sample Coupon Verification handlers
+  const handleSampleCouponChange = (bookNumber: 1 | 2, field: 'firstCouponId' | 'lastCouponId', value: string) => {
+    setSampleCouponVerification(prev => ({
+      ...prev,
+      [`book${bookNumber}`]: {
+        ...prev[`book${bookNumber}`],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSampleCouponVerify = (bookNumber: 1 | 2) => {
+    const book = sampleCouponVerification[`book${bookNumber}`];
+    if (book.firstCouponId && book.lastCouponId) {
+      setSampleCouponVerification(prev => ({
+        ...prev,
+        [`book${bookNumber}`]: {
+          ...prev[`book${bookNumber}`],
+          verified: true
+        }
+      }));
+      message.success(`Book ${bookNumber} sample coupons verified successfully!`);
+    } else {
+      message.warning(`Please enter both first and last coupon IDs for Book ${bookNumber}`);
+    }
   };
 
   const toggleArchivedView = () => {
@@ -2462,17 +2503,26 @@ const BoxReceiptManagement: FC = () => {
                     <Input 
                       placeholder="Sample Book 1 - First Coupon ID" 
                       addonBefore="Book 1"
+                      value={sampleCouponVerification.book1.firstCouponId}
+                      onChange={(e) => handleSampleCouponChange(1, 'firstCouponId', e.target.value)}
                     />
                   </Col>
                   <Col span={12}>
                     <Input 
                       placeholder="Sample Book 1 - Last Coupon ID" 
+                      value={sampleCouponVerification.book1.lastCouponId}
+                      onChange={(e) => handleSampleCouponChange(1, 'lastCouponId', e.target.value)}
                       addonAfter={
                         <Button 
                           size="small" 
                           icon={<CheckOutlined />}
-                          type="text"
-                          style={{ color: 'green' }}
+                          type={sampleCouponVerification.book1.verified ? "primary" : "text"}
+                          style={{ 
+                            color: sampleCouponVerification.book1.verified ? '#fff' : 'green',
+                            backgroundColor: sampleCouponVerification.book1.verified ? '#52c41a' : 'transparent'
+                          }}
+                          onClick={() => handleSampleCouponVerify(1)}
+                          disabled={sampleCouponVerification.book1.verified}
                         />
                       }
                     />
@@ -2483,22 +2533,49 @@ const BoxReceiptManagement: FC = () => {
                     <Input 
                       placeholder="Sample Book 2 - First Coupon ID" 
                       addonBefore="Book 2"
+                      value={sampleCouponVerification.book2.firstCouponId}
+                      onChange={(e) => handleSampleCouponChange(2, 'firstCouponId', e.target.value)}
                     />
                   </Col>
                   <Col span={12}>
                     <Input 
                       placeholder="Sample Book 2 - Last Coupon ID" 
+                      value={sampleCouponVerification.book2.lastCouponId}
+                      onChange={(e) => handleSampleCouponChange(2, 'lastCouponId', e.target.value)}
                       addonAfter={
                         <Button 
                           size="small" 
                           icon={<CheckOutlined />}
-                          type="text"
-                          style={{ color: 'green' }}
+                          type={sampleCouponVerification.book2.verified ? "primary" : "text"}
+                          style={{ 
+                            color: sampleCouponVerification.book2.verified ? '#fff' : 'green',
+                            backgroundColor: sampleCouponVerification.book2.verified ? '#52c41a' : 'transparent'
+                          }}
+                          onClick={() => handleSampleCouponVerify(2)}
+                          disabled={sampleCouponVerification.book2.verified}
                         />
                       }
                     />
                   </Col>
                 </Row>
+                {(sampleCouponVerification.book1.verified || sampleCouponVerification.book2.verified) && (
+                  <Alert
+                    style={{ marginTop: 8 }}
+                    message="Sample Verification Status"
+                    description={
+                      <Space direction="vertical" size="small">
+                        {sampleCouponVerification.book1.verified && (
+                          <Text type="success">✓ Book 1 sample coupons verified</Text>
+                        )}
+                        {sampleCouponVerification.book2.verified && (
+                          <Text type="success">✓ Book 2 sample coupons verified</Text>
+                        )}
+                      </Space>
+                    }
+                    type="success"
+                    showIcon
+                  />
+                )}
               </Form.Item>
 
               <Form.Item
