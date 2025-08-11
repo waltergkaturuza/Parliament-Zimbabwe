@@ -161,23 +161,13 @@ const BoxReceiptManagement: FC = () => {
   const [verificationChecklist, setVerificationChecklist] = useState<string[]>([]);
   const [allVerificationSelected, setAllVerificationSelected] = useState(false);
   
+  // Book verification state
+  const [verifiedBooks, setVerifiedBooks] = useState<number[]>([]);
+  const [allBooksSelected, setAllBooksSelected] = useState(false);
+  
   // Print/Download state
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [selectedBoxForPrint, setSelectedBoxForPrint] = useState<BoxReceipt | null>(null);
-  
-  // Sample Coupon Verification state
-  const [sampleCouponVerification, setSampleCouponVerification] = useState({
-    book1: {
-      firstCouponId: '',
-      lastCouponId: '',
-      verified: false
-    },
-    book2: {
-      firstCouponId: '',
-      lastCouponId: '',
-      verified: false
-    }
-  });
 
   // Fetch data on component mount
   useEffect(() => {
@@ -731,6 +721,39 @@ const BoxReceiptManagement: FC = () => {
     setIsPrintModalVisible(true);
   };
 
+  // Book verification handlers
+  const handleBookVerificationChange = (bookNumber: number, checked: boolean) => {
+    setVerifiedBooks(prev => {
+      if (checked) {
+        return [...prev, bookNumber];
+      } else {
+        return prev.filter(num => num !== bookNumber);
+      }
+    });
+  };
+
+  const handleSelectAllBooks = () => {
+    if (!selectedBoxForPrint) return;
+    
+    const allBookNumbers = Array.from({ length: selectedBoxForPrint.numberOfBooks }, (_, i) => i + 1);
+    
+    if (allBooksSelected) {
+      setVerifiedBooks([]);
+      setAllBooksSelected(false);
+    } else {
+      setVerifiedBooks(allBookNumbers);
+      setAllBooksSelected(true);
+    }
+  };
+
+  // Update allBooksSelected when verifiedBooks changes
+  useEffect(() => {
+    if (selectedBoxForPrint) {
+      const totalBooks = selectedBoxForPrint.numberOfBooks;
+      setAllBooksSelected(verifiedBooks.length === totalBooks && totalBooks > 0);
+    }
+  }, [verifiedBooks, selectedBoxForPrint]);
+
   const generateVerificationReport = () => {
     if (!selectedBoxForPrint) return;
     
@@ -974,7 +997,16 @@ const BoxReceiptManagement: FC = () => {
         </div>
 
         <div class="section">
-            <div class="section-title">Generated Books Verification</div>
+            <div class="section-title">📚 Complete Generated Books Verification (${selectedBoxForPrint.numberOfBooks} Books)</div>
+            <div style="background-color: #e6f7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #91d5ff;">
+                <div style="font-weight: bold; color: #1890ff; margin-bottom: 10px;">Verification Summary:</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>✅ All ${selectedBoxForPrint.numberOfBooks} books individually verified</div>
+                    <div>✅ Total verification status: COMPLETE</div>
+                    <div>✅ All books approved for dispatch</div>
+                    <div>✅ Monetary value: $${(selectedBoxForPrint.monetaryValueUSD || (selectedBoxForPrint.numberOfBooks * selectedBoxForPrint.couponsPerBook * selectedBoxForPrint.couponAmount * 1.5)).toLocaleString()} USD</div>
+                </div>
+            </div>
             <div class="books-grid">
                 ${Array.from({ length: selectedBoxForPrint.numberOfBooks }, (_, index) => {
                   const bookNumber = index + 1;
@@ -999,12 +1031,13 @@ const BoxReceiptManagement: FC = () => {
                   }
                   
                   return `
-                    <div class="book-card">
-                        <div class="book-title">Book ${bookNumber}</div>
-                        <div class="book-detail">First: ${bookFirstCoupon}</div>
-                        <div class="book-detail">Last: ${bookLastCoupon}</div>
-                        <div class="book-detail">Coupons: ${couponsPerBook}</div>
-                        <div class="book-detail" style="color: #52c41a;">✓ Verified</div>
+                    <div class="book-card" style="border: 2px solid #52c41a; background-color: #f6ffed; border-radius: 8px; padding: 15px; text-align: center;">
+                        <div class="book-title" style="font-size: 16px; font-weight: bold; color: #1890ff; margin-bottom: 10px;">📖 Book ${bookNumber}</div>
+                        <div class="book-detail" style="margin: 6px 0; font-size: 14px;"><strong>First Coupon:</strong> <code style="background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px;">${bookFirstCoupon}</code></div>
+                        <div class="book-detail" style="margin: 6px 0; font-size: 14px;"><strong>Last Coupon:</strong> <code style="background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px;">${bookLastCoupon}</code></div>
+                        <div class="book-detail" style="margin: 6px 0; font-size: 14px;"><strong>Total Coupons:</strong> ${couponsPerBook}</div>
+                        <div class="book-detail" style="margin: 6px 0; font-size: 14px;"><strong>Value:</strong> ${couponsPerBook * selectedBoxForPrint.couponAmount} Litres</div>
+                        <div class="book-detail" style="color: #52c41a; font-weight: bold; font-size: 14px; margin-top: 10px; padding: 5px; background-color: #f6ffed; border-radius: 4px;">✅ VERIFIED & APPROVED</div>
                     </div>
                   `;
                 }).join('')}
@@ -1033,17 +1066,26 @@ const BoxReceiptManagement: FC = () => {
         ` : ''}
 
         <div class="signature-section">
-            <div class="signature-box">
-                <div>Received By</div>
-                <div style="font-weight: bold; margin-top: 5px;">${selectedBoxForPrint.receivedBy}</div>
+            <div class="signature-box" style="text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 20px; background-color: #f9f9f9;">
+                <div style="font-weight: bold; color: #1890ff; margin-bottom: 15px; font-size: 16px;">📥 Received By</div>
+                <div style="border-bottom: 2px solid #333; height: 60px; margin: 15px 0; position: relative;"></div>
+                <div style="font-weight: bold; margin-top: 10px; color: #333;">${selectedBoxForPrint.receivedBy}</div>
+                <div style="margin-top: 5px; color: #666; font-size: 14px;">Date: ${selectedBoxForPrint.receivedDate}</div>
+                <div style="margin-top: 3px; color: #666; font-size: 14px;">Time: ${selectedBoxForPrint.receivedTime}</div>
             </div>
-            <div class="signature-box">
-                <div>Verified By</div>
-                <div style="font-weight: bold; margin-top: 5px;">_________________</div>
+            <div class="signature-box" style="text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 20px; background-color: #f9f9f9;">
+                <div style="font-weight: bold; color: #1890ff; margin-bottom: 15px; font-size: 16px;">✅ Verified By</div>
+                <div style="border-bottom: 2px solid #333; height: 60px; margin: 15px 0; position: relative;"></div>
+                <div style="font-weight: bold; margin-top: 10px; color: #333;">Verification Officer</div>
+                <div style="margin-top: 5px; color: #666; font-size: 14px;">Date: ${new Date().toLocaleDateString()}</div>
+                <div style="margin-top: 3px; color: #666; font-size: 14px;">Time: ${new Date().toLocaleTimeString()}</div>
             </div>
-            <div class="signature-box">
-                <div>Approved By</div>
-                <div style="font-weight: bold; margin-top: 5px;">_________________</div>
+            <div class="signature-box" style="text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 20px; background-color: #f9f9f9;">
+                <div style="font-weight: bold; color: #1890ff; margin-bottom: 15px; font-size: 16px;">👤 Approved By</div>
+                <div style="border-bottom: 2px solid #333; height: 60px; margin: 15px 0; position: relative;"></div>
+                <div style="font-weight: bold; margin-top: 10px; color: #333;">Authorized Supervisor</div>
+                <div style="margin-top: 5px; color: #666; font-size: 14px;">Date: _____________</div>
+                <div style="margin-top: 3px; color: #666; font-size: 14px;">Time: _____________</div>
             </div>
         </div>
 
@@ -1104,33 +1146,6 @@ const BoxReceiptManagement: FC = () => {
     // For now, just show box details in a modal or navigate to details
     // You can expand this to show a detailed modal
     message.info(`Viewing details for Box ${box.boxId}`);
-  };
-
-  // Sample Coupon Verification handlers
-  const handleSampleCouponChange = (bookNumber: 1 | 2, field: 'firstCouponId' | 'lastCouponId', value: string) => {
-    setSampleCouponVerification(prev => ({
-      ...prev,
-      [`book${bookNumber}`]: {
-        ...prev[`book${bookNumber}`],
-        [field]: value
-      }
-    }));
-  };
-
-  const handleSampleCouponVerify = (bookNumber: 1 | 2) => {
-    const book = sampleCouponVerification[`book${bookNumber}`];
-    if (book.firstCouponId && book.lastCouponId) {
-      setSampleCouponVerification(prev => ({
-        ...prev,
-        [`book${bookNumber}`]: {
-          ...prev[`book${bookNumber}`],
-          verified: true
-        }
-      }));
-      message.success(`Book ${bookNumber} sample coupons verified successfully!`);
-    } else {
-      message.warning(`Please enter both first and last coupon IDs for Book ${bookNumber}`);
-    }
   };
 
   const toggleArchivedView = () => {
@@ -2494,88 +2509,86 @@ const BoxReceiptManagement: FC = () => {
                 </Checkbox.Group>
               </Form.Item>
 
+              {/* Generated Books Verification */}
               <Form.Item
-                label="Sample Coupon Verification"
-                tooltip="Select random coupons from different books to verify authenticity and print quality"
+                label="Generated Books Verification"
+                tooltip="Verify all generated books with coupon ranges and integrity"
               >
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 1 - First Coupon ID" 
-                      addonBefore="Book 1"
-                      value={sampleCouponVerification.book1.firstCouponId}
-                      onChange={(e) => handleSampleCouponChange(1, 'firstCouponId', e.target.value)}
+                <Card size="small" style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <Title level={5} style={{ margin: 0 }}>📚 All Generated Books ({calculatedBooks.length})</Title>
+                    <Space>
+                      <Button 
+                        size="small" 
+                        type={allBooksSelected ? "primary" : "default"}
+                        onClick={handleSelectAllBooks}
+                        icon={allBooksSelected ? <CheckOutlined /> : undefined}
+                      >
+                        {allBooksSelected ? 'Deselect All' : 'Select All'} Books
+                      </Button>
+                      <Text type="secondary">
+                        {verifiedBooks.length} / {calculatedBooks.length} verified
+                      </Text>
+                    </Space>
+                  </div>
+                  
+                  <Row gutter={[16, 16]}>
+                    {calculatedBooks.map((book, index) => {
+                      const bookNumber = index + 1;
+                      const isVerified = verifiedBooks.includes(bookNumber);
+                      return (
+                        <Col span={12} key={bookNumber}>
+                          <Card 
+                            size="small" 
+                            style={{ 
+                              border: isVerified ? '2px solid #52c41a' : '1px solid #d9d9d9',
+                              backgroundColor: isVerified ? '#f6ffed' : '#fff',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleBookVerificationChange(bookNumber, !isVerified)}
+                            extra={
+                              <Checkbox
+                                checked={isVerified}
+                                onChange={(e) => handleBookVerificationChange(bookNumber, e.target.checked)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            }
+                          >
+                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text strong>📖 Book {bookNumber}</Text>
+                                {isVerified && <Tag color="green" icon={<CheckOutlined />}>VERIFIED</Tag>}
+                              </div>
+                              <Text type="secondary">First: <Text code>{book.firstCouponId}</Text></Text>
+                              <Text type="secondary">Last: <Text code>{book.lastCouponId}</Text></Text>
+                              <Text type="secondary">Coupons: <Tag color="blue">{book.numberOfCoupons}</Tag></Text>
+                              <Text type="secondary">Value: <Tag color="orange">{book.numberOfCoupons * (selectedBoxForPrint?.couponAmount || 0)} L</Tag></Text>
+                            </Space>
+                          </Card>
+                        </Col>
+                      );
+                    })}
+                  </Row>
+                  
+                  {verifiedBooks.length === calculatedBooks.length && calculatedBooks.length > 0 && (
+                    <Alert
+                      type="success"
+                      message="All Books Verified!"
+                      description={`Successfully verified all ${calculatedBooks.length} books. Ready for dispatch and processing.`}
+                      showIcon
+                      style={{ marginTop: 16 }}
                     />
-                  </Col>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 1 - Last Coupon ID" 
-                      value={sampleCouponVerification.book1.lastCouponId}
-                      onChange={(e) => handleSampleCouponChange(1, 'lastCouponId', e.target.value)}
-                      addonAfter={
-                        <Button 
-                          size="small" 
-                          icon={<CheckOutlined />}
-                          type={sampleCouponVerification.book1.verified ? "primary" : "text"}
-                          style={{ 
-                            color: sampleCouponVerification.book1.verified ? '#fff' : 'green',
-                            backgroundColor: sampleCouponVerification.book1.verified ? '#52c41a' : 'transparent'
-                          }}
-                          onClick={() => handleSampleCouponVerify(1)}
-                          disabled={sampleCouponVerification.book1.verified}
-                        />
-                      }
+                  )}
+                  
+                  {calculatedBooks.length === 0 && (
+                    <Alert
+                      message="No books generated yet"
+                      description="Complete the form fields above and click 'Generate Books' to see book verification options."
+                      type="info"
+                      showIcon
                     />
-                  </Col>
-                </Row>
-                <Row gutter={16} style={{ marginTop: 8 }}>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 2 - First Coupon ID" 
-                      addonBefore="Book 2"
-                      value={sampleCouponVerification.book2.firstCouponId}
-                      onChange={(e) => handleSampleCouponChange(2, 'firstCouponId', e.target.value)}
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Input 
-                      placeholder="Sample Book 2 - Last Coupon ID" 
-                      value={sampleCouponVerification.book2.lastCouponId}
-                      onChange={(e) => handleSampleCouponChange(2, 'lastCouponId', e.target.value)}
-                      addonAfter={
-                        <Button 
-                          size="small" 
-                          icon={<CheckOutlined />}
-                          type={sampleCouponVerification.book2.verified ? "primary" : "text"}
-                          style={{ 
-                            color: sampleCouponVerification.book2.verified ? '#fff' : 'green',
-                            backgroundColor: sampleCouponVerification.book2.verified ? '#52c41a' : 'transparent'
-                          }}
-                          onClick={() => handleSampleCouponVerify(2)}
-                          disabled={sampleCouponVerification.book2.verified}
-                        />
-                      }
-                    />
-                  </Col>
-                </Row>
-                {(sampleCouponVerification.book1.verified || sampleCouponVerification.book2.verified) && (
-                  <Alert
-                    style={{ marginTop: 8 }}
-                    message="Sample Verification Status"
-                    description={
-                      <Space direction="vertical" size="small">
-                        {sampleCouponVerification.book1.verified && (
-                          <Text type="success">✓ Book 1 sample coupons verified</Text>
-                        )}
-                        {sampleCouponVerification.book2.verified && (
-                          <Text type="success">✓ Book 2 sample coupons verified</Text>
-                        )}
-                      </Space>
-                    }
-                    type="success"
-                    showIcon
-                  />
-                )}
+                  )}
+                </Card>
               </Form.Item>
 
               <Form.Item
