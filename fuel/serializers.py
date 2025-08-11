@@ -235,6 +235,7 @@ class BoxSerializer(serializers.ModelSerializer):
     
     # Frontend form field names that might differ from submission names
     boxId = serializers.CharField(source='box_code', required=False)
+    box_id = serializers.CharField(source='box_code', required=False)  # Alternative field name
     fuelType = serializers.CharField(source='fuel_type', required=False)
     couponAmount = serializers.IntegerField(source='denomination', required=False)
     numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
@@ -260,7 +261,7 @@ class BoxSerializer(serializers.ModelSerializer):
             'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
             'fuelPriceUSD', 'monetaryValueUSD',
             # Alternative frontend field names
-            'boxId', 'fuelType', 'couponAmount', 'numberOfBooks', 'couponsPerBook', 
+            'boxId', 'box_id', 'fuelType', 'couponAmount', 'numberOfBooks', 'couponsPerBook', 
             'totalLitres', 'firstCouponId', 'lastCouponId'
         ]
         read_only_fields = [
@@ -286,14 +287,19 @@ class BoxSerializer(serializers.ModelSerializer):
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"BoxSerializer received data keys: {list(data.keys())}")
-        logger.info(f"box_code value: '{data.get('box_code')}'")
         
-        # Check box_code - it's required and should be provided
-        box_code = data.get('box_code')
+        # Check box_code - it might come as box_code, boxId, or box_id
+        box_code = data.get('box_code') or data.get('boxId') or data.get('box_id')
+        logger.info(f"box_code value: '{box_code}'")
+        
         if not box_code or (isinstance(box_code, str) and box_code.strip() == ''):
             raise serializers.ValidationError({
                 'box_code': ['This field is required. Please ensure Box ID is provided.']
             })
+        
+        # Ensure box_code is set in the data for model creation
+        if not data.get('box_code') and box_code:
+            data['box_code'] = box_code
         
         # Check coupon numbers - they should be provided
         first_coupon = data.get('first_coupon_number')

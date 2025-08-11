@@ -1,0 +1,29 @@
+{
+  "box_code": "FCB-2025-TEST001",
+  "barcode": "",
+  "book_details": [
+    {
+      "book_id": "Book 1",
+      "book_number": 1,
+      "first_coupon_id": "PU008GH123200",
+      "last_coupon_id": "PU008GH123299",
+      "number_of_coupons": 100
+    },
+    {
+      "book_id": "Book 2",
+      "book_number": 2,
+      "first_coupon_id": "PU008GH123300",
+      "last_coupon_id": "PU008GH123399",
+      "number_of_coupons": 100
+    }
+  ],
+  "calculation_mode": "first-and-count",
+  "coupons_per_book": 100,
+  "first_coupon_id": "PU008GH123200",
+  "last_coupon_id": "PU008GH124199",
+  "notes": "AZURE CLI TEST - WITH BOX_CODE",
+  "number_of_books": 10,
+  "received_at": "2025-08-11T08:10:00Z",
+  "status": "RECEIVED",
+  "total_coupons": 1000
+}
