@@ -1,0 +1,62 @@
+{
+  "timestamp": "2025-08-11T20:13:48.456975",
+  "overall_score": 62.5,
+  "field_mappings": {
+    "total_fields": 28,
+    "coverage_percentage": 75.0,
+    "detailed_mappings": {
+      "attendees": "\u26a0\ufe0f Limited",
+      "attendees_count": "\u2705 Perfect",
+      "completion_percentage": "\u2705 Perfect",
+      "created": "\u2705 Perfect",
+      "description": "\u2705 Perfect",
+      "duration_days": "\ud83d\udd27 Computed/Partial",
+      "end_date": "\u2705 Perfect",
+      "expected_participants": "\ud83d\udd27 Computed/Partial",
+      "fuel_allocation_approved": "\ud83d\udd27 Computed/Partial",
+      "id": "\u2705 Perfect",
+      "is_active": "\u2705 Perfect",
+      "is_completed": "\u26a0\ufe0f Limited",
+      "is_ongoing": "\ud83d\udd27 Computed/Partial",
+      "is_upcoming": "\ud83d\udd27 Computed/Partial",
+      "location": "\u2705 Perfect",
+      "modified": "\u2705 Perfect",
+      "notes": "\ud83d\udd27 Computed/Partial",
+      "organizer": "\u2705 Perfect",
+      "organizer_details": "\u274c Missing",
+      "organizer_name": "\u274c Missing",
+      "program_type": "\u2705 Perfect",
+      "program_type_display": "\ud83d\udd27 Computed/Partial",
+      "scheduled_date": "\u2705 Perfect",
+      "status_display": "\u26a0\ufe0f Limited",
+      "sub_center": "\u2705 Perfect",
+      "sub_center_details": "\u274c Missing",
+      "sub_center_name": "\u274c Missing",
+      "title": "\u2705 Perfect"
+    }
+  },
+  "program_types": {
+    "consistency_check": false,
+    "model_types_count": 16,
+    "programs_ts_types_count": 4,
+    "critical_issue": true
+  },
+  "computed_properties": {
+    "fully_implemented": true,
+    "required_count": 7,
+    "implementation_status": "Complete"
+  },
+  "recommendations": [
+    "Address 4 missing field mappings",
+    "Improve 3 limited field mappings",
+    "Standardize program types across all interfaces (use 16 parliamentary types)",
+    "Implement all computed properties in both model and serializer",
+    "Update frontend interfaces to use harmonized Program interface",
+    "Remove duplicate/conflicting interface definitions",
+    "Add comprehensive validation for program creation/updates",
+    "Test API integration with harmonized field mappings",
+    "Update frontend components to use structured data objects",
+    "Add field validation at all layers (model, serializer, frontend)"
+  ],
+  "status": "NEEDS_IMPROVEMENT"
+}

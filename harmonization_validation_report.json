@@ -1,0 +1,195 @@
+{
+  "field_mappings": {
+    "perfect_mappings": 5,
+    "computed_mappings": 14,
+    "missing_mappings": 12,
+    "total_frontend_fields": 31,
+    "coverage_percentage": 61.29032258064516,
+    "detailed_mappings": {
+      "id": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryManagement"
+      },
+      "parliamentaryId": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "name": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "title": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "category": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryManagement"
+      },
+      "constituency": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryManagement"
+      },
+      "party": {
+        "frontend_type": "string",
+        "mapping_status": "\u2705 Mapped",
+        "interface": "BeneficiaryManagement"
+      },
+      "phoneNumber": {
+        "frontend_type": "string",
+        "mapping_status": "\u2705 Mapped",
+        "interface": "BeneficiaryManagement"
+      },
+      "email": {
+        "frontend_type": "string",
+        "mapping_status": "\u2705 Mapped",
+        "interface": "BeneficiaryManagement"
+      },
+      "address": {
+        "frontend_type": "string",
+        "mapping_status": "\u2705 Mapped",
+        "interface": "BeneficiaryManagement"
+      },
+      "dateOfBirth": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "nationalId": {
+        "frontend_type": "string",
+        "mapping_status": "\u2705 Mapped",
+        "interface": "BeneficiaryManagement"
+      },
+      "profilePhoto": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "status": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryManagement"
+      },
+      "entitlements": {
+        "frontend_type": "object",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "fuelUsage": {
+        "frontend_type": "object",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "vehicles": {
+        "frontend_type": "array",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "lastActivity": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "createdAt": {
+        "frontend_type": "string",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryManagement"
+      },
+      "memberId": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "position": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "department": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "contactInfo": {
+        "frontend_type": "object",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "vehicleInfo": {
+        "frontend_type": "object",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "allocationProfile": {
+        "frontend_type": "object",
+        "mapping_status": "\ud83d\udd27 Computed",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "joinDate": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryAccountDashboard"
+      },
+      "lastLogin": {
+        "frontend_type": "string",
+        "mapping_status": "\u274c Missing",
+        "interface": "BeneficiaryAccountDashboard"
+      }
+    }
+  },
+  "coverage_analysis": {
+    "model_field_coverage": 100,
+    "serializer_field_coverage": 100,
+    "frontend_field_coverage": 61.29032258064516,
+    "overall_coverage": 84.51612903225806,
+    "critical_fields_covered": 7,
+    "total_critical_fields": 11,
+    "coverage_breakdown": {
+      "id": "\u274c Not Covered",
+      "parliamentaryId": "\u2705 Covered",
+      "name": "\u2705 Covered",
+      "title": "\u2705 Covered",
+      "category": "\u274c Not Covered",
+      "constituency": "\u274c Not Covered",
+      "phoneNumber": "\u2705 Covered",
+      "email": "\u2705 Covered",
+      "status": "\u274c Not Covered",
+      "vehicleInfo": "\u2705 Covered",
+      "allocationProfile": "\u2705 Covered"
+    },
+    "compatibility_score": 100.0
+  },
+  "compatibility_check": {
+    "structured_objects": 6,
+    "computed_properties": 7,
+    "relationship_mappings": 4,
+    "total_structures": 6,
+    "compatibility_score": 100.0,
+    "structure_details": {
+      "contactInfo": "\u2705 Implemented",
+      "vehicleInfo": "\u2705 Implemented",
+      "allocationProfile": "\u2705 Implemented",
+      "entitlements": "\u2705 Implemented",
+      "fuelUsage": "\u2705 Implemented",
+      "vehicles": "\u2705 Implemented"
+    }
+  },
+  "recommendations": [
+    "Address 12 missing field mappings for complete frontend compatibility",
+    "Improve overall coverage from 84.5% to 95%+ for production readiness",
+    "Ensure all 11 critical fields are covered (currently 7/11)",
+    "Run dry-run migration first to validate data integrity",
+    "Implement backup strategy before executing actual migration",
+    "Create comprehensive test suite for harmonized model",
+    "Update frontend components to use structured data objects",
+    "Add field validation at all layers (model, serializer, frontend)",
+    "Implement data consistency checks across all interfaces"
+  ],
+  "overall_score": 80.64516129032258
+}

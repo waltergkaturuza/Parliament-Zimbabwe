@@ -1,0 +1,92 @@
+{
+  "results": {
+    "types_models": {
+      "exists": true,
+      "program_types": [
+        "SESSION",
+        "COMMITTEE",
+        "WORKSHOP",
+        "OUTREACH",
+        "CONFERENCE",
+        "CEREMONY",
+        "INSPECTION",
+        "CAMPAIGN",
+        "NATIONAL_EVENT",
+        "CONSTITUENCY",
+        "DEBATE",
+        "BUDGET_SESSION",
+        "POLICY_MEETING",
+        "PUBLIC_HEARING",
+        "DIPLOMATIC",
+        "OTHER"
+      ],
+      "computed_fields": [
+        "duration_days",
+        "is_upcoming",
+        "is_ongoing",
+        "is_completed",
+        "status_display",
+        "attendees_count",
+        "completion_percentage",
+        "organizer_name",
+        "sub_center_name"
+      ]
+    },
+    "api_programs": {
+      "exists": true,
+      "has_conflicting_interface": false
+    },
+    "program_list": {
+      "exists": true,
+      "uses_harmonized_import": true,
+      "uses_computed_fields": true
+    },
+    "program_components": [
+      {
+        "name": "Programs.tsx",
+        "path": "pages\\Programs.tsx",
+        "has_program_interface": false,
+        "imports_from_types": false,
+        "uses_computed_fields": false
+      },
+      {
+        "name": "ProgramsPage.tsx",
+        "path": "pages\\parliament\\ProgramsPage.tsx",
+        "has_program_interface": false,
+        "imports_from_types": false,
+        "uses_computed_fields": false
+      },
+      {
+        "name": "ProgramDetail.tsx",
+        "path": "pages\\programs\\ProgramDetail.tsx",
+        "has_program_interface": false,
+        "imports_from_types": false,
+        "uses_computed_fields": false
+      },
+      {
+        "name": "ProgramList.tsx",
+        "path": "pages\\programs\\ProgramList.tsx",
+        "has_program_interface": false,
+        "imports_from_types": true,
+        "uses_computed_fields": true
+      },
+      {
+        "name": "AttendancePerProgramChart.tsx",
+        "path": "components\\charts\\AttendancePerProgramChart.tsx",
+        "has_program_interface": false,
+        "imports_from_types": false,
+        "uses_computed_fields": false
+      },
+      {
+        "name": "CouponsPerProgramChart.tsx",
+        "path": "components\\charts\\CouponsPerProgramChart.tsx",
+        "has_program_interface": false,
+        "imports_from_types": false,
+        "uses_computed_fields": false
+      }
+    ],
+    "harmonization_score": 0
+  },
+  "score": 91.66666666666667,
+  "timestamp": "2025-08-11"
+}

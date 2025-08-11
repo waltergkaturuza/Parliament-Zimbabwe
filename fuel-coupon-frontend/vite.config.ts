@@ -14,10 +14,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api/v1': { // 👈 Corrected proxy path
+      '/api/v1': { // � Proxy API to Django in dev to avoid CORS
         target: 'http://localhost:8000',
         changeOrigin: true,
-        // No rewrite needed if your backend expects /api/v1
+        secure: false,
+        ws: true,
       },
     },
   },
