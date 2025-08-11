@@ -81,12 +81,18 @@ export interface AllocationPreviewResult {
   beneficiary_id: number;
   beneficiary_name: string;
   constituency_name: string;
+  category_name: string;
   engine_capacity_cc: number;
+  engine_constant: number;
   distance_from_parliament_km: number;
   calculated_allocation_usd: number;
   calculated_allocation_litres: number;
+  base_allocation_litres: number;
   session_top_up_litres: number;
   final_allocation_litres: number;
+  final_allocation_usd: number;
+  is_valid: boolean;
+  validation_errors: string[];
   calculation_breakdown: {
     base_calculation: string;
     engine_factor: string;
@@ -107,28 +113,33 @@ export interface AllocationCalculationRequest {
 
 export interface AllocationAnalytics {
   total_allocations: number;
-  total_litres_allocated: number;
-  total_usd_allocated: number;
+  total_litres: number;
+  total_usd: number;
   committed_allocations: number;
   pending_allocations: number;
-  average_allocation_per_beneficiary: number;
-  top_constituencies: Array<{
-    constituency_name: string;
+  average_allocation_litres: number;
+  constituency_breakdown: Record<string, {
     total_allocations: number;
     total_litres: number;
     beneficiary_count: number;
   }>;
-  allocation_trends: Array<{
-    date: string;
+  engine_category_breakdown: Record<string, {
+    total_allocations: number;
+    total_litres: number;
+    beneficiary_count: number;
+  }>;
+  monthly_trends: Array<{
+    month: string;
     total_allocations: number;
     total_litres: number;
     committed_count: number;
   }>;
-  engine_capacity_distribution: {
-    small_engine: number;
-    medium_engine: number;
-    large_engine: number;
-  };
+  top_beneficiaries: Array<{
+    beneficiary_name: string;
+    constituency_name: string;
+    total_allocations: number;
+    total_litres: number;
+  }>;
 }
 
 export interface EnhancedBeneficiaryProfile {

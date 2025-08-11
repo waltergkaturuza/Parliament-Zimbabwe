@@ -25,7 +25,7 @@ import {
   PieChartOutlined,
   DownloadOutlined,
   ReloadOutlined,
-  TrendingUpOutlined,
+  RiseOutlined,
   DollarOutlined,
   CarOutlined,
   UserOutlined
@@ -340,7 +340,7 @@ const AllocationAnalytics: React.FC = () => {
                 value={analytics.average_allocation_litres}
                 precision={2}
                 suffix="L"
-                prefix={<TrendingUpOutlined style={{ color: '#722ed1' }} />}
+                prefix={<RiseOutlined style={{ color: '#722ed1' }} />}
               />
             </Col>
           </Row>

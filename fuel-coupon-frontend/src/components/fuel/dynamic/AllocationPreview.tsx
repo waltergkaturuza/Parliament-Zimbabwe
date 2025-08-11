@@ -433,8 +433,8 @@ const AllocationPreview: React.FC<AllocationPreviewProps> = ({
                   allowClear
                   style={{ width: '100%' }}
                 >
-                  {constituencies.map(const => (
-                    <Option key={const} value={const}>{const}</Option>
+                  {constituencies.map(constituency => (
+                    <Option key={constituency} value={constituency}>{constituency}</Option>
                   ))}
                 </Select>
               </Col>
