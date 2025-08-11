@@ -116,7 +116,11 @@ const BoxReceiptManagement: FC = () => {
   const [verifyForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [boxReceipts, setBoxReceipts] = useState<BoxReceipt[]>([]);
-  const [nextBoxNumber, setNextBoxNumber] = useState('');
+  const [nextBoxNumber, setNextBoxNumber] = useState(() => {
+    // Generate an immediate default box number
+    const year = new Date().getFullYear();
+    return `FCB-${year}-0001`;
+  });
   const [calculatedBooks, setCalculatedBooks] = useState<BookInfo[]>([]);
   const [activeTab, setActiveTab] = useState<'receipts' | 'verification' | 'inventory'>('receipts');
   
@@ -130,6 +134,13 @@ const BoxReceiptManagement: FC = () => {
     fetchBoxReceipts();
     generateNextBoxNumber();
   }, []);
+
+  // Update form when nextBoxNumber changes
+  useEffect(() => {
+    if (nextBoxNumber) {
+      form.setFieldsValue({ boxId: nextBoxNumber });
+    }
+  }, [nextBoxNumber, form]);
 
   const fetchBoxReceipts = async () => {
     setLoading(true);
@@ -152,7 +163,7 @@ const BoxReceiptManagement: FC = () => {
           receivedBy: box.received_by?.first_name && box.received_by?.last_name 
             ? `${box.received_by.first_name} ${box.received_by.last_name}` 
             : 'System User',
-          fuelType: 'DIESEL', // Default - backend doesn't have this field yet
+          fuelType: 'DIESEL' as 'PETROL' | 'DIESEL', // Default - backend doesn't have this field yet
           couponAmount: 20, // Default coupon amount
           numberOfBooks: box.books?.length || 0,
           couponsPerBook: 10, // Standard coupons per book
@@ -321,8 +332,11 @@ const BoxReceiptManagement: FC = () => {
       
       // Ensure boxId is properly set before submission
       if (!values.boxId || values.boxId.trim() === '') {
-        message.error('Box ID is not generated yet. Please wait and try again.');
-        return;
+        // Set it to nextBoxNumber or generate one
+        const fallbackBoxId = nextBoxNumber || `FCB-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+        form.setFieldsValue({ boxId: fallbackBoxId });
+        values.boxId = fallbackBoxId;
+        message.warning(`Box ID was auto-generated: ${fallbackBoxId}`);
       }
       
       setLoading(true);
@@ -341,7 +355,7 @@ const BoxReceiptManagement: FC = () => {
         : new Date().toTimeString().slice(0, 5);
 
       const boxData = {
-        box_code: values.boxId,
+        box_code: values.boxId || nextBoxNumber || `FCB-${new Date().getFullYear()}-AUTO`,
         barcode: values.barcode || '',
         fuel_type: values.fuelType,
         coupon_amount: values.couponAmount,
@@ -1275,10 +1289,9 @@ const BoxReceiptManagement: FC = () => {
                   <Form.Item
                     label="Box ID"
                     name="boxId"
-                    initialValue={nextBoxNumber}
                     rules={[{ required: true, message: 'Box ID is required' }]}
                   >
-                    <Input disabled value={nextBoxNumber || 'Loading...'} />
+                    <Input disabled placeholder="Generating Box ID..." />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
