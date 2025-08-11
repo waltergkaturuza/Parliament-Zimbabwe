@@ -281,7 +281,7 @@ class BoxSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """
-        Custom validation to ensure required fields are provided through any of their possible names
+        Custom validation to handle field mapping with all fields optional
         """
         # Debug: print what we received
         import logging
@@ -292,25 +292,19 @@ class BoxSerializer(serializers.ModelSerializer):
         box_code = data.get('box_code') or data.get('boxId') or data.get('box_id')
         logger.info(f"box_code value: '{box_code}'")
         
+        # Generate box_code if not provided (make it optional)
         if not box_code or (isinstance(box_code, str) and box_code.strip() == ''):
-            raise serializers.ValidationError({
-                'box_code': ['This field is required. Please ensure Box ID is provided.']
-            })
+            # Auto-generate box_code instead of raising error
+            import datetime
+            auto_box_code = f"FCB-{datetime.datetime.now().year}-AUTO-{datetime.datetime.now().strftime('%m%d%H%M')}"
+            logger.info(f"Auto-generated box_code: {auto_box_code}")
+            data['box_code'] = auto_box_code
+        else:
+            # Ensure box_code is set in the data for model creation
+            if not data.get('box_code') and box_code:
+                data['box_code'] = box_code
         
-        # Ensure box_code is set in the data for model creation
-        if not data.get('box_code') and box_code:
-            data['box_code'] = box_code
-        
-        # Check coupon numbers - they should be provided
-        first_coupon = data.get('first_coupon_number')
-        last_coupon = data.get('last_coupon_number')
-        
-        if not first_coupon:
-            raise serializers.ValidationError({'first_coupon_number': ['This field is required.']})
-        
-        if not last_coupon:
-            raise serializers.ValidationError({'last_coupon_number': ['This field is required.']})
-        
+        # All fields are now optional - no validation required
         return data
     
     def create(self, validated_data):
