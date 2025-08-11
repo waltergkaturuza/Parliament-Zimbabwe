@@ -255,11 +255,14 @@ class BoxSerializer(serializers.ModelSerializer):
             'total_litres', 'received_at', 'assigned_to', 
             'assigned_to_details', 'received_by', 'received_by_details',
             'notes', 'barcode', 'created', 'modified',
+            # Enhanced fields for frontend calculations
+            'total_coupons_calculated', 'fuel_price_per_litre_usd', 'exchange_rate_zwg_usd',
+            'total_value_usd', 'total_value_zwg', 'calculation_mode', 'book_details_json',
+            'status', 'verification_notes', 'verified_at', 'verified_by',
             # Frontend complex data fields (write-only)
-            'book_details', 'calculation_mode', 'total_coupons',
+            'book_details', 'total_coupons',
             # Frontend-only fields (write-only)
-            'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
-            'fuelPriceUSD', 'monetaryValueUSD',
+            'monetary_value_usd', 'exchange_rate', 'fuelPriceUSD', 'monetaryValueUSD',
             # Alternative frontend field names
             'boxId', 'box_id', 'fuelType', 'couponAmount', 'numberOfBooks', 'couponsPerBook', 
             'totalLitres', 'firstCouponId', 'lastCouponId'
@@ -309,26 +312,134 @@ class BoxSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """
-        Custom create method to handle frontend-only fields and complex data
+        Enhanced create method to store all frontend calculations in backend
         """
-        # Remove frontend-only fields before creating the object
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Extract and store frontend calculation data
+        book_details = validated_data.pop('book_details', [])
+        calculation_mode = validated_data.pop('calculation_mode', 'first-and-count')
+        total_coupons = validated_data.pop('total_coupons', None)
+        
+        # Store financial calculation data from frontend
+        if 'monetary_value_usd' in validated_data:
+            validated_data['total_value_usd'] = validated_data.pop('monetary_value_usd')
+        if 'fuelPriceUSD' in validated_data:
+            validated_data['fuel_price_per_litre_usd'] = validated_data.pop('fuelPriceUSD')
+        if 'exchange_rate' in validated_data:
+            validated_data['exchange_rate_zwg_usd'] = validated_data.pop('exchange_rate')
+        
+        # Set calculation mode and book details
+        validated_data['calculation_mode'] = calculation_mode
+        if book_details:
+            validated_data['book_details_json'] = book_details
+            logger.info(f"Storing {len(book_details)} book details from frontend")
+        
+        # Set status from frontend
+        status = validated_data.pop('status', 'RECEIVED')
+        validated_data['status'] = status
+        
+        # Remove any remaining frontend-only fields
         frontend_only_fields = [
-            'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
-            'fuelPriceUSD', 'monetaryValueUSD', 'book_details', 'calculation_mode', 'total_coupons'
+            'fuelPriceUSD', 'monetaryValueUSD'
         ]
         for field in frontend_only_fields:
             validated_data.pop(field, None)
         
-        return super().create(validated_data)
+        # Create the box - the save() method will handle calculations
+        box = super().create(validated_data)
+        
+        # Generate books based on book_details or box parameters
+        self._generate_books_for_box(box, book_details)
+        
+        logger.info(f"Created box {box.box_code} with {box.total_coupons_calculated} calculated coupons")
+        return box
+    
+    def _generate_books_for_box(self, box, book_details=None):
+        """
+        Generate books for a box based on book_details from frontend or box parameters
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            if book_details and isinstance(book_details, list):
+                # Use detailed book information from frontend
+                logger.info(f"Generating {len(book_details)} books from frontend details")
+                for book_data in book_details:
+                    book_number = book_data.get('book_number', book_data.get('book_id', 'Unknown'))
+                    first_coupon = book_data.get('first_coupon_id', '')
+                    last_coupon = book_data.get('last_coupon_id', '')
+                    coupon_count = book_data.get('number_of_coupons', book_data.get('coupons_count', 100))
+                    
+                    # Create the book
+                    book = Book.objects.create(
+                        box=box,
+                        book_number=str(book_number),
+                        first_coupon_number=first_coupon,
+                        last_coupon_number=last_coupon,
+                        initial_coupon_count=coupon_count,
+                        generated_by=getattr(self.context.get('request', None), 'user', None)
+                    )
+                    
+                    logger.info(f"Created book {book.book_code} with range {first_coupon}-{last_coupon}")
+                    
+            elif box.number_of_books and box.coupons_per_book and box.first_coupon_number and box.last_coupon_number:
+                # Fall back to automatic generation based on box parameters
+                logger.info(f"Generating {box.number_of_books} books automatically from box parameters")
+                box.generate_books_and_coupons()
+                
+        except Exception as e:
+            # Log the error but don't fail the entire creation
+            logger.error(f"Error generating books for box {box.box_code}: {e}")
+            
+            # Try simple book generation as fallback
+            try:
+                for i in range(1, (box.number_of_books or 1) + 1):
+                    Book.objects.create(
+                        box=box,
+                        book_number=f"Book {i}",
+                        first_coupon_number=f"AUTO-{box.box_code}-{i:03d}-001",
+                        last_coupon_number=f"AUTO-{box.box_code}-{i:03d}-{box.coupons_per_book or 100:03d}",
+                        initial_coupon_count=box.coupons_per_book or 100,
+                        generated_by=getattr(self.context.get('request', None), 'user', None)
+                    )
+                logger.info(f"Fallback: Created {box.number_of_books or 1} books with auto-generated serials")
+            except Exception as fallback_error:
+                logger.error(f"Fallback book generation also failed: {fallback_error}")
     
     def update(self, instance, validated_data):
         """
-        Custom update method to handle frontend-only fields and complex data
+        Enhanced update method to preserve all frontend calculations
         """
-        # Remove frontend-only fields before updating the object
+        # Extract and store frontend calculation data
+        book_details = validated_data.pop('book_details', None)
+        calculation_mode = validated_data.pop('calculation_mode', None)
+        total_coupons = validated_data.pop('total_coupons', None)
+        
+        # Update financial calculation data from frontend
+        if 'monetary_value_usd' in validated_data:
+            validated_data['total_value_usd'] = validated_data.pop('monetary_value_usd')
+        if 'fuelPriceUSD' in validated_data:
+            validated_data['fuel_price_per_litre_usd'] = validated_data.pop('fuelPriceUSD')
+        if 'exchange_rate' in validated_data:
+            validated_data['exchange_rate_zwg_usd'] = validated_data.pop('exchange_rate')
+        
+        # Update calculation mode and book details if provided
+        if calculation_mode:
+            validated_data['calculation_mode'] = calculation_mode
+        if book_details:
+            validated_data['book_details_json'] = book_details
+        
+        # Update status from frontend
+        if 'status' in validated_data:
+            status = validated_data.pop('status')
+            validated_data['status'] = status
+        
+        # Remove any remaining frontend-only fields
         frontend_only_fields = [
-            'monetary_value_usd', 'fuel_price_per_litre_usd', 'exchange_rate', 'status',
-            'fuelPriceUSD', 'monetaryValueUSD', 'book_details', 'calculation_mode', 'total_coupons'
+            'fuelPriceUSD', 'monetaryValueUSD'
         ]
         for field in frontend_only_fields:
             validated_data.pop(field, None)
@@ -339,9 +450,57 @@ class BookSerializer(serializers.ModelSerializer):
     # Use SimpleBoxSerializer for the box field
     box_details = SimpleBoxSerializer(source='box', read_only=True, allow_null=True)
     initial_coupon_count = serializers.IntegerField(read_only=True) # Correct field name, readonly
+    
+    # Enhanced fields to match frontend expectations
+    box_code = serializers.CharField(source='box.box_code', read_only=True)
+    coupon_count = serializers.IntegerField(read_only=True)
+    available_coupons = serializers.IntegerField(read_only=True)
+    allocated_coupons = serializers.IntegerField(read_only=True)
+    used_coupons = serializers.IntegerField(read_only=True)
+    
+    # User details
+    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    generated_by_name = serializers.CharField(source='generated_by.get_full_name', read_only=True)
+    verified_by_name = serializers.CharField(source='verified_by.get_full_name', read_only=True)
+    
+    # Frontend compatibility fields
+    bookId = serializers.CharField(source='book_code', read_only=True)
+    bookNumber = serializers.CharField(source='book_number', read_only=True)
+    firstCouponId = serializers.CharField(source='first_coupon_number', read_only=True)
+    lastCouponId = serializers.CharField(source='last_coupon_number', read_only=True)
+    numberOfCoupons = serializers.IntegerField(source='coupon_count', read_only=True)
+    isAssigned = serializers.BooleanField(source='is_assigned', read_only=True)
+    isVerified = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Book
+        fields = [
+            'id', 'book_number', 'book_code', 'first_coupon_number', 'last_coupon_number',
+            'is_assigned', 'assigned_to', 'assigned_to_name', 'assigned_date',
+            'initial_coupon_count', 'coupon_count', 'available_coupons', 
+            'allocated_coupons', 'used_coupons',
+            'is_verified', 'verified_by', 'verified_by_name', 'verified_at', 'verification_notes',
+            'generated_by', 'generated_by_name', 'generated_at',
+            'box_details', 'box_code', 'created', 'modified',
+            # Frontend compatibility fields
+            'bookId', 'bookNumber', 'firstCouponId', 'lastCouponId', 
+            'numberOfCoupons', 'isAssigned', 'isVerified'
+        ]
+        read_only_fields = [
+            'id', 'book_code', 'coupon_count', 'generated_at', 'created', 'modified',
+            'available_coupons', 'allocated_coupons', 'used_coupons'
+        ]
+    
+    def to_representation(self, instance):
+        """Enhanced representation to include frontend-compatible format"""
+        data = super().to_representation(instance)
+        
+        # Add the frontend format method result
+        if hasattr(instance, 'to_frontend_format'):
+            frontend_data = instance.to_frontend_format()
+            data.update(frontend_data)
+        
+        return data
         # Added 'created', 'modified' from TimeStampedModel
         fields = ['id', 'box', 'box_details', 'book_number', 'first_coupon_number', 'last_coupon_number', 'is_assigned', 'initial_coupon_count', 'created', 'modified'] # Corrected total_coupons to initial_coupon_count
         read_only_fields = ['id', 'initial_coupon_count', 'created', 'modified'] # Make initial_coupon_count and timestamps readonly

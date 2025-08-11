@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
+from decimal import Decimal
 from .models import (
     User, SubCenter, SubCenterOfficer, PoolVehicle, Driver, VehicleAssignment,
     Box, Book, BookPage, Coupon, FuelData, FuelTransaction,
@@ -11,6 +12,29 @@ from .models import (
 )
 from django import forms
 from django.db import models
+
+class BoxAdminForm(forms.ModelForm):
+    """Custom form for Box admin with automatic calculations"""
+    
+    class Meta:
+        model = Box
+        fields = '__all__'
+        widgets = {
+            'number_of_books': forms.NumberInput(attrs={
+                'onchange': 'calculateTotals()',
+                'min': '1'
+            }),
+            'coupons_per_book': forms.NumberInput(attrs={
+                'onchange': 'calculateTotals()',
+                'min': '1'
+            }),
+            'denomination': forms.Select(attrs={
+                'onchange': 'calculateTotals()'
+            }),
+        }
+    
+    class Media:
+        js = ('admin/js/box_calculations.js',)
 
 # Custom User Admin
 @admin.register(User)
@@ -93,81 +117,216 @@ class SubCenterOfficerAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related('user', 'sub_center')
 
 
-# Box Admin
+# Box Admin with enhanced functionality
 @admin.register(Box)
 class BoxAdmin(admin.ModelAdmin):
-    list_display = ('box_code', 'total_litres', 'assigned_to', 'received_at', 'received_by')
-    list_filter = ('assigned_to', 'received_at')
-    search_fields = ('box_code', 'first_coupon_number', 'last_coupon_number')
-    raw_id_fields = ('assigned_to', 'received_by')
+    list_display = ('box_code', 'fuel_type', 'denomination', 'total_coupons_display', 'total_litres', 'total_value_display', 'status', 'received_at')
+    list_filter = ('fuel_type', 'denomination', 'status', 'calculation_mode', 'received_at')
+    search_fields = ('box_code', 'first_coupon_number', 'last_coupon_number', 'barcode')
     date_hierarchy = 'received_at'
-    readonly_fields = ('total_litres', 'created', 'modified') # Added created and modified
+    readonly_fields = ('total_coupons_display', 'calculated_total_litres', 'total_value_display', 'coupon_range_display', 'books_count', 'created', 'modified')
+    
+    fieldsets = (
+        ('Box Information', {
+            'fields': ('box_code', 'fuel_type', 'denomination', 'barcode', 'status')
+        }),
+        ('Coupon Serial Numbers (Required)', {
+            'fields': ('first_coupon_number', 'last_coupon_number', 'coupon_range_display'),
+            'description': 'Enter valid Petrotrade serial numbers (e.g., PU06GH355101). These are required for proper tracking.'
+        }),
+        ('Book Configuration', {
+            'fields': ('number_of_books', 'coupons_per_book', 'calculation_mode', 'books_count')
+        }),
+        ('Calculated Values (Auto-computed)', {
+            'fields': ('total_coupons_calculated', 'total_coupons_display', 'total_litres', 'calculated_total_litres', 'total_value_display'),
+            'description': 'These values are automatically calculated from the coupon serials and book configuration.',
+            'classes': ('collapse',)
+        }),
+        ('Financial Details', {
+            'fields': ('fuel_price_per_litre_usd', 'exchange_rate_zwg_usd', 'total_value_usd', 'total_value_zwg'),
+            'classes': ('collapse',)
+        }),
+        ('Assignment & Receipt', {
+            'fields': ('assigned_to', 'received_by', 'received_at')
+        }),
+        ('Verification', {
+            'fields': ('verified_by', 'verified_at', 'verification_notes'),
+            'classes': ('collapse',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes', 'book_details_json'),
+            'classes': ('collapse',)
+        }),
+        ('Archive Information', {
+            'fields': ('is_archived', 'archived_at', 'archived_by', 'archive_reason'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created', 'modified'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def total_coupons_display(self, obj):
+        """Display total coupons with calculation method"""
+        total = obj.total_coupons_calculated or (obj.number_of_books * obj.coupons_per_book)
+        method = obj.get_calculation_mode_display() if hasattr(obj, 'get_calculation_mode_display') else 'Standard'
+        return f"{total:,} coupons ({method})"
+    total_coupons_display.short_description = 'Total Coupons'
+    
+    def total_value_display(self, obj):
+        """Display total value in both USD and ZWG"""
+        if hasattr(obj, 'total_value_usd') and obj.total_value_usd:
+            return f"${obj.total_value_usd:,.2f} USD / ZWG {obj.total_value_zwg:,.2f}"
+        else:
+            # Fallback calculation
+            total_litres = obj.total_litres or 0
+            usd_value = total_litres * Decimal('1.40')
+            zwg_value = usd_value * Decimal('27.50')
+            return f"${usd_value:,.2f} USD / ZWG {zwg_value:,.2f}"
+    total_value_display.short_description = 'Total Value'
+    
+    def calculated_total_litres(self, obj):
+        """Show calculated litres"""
+        calc_litres = obj.total_coupons_calculated * obj.denomination if obj.total_coupons_calculated else 0
+        return f"{calc_litres:,} L"
+    calculated_total_litres.short_description = 'Calculated Litres'
+    
+    def coupon_range_display(self, obj):
+        """Display coupon serial range"""
+        if obj.first_coupon_number and obj.last_coupon_number:
+            return f"{obj.first_coupon_number} → {obj.last_coupon_number}"
+        return "Not specified"
+    coupon_range_display.short_description = 'Coupon Range'
+    
+    def books_count(self, obj):
+        """Display actual book count"""
+        actual_books = obj.books.count() if hasattr(obj, 'books') else 0
+        configured_books = obj.number_of_books
+        if actual_books != configured_books:
+            return f"{actual_books} created / {configured_books} configured"
+        return f"{actual_books} books"
+    books_count.short_description = 'Books Status'
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('assigned_to', 'received_by')
+        return super().get_queryset(request).select_related('assigned_to', 'received_by', 'verified_by')
 
-# Book Admin
+# Enhanced Book Admin
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
-    list_display = ('book_number', 'book_link', 'first_coupon_number', 'last_coupon_number', 'is_assigned', 'initial_coupon_count') # Added initial_coupon_count
-    list_filter = ('box__assigned_to', 'is_assigned')
-    search_fields = ('book_number', 'first_coupon_number', 'last_coupon_number')
-    raw_id_fields = ('box',)
-    list_editable = ('is_assigned',)
-    readonly_fields = ('created', 'modified') # Added created and modified
+    list_display = ('book_code', 'book_number', 'box_code_display', 'coupon_range_display', 'coupon_count_display', 'is_assigned', 'is_verified', 'generated_at')
+    list_filter = ('is_assigned', 'is_verified', 'box__fuel_type', 'generated_at', 'verified_at')
+    search_fields = ('book_code', 'book_number', 'box__box_code', 'first_coupon_number', 'last_coupon_number')
+    date_hierarchy = 'generated_at'
+    readonly_fields = ('book_code', 'coupon_count_display', 'generated_at', 'created', 'modified')
+    
+    fieldsets = (
+        ('Book Information', {
+            'fields': ('book_code', 'book_number', 'box')
+        }),
+        ('Coupon Range', {
+            'fields': ('first_coupon_number', 'last_coupon_number', 'initial_coupon_count', 'coupon_count_display')
+        }),
+        ('Assignment', {
+            'fields': ('is_assigned', 'assigned_to', 'assigned_date')
+        }),
+        ('Verification', {
+            'fields': ('is_verified', 'verified_by', 'verified_at', 'verification_notes')
+        }),
+        ('Generation Details', {
+            'fields': ('generated_by', 'generated_at'),
+            'classes': ('collapse',)
+        }),
+        ('Archive Information', {
+            'fields': ('is_archived', 'archived_at', 'archived_by', 'archive_reason'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created', 'modified'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def box_code_display(self, obj):
+        """Display the box code this book belongs to"""
+        return obj.box.box_code if obj.box else 'N/A'
+    box_code_display.short_description = 'Box Code'
+    box_code_display.admin_order_field = 'box__box_code'
+    
+    def coupon_range_display(self, obj):
+        """Display the coupon range for this book"""
+        return f"{obj.first_coupon_number} → {obj.last_coupon_number}"
+    coupon_range_display.short_description = 'Coupon Range'
+    
+    def coupon_count_display(self, obj):
+        """Display coupon counts with breakdown"""
+        if hasattr(obj, 'coupon_count'):
+            total = obj.coupon_count
+            available = obj.available_coupons if hasattr(obj, 'available_coupons') else 0
+            allocated = obj.allocated_coupons if hasattr(obj, 'allocated_coupons') else 0
+            used = obj.used_coupons if hasattr(obj, 'used_coupons') else 0
+            return f"{total} total ({available} avail, {allocated} alloc, {used} used)"
+        return f"{obj.initial_coupon_count or 0} (estimated)"
+    coupon_count_display.short_description = 'Coupon Count'
 
-    def book_link(self, obj):
-        link = f"/admin/fuel/box/{obj.box.id}/change/"
-        return format_html('<a href="{}">{}</a>', link, obj.box.box_code)
-    book_link.short_description = 'Box'
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related('box', 'box__assigned_to')
-
-# Coupon Admin
+# Enhanced Coupon Admin
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    list_display = ('coupon_number', 'book_link', 'litres', 'status', 'allocated_to', 'allocated_date', 'expiry_date') # Added expiry_date
-    list_filter = ('status', 'book__box__assigned_to', 'allocated_date', 'expiry_date') # Added expiry_date
-    search_fields = ('coupon_number',)
-    raw_id_fields = ('allocated_to', 'book')
-    # Corrected readonly_fields to use 'created' and 'modified'
-    readonly_fields = ('created', 'modified', 'used_date', 'allocated_date', 'transaction_location') # Added used_date, allocated_date, transaction_location as readonly
-    actions = ['mark_as_available', 'mark_as_used']
+    list_display = ('coupon_number', 'book_display', 'box_display', 'litres', 'status', 'allocated_to_display', 'created')
+    list_filter = ('status', 'litres', 'book__box__fuel_type', 'allocated_to', 'created')
+    search_fields = ('coupon_number', 'serial_number', 'book__book_code', 'book__box__box_code', 'allocated_to__first_name', 'allocated_to__last_name')
+    date_hierarchy = 'created'
+    readonly_fields = ('created', 'modified')
+    
+    fieldsets = (
+        ('Coupon Information', {
+            'fields': ('coupon_number', 'serial_number', 'book', 'page')
+        }),
+        ('Fuel Details', {
+            'fields': ('litres', 'usd_value', 'zwg_value')
+        }),
+        ('Status & Allocation', {
+            'fields': ('status', 'allocated_to', 'allocated_date', 'allocation_reason')
+        }),
+        ('Usage Tracking', {
+            'fields': ('used_at', 'used_by', 'used_for', 'usage_location')
+        }),
+        ('Codes & Verification', {
+            'fields': ('barcode', 'qr_code', 'verification_code')
+        }),
+        ('Archive Information', {
+            'fields': ('is_archived', 'archived_at', 'archived_by', 'archive_reason'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created', 'modified'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def book_display(self, obj):
+        """Display book information"""
+        return f"{obj.book.book_number} ({obj.book.book_code})" if obj.book else 'N/A'
+    book_display.short_description = 'Book'
+    book_display.admin_order_field = 'book__book_number'
+    
+    def box_display(self, obj):
+        """Display box information"""
+        return obj.book.box.box_code if obj.book and obj.book.box else 'N/A'
+    box_display.short_description = 'Box'
+    box_display.admin_order_field = 'book__box__box_code'
+    
+    def allocated_to_display(self, obj):
+        """Display allocation information"""
+        if obj.allocated_to:
+            return f"{obj.allocated_to.get_full_name()} ({obj.allocated_to.role})"
+        return 'Unallocated'
+    allocated_to_display.short_description = 'Allocated To'
+    allocated_to_display.admin_order_field = 'allocated_to__first_name'
 
-    def book_link(self, obj):
-        link = f"/admin/fuel/book/{obj.book.id}/change/"
-        return format_html('<a href="{}">{}</a>', link, obj.book.book_number)
-    book_link.short_description = 'Book'
 
-    @admin.action(description='Mark selected coupons as available')
-    def mark_as_available(self, request, queryset):
-        updated_count = queryset.update(status='AVAILABLE', allocated_to=None, allocated_date=None, used_date=None, transaction_location=None) # Reset used fields
-        self.message_user(request, f"{updated_count} coupons marked as Available.")
-
-
-    @admin.action(description='Mark selected coupons as used')
-    def mark_as_used(self, request, queryset):
-        # Filter to only update coupons that can be marked as used (e.g., ALLOCATED or AVAILABLE if your workflow allows)
-        # Using .update() here bypasses the model's save method, including the automatic FuelTransaction creation.
-        # If you want the FuelTransaction created, you'll need to iterate and call .mark_used() on each object.
-        coupons_to_update = queryset.exclude(status__in=['USED', 'EXPIRED', 'DAMAGED'])
-        count = 0
-        for coupon in coupons_to_update:
-             try:
-                 # Call the model method to ensure logic like FuelTransaction creation runs
-                 coupon.mark_used(transaction_location="Admin Action") # Provide a default location or prompt user
-                 count += 1
-             except ValueError as e:
-                 self.message_user(request, f"Could not mark coupon {coupon.coupon_number} as used: {e}", level='WARNING')
-
-        self.message_user(request, f"{count} coupons marked as Used.")
-
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related(
-            'book', 'book__box', 'allocated_to'
-        )
+# Coupon Allocation Admin (This was the old duplicate, keeping the new enhanced one above)
 
 # Program Admin
 @admin.register(Program)

@@ -137,6 +137,35 @@ class User(AbstractUser):
         help_text="Phone number for SMS notifications"
     )
     email = models.EmailField(unique=True, blank=True, null=True) # Make email optional
+    
+    # Digital signature and profile data
+    digital_signature = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Base64 encoded digital signature image"
+    )
+    signature_uploaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the digital signature was uploaded"
+    )
+    profile_picture = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Base64 encoded profile picture"
+    )
+    full_address = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Complete address for official documents"
+    )
+    national_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="National ID number"
+    )
+    
     last_activity = models.DateTimeField(auto_now=True)
     
     # User approval fields
@@ -521,6 +550,7 @@ class Box(ArchivableModel):
     """
     Physical box containing coupon books
     Each box contains multiple books with sequential coupon numbering
+    Enhanced to store all frontend calculations and validations
     """
     FUEL_TYPE_CHOICES = [
         ('PETROL', 'Petrol'),
@@ -534,6 +564,20 @@ class Box(ArchivableModel):
         (50, '50 Litres'),
     ]
     
+    STATUS_CHOICES = [
+        ('RECEIVED', 'Received'),
+        ('VERIFIED', 'Verified'),
+        ('DISTRIBUTED', 'Distributed'),
+        ('ARCHIVED', 'Archived'),
+    ]
+    
+    CALCULATION_MODE_CHOICES = [
+        ('first-and-count', 'First Coupon and Count'),
+        ('first-and-last', 'First and Last Coupon'),
+        ('manual', 'Manual Entry'),
+    ]
+    
+    # Basic Box Information
     box_code = models.CharField(
         max_length=50,
         unique=True,
@@ -548,8 +592,10 @@ class Box(ArchivableModel):
     denomination = models.IntegerField(
         choices=DENOMINATION_CHOICES,
         default=20,
-        help_text="Litres per coupon (5L, 20L, or 50L)"
+        help_text="Litres per coupon (5L, 10L, 20L, or 50L)"
     )
+    
+    # Coupon Serial Number Validation (REQUIRED)
     first_coupon_number = models.CharField(
         max_length=50,
         help_text="First coupon number in the box (e.g., PU006GH355101)"
@@ -558,21 +604,79 @@ class Box(ArchivableModel):
         max_length=50,
         help_text="Last coupon number in the box (e.g., PU006GH355200)"
     )
+    
+    # Box Structure Information
     number_of_books = models.IntegerField(
         default=10,
         validators=[MinValueValidator(1)],
         help_text="Number of books in this box"
     )
     coupons_per_book = models.IntegerField(
-        default=100,  # Changed from 10 to 100 to support proper pagination
+        default=100,
         validators=[MinValueValidator(1)],
         help_text="Number of coupons per book (usually 100 pages/coupons)"
+    )
+    
+    # Calculated Fields (Auto-computed from frontend data)
+    total_coupons_calculated = models.IntegerField(
+        default=0,
+        help_text="Total number of coupons calculated from frontend logic"
     )
     total_litres = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        validators=[MinValueValidator(0)]
+        validators=[MinValueValidator(0)],
+        help_text="Total litres calculated from coupons * denomination"
     )
+    
+    # Financial Calculations (from frontend)
+    fuel_price_per_litre_usd = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        default=Decimal('1.40'),
+        help_text="Price per litre in USD"
+    )
+    exchange_rate_zwg_usd = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        default=Decimal('27.50'),
+        help_text="Exchange rate ZWG to USD"
+    )
+    total_value_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Total value in USD (calculated from frontend)"
+    )
+    total_value_zwg = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Total value in ZWG (calculated from frontend)"
+    )
+    
+    # Frontend Calculation Metadata
+    calculation_mode = models.CharField(
+        max_length=20,
+        choices=CALCULATION_MODE_CHOICES,
+        default='first-and-count',
+        help_text="Method used to calculate coupon numbers"
+    )
+    book_details_json = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Detailed book breakdown from frontend (JSON format)"
+    )
+    
+    # Status and Workflow
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='RECEIVED',
+        help_text="Current status of the box"
+    )
+    
+    # Timestamps and Assignment
     received_at = models.DateTimeField(default=timezone.now)
     assigned_to = models.ForeignKey(
         SubCenter,
@@ -588,6 +692,8 @@ class Box(ArchivableModel):
         related_name='received_boxes',
         limit_choices_to={'role__in': ['MAIN_CENTER', 'SUB_CENTER']}
     )
+    
+    # Additional Information
     notes = models.TextField(
         blank=True,
         null=True,
@@ -599,6 +705,26 @@ class Box(ArchivableModel):
         null=True,
         help_text="Barcode identifier for the box"
     )
+    
+    # Verification Fields
+    verification_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notes from verification process"
+    )
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this box was verified"
+    )
+    verified_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='verified_boxes',
+        help_text="User who verified this box"
+    )
 
     class Meta:
         verbose_name = "Coupon Box"
@@ -606,9 +732,67 @@ class Box(ArchivableModel):
         ordering = ['-received_at']
 
     def __str__(self):
-        return f"Box {self.box_code} ({self.get_fuel_type_display()} {self.denomination}L - {self.total_litres}L total)"
+        return f"Box {self.box_code} ({self.get_fuel_type_display()} {self.denomination}L - {self.total_coupons_calculated:,} coupons, {self.total_litres}L total)"
+
+    def clean(self):
+        """Validate coupon serial numbers and data consistency"""
+        from django.core.exceptions import ValidationError
+        
+        # Validate coupon serial format (should be Petrotrade format)
+        if self.first_coupon_number:
+            if not re.match(r'^PU\d{2}[A-Z]{2}\d{6}$', self.first_coupon_number):
+                raise ValidationError({
+                    'first_coupon_number': 'Invalid format. Should be like PU06GH355101'
+                })
+        
+        if self.last_coupon_number:
+            if not re.match(r'^PU\d{2}[A-Z]{2}\d{6}$', self.last_coupon_number):
+                raise ValidationError({
+                    'last_coupon_number': 'Invalid format. Should be like PU06GH355200'
+                })
+        
+        # Validate coupon number sequence
+        if self.first_coupon_number and self.last_coupon_number:
+            first_num = self._extract_coupon_number(self.first_coupon_number)
+            last_num = self._extract_coupon_number(self.last_coupon_number)
+            
+            if first_num and last_num and first_num >= last_num:
+                raise ValidationError({
+                    'last_coupon_number': 'Last coupon number must be greater than first coupon number'
+                })
+
+    def _extract_coupon_number(self, coupon_str):
+        """Extract the numeric part from coupon string"""
+        try:
+            match = re.search(r'(\d+)$', coupon_str)
+            return int(match.group(1)) if match else None
+        except (ValueError, AttributeError):
+            return None
+
+    def calculate_totals(self):
+        """Calculate all derived fields based on current data"""
+        # Calculate total coupons from coupon serial numbers
+        if self.first_coupon_number and self.last_coupon_number:
+            first_num = self._extract_coupon_number(self.first_coupon_number)
+            last_num = self._extract_coupon_number(self.last_coupon_number)
+            
+            if first_num and last_num:
+                self.total_coupons_calculated = last_num - first_num + 1
+            else:
+                # Fallback to book calculation
+                self.total_coupons_calculated = self.number_of_books * self.coupons_per_book
+        else:
+            self.total_coupons_calculated = self.number_of_books * self.coupons_per_book
+        
+        # Calculate total litres
+        self.total_litres = Decimal(str(self.total_coupons_calculated * self.denomination))
+        
+        # Calculate financial values
+        self.total_value_usd = self.total_litres * self.fuel_price_per_litre_usd
+        self.total_value_zwg = self.total_value_usd * self.exchange_rate_zwg_usd
 
     def save(self, *args, **kwargs):
+        # Auto-generate box_code if not set
         if not self.box_code:
             now = timezone.now()
             year = now.strftime("%Y")
@@ -623,17 +807,129 @@ class Box(ArchivableModel):
                 next_number = 1
             self.box_code = f"FCB-{year}-{next_number:04d}"
         
-        # Auto-calculate total litres if not set
-        if not self.total_litres:
-            total_coupons = self.number_of_books * self.coupons_per_book
-            self.total_litres = Decimal(str(total_coupons * self.denomination))
+        # Always recalculate all derived fields
+        self.calculate_totals()
             
         super().save(*args, **kwargs)
+        
+        # Create individual book records if they don't exist
+        self.create_book_records()
+
+    def create_book_records(self):
+        """Create individual Book records based on book_details_json or calculated data"""
+        # Only create if we don't have books yet
+        if not self.books.exists() and self.number_of_books > 0:
+            
+            if self.book_details_json and isinstance(self.book_details_json, list):
+                # Use detailed book information from frontend
+                for book_detail in self.book_details_json:
+                    Book.objects.get_or_create(
+                        box=self,
+                        book_number=book_detail.get('book_number', book_detail.get('book_id', '')),
+                        defaults={
+                            'first_coupon_number': book_detail.get('first_coupon_id', ''),
+                            'last_coupon_number': book_detail.get('last_coupon_id', ''),
+                            'initial_coupon_count': book_detail.get('number_of_coupons', self.coupons_per_book)
+                        }
+                    )
+            else:
+                # Generate books automatically based on sequential numbering
+                self._generate_sequential_books()
+
+    def _generate_sequential_books(self):
+        """Generate book records with sequential coupon numbering"""
+        if not self.first_coupon_number or not self.last_coupon_number:
+            return
+            
+        first_num = self._extract_coupon_number(self.first_coupon_number)
+        if not first_num:
+            return
+            
+        # Extract prefix from coupon number (e.g., "PU06GH")
+        prefix_match = re.match(r'^(PU\d{2}[A-Z]{2})', self.first_coupon_number)
+        if not prefix_match:
+            return
+            
+        prefix = prefix_match.group(1)
+        coupons_per_book = self.coupons_per_book
+        
+        for book_num in range(1, self.number_of_books + 1):
+            start_coupon = first_num + (book_num - 1) * coupons_per_book
+            end_coupon = start_coupon + coupons_per_book - 1
+            
+            Book.objects.get_or_create(
+                box=self,
+                book_number=f"Book {book_num}",
+                defaults={
+                    'first_coupon_number': f"{prefix}{start_coupon:06d}",
+                    'last_coupon_number': f"{prefix}{end_coupon:06d}",
+                    'initial_coupon_count': coupons_per_book
+                }
+            )
 
     @property
     def total_coupons(self):
-        """Calculate total number of coupons in this box"""
-        return self.number_of_books * self.coupons_per_book
+        """Backward compatibility property"""
+        return self.total_coupons_calculated
+    
+    @property 
+    def calculated_total_litres(self):
+        """Calculate total litres in this box"""
+        return Decimal(str(self.total_coupons_calculated * self.denomination))
+    
+    @property
+    def coupon_serial_range(self):
+        """Return human-readable coupon range"""
+        if self.first_coupon_number and self.last_coupon_number:
+            return f"{self.first_coupon_number} - {self.last_coupon_number}"
+        return "Not specified"
+    
+    @property
+    def is_verified(self):
+        """Check if this box has been verified"""
+        return self.status == 'VERIFIED' and self.verified_at is not None
+    
+    @property
+    def verification_status_display(self):
+        """Human-readable verification status"""
+        if self.is_verified:
+            return f"Verified on {self.verified_at.strftime('%Y-%m-%d %H:%M')}"
+        return "Not verified"
+    
+    def verify_box(self, user, notes=""):
+        """Mark this box as verified"""
+        self.status = 'VERIFIED'
+        self.verified_at = timezone.now()
+        self.verified_by = user
+        if notes:
+            self.verification_notes = notes
+        self.save()
+    
+    def get_book_breakdown(self):
+        """Get detailed breakdown of books in this box"""
+        books = []
+        for book in self.books.all():
+            books.append({
+                'book_number': book.book_number,
+                'first_coupon': book.first_coupon_number,
+                'last_coupon': book.last_coupon_number,
+                'total_coupons': book.total_coupons,
+                'is_assigned': book.is_assigned,
+                'assigned_to': str(book.assigned_to) if book.assigned_to else None
+            })
+        return books
+    
+    @property
+    def coupon_number_range(self):
+        """Return formatted coupon number range"""
+        if self.first_coupon_number and self.last_coupon_number:
+            return f"{self.first_coupon_number} - {self.last_coupon_number}"
+        return "Not set"
+    
+    @property
+    def books_summary(self):
+        """Return summary of books in this box"""
+        return f"{self.number_of_books} books × {self.coupons_per_book} coupons = {self.total_coupons} total"
     
     def generate_book_ranges(self):
         """
@@ -921,6 +1217,48 @@ class Book(ArchivableModel):
         blank=True, 
         help_text="Initial number of coupons in the book"
     )
+    
+    # Enhanced book tracking to match frontend
+    generated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this book was generated/created"
+    )
+    generated_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='generated_books',
+        help_text="User who generated this book"
+    )
+    book_code = models.CharField(
+        max_length=100,
+        unique=True,
+        blank=True,
+        help_text="Unique book identifier (auto-generated)"
+    )
+    is_verified = models.BooleanField(
+        default=False,
+        help_text="Whether this book has been verified for accuracy"
+    )
+    verified_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='verified_books',
+        help_text="User who verified this book"
+    )
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this book was verified"
+    )
+    verification_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notes from the verification process"
+    )
 
     class Meta:
         unique_together = ('box', 'book_number')
@@ -930,6 +1268,112 @@ class Book(ArchivableModel):
 
     def __str__(self):
         return f"Book {self.book_number} (Box {self.box.box_code})"
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate book code if not provided
+        if not self.book_code:
+            self.book_code = f"{self.box.box_code}-BOOK-{self.book_number}"
+        
+        # Calculate initial coupon count if not provided
+        if not self.initial_coupon_count and self.first_coupon_number and self.last_coupon_number:
+            try:
+                # Extract numeric parts for calculation
+                first_num = int(''.join(filter(str.isdigit, self.first_coupon_number)))
+                last_num = int(''.join(filter(str.isdigit, self.last_coupon_number)))
+                self.initial_coupon_count = last_num - first_num + 1
+            except (ValueError, TypeError):
+                self.initial_coupon_count = 100  # Default assumption
+        
+        super().save(*args, **kwargs)
+        
+        # Auto-generate individual coupons after book is saved
+        if self.pk and not self.coupons.exists():
+            self.generate_coupons()
+    
+    def generate_coupons(self):
+        """Generate individual coupon records for this book"""
+        if not self.first_coupon_number or not self.last_coupon_number:
+            return
+        
+        try:
+            # Extract the pattern from first coupon number
+            # Example: PU00GH355101 -> prefix: PU00GH, base: 355101
+            first_num_str = self.first_coupon_number
+            last_num_str = self.last_coupon_number
+            
+            # Find the numeric part
+            import re
+            match = re.match(r'([A-Z]+)(\d+)', first_num_str)
+            if not match:
+                return
+            
+            prefix = match.group(1)
+            start_num = int(match.group(2))
+            
+            match_last = re.match(r'([A-Z]+)(\d+)', last_num_str)
+            if not match_last:
+                return
+            
+            end_num = int(match_last.group(2))
+            
+            # Generate individual coupons
+            for i in range(start_num, end_num + 1):
+                coupon_number = f"{prefix}{i:08d}"  # Pad with zeros to match format
+                
+                # Create coupon if it doesn't exist
+                Coupon.objects.get_or_create(
+                    book=self,
+                    coupon_number=coupon_number,
+                    defaults={
+                        'litres': self.box.denomination if hasattr(self.box, 'denomination') else 20,
+                        'status': 'AVAILABLE',
+                        'usd_value': self.box.denomination * 1.40 if hasattr(self.box, 'denomination') else 28.00,  # 20L * $1.40/L
+                    }
+                )
+        except Exception as e:
+            # Log error but don't fail the save
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generating coupons for book {self.book_code}: {e}")
+    
+    @property
+    def coupon_count(self):
+        """Get current number of coupons in this book"""
+        return self.coupons.count()
+    
+    @property
+    def available_coupons(self):
+        """Get count of available coupons"""
+        return self.coupons.filter(status='AVAILABLE').count()
+    
+    @property
+    def allocated_coupons(self):
+        """Get count of allocated coupons"""
+        return self.coupons.filter(status='ALLOCATED').count()
+    
+    @property
+    def used_coupons(self):
+        """Get count of used coupons"""
+        return self.coupons.filter(status='USED').count()
+    
+    def get_coupon_range_display(self):
+        """Get formatted display of coupon range"""
+        return f"{self.first_coupon_number} to {self.last_coupon_number}"
+    
+    def to_frontend_format(self):
+        """Convert to frontend BookInfo format"""
+        return {
+            'bookId': self.book_code or f"Book {self.book_number}",
+            'bookNumber': self.book_number,
+            'firstCouponId': self.first_coupon_number,
+            'lastCouponId': self.last_coupon_number,
+            'numberOfCoupons': self.coupon_count,
+            'isAssigned': self.is_assigned,
+            'assignedTo': self.assigned_to.get_full_name() if self.assigned_to else None,
+            'isVerified': self.is_verified,
+            'verifiedBy': self.verified_by.get_full_name() if self.verified_by else None,
+            'verificationNotes': self.verification_notes,
+        }
 
     @property
     def total_coupons(self):
