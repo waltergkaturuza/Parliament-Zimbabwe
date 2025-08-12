@@ -1,8 +1,25 @@
-Django==5.0.7
-djangorestframework==3.15.2
-psycopg2-binary==2.9.9
-django-cors-headers==4.3.1
-gunicorn==21.2.0
-dj-database-url==2.1.0
-python-decouple==3.8
-requests==2.31.0
+# Parliament Fuel Coupon System - Ultra-Minimal cPanel Requirements (Python 3.6)
+# Absolute bare minimum packages for basic functionality
+
+# Core Django (Python 3.6 compatible LTS)
+Django==2.2.*
+djangorestframework==3.10.*
+django-cors-headers==3.0.*
+
+# Database (MySQL for cPanel)
+mysqlclient
+
+# Authentication (Python 3.6 compatible)
+PyJWT==1.7.*
+
+# Essential utilities
+requests==2.25.*
+python-decouple==3.6
+
+# File processing (basic versions)
+Pillow==6.*
+openpyxl==2.6.*
+reportlab==3.5.*
+
+# Basic deployment
+whitenoise==4.*

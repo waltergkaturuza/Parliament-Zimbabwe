@@ -1,0 +1,25 @@
+# Parliament Fuel Coupon System - Basic cPanel Requirements (Python 3.6)
+# No version constraints - let pip find compatible versions
+
+# Core Django
+Django
+djangorestframework
+django-cors-headers
+
+# Database
+mysqlclient
+
+# Authentication
+PyJWT
+
+# Utilities
+requests
+python-decouple
+
+# File processing
+Pillow
+openpyxl
+reportlab
+
+# Deployment
+whitenoise
