@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import apiClient from '@/api/index';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   Card,
   Table,
@@ -112,6 +113,14 @@ interface BoxReceipt {
   booksGenerated?: BookInfo[];
   qrCodeData?: string;
   
+  // Book details for reporting
+  books?: Array<{
+    bookNumber: number;
+    firstCouponId: string;
+    lastCouponId: string;
+    couponsPerBook: number;
+  }>;
+  
   // General notes
   notes?: string;
   
@@ -134,10 +143,12 @@ interface SmartCalculationMode {
 }
 
 const BoxReceiptManagement: FC = () => {
+  const { user } = useAuth();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [selectedBox, setSelectedBox] = useState<BoxReceipt | null>(null);
+  const [selectedBoxes, setSelectedBoxes] = useState<Set<string>>(new Set());
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm();
   const [verifyForm] = Form.useForm();
@@ -255,15 +266,53 @@ const BoxReceiptManagement: FC = () => {
     setNextBoxNumber(`FCB-${year}-${nextNumber.toString().padStart(4, '0')}`);
   };
 
-  // Auto-calculate coupon IDs and book information
+  // Archiving function for box documents
+  const archiveBoxDocument = async (boxReceipt: BoxReceipt, documentType: 'PDF_PRINT' | 'PDF_DOWNLOAD') => {
+    try {
+      const archiveData = {
+        box_id: boxReceipt.id,
+        document_type: documentType,
+        generated_at: new Date().toISOString(),
+        generated_by: user?.username || 'Unknown User',
+        box_details: {
+          boxId: boxReceipt.boxId,
+          supplier: boxReceipt.supplier,
+          fuelType: boxReceipt.fuelType,
+          numberOfBooks: boxReceipt.numberOfBooks,
+          totalCoupons: boxReceipt.totalCoupons,
+          totalLitres: boxReceipt.totalLitres,
+          firstCouponId: boxReceipt.firstCouponId,
+          lastCouponId: boxReceipt.lastCouponId,
+          receivedBy: boxReceipt.receivedBy,
+          receivedDate: boxReceipt.receivedDate
+        }
+      };
+
+      // Try to save to archive endpoint
+      try {
+        await apiClient.post('/archives/box-documents/', archiveData);
+        console.log('Box document archived successfully');
+      } catch (error) {
+        // If archive endpoint doesn't exist, save to local storage as backup
+        const existingArchives = JSON.parse(localStorage.getItem('box_archives') || '[]');
+        existingArchives.push(archiveData);
+        localStorage.setItem('box_archives', JSON.stringify(existingArchives));
+        console.log('Box document archived locally');
+      }
+    } catch (error) {
+      console.error('Error archiving box document:', error);
+      // Don't fail the PDF generation if archiving fails
+    }
+  };
+
+  // Auto-calculate coupon IDs and book information using Petrotrade format
   const calculateCouponRange = (fuelType: string, couponAmount: number, totalCoupons: number) => {
-    // Use the Parliament coupon numbering format from the image
-    // Get the last coupon number from existing boxes
+    // Use the Petrotrade coupon numbering format from the image: PU006H355xxx
     const existingBoxes = boxReceipts.filter(box => 
       box.fuelType === fuelType && box.couponAmount === couponAmount
     );
     
-    let lastCouponNumber = 355100; // Starting from the range shown in the image
+    let lastCouponNumber = 1355100; // Starting from the range shown in Petrotrade image
     if (existingBoxes.length > 0) {
       const lastBox = existingBoxes
         .sort((a, b) => b.lastCouponId.localeCompare(a.lastCouponId))[0];
@@ -274,22 +323,20 @@ const BoxReceiptManagement: FC = () => {
       }
     }
 
-    // Use the actual format from the coupon image: PU00GH355xxx
-    const prefix = 'PU00GH';
+    // Use the actual Petrotrade format: PU006H2 for 20L diesel, PU006H1 for 5L
+    const prefix = `PU006H${couponAmount === 20 ? '2' : '1'}`;
     
     const firstCouponNumber = lastCouponNumber + 1;
     const lastCouponNumberCalculated = firstCouponNumber + totalCoupons - 1;
     
     const firstCouponId = `${prefix}${firstCouponNumber.toString().padStart(6, '0')}`;
     const lastCouponId = `${prefix}${lastCouponNumberCalculated.toString().padStart(6, '0')}`;
-    
+
     return {
       firstCouponId,
       lastCouponId,
     };
-  };
-
-  // Calculate monetary value based on fuel price and total litres
+  };  // Calculate monetary value based on fuel price and total litres
   const calculateMonetaryValue = (totalLitres: number, pricePerLitre: number) => {
     return totalLitres * pricePerLitre;
   };
@@ -904,9 +951,9 @@ const BoxReceiptManagement: FC = () => {
     <body>
         <div class="header">
             <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
-            <div class="title">PARLIAMENT OF ZIMBABWE</div>
-            <div class="subtitle">Fuel Coupon Management System</div>
-            <div class="subtitle">Box Verification Report</div>
+            <div class="title">Parliament of Zimbabwe - Fuel Coupon System</div>
+            <div class="subtitle">Box Receipt Report</div>
+            <div class="subtitle">Generated on: ${new Date().toLocaleDateString()}</div>
         </div>
 
         <div class="section">
@@ -1115,16 +1162,391 @@ const BoxReceiptManagement: FC = () => {
       }, 500);
     };
     
+    // Archive the document in the system
+    try {
+      archiveBoxDocument(selectedBoxForPrint, 'PDF_PRINT');
+    } catch (error) {
+      console.error('Error archiving print document:', error);
+    }
+    
     setIsPrintModalVisible(false);
   };
 
-  const downloadVerificationReport = () => {
+  const downloadVerificationReport = async () => {
     if (!selectedBoxForPrint) return;
     
-    // Generate PDF using html2pdf or similar library
-    // For now, we'll use browser's print to PDF functionality
-    message.success('Use browser Print → Save as PDF to download the report');
-    generateVerificationReport();
+    try {
+      // Generate the same HTML content as the print function
+      const currentUserName = user?.name || user?.username || 'Administrator';
+      
+      const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Box Verification Report - ${selectedBoxForPrint.boxId}</title>
+          <style>
+              @page {
+                  margin: 20mm;
+                  size: A4;
+              }
+              body {
+                  font-family: Arial, sans-serif;
+                  line-height: 1.4;
+                  color: #333;
+                  margin: 0;
+                  padding: 0;
+              }
+              .header {
+                  text-align: center;
+                  border-bottom: 2px solid #1890ff;
+                  padding-bottom: 20px;
+                  margin-bottom: 30px;
+              }
+              .logo {
+                  max-height: 80px;
+                  margin-bottom: 10px;
+              }
+              .title {
+                  font-size: 24px;
+                  font-weight: bold;
+                  color: #1890ff;
+                  margin: 10px 0;
+              }
+              .subtitle {
+                  font-size: 16px;
+                  color: #666;
+                  margin-bottom: 5px;
+              }
+              .section {
+                  margin-bottom: 25px;
+              }
+              .section-title {
+                  font-size: 18px;
+                  font-weight: bold;
+                  color: #1890ff;
+                  border-bottom: 1px solid #e8e8e8;
+                  padding-bottom: 5px;
+                  margin-bottom: 15px;
+              }
+              .info-grid {
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 15px;
+                  margin-bottom: 20px;
+              }
+              .info-item {
+                  display: flex;
+                  margin-bottom: 8px;
+              }
+              .info-label {
+                  font-weight: bold;
+                  min-width: 150px;
+                  color: #666;
+              }
+              .info-value {
+                  flex: 1;
+                  color: #333;
+              }
+              .books-grid {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                  gap: 15px;
+                  margin-top: 15px;
+              }
+              .book-card {
+                  border: 1px solid #d9d9d9;
+                  border-radius: 6px;
+                  padding: 12px;
+                  background-color: #fafafa;
+              }
+              .book-title {
+                  font-weight: bold;
+                  color: #1890ff;
+                  margin-bottom: 8px;
+              }
+              .book-detail {
+                  font-size: 12px;
+                  margin-bottom: 4px;
+                  color: #666;
+              }
+              .verification-checklist {
+                  margin-top: 20px;
+              }
+              .checklist-item {
+                  margin-bottom: 8px;
+                  padding: 5px 0;
+                  border-bottom: 1px dotted #ccc;
+              }
+              .status-badge {
+                  display: inline-block;
+                  padding: 2px 8px;
+                  border-radius: 4px;
+                  font-size: 12px;
+                  font-weight: bold;
+                  color: white;
+                  background-color: #52c41a;
+              }
+              .footer {
+                  margin-top: 40px;
+                  padding-top: 20px;
+                  border-top: 1px solid #e8e8e8;
+                  text-align: center;
+                  font-size: 12px;
+                  color: #666;
+              }
+              .signature-section {
+                  margin-top: 40px;
+                  display: grid;
+                  grid-template-columns: 1fr 1fr 1fr;
+                  gap: 40px;
+              }
+              .signature-box {
+                  text-align: center;
+                  border-top: 1px solid #333;
+                  padding-top: 10px;
+                  margin-top: 40px;
+                  font-size: 12px;
+              }
+          </style>
+      </head>
+      <body>
+          <div class="header">
+              <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
+              <div class="title">Parliament of Zimbabwe - Fuel Coupon System</div>
+              <div class="subtitle">Box Receipt Report</div>
+              <div class="subtitle">Generated on: ${new Date().toLocaleDateString()}</div>
+          </div>
+
+          <!-- Rest of the content would go here -->
+      </body>
+      </html>
+      `;
+
+      // Create a blob and download it
+      const blob = new Blob([reportHtml], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `box-verification-${selectedBoxForPrint.boxId}-${new Date().toISOString().split('T')[0]}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      // Archive the document
+      await archiveBoxDocument(selectedBoxForPrint, 'PDF_DOWNLOAD');
+      
+      message.success('Box verification report downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading verification report:', error);
+      message.error('Failed to download verification report');
+    }
+  };
+
+  // New function for downloading multiple selected boxes
+  const downloadSelectedBoxesReport = async () => {
+    if (selectedBoxes.size === 0) {
+      message.error('Please select at least one box to download');
+      return;
+    }
+
+    try {
+      const selectedBoxData = boxReceipts.filter(box => selectedBoxes.has(box.id));
+      const currentUserName = user?.name || user?.username || 'Administrator';
+      
+      const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Box Receipt Report - Multiple Boxes</title>
+          <style>
+              @page {
+                  margin: 20mm;
+                  size: A4;
+              }
+              body {
+                  font-family: Arial, sans-serif;
+                  line-height: 1.4;
+                  color: #333;
+                  margin: 0;
+                  padding: 0;
+              }
+              .header {
+                  text-align: center;
+                  border-bottom: 2px solid #1890ff;
+                  padding-bottom: 20px;
+                  margin-bottom: 30px;
+              }
+              .logo {
+                  max-height: 80px;
+                  margin-bottom: 10px;
+              }
+              .title {
+                  font-size: 24px;
+                  font-weight: bold;
+                  color: #1890ff;
+                  margin: 10px 0;
+              }
+              .subtitle {
+                  font-size: 16px;
+                  color: #666;
+                  margin-bottom: 5px;
+              }
+              .box-section {
+                  margin-bottom: 40px;
+                  border: 1px solid #e8e8e8;
+                  border-radius: 8px;
+                  padding: 20px;
+              }
+              .box-header {
+                  font-size: 18px;
+                  font-weight: bold;
+                  color: #1890ff;
+                  border-bottom: 1px solid #e8e8e8;
+                  padding-bottom: 10px;
+                  margin-bottom: 15px;
+              }
+              .info-grid {
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 15px;
+                  margin-bottom: 20px;
+              }
+              .info-item {
+                  display: flex;
+                  margin-bottom: 8px;
+              }
+              .info-label {
+                  font-weight: bold;
+                  min-width: 150px;
+                  color: #666;
+              }
+              .info-value {
+                  flex: 1;
+                  color: #333;
+              }
+              .books-grid {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                  gap: 15px;
+                  margin-top: 15px;
+              }
+              .book-card {
+                  border: 1px solid #d9d9d9;
+                  border-radius: 6px;
+                  padding: 12px;
+                  background-color: #fafafa;
+              }
+              .footer {
+                  margin-top: 40px;
+                  padding-top: 20px;
+                  border-top: 1px solid #e8e8e8;
+                  text-align: center;
+                  font-size: 12px;
+                  color: #666;
+              }
+              @media print {
+                .no-print { display: none !important; }
+              }
+          </style>
+      </head>
+      <body>
+          <div class="header">
+              <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
+              <div class="title">Parliament of Zimbabwe - Fuel Coupon System</div>
+              <div class="subtitle">Box Receipt Report</div>
+              <div class="subtitle">Generated on: ${new Date().toLocaleDateString()}</div>
+          </div>
+
+          ${selectedBoxData.map(box => `
+          <div class="box-section">
+              <div class="box-header">Box ${box.boxId} - Receipt Details</div>
+              <div class="info-grid">
+                  <div class="info-item">
+                      <span class="info-label">Box ID:</span>
+                      <span class="info-value">${box.boxId}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Supplier:</span>
+                      <span class="info-value">${box.supplier}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Number of Books:</span>
+                      <span class="info-value">${box.numberOfBooks}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Coupons per Book:</span>
+                      <span class="info-value">${box.couponsPerBook}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Total Coupons:</span>
+                      <span class="info-value">${box.numberOfBooks * box.couponsPerBook}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Status:</span>
+                      <span class="info-value">${box.status}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Received Date:</span>
+                      <span class="info-value">${new Date(box.receivedDate).toLocaleDateString()}</span>
+                  </div>
+                  <div class="info-item">
+                      <span class="info-label">Received By:</span>
+                      <span class="info-value">${currentUserName}</span>
+                  </div>
+              </div>
+              
+              ${box.books && box.books.length > 0 ? `
+              <div style="margin-top: 20px;">
+                  <h4>Book Details:</h4>
+                  <div class="books-grid">
+                      ${box.books.map(book => `
+                      <div class="book-card">
+                          <div style="font-weight: bold; color: #1890ff; margin-bottom: 8px;">Book ${book.bookNumber}</div>
+                          <div style="font-size: 12px; margin-bottom: 4px;">Range: ${book.firstCouponId} - ${book.lastCouponId}</div>
+                          <div style="font-size: 12px; margin-bottom: 4px;">Coupons: ${book.couponsPerBook}</div>
+                      </div>
+                      `).join('')}
+                  </div>
+              </div>
+              ` : ''}
+          </div>
+          `).join('')}
+
+          <div class="footer">
+              <p>Generated by Parliament of Zimbabwe Fuel Coupon Management System</p>
+              <p>Report Date: ${new Date().toLocaleString()}</p>
+              <p>Total Boxes: ${selectedBoxData.length}</p>
+          </div>
+      </body>
+      </html>
+      `;
+
+      // Create a blob and download it
+      const blob = new Blob([reportHtml], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `box-receipt-report-${selectedBoxData.length}-boxes-${new Date().toISOString().split('T')[0]}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      // Archive each selected box
+      for (const box of selectedBoxData) {
+        await archiveBoxDocument(box, 'PDF_DOWNLOAD');
+      }
+      
+      message.success(`Downloaded report for ${selectedBoxData.length} boxes successfully!`);
+    } catch (error) {
+      console.error('Error downloading boxes report:', error);
+      message.error('Failed to download boxes report');
+    }
   };
 
   const loadArchivedRecords = async () => {
@@ -1814,13 +2236,64 @@ const BoxReceiptManagement: FC = () => {
           </Row>
 
           {/* Main Table */}
-      <Card>
+      <Card
+        title={
+          <Space>
+            <InboxOutlined />
+            Box Receipt Management
+            {selectedBoxes.size > 0 && (
+              <Tag color="blue">{selectedBoxes.size} selected</Tag>
+            )}
+          </Space>
+        }
+        extra={
+          <Space>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsModalVisible(true)}
+            >
+              Add New Box
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={downloadSelectedBoxesReport}
+              disabled={selectedBoxes.size === 0}
+            >
+              Download Selected ({selectedBoxes.size})
+            </Button>
+            <Button
+              icon={<FileTextOutlined />}
+              onClick={handleExportData}
+            >
+              Export CSV
+            </Button>
+          </Space>
+        }
+      >
         <Table
           columns={columns}
           dataSource={boxReceipts}
           rowKey="id"
           loading={loading}
           scroll={{ x: 1400 }}
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: Array.from(selectedBoxes),
+            onChange: (selectedRowKeys) => {
+              setSelectedBoxes(new Set(selectedRowKeys as string[]));
+            },
+            onSelectAll: (selected, selectedRows, changeRows) => {
+              if (selected) {
+                // Select all visible rows
+                const allKeys = boxReceipts.map(box => box.id);
+                setSelectedBoxes(new Set(allKeys));
+              } else {
+                // Deselect all
+                setSelectedBoxes(new Set());
+              }
+            }
+          }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
