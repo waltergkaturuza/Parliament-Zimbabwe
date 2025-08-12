@@ -51,14 +51,28 @@ from rest_framework.views import APIView # Ensure this import is present
 
 User = get_user_model()
 
+# Import home views
+from .views_home import home_stats, system_health, recent_activity
+
 # Compatibility import for profile views
 try:
     from .views_profile import user_profile_view
 except ImportError:
     # If views_profile doesn't exist or user_profile_view is not available, create a placeholder
-    def user_profile_view(*args, **kwargs):
-        from rest_framework.response import Response
-        return Response({'error': 'Profile view not implemented'}, status=501)
+    from rest_framework.decorators import api_view, permission_classes
+    from rest_framework.permissions import IsAuthenticated
+    from rest_framework.response import Response
+    from .serializers import UserSerializer
+    
+    @api_view(['GET'])
+    @permission_classes([IsAuthenticated])
+    def user_profile_view(request):
+        """Get current user's profile information"""
+        try:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({'error': 'Profile view error', 'detail': str(e)}, status=500)
 
 # --- Authentication Views (Keeping as they were provided, added user detail in login) ---
 

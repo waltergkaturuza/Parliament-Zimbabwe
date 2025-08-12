@@ -217,60 +217,6 @@ const BookDispatchManagement: FC = () => {
     return serials;
   };
 
-  // Automatic archiving function
-  const archiveDispatchDocument = async (dispatch: BookDispatch, documentType: 'PDF_PRINT' | 'PDF_DOWNLOAD') => {
-    try {
-      const archiveData = {
-        dispatch_id: dispatch.id,
-        document_type: documentType,
-        generated_at: new Date().toISOString(),
-        generated_by: user?.username || 'Unknown User',
-        dispatch_details: {
-          dispatchId: dispatch.dispatchId,
-          subCenterName: dispatch.subCenterName,
-          totalBooks: dispatch.totalBooks,
-          totalCoupons: dispatch.totalCoupons,
-          totalValue: dispatch.totalValue,
-          books: dispatch.books?.map(book => ({
-            bookId: book.bookId,
-            boxId: book.boxId,
-            firstCouponId: book.firstCouponId,
-            lastCouponId: book.lastCouponId,
-            numberOfCoupons: book.numberOfCoupons
-          })) || []
-        }
-      };
-
-      // Try to save to archive endpoint
-      try {
-        await apiClient.post('/archives/dispatch-documents/', archiveData);
-        console.log('Dispatch document archived successfully');
-      } catch (error) {
-        // If archive endpoint doesn't exist, save to local storage as backup
-        const existingArchives = JSON.parse(localStorage.getItem('dispatch_archives') || '[]');
-        existingArchives.push(archiveData);
-        localStorage.setItem('dispatch_archives', JSON.stringify(existingArchives));
-        console.log('Dispatch document archived locally');
-      }
-    } catch (error) {
-      console.error('Error archiving dispatch document:', error);
-      // Don't fail the PDF generation if archiving fails
-    }
-  };
-  const generatePetrotradeSerials = (fuelType: 'PETROL' | 'DIESEL', denomination: number, bookIndex: number, couponsPerBook: number = 100): { firstSerial: string; lastSerial: string } => {
-    // Base serial number - increment by 10000 for each book to avoid conflicts
-    const baseNumber = 1355000 + (bookIndex * 10000) + (denomination === 20 ? 100 : 0);
-    
-    const prefix = `PU006H${denomination === 20 ? '2' : '1'}`;
-    const firstNumber = baseNumber + 1;
-    const lastNumber = baseNumber + couponsPerBook;
-    
-    return {
-      firstSerial: `${prefix}${firstNumber.toString().padStart(6, '0')}`,
-      lastSerial: `${prefix}${lastNumber.toString().padStart(6, '0')}`
-    };
-  };
-
   // Helper function to handle book detail confirmation
   const handleBookDetailConfirmation = (bookId: string, confirmed: boolean) => {
     setBookDetailConfirmations(prev => ({
@@ -300,7 +246,7 @@ const BookDispatchManagement: FC = () => {
   };
 
   // PDF Generation Functions
-  const generateDispatchPDF = async (dispatch: BookDispatch) => {
+  const generateDispatchPDF = (dispatch: BookDispatch) => {
     if (!dispatch) return;
     
     // Get current user name for "Received by"
@@ -430,19 +376,10 @@ const BookDispatchManagement: FC = () => {
     </head>
     <body>
         <div class="header">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px;">
-                <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
-                <div style="text-align: center;">
-                    <div style="font-size: 20px; font-weight: bold; color: #2c5234; margin-bottom: 5px;">PETROTRADE</div>
-                    <div style="font-size: 14px; color: #666; font-style: italic;">experience the difference</div>
-                </div>
-            </div>
+            <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
             <div class="title">PARLIAMENT OF ZIMBABWE</div>
             <div class="subtitle">Fuel Coupon Management System</div>
             <div class="subtitle">Book Dispatch Note</div>
-            <div style="margin-top: 10px; padding: 5px 10px; background-color: #e8f5e8; border-radius: 4px; font-size: 14px;">
-                <strong>DIESEL D50 - 20 LITRES</strong> | Official Dispatch Document
-            </div>
         </div>
 
         <div class="section">
@@ -607,291 +544,14 @@ const BookDispatchManagement: FC = () => {
     printWindow.onload = () => {
       printWindow.print();
     };
-
-    // Archive the document in the system
-    try {
-      await archiveDispatchDocument(dispatch, 'PDF_PRINT');
-    } catch (error) {
-      console.error('Error archiving print document:', error);
-    }
   };
 
-  const downloadDispatchPDF = async (dispatch: BookDispatch) => {
+  const downloadDispatchPDF = (dispatch: BookDispatch) => {
     if (!dispatch) return;
     
-    try {
-      // Get current user name for "Received by"
-      const currentUserName = user ? `${user.name || `${user.username}`}` : 'Administrator';
-      
-      // Create HTML content for PDF
-      const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <title>Dispatch Note - ${dispatch.dispatchId}</title>
-          <style>
-              body {
-                  font-family: Arial, sans-serif;
-                  line-height: 1.4;
-                  color: #333;
-                  margin: 0;
-                  padding: 20px;
-              }
-              .header {
-                  text-align: center;
-                  border-bottom: 2px solid #1890ff;
-                  padding-bottom: 20px;
-                  margin-bottom: 30px;
-              }
-              .title {
-                  font-size: 24px;
-                  font-weight: bold;
-                  color: #1890ff;
-                  margin: 10px 0;
-              }
-              .subtitle {
-                  font-size: 16px;
-                  color: #666;
-                  margin-bottom: 5px;
-              }
-              .section {
-                  margin-bottom: 25px;
-              }
-              .section-title {
-                  font-size: 18px;
-                  font-weight: bold;
-                  color: #1890ff;
-                  border-bottom: 1px solid #e8e8e8;
-                  padding-bottom: 5px;
-                  margin-bottom: 15px;
-              }
-              .info-grid {
-                  display: grid;
-                  grid-template-columns: 1fr 1fr;
-                  gap: 15px;
-                  margin-bottom: 20px;
-              }
-              .info-item {
-                  display: flex;
-                  margin-bottom: 8px;
-              }
-              .info-label {
-                  font-weight: bold;
-                  min-width: 150px;
-                  color: #666;
-              }
-              .info-value {
-                  flex: 1;
-                  color: #333;
-              }
-              .books-table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  margin-top: 15px;
-              }
-              .books-table th,
-              .books-table td {
-                  border: 1px solid #d9d9d9;
-                  padding: 8px;
-                  text-align: left;
-              }
-              .books-table th {
-                  background-color: #f5f5f5;
-                  font-weight: bold;
-              }
-              .status-badge {
-                  display: inline-block;
-                  padding: 2px 8px;
-                  border-radius: 4px;
-                  font-size: 12px;
-                  font-weight: bold;
-                  color: white;
-                  background-color: #52c41a;
-              }
-              .signature-section {
-                  margin-top: 40px;
-                  display: grid;
-                  grid-template-columns: 1fr 1fr;
-                  gap: 40px;
-              }
-              .signature-box {
-                  text-align: center;
-                  border-top: 1px solid #333;
-                  padding-top: 10px;
-                  margin-top: 40px;
-                  font-size: 12px;
-              }
-              .footer {
-                  margin-top: 40px;
-                  padding-top: 20px;
-                  border-top: 1px solid #e8e8e8;
-                  text-align: center;
-                  font-size: 12px;
-                  color: #666;
-              }
-          </style>
-      </head>
-      <body>
-          <div class="header">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px;">
-                  <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" style="max-height: 60px;" />
-                  <div style="text-align: center;">
-                      <div style="font-size: 18px; font-weight: bold; color: #2c5234; margin-bottom: 5px;">PETROTRADE</div>
-                      <div style="font-size: 12px; color: #666; font-style: italic;">experience the difference</div>
-                  </div>
-              </div>
-              <div class="title">PARLIAMENT OF ZIMBABWE</div>
-              <div class="subtitle">Fuel Coupon Management System</div>
-              <div class="subtitle">Book Dispatch Note</div>
-              <div style="margin-top: 10px; padding: 5px 10px; background-color: #e8f5e8; border-radius: 4px; font-size: 14px; text-align: center;">
-                  <strong>DIESEL D50 - 20 LITRES</strong> | Official Dispatch Document
-              </div>
-          </div>
-
-          <div class="section">
-              <div class="section-title">Dispatch Information</div>
-              <div class="info-grid">
-                  <div>
-                      <div class="info-item">
-                          <span class="info-label">Dispatch ID:</span>
-                          <span class="info-value">${dispatch.dispatchId}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Tracking Number:</span>
-                          <span class="info-value">${dispatch.trackingNumber || 'N/A'}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Destination:</span>
-                          <span class="info-value">${dispatch.subCenterName}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Status:</span>
-                          <span class="status-badge">${dispatch.status}</span>
-                      </div>
-                  </div>
-                  <div>
-                      <div class="info-item">
-                          <span class="info-label">Dispatch Date:</span>
-                          <span class="info-value">${dispatch.dispatchedDate}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Dispatch Time:</span>
-                          <span class="info-value">${dispatch.dispatchedTime}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Dispatched By:</span>
-                          <span class="info-value">${dispatch.dispatchedBy}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Received By:</span>
-                          <span class="info-value">${currentUserName}</span>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <div class="section">
-              <div class="section-title">Summary</div>
-              <div class="info-grid">
-                  <div>
-                      <div class="info-item">
-                          <span class="info-label">Total Books:</span>
-                          <span class="info-value">${dispatch.totalBooks}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Total Coupons:</span>
-                          <span class="info-value">${dispatch.totalCoupons}</span>
-                      </div>
-                  </div>
-                  <div>
-                      <div class="info-item">
-                          <span class="info-label">Total Value:</span>
-                          <span class="info-value">ZWG ${dispatch.totalValue.toLocaleString()}</span>
-                      </div>
-                      <div class="info-item">
-                          <span class="info-label">Report Generated:</span>
-                          <span class="info-value">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</span>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <div class="section">
-              <div class="section-title">Dispatched Books</div>
-              <table class="books-table">
-                  <thead>
-                      <tr>
-                          <th>Book ID</th>
-                          <th>Box ID</th>
-                          <th>Fuel Type</th>
-                          <th>Amount</th>
-                          <th>Coupons</th>
-                          <th>Value</th>
-                          <th>Coupon Range</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      ${dispatch.books?.map(book => `
-                          <tr>
-                              <td>${book.bookId}</td>
-                              <td>${book.boxId}</td>
-                              <td>${book.fuelType}</td>
-                              <td>${book.couponAmount}L</td>
-                              <td>${book.numberOfCoupons}</td>
-                              <td>ZWG ${book.value.toLocaleString()}</td>
-                              <td>${book.firstCouponId} - ${book.lastCouponId}</td>
-                          </tr>
-                      `).join('') || '<tr><td colspan="7">No books available</td></tr>'}
-                  </tbody>
-              </table>
-          </div>
-
-          <div class="signature-section">
-              <div class="signature-box">
-                  <strong>Dispatched By</strong><br>
-                  ${dispatch.dispatchedBy}<br>
-                  Date: ${dispatch.dispatchedDate}
-              </div>
-              <div class="signature-box">
-                  <strong>Received By</strong><br>
-                  ${currentUserName}<br>
-                  Date: _________________
-              </div>
-          </div>
-
-          <div class="footer">
-              <p>Parliament of Zimbabwe - Fuel Coupon Management System</p>
-              <p>This is an official dispatch note generated on ${new Date().toLocaleDateString()}</p>
-              <p>For queries, contact the Main Center at +263 4 796006</p>
-          </div>
-      </body>
-      </html>
-      `;
-
-      // Create a blob and download
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link and click it to download
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `dispatch-note-${dispatch.dispatchId}-${new Date().toISOString().split('T')[0]}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Clean up the URL
-      window.URL.revokeObjectURL(url);
-      
-      // Archive the document in the system
-      await archiveDispatchDocument(dispatch, 'PDF_DOWNLOAD');
-      
-      message.success(`Dispatch note downloaded successfully! File: dispatch-note-${dispatch.dispatchId}-${new Date().toISOString().split('T')[0]}.html`);
-      
-    } catch (error) {
-      console.error('Download error:', error);
-      message.error('Failed to download dispatch note');
-    }
+    // For now, use browser's print to PDF functionality
+    message.success('Use browser Print → Save as PDF to download the dispatch note');
+    generateDispatchPDF(dispatch);
   };
 
   // Fetch data on component mount
@@ -923,34 +583,24 @@ const BookDispatchManagement: FC = () => {
             : 'System User',
           dispatchedDate: new Date(dispatch.dispatch_date).toISOString().split('T')[0],
           dispatchedTime: new Date(dispatch.dispatch_date).toTimeString().split(' ')[0],
-          books: dispatch.books?.map((book: any, bookIndex: number) => {
-            // Generate Petrotrade-style serials for each book
-            const fuelType = 'DIESEL' as const; // Default
-            const denomination = 20; // Default 20L
-            const couponsPerBook = 100; // Petrotrade standard
-            const petroSerials = generatePetrotradeSerials(fuelType, denomination, bookIndex, couponsPerBook);
-            
-            return {
-              id: String(book.id),
-              bookId: book.book_number || `BK-${book.id}`,
-              boxId: book.box?.box_code || 'Unknown Box',
-              fuelType,
-              couponAmount: denomination as 5 | 20,
-              firstCouponId: petroSerials.firstSerial,
-              lastCouponId: petroSerials.lastSerial,
-              numberOfCoupons: couponsPerBook,
-              value: couponsPerBook * 37.95, // Calculate based on current fuel price
-              pricePerLitre: 37.95,
-            };
-          }) || [],
+          books: dispatch.books?.map((book: any) => ({
+            id: String(book.id),
+            bookId: book.book_number || `BK-${book.id}`,
+            boxId: book.box?.box_code || 'Unknown Box',
+            fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
+            couponAmount: 20 as const, // Default
+            firstCouponId: book.first_coupon_number || '',
+            lastCouponId: book.last_coupon_number || '',
+            numberOfCoupons: 10, // Default coupons per book
+            value: 10 * 37.95, // Calculate based on current fuel price
+            pricePerLitre: 37.95,
+          })) || [],
           totalBooks: dispatch.book_count || 0,
-          totalCoupons: (dispatch.book_count || 0) * 100, // 100 coupons per book (Petrotrade standard)
-          totalValue: (dispatch.book_count || 0) * 100 * 37.95, // 100 coupons * price per litre
-          status: (dispatch.status === 'PENDING' ? 'PENDING' : 
+          totalCoupons: (dispatch.book_count || 0) * 10,
+          totalValue: (dispatch.book_count || 0) * 10 * 37.95,
+          status: dispatch.status === 'PENDING' ? 'PENDING' : 
                   dispatch.status === 'DISPATCHED' ? 'DISPATCHED' :
-                  dispatch.status === 'RECEIVED' ? 'RECEIVED' :
-                  dispatch.status === 'CONFIRMED' ? 'CONFIRMED' :
-                  dispatch.status === 'CANCELLED' ? 'CANCELLED' : 'PENDING') as 'PENDING' | 'DISPATCHED' | 'RECEIVED' | 'CONFIRMED' | 'CANCELLED',
+                  dispatch.status === 'RECEIVED' ? 'RECEIVED' : 'PENDING',
           receivedDate: dispatch.received_date ? new Date(dispatch.received_date).toISOString().split('T')[0] : undefined,
           notes: dispatch.notes || '',
           trackingNumber: `TRK-${new Date().getFullYear()}-${String(dispatch.id).padStart(6, '0')}`,
@@ -979,27 +629,19 @@ const BookDispatchManagement: FC = () => {
       
       if (Array.isArray(books)) {
         // Filter for available books and map to frontend format
-        const availableBooks = books.filter((book: any) => !book.is_assigned).map((book: any, bookIndex: number) => {
-          // Generate Petrotrade-style serials for each book
-          const fuelType = 'DIESEL' as const; // Default
-          const denomination = 20; // Default 20L
-          const couponsPerBook = 100; // Petrotrade standard
-          const petroSerials = generatePetrotradeSerials(fuelType, denomination, bookIndex, couponsPerBook);
-          
-          return {
-            key: String(book.id),
-            bookId: book.book_number || `BK-${book.id}`,
-            boxId: book.box?.box_code || 'Unknown Box',
-            fuelType,
-            couponAmount: denomination as 5 | 20,
-            firstCouponId: petroSerials.firstSerial,
-            lastCouponId: petroSerials.lastSerial,
-            numberOfCoupons: couponsPerBook,
-            value: couponsPerBook * 37.95, // Calculate based on current fuel price
-            pricePerLitre: 37.95,
-            status: 'AVAILABLE' as const,
-          };
-        });
+        const availableBooks = books.filter((book: any) => !book.is_assigned).map((book: any) => ({
+          key: String(book.id),
+          bookId: book.book_number || `BK-${book.id}`,
+          boxId: book.box?.box_code || 'Unknown Box',
+          fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
+          couponAmount: 20 as const, // Default
+          firstCouponId: book.first_coupon_number || '',
+          lastCouponId: book.last_coupon_number || '',
+          numberOfCoupons: 10, // Default coupons per book
+          value: 10 * 37.95, // Calculate based on current fuel price
+          pricePerLitre: 37.95,
+          status: 'AVAILABLE' as const,
+        }));
         
         setAvailableBooks(availableBooks);
       } else {

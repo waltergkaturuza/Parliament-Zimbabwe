@@ -5,7 +5,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 # Import directly from views_main to avoid circular import issues
 from .views_main import (
     # Authentication views
-    RegisterView, LoginView,
+    RegisterView, LoginView, user_profile_view,
     
     # Admin views
     admin_dashboard, fuel_statistics, analytics_view, notification_stats,
@@ -48,6 +48,7 @@ from .views_debug import test_azure_database, health_check as debug_health_check
 from .cors_test_views import cors_bypass_login, cors_test_endpoint
 
 # Import home views that provide some of the missing endpoints
+from .views_home import home_stats, system_health, recent_activity
 from .views_home import home_stats, recent_activity, system_health, quick_insights
 
 # Import setup views
@@ -118,6 +119,8 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
+    path('auth/user/', user_profile_view, name='current-user'),  # Add user profile endpoint
+    path('users/me/', user_profile_view, name='user-me'),  # Alternative endpoint for current user
     # Change password (no hard-coded api/v1 here; config/urls.py adds the prefix)
     path('auth/change-password/', change_password, name='change-password-v1'),
     

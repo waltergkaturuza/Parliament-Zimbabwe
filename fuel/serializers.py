@@ -515,49 +515,65 @@ class BoxSerializer(serializers.ModelSerializer):
     # Handle received_at field to accept both date and datetime
     received_at = serializers.DateTimeField(required=False, allow_null=True)
     
-    # Map frontend field names to backend field names
-    first_coupon_id = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
-    last_coupon_id = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
-    coupon_amount = serializers.IntegerField(source='denomination', required=False)
+    # FRONTEND FIELD MAPPINGS - All form fields from BoxReceiptManagement.tsx
     
-    # Handle the new frontend complex data structure
-    book_details = serializers.ListField(required=False, write_only=True, allow_empty=True)
-    calculation_mode = serializers.CharField(required=False, write_only=True)
-    total_coupons = serializers.IntegerField(required=False, write_only=True)
+    # Basic Identification
+    boxId = serializers.CharField(source='box_code', required=False, allow_blank=True)
+    box_id = serializers.CharField(source='box_code', required=False, allow_blank=True)
+    barcode = serializers.CharField(required=False, allow_blank=True)
     
-    # Handle frontend fields that don't exist in model (accept but ignore)
-    monetary_value_usd = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, write_only=True)
-    fuel_price_per_litre_usd = serializers.DecimalField(max_digits=6, decimal_places=4, required=False, write_only=True)
-    exchange_rate = serializers.DecimalField(max_digits=8, decimal_places=4, required=False, write_only=True)
-    status = serializers.CharField(required=False, write_only=True)
-    
-    # Handle alternative field names that might be sent
-    fuelPriceUSD = serializers.DecimalField(max_digits=6, decimal_places=4, required=False, write_only=True)
-    monetaryValueUSD = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, write_only=True)
-    
-    # Frontend form field names that might differ from submission names
-    boxId = serializers.CharField(source='box_code', required=False)
-    box_id = serializers.CharField(source='box_code', required=False)  # Alternative field name
-    fuelType = serializers.CharField(source='fuel_type', required=False)
-    couponAmount = serializers.IntegerField(source='denomination', required=False)
-    numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
-    couponsPerBook = serializers.IntegerField(source='coupons_per_book', required=False)
-    totalLitres = serializers.DecimalField(max_digits=10, decimal_places=2, source='total_litres', required=False)
-    firstCouponId = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
-    lastCouponId = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
-    
-    # New harmonized fields for complete frontend support
+    # Supplier and Documentation
     supplier = serializers.CharField(required=False, allow_blank=True)
-    receivedBySignature = serializers.CharField(source='received_by_signature', required=False, allow_blank=True)
-    damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
-    deliveryNote = serializers.CharField(source='delivery_note', required=False, allow_blank=True)
     invoiceNumber = serializers.CharField(source='invoice_number', required=False, allow_blank=True)
-    qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
+    deliveryNote = serializers.CharField(source='delivery_note', required=False, allow_blank=True)
     
-    # Date/Time handling - frontend sends separate fields
+    # Date and Time Fields (frontend sends separate fields)
     receivedDate = serializers.DateField(source='received_date', required=False, allow_null=True)
     receivedTime = serializers.TimeField(source='received_time', required=False, allow_null=True)
     receivedBy = serializers.CharField(source='received_by.get_full_name', read_only=True)
+    
+    # Fuel and Structure Information
+    fuelType = serializers.CharField(source='fuel_type', required=False)
+    couponAmount = serializers.IntegerField(source='denomination', required=False)
+    
+    # Financial Information (USD)
+    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=6, decimal_places=4, required=False)
+    fuelPricePerLitreUsd = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=6, decimal_places=4, required=False)
+    fuelPriceUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=6, decimal_places=4, required=False, write_only=True)
+    totalValueUsd = serializers.DecimalField(source='total_value_usd', max_digits=10, decimal_places=2, required=False)
+    exchangeRate = serializers.DecimalField(source='exchange_rate_zwg_usd', max_digits=8, decimal_places=4, required=False)
+    exchangeRateZwgUsd = serializers.DecimalField(source='exchange_rate_zwg_usd', max_digits=8, decimal_places=4, required=False)
+    
+    # Financial Information (ZWG) - Legacy support
+    fuelPricePerLitre = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, write_only=True)
+    monetaryValueUSD = serializers.DecimalField(source='total_value_usd', max_digits=10, decimal_places=2, required=False)
+    
+    # Coupon Serial Numbers
+    firstCouponId = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
+    firstCouponNumber = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
+    lastCouponId = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    lastCouponNumber = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    first_coupon_id = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
+    last_coupon_id = serializers.CharField(source='last_coupon_number', required=False, allow_blank=True)
+    
+    # Structure Information
+    numberOfBooks = serializers.IntegerField(source='number_of_books', required=False)
+    couponsPerBook = serializers.IntegerField(source='coupons_per_book', required=False)
+    totalLitres = serializers.DecimalField(source='total_litres', max_digits=10, decimal_places=2, required=False)
+    
+    # Verification and Notes
+    couponVerificationNotes = serializers.CharField(source='verification_notes', required=False, allow_blank=True)
+    verificationNotes = serializers.CharField(source='verification_notes', required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    
+    # Digital Signature
+    signature = serializers.CharField(source='received_by_signature', required=False, allow_blank=True)
+    receivedBySignature = serializers.CharField(source='received_by_signature', required=False, allow_blank=True)
+    
+    # Calculated Fields (read-only, calculated in backend)
+    totalCoupons = serializers.IntegerField(source='total_coupons_calculated', read_only=True)
+    totalValueUSD = serializers.DecimalField(source='total_value_usd', max_digits=10, decimal_places=2, read_only=True)
+    totalValueZWG = serializers.DecimalField(source='total_value_zwg', max_digits=12, decimal_places=2, read_only=True)
     
     # Status harmonization
     status = serializers.ChoiceField(
@@ -572,61 +588,83 @@ class BoxSerializer(serializers.ModelSerializer):
         required=False
     )
     
-    # Books generated data
+    # Legacy field mappings for backward compatibility
+    coupon_amount = serializers.IntegerField(source='denomination', required=False)
+    monetary_value_usd = serializers.DecimalField(source='total_value_usd', max_digits=10, decimal_places=2, required=False)
+    fuel_price_per_litre_usd = serializers.DecimalField(max_digits=6, decimal_places=4, required=False)
+    exchange_rate = serializers.DecimalField(source='exchange_rate_zwg_usd', max_digits=8, decimal_places=4, required=False)
+    
+    # Complex data structures
+    book_details = serializers.ListField(required=False, write_only=True, allow_empty=True)
+    calculation_mode = serializers.CharField(required=False, write_only=True)
+    total_coupons = serializers.IntegerField(required=False, write_only=True)
     booksGenerated = serializers.ListField(source='book_details_json', required=False, allow_empty=True)
+    
+    # QR Code and other metadata
+    qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
+    damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
+    # QR Code and other metadata
+    qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
+    damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
 
     class Meta:
         model = Box
-        # Complete harmonized field list - all frontend fields mapped
+        # Complete field list - all frontend fields mapped
         fields = [
             # Core identification
             'id', 'box_code', 'boxId', 'box_id', 'barcode',
             
-            # Fuel and structure info
+            # Supplier and Documentation
+            'supplier', 'invoiceNumber', 'deliveryNote', 'invoice_number', 'delivery_note',
+            
+            # Date and Time
+            'received_at', 'received_date', 'received_time', 'receivedDate', 'receivedTime',
+            'received_by', 'received_by_details', 'receivedBy', 'current_user_full_name',
+            
+            # Fuel and Structure Information
             'fuel_type', 'fuelType', 'denomination', 'coupon_amount', 'couponAmount',
             'number_of_books', 'numberOfBooks', 'coupons_per_book', 'couponsPerBook',
             
-            # Coupon serial numbers
+            # Coupon Serial Numbers
             'first_coupon_number', 'last_coupon_number', 'first_coupon_id', 'last_coupon_id',
-            'firstCouponId', 'lastCouponId',
+            'firstCouponId', 'lastCouponId', 'firstCouponNumber', 'lastCouponNumber',
             
-            # Calculated totals
-            'total_coupons_calculated', 'total_coupons', 'total_litres', 'totalLitres',
+            # Calculated Totals
+            'total_coupons_calculated', 'total_coupons', 'totalCoupons',
+            'total_litres', 'totalLitres',
             
-            # Financial calculations
-            'fuel_price_per_litre_usd', 'fuelPriceUSD', 'fuel_price_per_litre_usd',
-            'exchange_rate_zwg_usd', 'exchange_rate', 'total_value_usd', 'total_value_zwg',
-            'monetary_value_usd', 'monetaryValueUSD',
+            # Financial Information (USD)
+            'fuel_price_per_litre_usd', 'fuelPricePerLitreUSD', 'fuelPricePerLitreUsd', 'fuelPriceUSD',
+            'exchange_rate_zwg_usd', 'exchange_rate', 'exchangeRate', 'exchangeRateZwgUsd',
+            'total_value_usd', 'total_value_zwg', 'monetaryValueUSD', 'totalValueUSD', 'totalValueZWG', 'totalValueUsd',
             
-            # Receipt information
-            'received_at', 'received_date', 'received_time', 'receivedDate', 'receivedTime',
-            'received_by', 'received_by_details', 'receivedBy', 'current_user_full_name',
-            'supplier', 'delivery_note', 'deliveryNote', 'invoice_number', 'invoiceNumber',
+            # Financial Information (ZWG) - Legacy
+            'fuelPricePerLitre', 'monetary_value_usd',
             
-            # Status and workflow
-            'status', 'verification_notes', 'verified_at', 'verified_by',
+            # Status and Workflow
+            'status', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
             
-            # Quality and documentation
-            'received_by_signature', 'receivedBySignature', 'damage_report', 'damageReport',
-            'qr_code_data', 'qrCodeData', 'notes',
+            # Notes and Documentation
+            'notes', 'signature', 'received_by_signature', 'receivedBySignature',
+            'damage_report', 'damageReport', 'qr_code_data', 'qrCodeData',
             
-            # Assignment and processing
+            # Assignment and Processing
             'assigned_to', 'assigned_to_details',
             
-            # Complex data structures
+            # Complex Data Structures
             'calculation_mode', 'book_details_json', 'book_details', 'booksGenerated',
             
             # Timestamps
             'created', 'modified',
         ]
         read_only_fields = [
-            'id', 'assigned_to_details', 
-            'received_by_details', 'created', 'modified'
+            'id', 'assigned_to_details', 'received_by_details', 'created', 'modified',
+            'totalCoupons', 'totalValueUSD', 'totalValueZWG', 'receivedBy', 'current_user_full_name'
         ]
         extra_kwargs = {
             'first_coupon_number': {'required': False},
             'last_coupon_number': {'required': False},
-            'box_code': {'required': False},  # We'll validate this in validate() method
+            'box_code': {'required': False},
             'fuel_type': {'required': False},
             'denomination': {'required': False},
             'number_of_books': {'required': False},
@@ -637,6 +675,9 @@ class BoxSerializer(serializers.ModelSerializer):
                 'help_text': 'Number of coupons per book (1-100 range)'
             },
             'total_litres': {'required': False},
+            'supplier': {'required': False},
+            'barcode': {'required': False},
+            'notes': {'required': False},
         }
     
     def get_current_user_full_name(self, obj):
@@ -745,10 +786,16 @@ class BoxSerializer(serializers.ModelSerializer):
         # Store financial calculation data from frontend
         if 'monetary_value_usd' in validated_data:
             validated_data['total_value_usd'] = validated_data.pop('monetary_value_usd')
+        if 'totalValueUsd' in validated_data:
+            validated_data['total_value_usd'] = validated_data.pop('totalValueUsd')
         if 'fuelPriceUSD' in validated_data:
             validated_data['fuel_price_per_litre_usd'] = validated_data.pop('fuelPriceUSD')
+        if 'fuelPricePerLitreUsd' in validated_data:
+            validated_data['fuel_price_per_litre_usd'] = validated_data.pop('fuelPricePerLitreUsd')
         if 'exchange_rate' in validated_data:
             validated_data['exchange_rate_zwg_usd'] = validated_data.pop('exchange_rate')
+        if 'exchangeRateZwgUsd' in validated_data:
+            validated_data['exchange_rate_zwg_usd'] = validated_data.pop('exchangeRateZwgUsd')
         
         # Set calculation mode and book details
         validated_data['calculation_mode'] = calculation_mode

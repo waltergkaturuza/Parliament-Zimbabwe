@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - Parliament Fuel System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .result {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        input, select {
+            width: 200px;
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Parliament Fuel System - API Testing</h1>
+
+    <div class="container">
+        <h2>1. Authentication Test</h2>
+        <div class="form-group">
+            <label>Username:</label>
+            <input type="text" id="username" value="admin">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="password" value="pass@123">
+        </div>
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>2. User Profile Test</h2>
+        <button onclick="testUserProfile()" id="profileBtn" disabled>Get User Profile</button>
+        <div id="profileResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>3. Box Creation Test</h2>
+        <div class="form-group">
+            <label>Supplier:</label>
+            <input type="text" id="supplier" value="Test Supplier Ltd">
+        </div>
+        <div class="form-group">
+            <label>Fuel Type:</label>
+            <select id="fuelType">
+                <option value="Petrol">Petrol</option>
+                <option value="Diesel">Diesel</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Quantity:</label>
+            <input type="number" id="quantity" value="100">
+        </div>
+        <button onclick="testBoxCreation()" id="boxBtn" disabled>Create Test Box</button>
+        <div id="boxResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>4. Test Summary</h2>
+        <div id="testSummary">
+            <p>Please run the tests above to see the summary.</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+        let accessToken = null;
+        let testResults = {
+            login: false,
+            profile: false,
+            boxCreation: false
+        };
+
+        function showResult(elementId, message, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="${isSuccess ? 'success' : 'error'}">${message}</div>`;
+        }
+
+        function showData(elementId, data) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result">${JSON.stringify(data, null, 2)}</div>`;
+        }
+
+        function updateSummary() {
+            const summaryElement = document.getElementById('testSummary');
+            const totalTests = Object.keys(testResults).length;
+            const passedTests = Object.values(testResults).filter(Boolean).length;
+            
+            let summaryHTML = `<h3>Test Results: ${passedTests}/${totalTests} Passed</h3>`;
+            summaryHTML += `<ul>`;
+            summaryHTML += `<li>Login: ${testResults.login ? '✅ PASS' : '❌ FAIL'}</li>`;
+            summaryHTML += `<li>User Profile: ${testResults.profile ? '✅ PASS' : '❌ FAIL'}</li>`;
+            summaryHTML += `<li>Box Creation: ${testResults.boxCreation ? '✅ PASS' : '❌ FAIL'}</li>`;
+            summaryHTML += `</ul>`;
+
+            if (passedTests === totalTests) {
+                summaryHTML += `<div class="success"><strong>🎉 All tests passed! The system is ready for use.</strong></div>`;
+            } else {
+                summaryHTML += `<div class="error"><strong>⚠️ Some tests failed. Please check the issues above.</strong></div>`;
+            }
+
+            summaryElement.innerHTML = summaryHTML;
+        }
+
+        async function testLogin() {
+            try {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                const response = await fetch(`${API_BASE}/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    accessToken = data.access;
+                    testResults.login = true;
+                    
+                    showResult('loginResult', '✅ Login successful!');
+                    showData('loginResult', { 
+                        access_token: data.access.substring(0, 50) + '...', 
+                        refresh_token: data.refresh.substring(0, 50) + '...',
+                        message: 'Tokens received successfully'
+                    });
+                    
+                    // Enable other test buttons
+                    document.getElementById('profileBtn').disabled = false;
+                    document.getElementById('boxBtn').disabled = false;
+                } else {
+                    const errorData = await response.text();
+                    testResults.login = false;
+                    showResult('loginResult', `❌ Login failed: ${response.status} - ${errorData}`, false);
+                }
+            } catch (error) {
+                testResults.login = false;
+                showResult('loginResult', `❌ Login error: ${error.message}`, false);
+            }
+            updateSummary();
+        }
+
+        async function testUserProfile() {
+            if (!accessToken) {
+                showResult('profileResult', '❌ Please login first', false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/users/me/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    testResults.profile = true;
+                    
+                    showResult('profileResult', '✅ User profile retrieved successfully!');
+                    showData('profileResult', data);
+                } else {
+                    const errorData = await response.text();
+                    testResults.profile = false;
+                    showResult('profileResult', `❌ Profile fetch failed: ${response.status} - ${errorData}`, false);
+                }
+            } catch (error) {
+                testResults.profile = false;
+                showResult('profileResult', `❌ Profile error: ${error.message}`, false);
+            }
+            updateSummary();
+        }
+
+        async function testBoxCreation() {
+            if (!accessToken) {
+                showResult('boxResult', '❌ Please login first', false);
+                return;
+            }
+
+            try {
+                const supplier = document.getElementById('supplier').value;
+                const fuelType = document.getElementById('fuelType').value;
+                const quantity = parseInt(document.getElementById('quantity').value);
+
+                const boxData = {
+                    supplier: supplier,
+                    fuel_type: fuelType,
+                    quantity: quantity,
+                    coupon_denominations: [
+                        { denomination: "10", quantity: Math.floor(quantity * 0.6) },
+                        { denomination: "20", quantity: Math.floor(quantity * 0.4) }
+                    ]
+                };
+
+                const response = await fetch(`${API_BASE}/boxes/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(boxData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    testResults.boxCreation = true;
+                    
+                    showResult('boxResult', '✅ Box created successfully!');
+                    showData('boxResult', data);
+                } else {
+                    const errorData = await response.text();
+                    testResults.boxCreation = false;
+                    showResult('boxResult', `❌ Box creation failed: ${response.status} - ${errorData}`, false);
+                }
+            } catch (error) {
+                testResults.boxCreation = false;
+                showResult('boxResult', `❌ Box creation error: ${error.message}`, false);
+            }
+            updateSummary();
+        }
+
+        // Initialize summary
+        updateSummary();
+    </script>
+</body>
+</html>
