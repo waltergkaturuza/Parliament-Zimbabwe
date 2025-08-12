@@ -892,6 +892,13 @@ const BoxReceiptManagement: FC = () => {
                 margin-top: 40px;
                 font-size: 12px;
             }
+            /* Hide warning alerts in print */
+            .ant-alert-warning {
+                display: none !important;
+            }
+            .verification-warning {
+                display: none !important;
+            }
         </style>
     </head>
     <body>
@@ -2461,6 +2468,7 @@ const BoxReceiptManagement: FC = () => {
                 description="Verify coupon sequences, book integrity, and barcode scanning before proceeding."
                 type="warning"
                 showIcon
+                className="verification-warning"
                 style={{ marginBottom: 16 }}
               />
 
