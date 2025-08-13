@@ -1465,8 +1465,31 @@ class FuelEntitlementSerializer(serializers.ModelSerializer):
 
 
 class SystemAlertSerializer(serializers.ModelSerializer):
-    """Serializer for SystemAlert model"""
+    """Serializer for SystemAlert model with backwards compatibility"""
     created_by_details = SimpleUserSerializer(source='created_by', read_only=True)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Check if database has new fields
+        try:
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT priority FROM fuel_systemalert LIMIT 1;")
+            has_new_fields = True
+        except Exception:
+            has_new_fields = False
+        
+        # Remove fields that don't exist in old schema
+        if not has_new_fields:
+            if 'priority' in self.fields:
+                del self.fields['priority']
+            if 'target_roles' in self.fields:
+                del self.fields['target_roles']
+            if 'expires_at' in self.fields:
+                del self.fields['expires_at']
+            if 'is_dismissible' in self.fields:
+                del self.fields['is_dismissible']
     
     class Meta:
         model = SystemAlert

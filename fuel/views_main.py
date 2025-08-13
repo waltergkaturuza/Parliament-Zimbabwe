@@ -2520,11 +2520,22 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = SystemAlert.objects.all()
         
-        # For now, return all alerts regardless of target roles
-        # We'll handle role filtering in the frontend or with a different approach
-        # This avoids SQLite JSON field compatibility issues
+        try:
+            # Check if database has new fields by trying a simple query
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT priority FROM fuel_systemalert LIMIT 1;")
+            has_new_fields = True
+        except Exception:
+            has_new_fields = False
+        
+        if not has_new_fields:
+            # Use basic query for old database schema
+            return SystemAlert.objects.all().order_by('-created')
+        
+        # Full functionality for new schema
+        queryset = SystemAlert.objects.all()
         
         # Apply search filter
         search_query = self.request.query_params.get('search')
@@ -2544,7 +2555,7 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(alert_type=alert_type_filter)
         
         priority_filter = self.request.query_params.get('priority')
-        if priority_filter:
+        if priority_filter and has_new_fields:
             queryset = queryset.filter(priority=priority_filter)
         
         # Filter by date range
@@ -2555,15 +2566,22 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(created__lte=end_date)
         
-        # Filter out expired alerts unless specifically requested
+        # Filter out expired alerts unless specifically requested (only if new fields exist)
         show_expired = self.request.query_params.get('show_expired', 'false').lower() == 'true'
-        if not show_expired:
-            queryset = queryset.filter(
-                models.Q(expires_at__isnull=True) |
-                models.Q(expires_at__gt=timezone.now())
-            )
+        if not show_expired and has_new_fields:
+            try:
+                queryset = queryset.filter(
+                    models.Q(expires_at__isnull=True) |
+                    models.Q(expires_at__gt=timezone.now())
+                )
+            except Exception:
+                pass  # Skip expiration filter if field doesn't exist
         
-        return queryset.order_by('-priority', '-created')
+        # Order by priority if available, otherwise by created date
+        if has_new_fields:
+            return queryset.order_by('-priority', '-created')
+        else:
+            return queryset.order_by('-created')
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'stats', 'active', 'my_alerts']:
@@ -2579,6 +2597,16 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
         from django.db.models import Count, Q
         
         try:
+            # Check if database has new fields
+            try:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT priority FROM fuel_systemalert LIMIT 1;")
+                has_new_fields = True
+            except Exception:
+                has_new_fields = False
+                logger.warning("SystemAlert database schema is outdated. Some features unavailable.")
+            
             # Get current real-time counts
             total_alerts = SystemAlert.objects.count()
             active_alerts = SystemAlert.objects.filter(status='ACTIVE').count()
@@ -2587,11 +2615,14 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
             acknowledged_alerts = SystemAlert.objects.filter(status='ACKNOWLEDGED').count()
             
             # Count expired alerts (avoid potential timezone issues)
-            try:
-                expired_alerts = SystemAlert.objects.filter(
-                    expires_at__lt=timezone.now()
-                ).count()
-            except:
+            if has_new_fields:
+                try:
+                    expired_alerts = SystemAlert.objects.filter(
+                        expires_at__lt=timezone.now()
+                    ).count()
+                except Exception:
+                    expired_alerts = 0
+            else:
                 expired_alerts = 0
             
             # Alerts by type - use hardcoded values for reliability
@@ -2602,13 +2633,19 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
                 'CRITICAL': SystemAlert.objects.filter(alert_type='CRITICAL').count(),
             }
             
-            # Alerts by priority - use hardcoded values for reliability
-            alerts_by_priority = {
-                1: SystemAlert.objects.filter(priority=1).count(),
-                2: SystemAlert.objects.filter(priority=2).count(),
-                3: SystemAlert.objects.filter(priority=3).count(),
-                4: SystemAlert.objects.filter(priority=4).count(),
-            }
+            # Alerts by priority - only if new fields exist
+            if has_new_fields:
+                try:
+                    alerts_by_priority = {
+                        1: SystemAlert.objects.filter(priority=1).count(),
+                        2: SystemAlert.objects.filter(priority=2).count(),
+                        3: SystemAlert.objects.filter(priority=3).count(),
+                        4: SystemAlert.objects.filter(priority=4).count(),
+                    }
+                except Exception:
+                    alerts_by_priority = {1: 0, 2: total_alerts, 3: 0, 4: 0}
+            else:
+                alerts_by_priority = {1: 0, 2: total_alerts, 3: 0, 4: 0}  # Default all to medium priority
             
             # Recent activity (last 7 days)
             seven_days_ago = timezone.now() - timedelta(days=7)
@@ -2618,16 +2655,24 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
                 alert_type='CRITICAL'
             ).count()
             
-            # Active alerts by priority for urgency assessment
-            active_critical = SystemAlert.objects.filter(
-                status='ACTIVE',
-                priority=4
-            ).count()
-            
-            active_high = SystemAlert.objects.filter(
-                status='ACTIVE',
-                priority=3
-            ).count()
+            # Active alerts by priority for urgency assessment (only if new fields exist)
+            if has_new_fields:
+                try:
+                    active_critical = SystemAlert.objects.filter(
+                        status='ACTIVE',
+                        priority=4
+                    ).count()
+                    
+                    active_high = SystemAlert.objects.filter(
+                        status='ACTIVE',
+                        priority=3
+                    ).count()
+                except Exception:
+                    active_critical = 0
+                    active_high = 0
+            else:
+                active_critical = 0
+                active_high = 0
             
             return Response({
                 'total_alerts': total_alerts,
@@ -2642,7 +2687,9 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
                 'recent_critical': recent_critical,
                 'active_critical': active_critical,
                 'active_high': active_high,
-                'last_updated': timezone.now().isoformat()
+                'last_updated': timezone.now().isoformat(),
+                'database_schema_updated': has_new_fields,
+                'migration_required': not has_new_fields
             })
             
         except Exception as e:
@@ -2784,21 +2831,40 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
         logger = logging.getLogger(__name__)
         
         try:
+            # Check database compatibility first
+            try:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT priority FROM fuel_systemalert LIMIT 1;")
+                has_new_fields = True
+            except Exception:
+                has_new_fields = False
+                logger.warning("SystemAlert database schema is outdated. Using basic creation.")
+            
             data = request.data.copy()
             data['created_by'] = request.user.id
             
             logger.info(f"Creating alert with data: {data}")
             
-            # Validate target roles if provided
-            target_roles = data.get('target_roles')
-            if target_roles:
-                valid_roles = [role[0] for role in User.ROLE_CHOICES]
-                invalid_roles = [role for role in target_roles if role not in valid_roles]
-                if invalid_roles:
-                    return Response({
-                        'error': f'Invalid roles: {invalid_roles}',
-                        'valid_roles': valid_roles
-                    }, status=400)
+            # If database doesn't have new fields, strip them out
+            if not has_new_fields:
+                # Remove new fields that don't exist in old schema
+                data.pop('priority', None)
+                data.pop('target_roles', None)
+                data.pop('expires_at', None)
+                data.pop('is_dismissible', None)
+                logger.info("Removed new fields for compatibility with old database schema")
+            else:
+                # Validate target roles if provided
+                target_roles = data.get('target_roles')
+                if target_roles:
+                    valid_roles = [role[0] for role in User.ROLE_CHOICES]
+                    invalid_roles = [role for role in target_roles if role not in valid_roles]
+                    if invalid_roles:
+                        return Response({
+                            'error': f'Invalid roles: {invalid_roles}',
+                            'valid_roles': valid_roles
+                        }, status=400)
             
             serializer = self.get_serializer(data=data)
             logger.info(f"Serializer created, validating...")
@@ -2809,7 +2875,8 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
                 logger.info(f"Alert saved successfully: {alert.id}")
                 return Response({
                     'message': 'System alert created successfully',
-                    'alert': SystemAlertSerializer(alert).data
+                    'alert': SystemAlertSerializer(alert).data,
+                    'database_schema_updated': has_new_fields
                 }, status=201)
             else:
                 logger.error(f"Serializer validation failed: {serializer.errors}")
@@ -2822,7 +2889,8 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
             logger.error(f"Traceback: {traceback.format_exc()}")
             return Response({
                 'error': f'Internal server error: {str(e)}',
-                'type': type(e).__name__
+                'type': type(e).__name__,
+                'migration_required': True
             }, status=500)
 
 
