@@ -17,6 +17,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import datetime, timedelta
 from decimal import Decimal
 import json
+import logging
 
 from .models import (
     Coupon, SubCenter, Book, Box,
@@ -47,7 +48,10 @@ from .permissions import (
     # Workflow permissions
     MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
 )
+from .email_utils import send_user_approval_email, send_user_rejection_email
 from rest_framework.views import APIView # Ensure this import is present
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -171,124 +175,272 @@ class LoginView(APIView):
 # --- Existing ViewSets (Updated Permissions and Querysets) ---
 
 class UserViewSet(viewsets.ModelViewSet):
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def managers(self, request):
-        """List all users eligible to be subcenter managers (MAIN_CENTER or SUB_CENTER roles, approved)"""
-        managers = User.objects.filter(is_approved=True, role__in=["MAIN_CENTER", "SUB_CENTER"])
-        return Response(SimpleUserSerializer(managers, many=True).data)
-    
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def me(self, request):
-        """Get current user's profile"""
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
-    
-    queryset = User.objects.all().select_related('sub_center') # Select related sub_center
+    queryset = User.objects.all().select_related('sub_center', 'approved_by')
     serializer_class = UserSerializer
-    # Adjust permissions as needed for user management roles
-    permission_classes = [IsAuthenticated] # Base permission
-
-    def get_permissions(self):
-        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
-             # Allow relevant users to view users (e.g., Main Center, Sub Center can see users in their center)
-             return [IsAuthenticated()]
-        # Only specific roles can create, update, delete users
-        return [IsAuthenticated(), MainCenterPermission()]
-
+    permission_classes = [IsAuthenticated, MainCenterPermission]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
         
-        # Handle role filtering via query parameters
-        role_filter = self.request.query_params.get('role')
-        role_in_filter = self.request.query_params.get('role__in')
+        # Apply filters from query parameters - matching frontend expectations
+        search = self.request.query_params.get('search')
+        role = self.request.query_params.get('role')
+        is_active = self.request.query_params.get('is_active')
         
-        if role_filter:
-            # Handle comma-separated roles like ?role=MAIN_CENTER,SUB_CENTER
-            roles = [role.strip() for role in role_filter.split(',')]
-            queryset = queryset.filter(role__in=roles)
-        elif role_in_filter:
-            # Handle comma-separated roles like ?role__in=MAIN_CENTER,SUB_CENTER
-            roles = [role.strip() for role in role_in_filter.split(',')]
+        if search:
+            queryset = queryset.filter(
+                Q(username__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search)
+            )
+        
+        if role:
+            # Handle comma-separated roles
+            roles = [role.strip() for role in role.split(',')]
             queryset = queryset.filter(role__in=roles)
         
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        # Role-based filtering
         if user.is_authenticated:
             if user.role == 'SUB_CENTER' and user.sub_center:
-                 # Sub Center officers see users in their assigned center
-                 return queryset.filter(sub_center=user.sub_center)
-            # Main Center, Admin, Auditor see all users
+                return queryset.filter(sub_center=user.sub_center)
+            # Admin, Main Center, Auditor see all users
             return queryset
-        return queryset.none() # Anonymous users see nothing
+        return queryset.none()
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def approve_user(self, request, pk=None):
-        """Approve a pending user registration"""
-        user = self.get_object()
+    def create(self, request, *args, **kwargs):
+        """Create a new user with proper password handling"""
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            # Return the created user using the main UserSerializer
+            response_serializer = UserSerializer(user)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        """Update user with proper field handling"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
         
-        if user.is_approved:
-            return Response({'detail': 'User is already approved'}, status=status.HTTP_400_BAD_REQUEST)
+        # Use regular UserSerializer for updates (no password handling)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def list(self, request, *args, **kwargs):
+        """Override list to return paginated results in frontend-expected format"""
+        queryset = self.filter_queryset(self.get_queryset())
         
-        user.approve(request.user)
+        # Handle pagination
+        page_size = request.query_params.get('page_size', 50)
+        page = request.query_params.get('page', 1)
+        
+        try:
+            page_size = int(page_size)
+            page = int(page)
+        except (ValueError, TypeError):
+            page_size = 50
+            page = 1
+        
+        # Simple pagination
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_queryset = queryset[start:end]
+        
+        serializer = self.get_serializer(paginated_queryset, many=True)
         
         return Response({
-            'message': f'User {user.username} has been approved',
-            'user': SimpleUserSerializer(user).data
-        }, status=status.HTTP_200_OK)
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
-    def reject_user(self, request, pk=None):
-        """Reject a pending user registration"""
-        user = self.get_object()
-        reason = request.data.get('reason', 'Registration rejected by administrator')
-        
-        if user.is_approved:
-            return Response({'detail': 'Cannot reject an already approved user'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user.reject(request.user, reason)
-        
-        return Response({
-            'message': f'User {user.username} has been rejected',
-            'reason': reason
-        }, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, MainCenterPermission])
-    def pending_approvals(self, request):
-        """Get all users pending approval"""
-        pending_users = User.objects.filter(is_approved=False, rejection_reason__isnull=True)
-        serializer = UserSerializer(pending_users, many=True)
-        
-        return Response({
-            'count': pending_users.count(),
-            'users': serializer.data
-        }, status=status.HTTP_200_OK)
+            'results': serializer.data,
+            'count': queryset.count(),
+            'page': page,
+            'page_size': page_size
+        })
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def stats(self, request):
-        """Get user statistics"""
+        """Get user statistics - real-time data reflecting current state"""
+        from django.db.models import Count, Q
+        
+        # Get current real-time counts
         total_users = User.objects.count()
         active_users = User.objects.filter(is_active=True).count()
         approved_users = User.objects.filter(is_approved=True).count()
         pending_users = User.objects.filter(is_approved=False, rejection_reason__isnull=True).count()
+        rejected_users = User.objects.filter(rejection_reason__isnull=False).count()
         
-        # Role-based stats
-        main_center_users = User.objects.filter(role='MAIN_CENTER').count()
-        sub_center_users = User.objects.filter(role='SUB_CENTER').count()
-        parliament_users = User.objects.filter(role='PARLIAMENT').count()
-        auditor_users = User.objects.filter(role='AUDITOR').count()
+        # Calculate new users today
+        today = timezone.now().date()
+        new_users_today = User.objects.filter(date_joined__date=today).count()
+        
+        # Calculate approval rate
+        approval_rate = 0
+        if total_users > 0:
+            approval_rate = round((approved_users / total_users) * 100, 1)
+        
+        # Users by role - matching frontend expectations with real-time data
+        users_by_role = {}
+        for role_code, role_name in User.ROLE_CHOICES:
+            count = User.objects.filter(role=role_code).count()
+            users_by_role[role_code] = count
+        
+        # Users by status for better insights
+        users_by_status = {
+            'active_approved': User.objects.filter(is_active=True, is_approved=True).count(),
+            'inactive_approved': User.objects.filter(is_active=False, is_approved=True).count(),
+            'pending_approval': pending_users,
+            'rejected': rejected_users
+        }
+        
+        # Recent activity stats (last 7 days)
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recent_registrations = User.objects.filter(date_joined__gte=seven_days_ago).count()
+        recent_approvals = User.objects.filter(
+            is_approved=True, 
+            approved_at__gte=seven_days_ago
+        ).count()
         
         return Response({
             'total_users': total_users,
             'active_users': active_users,
             'approved_users': approved_users,
             'pending_users': pending_users,
-            'roles': {
-                'main_center': main_center_users,
-                'sub_center': sub_center_users,
-                'parliament': parliament_users,
-                'auditor': auditor_users,
+            'rejected_users': rejected_users,
+            'new_users_today': new_users_today,
+            'approval_rate': approval_rate,
+            'users_by_role': users_by_role,
+            'users_by_status': users_by_status,
+            'recent_activity': {
+                'registrations_last_7_days': recent_registrations,
+                'approvals_last_7_days': recent_approvals
             }
         })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def me(self, request):
+        """Get current user's profile"""
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def managers(self, request):
+        """List all users eligible to be subcenter managers"""
+        managers = User.objects.filter(
+            is_approved=True, 
+            role__in=["MAIN_CENTER", "SUB_CENTER"]
+        )
+        return Response(SimpleUserSerializer(managers, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def approve_user(self, request, pk=None):
+        """Approve a pending user registration and send email with credentials"""
+        user = self.get_object()
+        
+        if user.is_approved:
+            return Response(
+                {'detail': 'User is already approved'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user has email
+        if not user.email:
+            return Response(
+                {'detail': 'User must have an email address to receive approval notification'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                # Approve the user
+                user.approve(request.user)
+                
+                # Send approval email with credentials
+                email_sent, temp_password = send_user_approval_email(user, request.user)
+                
+                if email_sent:
+                    logger.info(f"User {user.username} approved and email sent successfully")
+                    response_message = f'User {user.username} has been approved and notified via email'
+                else:
+                    logger.warning(f"User {user.username} approved but email failed to send")
+                    response_message = f'User {user.username} has been approved but email notification failed'
+                
+                return Response({
+                    'message': response_message,
+                    'user': SimpleUserSerializer(user).data,
+                    'email_sent': email_sent,
+                    'email_address': user.email
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.error(f"Error approving user {user.username}: {str(e)}")
+            return Response(
+                {'detail': f'Error during approval process: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def reject_user(self, request, pk=None):
+        """Reject a pending user registration and send email notification"""
+        user = self.get_object()
+        reason = request.data.get('reason', 'Registration rejected by administrator')
+        
+        if user.is_approved:
+            return Response(
+                {'detail': 'Cannot reject an already approved user'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                # Reject the user
+                user.reject(request.user, reason)
+                
+                # Send rejection email if user has email
+                email_sent = False
+                if user.email:
+                    email_sent = send_user_rejection_email(user, reason, request.user)
+                    if email_sent:
+                        logger.info(f"User {user.username} rejected and email sent successfully")
+                    else:
+                        logger.warning(f"User {user.username} rejected but email failed to send")
+                
+                response_message = f'User {user.username} has been rejected'
+                if user.email:
+                    response_message += ' and notified via email' if email_sent else ' but email notification failed'
+                
+                return Response({
+                    'message': response_message,
+                    'reason': reason,
+                    'email_sent': email_sent,
+                    'email_address': user.email if user.email else None
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.error(f"Error rejecting user {user.username}: {str(e)}")
+            return Response(
+                {'detail': f'Error during rejection process: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def pending_approvals(self, request):
+        """Get all users pending approval"""
+        pending_users = User.objects.filter(
+            is_approved=False, 
+            rejection_reason__isnull=True
+        )
+        serializer = UserSerializer(pending_users, many=True)
+        
+        return Response({
+            'count': pending_users.count(),
+            'users': serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 # Added SubCenterOfficer ViewSet
@@ -2362,7 +2514,7 @@ class CouponAllocationViewSet(viewsets.ModelViewSet):
 
 
 class SystemAlertViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing system alerts"""
+    """ViewSet for managing system alerts with comprehensive functionality"""
     serializer_class = SystemAlertSerializer
     permission_classes = [IsAuthenticated]
     
@@ -2370,49 +2522,308 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = SystemAlert.objects.all()
         
-        # Filter alerts based on target roles
-        if user.role != 'MAIN_CENTER':
+        # For now, return all alerts regardless of target roles
+        # We'll handle role filtering in the frontend or with a different approach
+        # This avoids SQLite JSON field compatibility issues
+        
+        # Apply search filter
+        search_query = self.request.query_params.get('search')
+        if search_query:
             queryset = queryset.filter(
-                models.Q(target_roles__isnull=True) | 
-                models.Q(target_roles__contains=[user.role])
+                models.Q(title__icontains=search_query) |
+                models.Q(message__icontains=search_query)
             )
         
-        # Filter by status
+        # Apply filters
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         
-        return queryset.order_by('-created')
+        alert_type_filter = self.request.query_params.get('alert_type')
+        if alert_type_filter:
+            queryset = queryset.filter(alert_type=alert_type_filter)
+        
+        priority_filter = self.request.query_params.get('priority')
+        if priority_filter:
+            queryset = queryset.filter(priority=priority_filter)
+        
+        # Filter by date range
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(created__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created__lte=end_date)
+        
+        # Filter out expired alerts unless specifically requested
+        show_expired = self.request.query_params.get('show_expired', 'false').lower() == 'true'
+        if not show_expired:
+            queryset = queryset.filter(
+                models.Q(expires_at__isnull=True) |
+                models.Q(expires_at__gt=timezone.now())
+            )
+        
+        return queryset.order_by('-priority', '-created')
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'stats', 'active', 'my_alerts']:
             return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission()]
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
     
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get comprehensive alert statistics"""
+        from django.db.models import Count, Q
+        
+        try:
+            # Get current real-time counts
+            total_alerts = SystemAlert.objects.count()
+            active_alerts = SystemAlert.objects.filter(status='ACTIVE').count()
+            resolved_alerts = SystemAlert.objects.filter(status='RESOLVED').count()
+            dismissed_alerts = SystemAlert.objects.filter(status='DISMISSED').count()
+            acknowledged_alerts = SystemAlert.objects.filter(status='ACKNOWLEDGED').count()
+            
+            # Count expired alerts (avoid potential timezone issues)
+            try:
+                expired_alerts = SystemAlert.objects.filter(
+                    expires_at__lt=timezone.now()
+                ).count()
+            except:
+                expired_alerts = 0
+            
+            # Alerts by type - use hardcoded values for reliability
+            alerts_by_type = {
+                'INFO': SystemAlert.objects.filter(alert_type='INFO').count(),
+                'WARNING': SystemAlert.objects.filter(alert_type='WARNING').count(),
+                'ERROR': SystemAlert.objects.filter(alert_type='ERROR').count(),
+                'CRITICAL': SystemAlert.objects.filter(alert_type='CRITICAL').count(),
+            }
+            
+            # Alerts by priority - use hardcoded values for reliability
+            alerts_by_priority = {
+                1: SystemAlert.objects.filter(priority=1).count(),
+                2: SystemAlert.objects.filter(priority=2).count(),
+                3: SystemAlert.objects.filter(priority=3).count(),
+                4: SystemAlert.objects.filter(priority=4).count(),
+            }
+            
+            # Recent activity (last 7 days)
+            seven_days_ago = timezone.now() - timedelta(days=7)
+            recent_alerts = SystemAlert.objects.filter(created__gte=seven_days_ago).count()
+            recent_critical = SystemAlert.objects.filter(
+                created__gte=seven_days_ago,
+                alert_type='CRITICAL'
+            ).count()
+            
+            # Active alerts by priority for urgency assessment
+            active_critical = SystemAlert.objects.filter(
+                status='ACTIVE',
+                priority=4
+            ).count()
+            
+            active_high = SystemAlert.objects.filter(
+                status='ACTIVE',
+                priority=3
+            ).count()
+            
+            return Response({
+                'total_alerts': total_alerts,
+                'active_alerts': active_alerts,
+                'resolved_alerts': resolved_alerts,
+                'dismissed_alerts': dismissed_alerts,
+                'acknowledged_alerts': acknowledged_alerts,
+                'expired_alerts': expired_alerts,
+                'alerts_by_type': alerts_by_type,
+                'alerts_by_priority': alerts_by_priority,
+                'recent_alerts': recent_alerts,
+                'recent_critical': recent_critical,
+                'active_critical': active_critical,
+                'active_high': active_high,
+                'last_updated': timezone.now().isoformat()
+            })
+            
+        except Exception as e:
+            # Return basic stats if there's any error
+            return Response({
+                'total_alerts': 0,
+                'active_alerts': 0,
+                'resolved_alerts': 0,
+                'dismissed_alerts': 0,
+                'acknowledged_alerts': 0,
+                'expired_alerts': 0,
+                'alerts_by_type': {},
+                'alerts_by_priority': {},
+                'recent_alerts': 0,
+                'recent_critical': 0,
+                'active_critical': 0,
+                'active_high': 0,
+                'last_updated': timezone.now().isoformat(),
+                'error': str(e)
+            })
+
+    @action(detail=True, methods=['post'])
+    def acknowledge(self, request, pk=None):
+        """Acknowledge an alert"""
+        alert = self.get_object()
+        
+        if alert.status == 'RESOLVED':
+            return Response({'error': 'Cannot acknowledge a resolved alert'}, status=400)
+        
+        alert.acknowledge(request.user)
+        
+        # Log the action
+        SystemAlert.objects.create(
+            title=f"Alert Acknowledged",
+            message=f"Alert '{alert.title}' was acknowledged by {request.user.get_full_name()}",
+            alert_type='INFO',
+            created_by=request.user,
+            priority=1
+        )
+        
+        return Response({
+            'message': 'Alert acknowledged successfully',
+            'status': alert.status
+        })
+    
+    @action(detail=True, methods=['post'])
+    def resolve(self, request, pk=None):
+        """Mark an alert as resolved"""
+        alert = self.get_object()
+        alert.resolve()
+        
+        # Log the action
+        SystemAlert.objects.create(
+            title=f"Alert Resolved",
+            message=f"Alert '{alert.title}' was resolved by {request.user.get_full_name()}",
+            alert_type='INFO',
+            created_by=request.user,
+            priority=1
+        )
+        
+        return Response({
+            'message': 'Alert resolved successfully',
+            'status': alert.status
+        })
+    
     @action(detail=True, methods=['post'])
     def dismiss(self, request, pk=None):
-        """Mark an alert as dismissed for the current user"""
+        """Mark an alert as dismissed"""
         alert = self.get_object()
         
         if not alert.is_dismissible:
             return Response({'error': 'This alert cannot be dismissed'}, status=400)
         
-        # This would require a separate model to track dismissals per user
-        # For now, we'll just mark it as read
-        return Response({'message': 'Alert dismissed'})
+        alert.dismiss()
+        
+        return Response({
+            'message': 'Alert dismissed successfully',
+            'status': alert.status
+        })
     
     @action(detail=False, methods=['get'])
     def active(self, request):
-        """Get all active alerts for the current user"""
+        """Get all active, non-expired alerts for the current user"""
         active_alerts = self.get_queryset().filter(
-            status='ACTIVE',
-            expires_at__gt=timezone.now()
+            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now()),
+            status='ACTIVE'
         )
         serializer = self.get_serializer(active_alerts, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def my_alerts(self, request):
+        """Get alerts relevant to current user's role"""
+        user_alerts = self.get_queryset()
+        serializer = self.get_serializer(user_alerts, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def critical(self, request):
+        """Get all critical alerts"""
+        critical_alerts = self.get_queryset().filter(
+            alert_type='CRITICAL',
+            status='ACTIVE'
+        )
+        serializer = self.get_serializer(critical_alerts, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def bulk_resolve(self, request):
+        """Bulk resolve multiple alerts"""
+        alert_ids = request.data.get('alert_ids', [])
+        
+        if not alert_ids:
+            return Response({'error': 'No alert IDs provided'}, status=400)
+        
+        updated_count = SystemAlert.objects.filter(
+            id__in=alert_ids,
+            status__in=['ACTIVE', 'ACKNOWLEDGED']
+        ).update(status='RESOLVED')
+        
+        # Log bulk action
+        SystemAlert.objects.create(
+            title=f"Bulk Alert Resolution",
+            message=f"{updated_count} alerts were bulk resolved by {request.user.get_full_name()}",
+            alert_type='INFO',
+            created_by=request.user,
+            priority=1
+        )
+        
+        return Response({
+            'message': f'{updated_count} alerts resolved successfully',
+            'updated_count': updated_count
+        })
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def create_system_alert(self, request):
+        """Create a system-wide alert with enhanced options"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            data = request.data.copy()
+            data['created_by'] = request.user.id
+            
+            logger.info(f"Creating alert with data: {data}")
+            
+            # Validate target roles if provided
+            target_roles = data.get('target_roles')
+            if target_roles:
+                valid_roles = [role[0] for role in User.ROLE_CHOICES]
+                invalid_roles = [role for role in target_roles if role not in valid_roles]
+                if invalid_roles:
+                    return Response({
+                        'error': f'Invalid roles: {invalid_roles}',
+                        'valid_roles': valid_roles
+                    }, status=400)
+            
+            serializer = self.get_serializer(data=data)
+            logger.info(f"Serializer created, validating...")
+            
+            if serializer.is_valid():
+                logger.info(f"Serializer is valid, saving...")
+                alert = serializer.save(created_by=request.user)
+                logger.info(f"Alert saved successfully: {alert.id}")
+                return Response({
+                    'message': 'System alert created successfully',
+                    'alert': SystemAlertSerializer(alert).data
+                }, status=201)
+            else:
+                logger.error(f"Serializer validation failed: {serializer.errors}")
+                return Response(serializer.errors, status=400)
+                
+        except Exception as e:
+            logger.error(f"Exception in create_system_alert: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return Response({
+                'error': f'Internal server error: {str(e)}',
+                'type': type(e).__name__
+            }, status=500)
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):

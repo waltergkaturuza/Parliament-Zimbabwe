@@ -407,22 +407,78 @@ class UserSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     approved_by_details = SimpleUserSerializer(source='approved_by', read_only=True, allow_null=True)
     approval_status = serializers.CharField(read_only=True)
+    
+    # Frontend expects these exact field names
+    sub_center = serializers.PrimaryKeyRelatedField(
+        queryset=SubCenter.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
+    
+    # Additional computed fields
+    full_name = serializers.SerializerMethodField()
+    can_login = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        # Added approval fields and existing fields
+        # Complete fields from User model for comprehensive user management
         fields = [
-            'id', 'username', 'email', 'first_name', 'last_name', 'role', 'role_display', 
-            'sub_center', 'sub_center_details', 'phone', 'last_activity', 'date_joined', 
-            'is_approved', 'approved_by', 'approved_by_details', 
-            'approved_at', 'registration_justification', 'rejection_reason', 'approval_status'
+            # Basic user info (from AbstractUser)
+            'id', 'username', 'email', 'first_name', 'last_name', 'is_active',
+            'date_joined', 'last_login', 'is_staff', 'is_superuser',
+            
+            # Custom user fields
+            'role', 'role_display', 'sub_center', 'sub_center_details', 'phone',
+            
+            # Profile and additional info
+            'digital_signature', 'signature_uploaded_at', 'profile_picture',
+            'full_address', 'national_id', 'last_activity',
+            
+            # Approval workflow
+            'is_approved', 'approved_by', 'approved_by_details', 'approved_at',
+            'registration_justification', 'rejection_reason', 'approval_status',
+            
+            # Computed fields
+            'full_name', 'can_login'
         ]
-        # Keep fields managed by the system or other serializers as read_only
+        # Keep fields managed by the system as read_only
         read_only_fields = [
-            'id', 'last_activity', 'role_display', 'date_joined', 
-            'sub_center_details', 'approved_by_details', 'approval_status', 'is_approved', 
-            'approved_by', 'approved_at'
+            'id', 'last_activity', 'role_display', 'date_joined', 'last_login',
+            'sub_center_details', 'approved_by_details', 'approval_status',
+            'full_name', 'can_login', 'signature_uploaded_at'
         ]
+    
+    def validate(self, data):
+        """Validate user data, especially sub_center requirements"""
+        # ✅ Enforce sub_center assignment for roles that require it
+        roles_requiring_subcenter = ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER']
+        
+        # Get the role (from data if updating, or from instance if not provided)
+        role = data.get('role')
+        if not role and hasattr(self, 'instance') and self.instance:
+            role = self.instance.role
+            
+        if role in roles_requiring_subcenter:
+            sub_center = data.get('sub_center')
+            # If sub_center not in data, check instance
+            if sub_center is None and hasattr(self, 'instance') and self.instance:
+                sub_center = self.instance.sub_center
+                
+            if not sub_center:
+                role_display = dict(User.ROLE_CHOICES).get(role, role)
+                raise serializers.ValidationError({
+                    "sub_center": f"{role_display} role requires a sub-center assignment. Users with this role must work within a specific sub-center."
+                })
+        
+        return data
+    
+    def get_full_name(self, obj):
+        """Get user's full name"""
+        return obj.get_full_name() or obj.username
+    
+    def get_can_login(self, obj):
+        """Check if user can login"""
+        return obj.can_login()
 
 # Added SubCenterOfficer Serializer
 class SubCenterOfficerSerializer(serializers.ModelSerializer):
@@ -445,15 +501,30 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
     registration_justification = serializers.CharField(required=False, allow_blank=True)
+    
+    # Additional profile fields
+    full_address = serializers.CharField(required=False, allow_blank=True)
+    national_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    
+    # Admin fields (for admin-created users)
+    is_active = serializers.BooleanField(default=True, required=False)
+    is_approved = serializers.BooleanField(default=False, required=False)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'phone', 'password', 'password2', 'role', 'sub_center', 'registration_justification']
+        fields = [
+            'username', 'email', 'first_name', 'last_name', 'phone', 
+            'password', 'password2', 'role', 'sub_center', 
+            'registration_justification', 'full_address', 'national_id',
+            'is_active', 'is_approved'
+        ]
         extra_kwargs = {
             'password': {'write_only': True},
             'password2': {'write_only': True},
             'sub_center': {'required': False, 'allow_null': True},
             'registration_justification': {'required': False, 'allow_blank': True},
+            'full_address': {'required': False, 'allow_blank': True},
+            'national_id': {'required': False, 'allow_blank': True},
         }
 
     def validate(self, data):
@@ -474,11 +545,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                  "role": f"Invalid role '{data['role']}'. Must be one of: {', '.join(valid_roles)}",
              })
 
-        # Optional: Add validation for sub_center based on role if needed
-        if data.get('role') == 'SUB_CENTER' and data.get('sub_center') is None:
-             # Example: Require sub_center for SUB_CENTER role on registration
-             # raise serializers.ValidationError({"sub_center": "Sub Center role requires a sub-center assignment."})
-             pass # Or handle this logic in the view or admin
+        # ✅ Enforce sub_center assignment for roles that require it
+        roles_requiring_subcenter = ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER']
+        if data.get('role') in roles_requiring_subcenter:
+            if not data.get('sub_center'):
+                role_display = dict(User.ROLE_CHOICES).get(data['role'], data['role'])
+                raise serializers.ValidationError({
+                    "sub_center": f"{role_display} role requires a sub-center assignment. Users with this role must work within a specific sub-center."
+                })
 
         return data
 

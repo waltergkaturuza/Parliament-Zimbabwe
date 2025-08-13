@@ -163,7 +163,6 @@ urlpatterns = [
     path('books/received/', BookViewSet.as_view({'get': 'received'}), name='books-received-v1'),
     
     # Router endpoints for missing paths
-    path('users/', UserViewSet.as_view({'get': 'list'}), name='users-list'),
     path('subcenters/', SubCenterViewSet.as_view({'get': 'list'}), name='subcenters-list'),
     path('sub-centers/', SubCenterViewSet.as_view({'get': 'list'}), name='sub-centers-list'),  # Alternative path
     path('beneficiaries/', BeneficiaryProfileViewSet.as_view({'get': 'list'}), name='beneficiaries-list'),

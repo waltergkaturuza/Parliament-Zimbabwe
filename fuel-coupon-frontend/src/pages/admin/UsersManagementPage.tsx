@@ -47,34 +47,18 @@ import {
   SearchOutlined,
   ReloadOutlined,
   ExportOutlined,
-  FilterOutlined
+  FilterOutlined,
+  CheckOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import { adminService } from '@/api/admin';
+import { adminService, type User, type UserStats, type SubCenter } from '@/api/admin';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
-
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  is_active: boolean;
-  is_approved: boolean;
-  date_joined: string;
-  last_login?: string;
-  phone?: string;
-  sub_center?: {
-    id: number;
-    name: string;
-  };
-}
 
 interface UserStats {
   total_users: number;
@@ -91,6 +75,7 @@ const UsersManagementPage: React.FC = () => {
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const [formRole, setFormRole] = useState<string | undefined>(); // Track role in form
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
@@ -141,10 +126,30 @@ const UsersManagementPage: React.FC = () => {
     }
   });
 
+  // Fetch sub-centers for dropdown
+  const { data: subCenters } = useQuery({
+    queryKey: ['sub-centers'],
+    queryFn: async () => {
+      try {
+        return await adminService.getSubCenters();
+      } catch (err) {
+        console.error('Error fetching sub-centers:', err);
+        return [];
+      }
+    }
+  });
+
   // Update and delete mutations
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, ...userData }: { id: number } & Partial<User>) => 
-      adminService.updateUser(id, userData),
+    mutationFn: ({ id, ...userData }: { id: number } & Partial<User>) => {
+      if (id && id > 0) {
+        // Update existing user
+        return adminService.updateUser(id, userData);
+      } else {
+        // Create new user
+        return adminService.createUser(userData);
+      }
+    },
     onSuccess: () => {
       message.success(editingUser ? 'User updated successfully' : 'User created successfully');
       setIsModalVisible(false);
@@ -168,14 +173,46 @@ const UsersManagementPage: React.FC = () => {
     }
   });
 
+  const approveUserMutation = useMutation({
+    mutationFn: adminService.approveUser,
+    onSuccess: (response) => {
+      // Handle enhanced response with email status
+      const emailStatus = response.email_sent ? ' (Email sent successfully)' : ' (Email failed to send)';
+      message.success(`User approved successfully${emailStatus}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users-stats'] });
+    },
+    onError: (error: any) => {
+      message.error(`Failed to approve user: ${error.message}`);
+    }
+  });
+
+  const rejectUserMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: number; reason: string }) => 
+      adminService.rejectUser(userId, reason),
+    onSuccess: (response) => {
+      // Handle enhanced response with email status
+      const emailStatus = response.email_sent ? ' (Email sent successfully)' : 
+                         (response.email_address ? ' (Email failed to send)' : ' (No email address on file)');
+      message.success(`User rejected successfully${emailStatus}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users-stats'] });
+    },
+    onError: (error: any) => {
+      message.error(`Failed to reject user: ${error.message}`);
+    }
+  });
+
   const handleCreate = () => {
     setEditingUser(null);
+    setFormRole(undefined); // Reset form role
     form.resetFields();
     setIsModalVisible(true);
   };
 
   const handleEdit = (user: User) => {
     setEditingUser(user);
+    setFormRole(user.role); // Set form role from user
     form.setFieldsValue(user);
     setIsModalVisible(true);
   };
@@ -189,10 +226,19 @@ const UsersManagementPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       
-      updateUserMutation.mutate({
-        id: editingUser?.id || 0, // Will be handled by create API if no ID
-        ...values
-      });
+      if (editingUser?.id) {
+        // Update existing user
+        updateUserMutation.mutate({
+          id: editingUser.id,
+          ...values
+        });
+      } else {
+        // Create new user - don't pass ID
+        updateUserMutation.mutate({
+          id: 0, // Will be ignored for creation
+          ...values
+        });
+      }
     } catch (error) {
       console.error('Validation failed:', error);
     }
@@ -207,6 +253,46 @@ const UsersManagementPage: React.FC = () => {
       cancelText: 'Cancel',
       onOk: () => {
         deleteUserMutation.mutate(userId);
+      }
+    });
+  };
+
+  const handleApprove = (user: User) => {
+    Modal.confirm({
+      title: 'Approve User Registration',
+      content: `Are you sure you want to approve ${user.first_name} ${user.last_name}'s registration?`,
+      okText: 'Yes, Approve',
+      okType: 'primary',
+      cancelText: 'Cancel',
+      onOk: () => {
+        approveUserMutation.mutate(user.id);
+      }
+    });
+  };
+
+  const handleReject = (user: User) => {
+    let rejectionReason = '';
+    Modal.confirm({
+      title: 'Reject User Registration',
+      content: (
+        <div>
+          <p>Are you sure you want to reject {user.first_name} {user.last_name}'s registration?</p>
+          <Input.TextArea
+            placeholder="Enter rejection reason..."
+            onChange={(e) => rejectionReason = e.target.value}
+            rows={3}
+          />
+        </div>
+      ),
+      okText: 'Yes, Reject',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: () => {
+        if (!rejectionReason.trim()) {
+          message.error('Please provide a rejection reason');
+          return;
+        }
+        rejectUserMutation.mutate({ userId: user.id, reason: rejectionReason });
       }
     });
   };
@@ -339,10 +425,10 @@ const UsersManagementPage: React.FC = () => {
       title: 'Sub Center',
       key: 'sub_center',
       render: (_, record) => (
-        record.sub_center ? (
-          <Tag color="blue">{record.sub_center.name}</Tag>
+        record.sub_center_details ? (
+          <Tag color="blue">{record.sub_center_details.name}</Tag>
         ) : (
-          <Text type="secondary">-</Text>
+          <Text type="secondary">Not assigned</Text>
         )
       ),
       width: 150,
@@ -355,14 +441,27 @@ const UsersManagementPage: React.FC = () => {
           <Tag color={record.is_active ? 'green' : 'red'}>
             {record.is_active ? 'Active' : 'Inactive'}
           </Tag>
-          {record.is_approved !== undefined && (
-            <Tag color={record.is_approved ? 'blue' : 'orange'}>
-              {record.is_approved ? 'Approved' : 'Pending'}
+          {record.approval_status && (
+            <Tag 
+              color={
+                record.approval_status === 'approved' ? 'blue' : 
+                record.approval_status === 'rejected' ? 'red' : 'orange'
+              }
+            >
+              {record.approval_status === 'approved' ? 'Approved' : 
+               record.approval_status === 'rejected' ? 'Rejected' : 'Pending'}
             </Tag>
+          )}
+          {record.rejection_reason && (
+            <Tooltip title={record.rejection_reason}>
+              <Tag color="red" style={{ cursor: 'help' }}>
+                Rejected
+              </Tag>
+            </Tooltip>
           )}
         </Space>
       ),
-      width: 100,
+      width: 120,
     },
     {
       title: 'Last Login',
@@ -385,39 +484,77 @@ const UsersManagementPage: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      render: (_, record) => (
-        <Dropdown
-          menu={{
-            items: [
-              {
-                key: 'view',
-                icon: <EyeOutlined />,
-                label: 'View Details',
-                onClick: () => handleView(record),
-              },
-              {
-                key: 'edit',
-                icon: <EditOutlined />,
-                label: 'Edit',
-                onClick: () => handleEdit(record),
-              },
-              {
-                type: 'divider',
-              },
-              {
-                key: 'delete',
-                icon: <DeleteOutlined />,
-                label: 'Delete',
-                danger: true,
-                onClick: () => handleDelete(record.id),
-              },
-            ],
-          }}
-          trigger={['click']}
-        >
-          <Button icon={<MoreOutlined />} size="small" />
-        </Dropdown>
-      ),
+      render: (_, record) => {
+        const menuItems: any[] = [
+          {
+            key: 'view',
+            icon: <EyeOutlined />,
+            label: 'View Details',
+            onClick: () => handleView(record),
+          },
+          {
+            key: 'edit',
+            icon: <EditOutlined />,
+            label: 'Edit',
+            onClick: () => handleEdit(record),
+          }
+        ];
+
+        // Add approval actions for non-approved users
+        if (!record.is_approved && !record.rejection_reason) {
+          menuItems.push(
+            { type: 'divider' as const },
+            {
+              key: 'approve',
+              icon: <CheckOutlined />,
+              label: 'Approve',
+              style: { color: '#52c41a' },
+              onClick: () => handleApprove(record),
+            },
+            {
+              key: 'reject',
+              icon: <CloseOutlined />,
+              label: 'Reject',
+              style: { color: '#ff4d4f' },
+              onClick: () => handleReject(record),
+            }
+          );
+        }
+
+        // Add re-approve action for rejected users
+        if (record.rejection_reason) {
+          menuItems.push(
+            { type: 'divider' as const },
+            {
+              key: 'approve',
+              icon: <CheckOutlined />,
+              label: 'Re-approve',
+              style: { color: '#52c41a' },
+              onClick: () => handleApprove(record),
+            }
+          );
+        }
+
+        menuItems.push(
+          { type: 'divider' as const },
+          {
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: 'Delete',
+            danger: true,
+            onClick: () => handleDelete(record.id),
+          }
+        );
+
+        return (
+          <Dropdown
+            menu={{ items: menuItems }}
+            trigger={['click']}
+          >
+            <Button icon={<MoreOutlined />} size="small" />
+          </Dropdown>
+        );
+      },
       width: 70,
     },
   ];
@@ -596,7 +733,7 @@ const UsersManagementPage: React.FC = () => {
         }}
         onOk={handleSubmit}
         confirmLoading={updateUserMutation.isPending}
-        width={600}
+        width={900}
       >
         <Form
           form={form}
@@ -606,6 +743,17 @@ const UsersManagementPage: React.FC = () => {
             is_approved: true
           }}
         >
+          {/* Role-based Sub Center Requirement Notice */}
+          {['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '') && (
+            <Alert
+              message="Sub Center Assignment Required"
+              description={`Users with ${formRole?.replace('_', ' ')} role must be assigned to a specific sub-center as they will work exclusively within that sub-center.`}
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -629,6 +777,44 @@ const UsersManagementPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          {/* Password fields - only show when creating new user */}
+          {!editingUser && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="password"
+                  label="Password"
+                  rules={[
+                    { required: true, message: 'Please enter password' },
+                    { min: 8, message: 'Password must be at least 8 characters' }
+                  ]}
+                >
+                  <Input.Password />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="password2"
+                  label="Confirm Password"
+                  dependencies={['password']}
+                  rules={[
+                    { required: true, message: 'Please confirm password' },
+                    ({ getFieldValue }) => ({
+                      validator(_, value) {
+                        if (!value || getFieldValue('password') === value) {
+                          return Promise.resolve();
+                        }
+                        return Promise.reject(new Error('Passwords do not match!'));
+                      },
+                    }),
+                  ]}
+                >
+                  <Input.Password />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
 
           <Row gutter={16}>
             <Col span={12}>
@@ -658,10 +844,11 @@ const UsersManagementPage: React.FC = () => {
                 label="Role"
                 rules={[{ required: true, message: 'Please select role' }]}
               >
-                <Select>
+                <Select onChange={(value) => setFormRole(value)}>
                   <Option value="ADMIN">Administrator</Option>
                   <Option value="MAIN_CENTER">Main Center Officer</Option>
                   <Option value="SUB_CENTER">Sub Center Officer</Option>
+                  <Option value="SUB_CENTER_APPROVER">Sub Center Approver</Option>
                   <Option value="AUDITOR">Auditor</Option>
                   <Option value="BENEFICIARY">Beneficiary</Option>
                 </Select>
@@ -670,6 +857,59 @@ const UsersManagementPage: React.FC = () => {
             <Col span={12}>
               <Form.Item name="phone" label="Phone Number">
                 <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                name="sub_center" 
+                label={
+                  ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '') 
+                    ? "Sub Center (Required)" 
+                    : "Sub Center (Optional)"
+                }
+                rules={[
+                  ...((['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '')) 
+                    ? [{ required: true, message: 'Sub Center is required for this role' }] 
+                    : [])
+                ]}
+              >
+                <Select
+                  placeholder={
+                    ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '')
+                      ? "Select sub center (required for this role)"
+                      : "Select sub center (optional)"
+                  }
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                >
+                  {subCenters?.map((subCenter) => (
+                    <Option key={subCenter.id} value={subCenter.id} label={`${subCenter.name} (${subCenter.code})`}>
+                      {subCenter.name} ({subCenter.code})
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="registration_justification" label="Registration Justification (Optional)">
+                <Input.TextArea placeholder="Reason for creating this user account" rows={2} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="national_id" label="National ID (Optional)">
+                <Input placeholder="National ID number" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="full_address" label="Full Address (Optional)">
+                <Input.TextArea placeholder="Complete address" rows={2} />
               </Form.Item>
             </Col>
           </Row>
@@ -721,7 +961,7 @@ const UsersManagementPage: React.FC = () => {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Sub Center">
-                {viewingUser.sub_center ? viewingUser.sub_center.name : 'Not assigned'}
+                {viewingUser.sub_center_details ? viewingUser.sub_center_details.name : 'Not assigned'}
               </Descriptions.Item>
               <Descriptions.Item label="Status">
                 <Tag color={viewingUser.is_active ? 'green' : 'red'}>

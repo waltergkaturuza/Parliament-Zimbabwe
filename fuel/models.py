@@ -2105,6 +2105,13 @@ class SystemAlert(TimeStampedModel):
         ('DISMISSED', 'Dismissed'),
     ]
     
+    PRIORITY_CHOICES = [
+        (1, 'Low'),
+        (2, 'Medium'),
+        (3, 'High'),
+        (4, 'Critical'),
+    ]
+    
     title = models.CharField(
         max_length=200,
         help_text="Alert title"
@@ -2124,17 +2131,37 @@ class SystemAlert(TimeStampedModel):
         default='ACTIVE',
         db_index=True
     )
-    
-    # Related objects
-    content_type = models.ForeignKey(
-        'contenttypes.ContentType',
+    priority = models.IntegerField(
+        choices=PRIORITY_CHOICES,
+        default=2,
+        help_text="Alert priority level"
+    )
+    target_roles = models.JSONField(
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
-        help_text="Related object type"
+        help_text="Specific roles this alert targets (null means all roles)"
     )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this alert expires (null means never expires)"
+    )
+    is_dismissible = models.BooleanField(
+        default=True,
+        help_text="Whether users can dismiss this alert"
+    )
+    
+    # Related objects - temporarily commented out due to ContentType issues
+    # content_type = models.ForeignKey(
+    #     'contenttypes.ContentType',
+    #     null=True,
+    #     blank=True,
+    #     on_delete=models.CASCADE,
+    #     help_text="Related object type"
+    # )
     object_id = models.CharField(
         max_length=255,
+        null=True,
         blank=True,
         help_text="Related object ID"
     )
@@ -2163,17 +2190,31 @@ class SystemAlert(TimeStampedModel):
     )
     
     class Meta:
-        ordering = ['-created']
+        ordering = ['-priority', '-created']
         verbose_name = "System Alert"
         verbose_name_plural = "System Alerts"
         indexes = [
             models.Index(fields=['alert_type']),
             models.Index(fields=['status']),
+            models.Index(fields=['priority']),
             models.Index(fields=['created']),
+            models.Index(fields=['expires_at']),
         ]
     
     def __str__(self):
         return f"{self.get_alert_type_display()}: {self.title}"
+    
+    @property
+    def is_expired(self):
+        """Check if alert has expired"""
+        if self.expires_at:
+            return timezone.now() > self.expires_at
+        return False
+    
+    @property
+    def is_active(self):
+        """Check if alert is active and not expired"""
+        return self.status == 'ACTIVE' and not self.is_expired
     
     def acknowledge(self, user):
         """Acknowledge this alert"""
@@ -2191,6 +2232,30 @@ class SystemAlert(TimeStampedModel):
         """Dismiss this alert"""
         self.status = 'DISMISSED'
         self.save()
+    
+    @classmethod
+    def create_alert(cls, title, message, alert_type='INFO', priority=2, 
+                    target_roles=None, expires_at=None, created_by=None, 
+                    is_dismissible=True, related_object=None):
+        """Convenience method to create system alerts"""
+        alert_data = {
+            'title': title,
+            'message': message,
+            'alert_type': alert_type,
+            'priority': priority,
+            'target_roles': target_roles,
+            'expires_at': expires_at,
+            'created_by': created_by,
+            'is_dismissible': is_dismissible,
+        }
+        
+        if related_object:
+            alert_data.update({
+                'content_type': ContentType.objects.get_for_model(related_object),
+                'object_id': str(related_object.pk),
+            })
+        
+        return cls.objects.create(**alert_data)
 
 
 # Book Page Model for tracking individual pages within books
