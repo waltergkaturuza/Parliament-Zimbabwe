@@ -37,7 +37,7 @@ from .serializers import (
     BookDispatchSerializer, CouponAllocationSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
-    FuelRequirementConfigurationSerializer, ProgramSerializer
+    FuelRequirementConfigurationSerializer, ProgramSerializer, ProgramWriteSerializer
 )
 from .permissions import (
     # Role-based permissions
@@ -1795,10 +1795,20 @@ class ProgramViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
-            return [IsAuthenticated()]  # All authenticated users can view programs
-        # Only specific roles can create, update, delete programs
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        class ProgramWritePermission:
+            def has_permission(self, request, view):
+                if request.method in ['GET', 'HEAD', 'OPTIONS']:
+                    return request.user and request.user.is_authenticated
+                return request.user and request.user.is_authenticated and request.user.role in ['SUPERUSER', 'MAIN_CENTER', 'SUB_CENTER']
+            def has_object_permission(self, request, view, obj):
+                return self.has_permission(request, view)
+        return [ProgramWritePermission()]
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            from .serializers import ProgramWriteSerializer
+            return ProgramWriteSerializer
+        return ProgramSerializer
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1864,46 +1874,6 @@ class ProgramViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(program)
         return Response(serializer.data)
-#                  # Sub Center officer sees programs associated with their sub-center
-#                  # or programs where they are the organizer
-#                  return queryset.filter(Q(sub_center=user.sub_center) | Q(organizer=user)).distinct()
-#              # Main Center, Admin, etc. see all programs
-#              return queryset
-#         return queryset.none() # Anonymous users see nothing
-
-#     # Removed summary action - moved statistics to the dedicated StatisticsView
-
-
-# TODO: Commented out AttendanceViewSet - missing Attendance model and AttendanceSerializer
-# class AttendanceViewSet(viewsets.ModelViewSet):
-#     serializer_class = AttendanceSerializer
-#     permission_classes = [IsAuthenticated] # Base permission
-
-#     def get_permissions(self):
-#         if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
-#              # Allow relevant users to view attendance
-#              return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission() | BeneficiaryPermission()]
-#         # Only specific roles can create, update, delete attendance records
-#         return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()] # Adjust based on who records attendance
-
-
-#     def get_queryset(self):
-#         user = self.request.user
-#         queryset = super().get_queryset().select_related('user', 'program', 'program__sub_center') # Select related for efficiency
-
-#         if user.is_authenticated:
-#             if user.role == 'MAIN_CENTER':
-#                 return queryset # Main Center sees all attendance
-#             elif user.role == 'SUB_CENTER' and user.sub_center:
-#                 # Sub Center officer sees attendance for programs in their center
-#                 # or where they are the organizer
-#                 return queryset.filter(Q(program__sub_center=user.sub_center) | Q(program__organizer=user)).distinct()
-#             elif user.role == 'BENEFICIARY':
-#                 # Beneficiary sees their own attendance
-#                 return queryset.filter(user=user)
-#         return Attendance.objects.none() # Default to empty
-
-#     # Add actions for marking attendance if needed, possibly restricted
 
 
 # --- Handover ViewSet (Updated with new status, actions, and permissions) ---
@@ -1996,14 +1966,169 @@ class VehicleCategoryViewSet(viewsets.ModelViewSet):
 
 
 class ParliamentSessionViewSet(viewsets.ModelViewSet):
-    queryset = ParliamentSession.objects.all()
+    queryset = ParliamentSession.objects.all().order_by('-start_date')
     serializer_class = ParliamentSessionSerializer
     permission_classes = [IsAuthenticated]
+    filterset_fields = ['session_type', 'is_active', 'organizer']
+    search_fields = ['title', 'description']
+    ordering_fields = ['start_date', 'end_date', 'created']
+    ordering = ['-start_date']
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        
+        # Create a combined permission class for write operations
+        class SessionWritePermission(BasePermission):
+            def has_permission(self, request, view):
+                if not request.user or not request.user.is_authenticated:
+                    return False
+                # Allow MAIN_CENTER, SUB_CENTER, AUDITOR, and SUPERUSER roles
+                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), SessionWritePermission()]
+    
+    def get_queryset(self):
+        """Enhanced queryset with filtering and search"""
+        queryset = self.queryset
+        
+        # Filter by status
+        status = self.request.query_params.get('status', None)
+        if status:
+            today = timezone.now().date()
+            if status == 'upcoming':
+                queryset = queryset.filter(start_date__gt=today, is_active=True)
+            elif status == 'active':
+                queryset = queryset.filter(start_date__lte=today, end_date__gte=today, is_active=True)
+            elif status == 'completed':
+                queryset = queryset.filter(end_date__lt=today)
+            elif status == 'inactive':
+                queryset = queryset.filter(is_active=False)
+        
+        # Search functionality
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) | 
+                Q(description__icontains=search) |
+                Q(organizer__first_name__icontains=search) |
+                Q(organizer__last_name__icontains=search)
+            )
+        
+        return queryset
+    
+    def create(self, request, *args, **kwargs):
+        """Enhanced create with better error handling"""
+        try:
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Set organizer to current user if not specified
+            if not serializer.validated_data.get('organizer'):
+                serializer.validated_data['organizer'] = request.user
+            
+            self.perform_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to create session: {str(e)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def update(self, request, *args, **kwargs):
+        """Enhanced update with validation"""
+        try:
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to update session: {str(e)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get parliament sessions statistics"""
+        today = timezone.now().date()
+        
+        stats = {
+            'total_sessions': ParliamentSession.objects.count(),
+            'active_sessions': ParliamentSession.objects.filter(
+                start_date__lte=today, end_date__gte=today, is_active=True
+            ).count(),
+            'upcoming_sessions': ParliamentSession.objects.filter(
+                start_date__gt=today, is_active=True
+            ).count(),
+            'completed_sessions': ParliamentSession.objects.filter(
+                end_date__lt=today
+            ).count(),
+            'inactive_sessions': ParliamentSession.objects.filter(
+                is_active=False
+            ).count(),
+        }
+        
+        return Response(stats)
+    
+    @action(detail=True, methods=['get'])
+    def attendances(self, request, pk=None):
+        """Get attendance records for a session"""
+        session = self.get_object()
+        attendances = SessionAttendance.objects.filter(session=session)
+        serializer = SessionAttendanceSerializer(attendances, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Activate a parliament session"""
+        session = self.get_object()
+        session.is_active = True
+        session.save()
+        return Response({'message': 'Session activated successfully'})
+    
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a parliament session"""
+        session = self.get_object()
+        session.is_active = False
+        session.save()
+        return Response({'message': 'Session deactivated successfully'})
+    
+    @action(detail=False, methods=['get'])
+    def my_sessions(self, request):
+        """Get sessions assigned to the current beneficiary"""
+        try:
+            # Get the beneficiary profile for the current user
+            beneficiary_profile = BeneficiaryProfile.objects.get(user=request.user)
+            
+            # Get sessions assigned to this beneficiary
+            assigned_sessions = ParliamentSession.objects.filter(
+                assigned_attendees=beneficiary_profile,
+                is_active=True
+            ).order_by('start_date')
+            
+            serializer = self.get_serializer(assigned_sessions, many=True)
+            return Response({
+                'count': assigned_sessions.count(),
+                'results': serializer.data
+            })
+        except BeneficiaryProfile.DoesNotExist:
+            return Response(
+                {'error': 'No beneficiary profile found for current user'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve sessions: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def mark_attendance(self, request, pk=None):

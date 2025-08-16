@@ -23,7 +23,8 @@ import {
   Descriptions,
   Badge,
   Alert,
-  App
+  App,
+  message
 } from 'antd';
 import {
   PlusOutlined,
@@ -61,7 +62,7 @@ interface SubCenter {
 }
 
 const ProgramsPage: FC = () => {
-  const { message } = App.useApp();
+  const { message: antMessage } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
@@ -139,9 +140,12 @@ const ProgramsPage: FC = () => {
       end_date: program.end_date ? dayjs(program.end_date) : null,
       description: program.description,
       location: program.location,
-      organizer: program.organizer?.id,
-      sub_center: program.sub_center?.id,
-      is_active: program.is_active
+      organizer: typeof program.organizer === 'number' ? program.organizer : program.organizer_details?.id || '',
+      sub_center: typeof program.sub_center === 'number' ? program.sub_center : program.sub_center_details?.id || '',
+      expected_participants: program.expected_participants ?? program.attendees_count ?? 0,
+      fuel_allocation_approved: program.fuel_allocation_approved,
+      is_active: program.is_active,
+      notes: program.notes,
     });
     setModalVisible(true);
   };
@@ -177,7 +181,10 @@ const ProgramsPage: FC = () => {
         location: values.location || '',
         organizer: values.organizer || null,
         sub_center: values.sub_center || null,
-        is_active: values.is_active !== false
+        expected_participants: values.expected_participants || 0,
+        fuel_allocation_approved: values.fuel_allocation_approved || false,
+        is_active: values.is_active !== false,
+        notes: values.notes || ''
       };
 
       if (editingProgram) {
@@ -305,13 +312,15 @@ const ProgramsPage: FC = () => {
       title: 'Organizer',
       key: 'organizer',
       render: (_: any, record: Program) => (
-        record.organizer ? (
+        record.organizer_details ? (
           <div>
-            <UserOutlined /> {record.organizer.first_name} {record.organizer.last_name}
+            <UserOutlined /> {record.organizer_details.first_name} {record.organizer_details.last_name}
             <div className="text-xs text-gray-500">
-              {record.organizer.role?.replace('_', ' ')}
+              {record.organizer_details.role?.replace('_', ' ')}
             </div>
           </div>
+        ) : record.organizer ? (
+          <span>{record.organizer}</span>
         ) : (
           <Text type="secondary">No organizer</Text>
         )
@@ -321,8 +330,10 @@ const ProgramsPage: FC = () => {
       title: 'Sub Center',
       key: 'sub_center',
       render: (_: any, record: Program) => (
-        record.sub_center ? (
-          <Tag color="cyan">{record.sub_center.name}</Tag>
+        record.sub_center_details ? (
+          <Tag color="cyan">{record.sub_center_details.name}</Tag>
+        ) : record.sub_center ? (
+          <span>{record.sub_center}</span>
         ) : (
           <Text type="secondary">No sub center</Text>
         )
@@ -597,6 +608,22 @@ const ProgramsPage: FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            name="expected_participants"
+            label="Expected Participants"
+            rules={[{ required: true, message: 'Please enter expected participants' }]}
+          >
+            <Input type="number" min={0} max={10000} placeholder="Enter expected number of participants" />
+          </Form.Item>
+
+          <Form.Item
+            name="fuel_allocation_approved"
+            label="Fuel Allocation Approved"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
 
           <Form.Item
             name="is_active"

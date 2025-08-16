@@ -3044,8 +3044,60 @@ class ParliamentSession(TimeStampedModel):
     )
     start_date = models.DateField()
     end_date = models.DateField()
+    start_time = models.TimeField(default='09:00:00', help_text="Session start time")
+    end_time = models.TimeField(default='17:00:00', help_text="Session end time")
     description = models.TextField(blank=True)
+    venue = models.CharField(max_length=200, default='Parliament Building', help_text="Location where the session will be held")
+    
+    # Organizer and management fields
+    organizer = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='organized_sessions'
+    )
+    managing_subcenter = models.ForeignKey(
+        'SubCenter',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='managed_sessions'
+    )
+    program = models.ForeignKey(
+        'Program',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='sessions',
+        help_text="Program this session is part of"
+    )
+    assigned_attendees = models.ManyToManyField(
+        'BeneficiaryProfile',
+        related_name='assigned_sessions',
+        blank=True
+    )
+    
+    # Session configuration
     is_active = models.BooleanField(default=True)
+    is_mandatory = models.BooleanField(default=False)
+    expected_attendance = models.PositiveIntegerField(default=0)
+    attendance_tracked = models.BooleanField(default=True)
+    
+    # Fuel allocation settings
+    fuel_top_up_litres = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Additional fuel allocation in litres"
+    )
+    fuel_top_up_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Additional fuel allocation as percentage of base entitlement"
+    )
+    is_active = models.BooleanField(default=True)
+    is_mandatory = models.BooleanField(default=False, help_text="Whether attendance at this session is mandatory")
     organizer = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -3063,6 +3115,16 @@ class ParliamentSession(TimeStampedModel):
         blank=True,
         related_name='managed_parliament_sessions',
         help_text="SubCenter responsible for managing this session (optional)"
+    )
+    
+    # Program association
+    program = models.ForeignKey(
+        'Program',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='parliament_sessions',
+        help_text="Program this session belongs to (optional)"
     )
     
     # === ENHANCED FIELDS FOR DYNAMIC ALLOCATION SYSTEM ===
@@ -3085,6 +3147,14 @@ class ParliamentSession(TimeStampedModel):
     attendance_tracked = models.BooleanField(
         default=False,
         help_text="Whether attendance is being tracked for this session"
+    )
+    
+    # Attendee assignments
+    assigned_attendees = models.ManyToManyField(
+        'BeneficiaryProfile',
+        blank=True,
+        related_name='assigned_sessions',
+        help_text="Beneficiaries assigned to attend this session"
     )
     
     class Meta:

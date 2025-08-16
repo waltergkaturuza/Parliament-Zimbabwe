@@ -1253,26 +1253,31 @@ class ProgramWriteSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Validate program data"""
-        scheduled_date = data.get('scheduled_date')
-        end_date = data.get('end_date')
-        
-        # Validate dates
-        if scheduled_date and end_date:
-            if end_date <= scheduled_date:
-                raise serializers.ValidationError(
-                    "End date must be after scheduled date."
-                )
-        
-        # Validate organizer permissions
-        organizer = data.get('organizer')
-        if organizer and hasattr(organizer, 'role'):
-            valid_roles = ['MAIN_CENTER', 'SUB_CENTER', 'ADMIN', 'SUPER_ADMIN']
-            if organizer.role not in valid_roles:
-                raise serializers.ValidationError(
-                    "Organizer must have appropriate role permissions."
-                )
-        
-        return data
+        try:
+            scheduled_date = data.get('scheduled_date')
+            end_date = data.get('end_date')
+            if scheduled_date and end_date:
+                if end_date <= scheduled_date:
+                    raise serializers.ValidationError("End date must be after scheduled date.")
+            organizer = data.get('organizer')
+            if organizer:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                if isinstance(organizer, int) or isinstance(organizer, str):
+                    try:
+                        organizer_obj = User.objects.get(pk=organizer)
+                        data['organizer'] = organizer_obj
+                        organizer = organizer_obj
+                    except User.DoesNotExist:
+                        raise serializers.ValidationError("Organizer user does not exist.")
+                if hasattr(organizer, 'role'):
+                    valid_roles = ['MAIN_CENTER', 'SUB_CENTER', 'ADMIN', 'SUPER_ADMIN', 'SUPERUSER']
+                    if organizer.role not in valid_roles:
+                        raise serializers.ValidationError("Organizer must have appropriate role permissions.")
+            return data
+        except serializers.ValidationError as e:
+            print("Program validation error:", e, "Data:", data)
+            raise
     
     def validate_title(self, value):
         """Validate program title"""
@@ -1380,21 +1385,94 @@ class VehicleCategorySerializer(serializers.ModelSerializer):
 
 
 class ParliamentSessionSerializer(serializers.ModelSerializer):
+    """Enhanced Parliament Session serializer with comprehensive field mapping"""
     attendance_count = serializers.SerializerMethodField()
     total_fuel_allocated = serializers.SerializerMethodField()
     organizer_details = SimpleUserSerializer(source='organizer', read_only=True)
-    managing_subcenter_details = serializers.SerializerMethodField()
+    managing_subcenter_details = SubCenterSerializer(source='managing_subcenter', read_only=True)
+    program_details = serializers.SerializerMethodField()
+    def validate(self, data):
+        """Normalize and validate incoming data for parliament sessions.
+
+        - Coerce assigned_attendees elements to integers when possible so the
+          API accepts either string or numeric IDs from various frontends.
+        - Log a compact debug message for easier troubleshooting in dev.
+        """
+        # Compact debug print to avoid excessive logs in production
+        try:
+            assigned = data.get('assigned_attendees', None)
+            if assigned is not None:
+                coerced: list[int] = []
+                for a in assigned:
+                    if a is None:
+                        continue
+                    if isinstance(a, int):
+                        coerced.append(a)
+                        continue
+                    # Attempt to coerce strings like '123' to int
+                    if isinstance(a, str) and a.isdigit():
+                        coerced.append(int(a))
+                        continue
+                    # Try a fallback parse for more complex numeric strings
+                    try:
+                        coerced.append(int(float(a)))
+                    except Exception:
+                        # If coercion fails, raise a validation error with details
+                        raise serializers.ValidationError({'assigned_attendees': 'Invalid attendee id: %r' % (a,)})
+
+                data['assigned_attendees'] = coerced
+
+            # Minimal debug logging (prints only in dev where stdout is observed)
+            print('ParliamentSessionSerializer.validate received keys:', list(data.keys()))
+        except serializers.ValidationError:
+            # Re-raise validation errors so DRF returns proper 400 responses
+            raise
+        except Exception as exc:
+            # Convert unexpected exceptions into validation errors
+            raise serializers.ValidationError({'non_field_errors': str(exc)})
+
+        return data
+    
+    # Enhanced fields for frontend compatibility
+    session_type_display = serializers.CharField(source='get_session_type_display', read_only=True)
+    organizer_name = serializers.SerializerMethodField()
+    managing_subcenter_name = serializers.SerializerMethodField()
+    duration_days = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    assigned_attendees_details = serializers.SerializerMethodField()
+    # Keep output as PKRelatedField (read-only) but accept flexible input via `assigned_attendees_input`
+    assigned_attendees = serializers.PrimaryKeyRelatedField(
+    many=True,
+    queryset=BeneficiaryProfile.objects.all()
+    )
+    assigned_attendees_input = serializers.ListField(
+        child=serializers.CharField(),
+        write_only=True,
+        required=False,
+        help_text='List of beneficiary profile IDs (strings or numbers)'
+    )
     
     class Meta:
         model = ParliamentSession
         fields = [
-            'id', 'title', 'session_type', 'start_date', 'end_date', 'description',
-            'is_active', 'organizer', 'organizer_details', 
-            'managing_subcenter', 'managing_subcenter_details',
-            'attendance_count', 'total_fuel_allocated',
+            'id', 'title', 'session_type', 'session_type_display',
+            'start_date', 'end_date', 'start_time', 'end_time',
+            'description', 'venue', 'is_active', 'is_mandatory',
+            'organizer', 'organizer_details', 'organizer_name',
+            'managing_subcenter', 'managing_subcenter_details', 'managing_subcenter_name',
+            'program', 'program_details',
+            'fuel_top_up_litres', 'fuel_top_up_percentage', 'expected_attendance',
+            'attendance_tracked', 'attendance_count','assigned_attendees_input',
+            'assigned_attendees', 'assigned_attendees_details',
+            'total_fuel_allocated', 'duration_days', 'status',
             'created', 'modified'
         ]
-        read_only_fields = ('created', 'modified', 'attendance_count', 'total_fuel_allocated')
+        read_only_fields = [
+            'created', 'modified', 'attendance_count', 'total_fuel_allocated',
+            'organizer_details', 'managing_subcenter_details', 'program_details',
+            'session_type_display', 'organizer_name', 'managing_subcenter_name',
+            'duration_days', 'status'
+        ]
     
     def get_attendance_count(self, obj):
         # Get attendance count from programs related to this session
@@ -1417,7 +1495,129 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
                 'code': obj.managing_subcenter.code
             }
         return None
+    
+    def get_program_details(self, obj):
+        """Get program details if associated with the session"""
+        if not obj.program:
+            return None
+        # Derive a friendly status for the program (frontend expects a status field)
+        program = obj.program
+        try:
+            from django.utils import timezone
+            today = timezone.now().date()
+            # Program uses scheduled_date and end_date (DateTimeFields)
+            scheduled = program.scheduled_date.date() if program.scheduled_date else None
+            end_dt = program.end_date.date() if program.end_date else None
+            if not program.is_active:
+                prog_status = 'inactive'
+            elif scheduled and scheduled > today:
+                prog_status = 'upcoming'
+            elif scheduled and end_dt and scheduled <= today <= end_dt:
+                prog_status = 'active'
+            else:
+                prog_status = 'completed' if end_dt and end_dt < today else 'active'
+        except Exception:
+            prog_status = 'unknown'
 
+        return {
+            'id': program.id,
+            'name': getattr(program, 'title', None),
+            'description': getattr(program, 'description', None),
+            'start_date': program.scheduled_date.isoformat() if getattr(program, 'scheduled_date', None) else None,
+            'end_date': program.end_date.isoformat() if getattr(program, 'end_date', None) else None,
+            'status': prog_status
+        }
+    
+    def get_duration_days(self, obj):
+        """Calculate session duration in days"""
+        if obj.start_date and obj.end_date:
+            return (obj.end_date - obj.start_date).days + 1
+        return 1
+    
+    def get_is_active_session(self, obj):
+        """Check if session is currently active"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        return obj.start_date <= today <= obj.end_date if obj.start_date and obj.end_date else False
+    
+    def get_attendees_count(self, obj):
+        """Get actual attendees count if tracked"""
+        if obj.attendance_tracked:
+            return obj.attendances.filter(status='PRESENT').count()
+        return obj.expected_attendance
+    
+    def get_status(self, obj):
+        """Get session status based on dates"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        if not obj.is_active:
+            return 'inactive'
+        elif obj.start_date > today:
+            return 'upcoming'
+        elif obj.start_date <= today <= obj.end_date:
+            return 'active'
+        else:
+            return 'completed'
+    
+    def get_assigned_attendees_details(self, obj):
+        """Get detailed information about assigned attendees"""
+        attendees = obj.assigned_attendees.all()
+        return [{
+            'id': attendee.id,
+            'name': attendee.name if hasattr(attendee, 'name') else f"{attendee.user.first_name} {attendee.user.last_name}" if attendee.user else attendee.employee_id,
+            'employee_id': attendee.employee_id,
+            'category': attendee.category.name if attendee.category else None,
+            'constituency': attendee.constituency.name if attendee.constituency else None,
+        } for attendee in attendees[:50]]  # Limit to 50 to avoid huge responses
+
+    def create(self, validated_data):
+        # Pop the write-only input and handle M2M assignment
+        attendees_input = validated_data.pop('assigned_attendees_input', [])
+        session = super().create(validated_data)
+        if attendees_input:
+            ids = []
+            for a in attendees_input:
+                try:
+                    ids.append(int(a))
+                except Exception:
+                    continue
+            if ids:
+                session.assigned_attendees.set(BeneficiaryProfile.objects.filter(id__in=ids))
+        return session
+
+    def update(self, instance, validated_data):
+        attendees_input = validated_data.pop('assigned_attendees_input', None)
+        session = super().update(instance, validated_data)
+        if attendees_input is not None:
+            ids = []
+            for a in attendees_input:
+                try:
+                    ids.append(int(a))
+                except Exception:
+                    continue
+            session.assigned_attendees.set(BeneficiaryProfile.objects.filter(id__in=ids))
+        return session
+    def get_organizer_name(self, obj):
+        if hasattr(obj, 'organizer') and obj.organizer:
+            # Adjust as needed for your model fields
+            if hasattr(obj.organizer, 'get_full_name'):
+                return obj.organizer.get_full_name()
+            elif hasattr(obj.organizer, 'first_name') and hasattr(obj.organizer, 'last_name'):
+                return f"{obj.organizer.first_name} {obj.organizer.last_name}".strip()
+            elif hasattr(obj.organizer, 'username'):
+                return obj.organizer.username
+            else:
+                return str(obj.organizer)
+        return None
+
+    def get_managing_subcenter_name(self, obj):
+        if hasattr(obj, 'managing_subcenter') and obj.managing_subcenter:
+            if hasattr(obj.managing_subcenter, 'name'):
+                return obj.managing_subcenter.name
+            else:
+                return str(obj.managing_subcenter)
+        return None
 
 class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     """

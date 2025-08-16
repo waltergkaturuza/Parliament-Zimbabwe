@@ -67,7 +67,11 @@ const SessionManagement: FC = () => {
         session_type: values.session_type,
         start_date: values.dateRange[0].format('YYYY-MM-DD'),
         end_date: values.dateRange[1].format('YYYY-MM-DD'),
-        status: values.status || 'scheduled'
+        status: values.status || 'scheduled',
+        assigned_attendees: (values.assigned_attendees || []).map((attendee: any) => {
+          if (typeof attendee === 'object' && attendee.id) return parseInt(attendee.id, 10);
+          return typeof attendee === 'string' ? parseInt(attendee, 10) : attendee;
+        })
       };
 
       if (editingSession) {

@@ -24,7 +24,9 @@ import {
   Descriptions,
   Badge,
   Alert,
-  App
+  App,
+  message,
+  TimePicker
 } from 'antd';
 import {
   PlusOutlined,
@@ -40,6 +42,7 @@ import {
   ClockCircleOutlined
 } from '@ant-design/icons';
 import apiClient from '@/api/index';
+import { SessionService } from '../../api/sessions';
 import type { ParliamentSession } from '../../types';
 import dayjs from 'dayjs';
 
@@ -58,7 +61,6 @@ interface SessionStats {
 }
 
 const ParliamentSessionsPage: FC = () => {
-  const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<ParliamentSession[]>([]);
   const [stats, setStats] = useState<SessionStats>({
@@ -81,41 +83,69 @@ const ParliamentSessionsPage: FC = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [subcenters, setSubcenters] = useState<any[]>([]);
   const [subcentersLoading, setSubcentersLoading] = useState(false);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [programsLoading, setProgramsLoading] = useState(false);
+  const [beneficiaries, setBeneficiaries] = useState<any[]>([]);
+  const [beneficiariesLoading, setBeneficiariesLoading] = useState(false);
 
   useEffect(() => {
     loadSessions();
     loadUsers();
     loadSubcenters();
+    loadPrograms();
+    loadBeneficiaries();
   }, []);
 
   const loadSessions = async () => {
     try {
       setLoading(true);
-            const response = await apiClient.get('/subcenters/');
-      const sessionData = response.data.results || response.data;
-      setSessions(sessionData);
+      
+      // Load sessions and stats in parallel
+      const [sessionsResponse, statsResponse] = await Promise.allSettled([
+        SessionService.getSessions(),
+        SessionService.getStats()
+      ]);
 
-      // Calculate stats
-      const now = dayjs();
-      const newStats: SessionStats = {
-        totalSessions: sessionData.length,
-        activeSessions: sessionData.filter((s: ParliamentSession) => 
-          dayjs(s.start_date).isBefore(now) && dayjs(s.end_date).isAfter(now)
-        ).length,
-        completedSessions: sessionData.filter((s: ParliamentSession) => 
-          dayjs(s.end_date).isBefore(now)
-        ).length,
-        upcomingSessions: sessionData.filter((s: ParliamentSession) => 
-          dayjs(s.start_date).isAfter(now)
-        ).length,
-        totalAttendees: sessionData.reduce((sum: number, session: ParliamentSession) => 
-          sum + (session.attendees?.length || 0), 0
-        ),
-        totalFuelEntitlement: sessionData.reduce((sum: number, session: ParliamentSession) => 
-          sum + parseFloat(session.fuel_entitlement_litres || '0'), 0
-        )
-      };
-      setStats(newStats);
+      // Handle sessions data
+      if (sessionsResponse.status === 'fulfilled') {
+        const sessionData = sessionsResponse.value.results || [];
+        setSessions(sessionData);
+      } else {
+        console.error('Failed to load sessions:', sessionsResponse.reason);
+        message.error('Failed to load parliament sessions');
+      }
+
+      // Handle stats data
+      if (statsResponse.status === 'fulfilled') {
+        const statsData = statsResponse.value;
+        setStats({
+          totalSessions: statsData.total_sessions,
+          activeSessions: statsData.active_sessions,
+          completedSessions: statsData.completed_sessions,
+          upcomingSessions: statsData.upcoming_sessions,
+          totalAttendees: 0, // Will be calculated from session data
+          totalFuelEntitlement: 0 // Will be calculated from session data
+        });
+      } else {
+        console.warn('Failed to load stats, using fallback calculation:', statsResponse.reason);
+        // Fallback: calculate stats from sessions if available
+        if (sessionsResponse.status === 'fulfilled') {
+          const sessionData = sessionsResponse.value.results || [];
+          const now = dayjs();
+          setStats({
+            totalSessions: sessionData.length,
+            activeSessions: sessionData.filter((s: ParliamentSession) => s.status === 'active').length,
+            completedSessions: sessionData.filter((s: ParliamentSession) => s.status === 'completed').length,
+            upcomingSessions: sessionData.filter((s: ParliamentSession) => s.status === 'upcoming').length,
+            totalAttendees: sessionData.reduce((sum: number, session: ParliamentSession) => 
+              sum + (session.attendees_count || session.attendees?.length || 0), 0
+            ),
+            totalFuelEntitlement: sessionData.reduce((sum: number, session: ParliamentSession) => 
+              sum + (session.fuel_top_up_litres || parseFloat(session.fuel_entitlement_litres || '0')), 0
+            )
+          });
+        }
+      }
     } catch (error) {
       console.error('Error loading sessions:', error);
       message.error('Failed to load parliament sessions');
@@ -150,6 +180,32 @@ const ParliamentSessionsPage: FC = () => {
     }
   };
 
+  const loadPrograms = async () => {
+    try {
+      setProgramsLoading(true);
+      const response = await apiClient.get('/programs/');
+      const programData = response.data.results || response.data;
+      setPrograms(programData);
+    } catch (error) {
+      console.error('Error loading programs:', error);
+    } finally {
+      setProgramsLoading(false);
+    }
+  };
+
+  const loadBeneficiaries = async () => {
+    try {
+      setBeneficiariesLoading(true);
+      const response = await apiClient.get('/beneficiary-profiles/');
+      const beneficiaryData = response.data.results || response.data;
+      setBeneficiaries(beneficiaryData);
+    } catch (error) {
+      console.error('Error loading beneficiaries:', error);
+    } finally {
+      setBeneficiariesLoading(false);
+    }
+  };
+
   const handleCreate = () => {
     setEditingSession(null);
     form.resetFields();
@@ -160,15 +216,23 @@ const ParliamentSessionsPage: FC = () => {
     setEditingSession(session);
     form.setFieldsValue({
       title: session.title,
+      description: session.description,
       session_type: session.session_type,
       start_date: dayjs(session.start_date),
       end_date: dayjs(session.end_date),
+      start_time: session.start_time ? dayjs(session.start_time, 'HH:mm:ss') : dayjs('09:00', 'HH:mm'),
+      end_time: session.end_time ? dayjs(session.end_time, 'HH:mm:ss') : dayjs('17:00', 'HH:mm'),
       venue: session.venue,
-      fuel_entitlement_litres: parseFloat(session.fuel_entitlement_litres || '0'),
-      is_mandatory: session.is_mandatory,
+      fuel_top_up_litres: session.fuel_top_up_litres,
+      fuel_top_up_percentage: session.fuel_top_up_percentage,
+      expected_attendance: session.expected_attendance,
+      attendance_tracked: session.attendance_tracked,
       is_active: session.is_active,
-      session_manager: session.session_manager,
-      managing_subcenter: session.managing_subcenter
+      is_mandatory: session.is_mandatory,
+      organizer: session.organizer,
+      managing_subcenter: session.managing_subcenter,
+      program: session.program,
+      assigned_attendees: (session.assigned_attendees || []).map((id: string | number) => typeof id === 'string' ? parseInt(id, 10) : id)
     });
     setModalVisible(true);
   };
@@ -197,20 +261,30 @@ const ParliamentSessionsPage: FC = () => {
       setTableLoading(true);
       const payload = {
         title: values.title,
+        description: values.description || '',
         session_type: values.session_type,
-        start_date: values.start_date.toISOString(),
-        end_date: values.end_date.toISOString(),
+        start_date: values.start_date.format('YYYY-MM-DD'),
+        end_date: values.end_date.format('YYYY-MM-DD'),
+        start_time: values.start_time.format('HH:mm:ss'),
+        end_time: values.end_time.format('HH:mm:ss'),
         venue: values.venue || 'Parliament Building',
-        fuel_entitlement_litres: values.fuel_entitlement_litres || 0,
+        is_active: values.is_active !== false,
+        fuel_top_up_litres: parseFloat(values.fuel_top_up_litres || '0'),
+        fuel_top_up_percentage: parseFloat(values.fuel_top_up_percentage || '0'),
+        expected_attendance: parseInt(values.expected_attendance || '0'),
+        attendance_tracked: values.attendance_tracked || false,
         is_mandatory: values.is_mandatory || false,
-        is_active: values.is_active !== false
+        organizer: values.organizer || null,
+        managing_subcenter: values.managing_subcenter || null,
+        program: values.program || null,
+        assigned_attendees_input: (values.assigned_attendees || []).map((id: string | number) => typeof id === 'string' ? parseInt(id, 10) : id),
       };
 
       if (editingSession) {
-        await apiClient.put(`/parliament-sessions/${editingSession.id}/`, payload);
+        await SessionService.updateSession(editingSession.id, payload);
         message.success('Parliament session updated successfully');
       } else {
-        await apiClient.post('/parliament-sessions/', payload);
+        await SessionService.createSession(payload);
         message.success('Parliament session created successfully');
       }
 
@@ -226,12 +300,29 @@ const ParliamentSessionsPage: FC = () => {
   };
 
   const getSessionStatus = (session: ParliamentSession) => {
+    // Use the backend-calculated status if available
+    if (session.status) {
+      switch (session.status) {
+        case 'active':
+          return <Tag color="green">Active</Tag>;
+        case 'upcoming':
+          return <Tag color="blue">Upcoming</Tag>;
+        case 'completed':
+          return <Tag color="default">Completed</Tag>;
+        case 'inactive':
+          return <Tag color="red">Inactive</Tag>;
+        default:
+          return <Tag color="default">{session.status}</Tag>;
+      }
+    }
+
+    // Fallback to client-side calculation
     const now = dayjs();
     const start = dayjs(session.start_date);
     const end = dayjs(session.end_date);
 
     if (!session.is_active) {
-      return <Tag color="default">Inactive</Tag>;
+      return <Tag color="red">Inactive</Tag>;
     }
 
     if (start.isAfter(now)) {
@@ -245,30 +336,72 @@ const ParliamentSessionsPage: FC = () => {
 
   const columns = [
     {
-      title: 'Title',
+      title: 'Session Title',
       dataIndex: 'title',
       key: 'title',
-      sorter: (a: ParliamentSession, b: ParliamentSession) => a.title.localeCompare(b.title),
-      render: (text: string, record: ParliamentSession) => (
-        <div>
-          <Text strong>{text}</Text>
-          <br />
-          <Text type="secondary" className="text-xs">
-            {record.session_type && record.session_type.replace('_', ' ')}
-          </Text>
-        </div>
+      render: (title: string) => title,
+    },
+    {
+      title: 'Program',
+      key: 'program',
+      render: (_: any, record: ParliamentSession) => record.program_details?.name || 'N/A',
+    },
+    {
+      title: 'Session Manager',
+      key: 'session_manager',
+      render: (_: any, record: ParliamentSession) =>
+        record.organizer_name ||
+        (record.organizer_details ? `${record.organizer_details.first_name ?? ''} ${record.organizer_details.last_name ?? ''}`.trim() : 'N/A'),
+    },
+    {
+      title: 'Fuel Entitlement',
+      key: 'fuel_entitlement',
+      render: (_: any, record: ParliamentSession) => (
+        <span>
+          {record.fuel_top_up_litres ? `${record.fuel_top_up_litres} L` : ''}
+          {record.fuel_top_up_percentage ? ` (+${record.fuel_top_up_percentage}%)` : ''}
+        </span>
       ),
     },
     {
+      title: 'Mandatory',
+      dataIndex: 'is_mandatory',
+      key: 'is_mandatory',
+      align: 'center' as const,
+      render: (mandatory: boolean) =>
+        mandatory ? <Tag color="red">Yes</Tag> : <Tag color="blue">No</Tag>,
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      align: 'center' as const,
+      render: (_: any, record: ParliamentSession) => {
+        let color = 'default';
+        if (record.status === 'completed') color = 'green';
+        else if (record.status === 'active') color = 'blue';
+        else if (record.status === 'upcoming') color = 'gold';
+        else if (record.status === 'inactive') color = 'red';
+        return <Tag color={color}>{record.status?.charAt(0).toUpperCase() + (record.status?.slice(1) || '')}</Tag>;
+      },
+    },
+    {
       title: 'Date & Time',
-      key: 'dates',
-      sorter: (a: ParliamentSession, b: ParliamentSession) => 
-        dayjs(a.start_date).unix() - dayjs(b.start_date).unix(),
+      key: 'datetime',
       render: (_: any, record: ParliamentSession) => (
         <div>
-          <div><CalendarOutlined /> {dayjs(record.start_date).format('MMM DD, YYYY')}</div>
-          <div className="text-xs text-gray-500">
-            {dayjs(record.start_date).format('HH:mm')} - {dayjs(record.end_date).format('HH:mm')}
+          <div>
+            <CalendarOutlined />{' '}
+            {dayjs(record.start_date).format('YYYY-MM-DD')}
+            {record.start_time && (
+              <> {dayjs(record.start_time, 'HH:mm:ss').format('HH:mm')}</>
+            )}
+          </div>
+          <div>
+            <CalendarOutlined />{' '}
+            {dayjs(record.end_date).format('YYYY-MM-DD')}
+            {record.end_time && (
+              <> {dayjs(record.end_time, 'HH:mm:ss').format('HH:mm')}</>
+            )}
           </div>
         </div>
       ),
@@ -277,54 +410,11 @@ const ParliamentSessionsPage: FC = () => {
       title: 'Venue',
       dataIndex: 'venue',
       key: 'venue',
-      render: (venue: string) => (
+      render: (venue?: string) => (
         <span>
-          <EnvironmentOutlined /> {venue}
+          <EnvironmentOutlined /> {venue ?? ''}
         </span>
       ),
-    },
-    {
-      title: 'Session Manager',
-      key: 'session_manager',
-      render: (_: any, record: ParliamentSession) => {
-        if (record.session_manager_details) {
-          return (
-            <div>
-              <div><UserOutlined /> {record.session_manager_details.username}</div>
-              <div className="text-xs text-gray-500">
-                {record.session_manager_details.first_name} {record.session_manager_details.last_name}
-              </div>
-            </div>
-          );
-        }
-        return <Text type="secondary">Not assigned</Text>;
-      },
-    },
-    {
-      title: 'Fuel Entitlement',
-      dataIndex: 'fuel_entitlement_litres',
-      key: 'fuel_entitlement_litres',
-      align: 'center' as const,
-      render: (litres: number) => (
-        <Tag color="orange">
-          {litres ? `${litres}L` : '0L'}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Mandatory',
-      dataIndex: 'is_mandatory',
-      key: 'is_mandatory',
-      align: 'center' as const,
-      render: (mandatory: boolean) => (
-        mandatory ? <CheckOutlined style={{ color: 'green' }} /> : <CloseOutlined style={{ color: 'red' }} />
-      ),
-    },
-    {
-      title: 'Status',
-      key: 'status',
-      align: 'center' as const,
-      render: (_: any, record: ParliamentSession) => getSessionStatus(record),
     },
     {
       title: 'Actions',
@@ -466,7 +556,8 @@ const ParliamentSessionsPage: FC = () => {
           form.resetFields();
         }}
         footer={null}
-        width={600}
+        width={900}
+        centered
       >
         <Form
           form={form}
@@ -474,10 +565,16 @@ const ParliamentSessionsPage: FC = () => {
           onFinish={handleSubmit}
           initialValues={{
             venue: 'Parliament Building',
-            fuel_entitlement_litres: 0,
+            fuel_top_up_litres: 0,
+            fuel_top_up_percentage: 0,
+            expected_attendance: 50,
+            attendance_tracked: false,
+            is_active: true,
             is_mandatory: false,
-            is_active: true
+            start_time: dayjs('09:00', 'HH:mm'),
+            end_time: dayjs('17:00', 'HH:mm')
           }}
+          className="space-y-4"
         >
           <Form.Item
             name="title"
@@ -493,10 +590,11 @@ const ParliamentSessionsPage: FC = () => {
             rules={[{ required: true, message: 'Please select session type' }]}
           >
             <Select placeholder="Select session type">
-              <Option value="SITTING">Parliament Sitting</Option>
-              <Option value="COMMITTEE">Committee Meeting</Option>
-              <Option value="NATIONAL_EVENT">National Event</Option>
-              <Option value="SPECIAL_SESSION">Special Session</Option>
+              <Option value="REGULAR">Regular Session</Option>
+              <Option value="SPECIAL">Special Session</Option>
+              <Option value="COMMITTEE">Committee Session</Option>
+              <Option value="BUDGET">Budget Session</Option>
+              <Option value="EMERGENCY">Emergency Session</Option>
             </Select>
           </Form.Item>
 
@@ -504,12 +602,11 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="start_date"
-                label="Start Date & Time"
+                label="Start Date"
                 rules={[{ required: true, message: 'Please select start date' }]}
               >
                 <DatePicker
-                  showTime
-                  format="YYYY-MM-DD HH:mm"
+                  format="YYYY-MM-DD"
                   style={{ width: '100%' }}
                 />
               </Form.Item>
@@ -517,13 +614,41 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="end_date"
-                label="End Date & Time"
+                label="End Date"
                 rules={[{ required: true, message: 'Please select end date' }]}
               >
                 <DatePicker
-                  showTime
-                  format="YYYY-MM-DD HH:mm"
+                  format="YYYY-MM-DD"
                   style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="start_time"
+                label="Start Time"
+                rules={[{ required: true, message: 'Please select start time' }]}
+              >
+                <TimePicker
+                  format="HH:mm"
+                  style={{ width: '100%' }}
+                  placeholder="Select start time"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="end_time"
+                label="End Time"
+                rules={[{ required: true, message: 'Please select end time' }]}
+              >
+                <TimePicker
+                  format="HH:mm"
+                  style={{ width: '100%' }}
+                  placeholder="Select end time"
                 />
               </Form.Item>
             </Col>
@@ -539,12 +664,12 @@ const ParliamentSessionsPage: FC = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="session_manager"
-                label="Session Manager"
-                tooltip="Officer responsible for managing this parliament session"
+                name="organizer"
+                label="Session Organizer"
+                tooltip="Officer responsible for organizing this parliament session"
               >
                 <Select
-                  placeholder="Select session manager"
+                  placeholder="Select session organizer"
                   loading={usersLoading}
                   allowClear
                   showSearch
@@ -588,18 +713,97 @@ const ParliamentSessionsPage: FC = () => {
           </Row>
 
           <Form.Item
-            name="fuel_entitlement_litres"
-            label="Fuel Entitlement (Litres)"
-            tooltip="Additional fuel entitlement for attending this session"
+            name="program"
+            label="Related Program"
+            tooltip="Program this session belongs to (optional)"
           >
-            <InputNumber
-              min={0}
-              max={1000}
-              step={5}
-              style={{ width: '100%' }}
-              placeholder="Enter fuel entitlement in litres"
+            <Select
+              placeholder="Select program (optional)"
+              loading={programsLoading}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {programs.map((program) => (
+                <Option key={program.id} value={program.id}>
+                  {program.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Description"
+          >
+            <Input.TextArea
+              rows={3}
+              placeholder="Describe the purpose and agenda of this session"
             />
           </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="fuel_top_up_litres"
+                label="Fuel Top-up (Litres)"
+                tooltip="Additional fuel litres for session attendees"
+              >
+                <InputNumber
+                  min={0}
+                  max={1000}
+                  step={5}
+                  style={{ width: '100%' }}
+                  placeholder="Enter additional fuel litres"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="fuel_top_up_percentage"
+                label="Fuel Top-up (%)"
+                tooltip="Percentage-based fuel increase for attendees"
+              >
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={5}
+                  style={{ width: '100%' }}
+                  placeholder="Enter percentage increase"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="expected_attendance"
+                label="Expected Attendance"
+                tooltip="Expected number of attendees"
+              >
+                <InputNumber
+                  min={0}
+                  max={500}
+                  style={{ width: '100%' }}
+                  placeholder="Number of expected attendees"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="attendance_tracked"
+                label="Track Attendance"
+                valuePropName="checked"
+                tooltip="Enable attendance tracking for this session"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Row gutter={16}>
             <Col span={12}>
@@ -607,6 +811,7 @@ const ParliamentSessionsPage: FC = () => {
                 name="is_mandatory"
                 label="Mandatory Attendance"
                 valuePropName="checked"
+                tooltip="Whether attendance at this session is mandatory for all members"
               >
                 <Switch />
               </Form.Item>
@@ -614,13 +819,43 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="is_active"
-                label="Active"
+                label="Active Session"
                 valuePropName="checked"
+                tooltip="Whether this session is active and accepting attendees"
               >
                 <Switch />
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            name="assigned_attendees"
+            label="Assigned Attendees"
+            tooltip="Select beneficiaries who should attend this session"
+          >
+            <Select
+              mode="multiple"
+              placeholder="Select attendees (optional)"
+              loading={beneficiariesLoading}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+            >
+              {beneficiaries.map((beneficiary) => {
+                const id = parseInt(beneficiary.id.toString(), 10);
+                return (
+                  <Option key={id} value={id}>
+                    {beneficiary.name || `${beneficiary.user?.first_name} ${beneficiary.user?.last_name}` || beneficiary.employee_id}
+                    {beneficiary.category?.name && ` (${beneficiary.category.name})`}
+                  </Option>
+                );
+              })}
+            </Select>
+          </Form.Item>
 
           <Form.Item className="mb-0">
             <Space className="w-full justify-end">
@@ -683,12 +918,12 @@ const ParliamentSessionsPage: FC = () => {
               <EnvironmentOutlined /> {viewingSession.venue}
             </Descriptions.Item>
             <Descriptions.Item label="Session Manager">
-              {viewingSession.session_manager_details ? (
+              {viewingSession.organizer_details ? (
                 <div>
-                  <UserOutlined /> {viewingSession.session_manager_details.username}
+                  <UserOutlined /> {viewingSession.organizer_details.username}
                   <br />
                   <Text type="secondary" className="text-sm">
-                    {viewingSession.session_manager_details.first_name} {viewingSession.session_manager_details.last_name}
+                    {viewingSession.organizer_details.first_name} {viewingSession.organizer_details.last_name}
                   </Text>
                 </div>
               ) : (

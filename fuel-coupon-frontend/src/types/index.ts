@@ -7,37 +7,75 @@ export * from './admin';
 export interface ParliamentSession {
   id: string;
   title: string;
-  name?: string; // For backward compatibility
-  description?: string; // For backward compatibility
-  session_type: 'SITTING' | 'COMMITTEE' | 'NATIONAL_EVENT' | 'SPECIAL_SESSION';
+  description?: string;
+  session_type: 'REGULAR' | 'SPECIAL' | 'COMMITTEE' | 'BUDGET' | 'EMERGENCY';
+  session_type_display?: string;
   start_date: string;
   end_date: string;
-  venue: string;
-  fuel_entitlement_litres: string;
-  is_mandatory: boolean;
+  start_time?: string;
+  end_time?: string;
+  venue?: string;
   is_active: boolean;
-  status?: 'active' | 'completed' | 'cancelled' | 'scheduled';
-  attendees?: User[];
-  attendances?: SessionAttendance[]; // For backward compatibility
-  created_at: string;
-  updated_at: string;
-  // New fields for subcenter management
-  session_manager?: string; // User ID
-  session_manager_details?: {
+  is_mandatory?: boolean;
+  status?: 'active' | 'upcoming' | 'completed' | 'inactive';
+  assigned_attendees?: string[];
+  
+  // Organizer information
+  organizer?: string; // User ID
+  organizer_name?: string;
+  organizer_details?: {
     id: string;
     username: string;
     first_name: string;
     last_name: string;
+    email: string;
     role: string;
   };
+  
+  // SubCenter management
   managing_subcenter?: string; // SubCenter ID
+  managing_subcenter_name?: string;
   managing_subcenter_details?: {
     id: string;
     name: string;
     code: string;
   };
+  
+  // Program association
+  program?: string; // Program ID
+  program_details?: {
+    id: string;
+    name: string;
+    description: string;
+    status: string;
+  };
+  
+  // Fuel and attendance tracking
+  fuel_top_up_litres?: number;
+  fuel_top_up_percentage?: number;
+  expected_attendance?: number;
+  attendance_tracked?: boolean;
   attendance_count?: number;
+  attendees_count?: number;
   total_fuel_allocated?: number;
+  
+  // Calculated fields
+  duration_days?: number;
+  is_active_session?: boolean;
+  
+  // Timestamps
+  created: string;
+  modified: string;
+  
+  // Legacy support
+  name?: string; // For backward compatibility
+  venue?: string; // For backward compatibility
+  fuel_entitlement_litres?: string; // For backward compatibility
+  is_mandatory?: boolean; // For backward compatibility
+  attendees?: User[]; // For backward compatibility
+  attendances?: SessionAttendance[]; // For backward compatibility
+  created_at?: string; // For backward compatibility
+  updated_at?: string; // For backward compatibility
 }
 
 export interface SessionAttendance {
