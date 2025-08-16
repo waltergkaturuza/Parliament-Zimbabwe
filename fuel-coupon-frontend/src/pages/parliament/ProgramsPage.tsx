@@ -23,7 +23,8 @@ import {
   Descriptions,
   Badge,
   Alert,
-  App
+  App,
+  message as antMessage
 } from 'antd';
 import {
   PlusOutlined,
@@ -61,7 +62,15 @@ interface SubCenter {
 }
 
 const ProgramsPage: FC = () => {
-  const { message } = App.useApp();
+  // Get message API from App context - provide fallback if not available
+  let messageApi;
+  try {
+    const appContext = App.useApp();
+    messageApi = appContext.message;
+  } catch (error) {
+    // Fallback to direct message API if App context is not available
+    messageApi = antMessage;
+  }
   const [loading, setLoading] = useState(true);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
@@ -118,7 +127,7 @@ const ProgramsPage: FC = () => {
       setStats(newStats);
     } catch (error) {
       console.error('Error loading data:', error);
-      message.error('Failed to load programs data');
+      messageApi.error('Failed to load programs data');
     } finally {
       setLoading(false);
     }
@@ -155,11 +164,11 @@ const ProgramsPage: FC = () => {
     try {
       setTableLoading(true);
       await apiClient.delete(`/programs/${programId}/`);
-      message.success('Program deleted successfully');
+      messageApi.success('Program deleted successfully');
       loadData();
     } catch (error) {
       console.error('Error deleting program:', error);
-      message.error('Failed to delete program');
+      messageApi.error('Failed to delete program');
     } finally {
       setTableLoading(false);
     }
@@ -182,10 +191,10 @@ const ProgramsPage: FC = () => {
 
       if (editingProgram) {
         await apiClient.put(`/programs/${editingProgram.id}/`, payload);
-        message.success('Program updated successfully');
+        messageApi.success('Program updated successfully');
       } else {
         await apiClient.post('/programs/', payload);
-        message.success('Program created successfully');
+        messageApi.success('Program created successfully');
       }
 
       setModalVisible(false);
@@ -193,7 +202,7 @@ const ProgramsPage: FC = () => {
       loadData();
     } catch (error: any) {
       console.error('Error saving program:', error);
-      message.error(error.response?.data?.detail || 'Failed to save program');
+      messageApi.error(error.response?.data?.detail || 'Failed to save program');
     } finally {
       setTableLoading(false);
     }
