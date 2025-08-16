@@ -1546,7 +1546,7 @@ const BoxReceiptManagement: FC = () => {
         <Space direction="vertical" size={0}>
           <Text strong>${(record.monetaryValueUSD || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD</Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            @ ${(record.fuelPricePerLitreUSD || 0).toFixed(4)}/L
+            @ ${typeof record.fuelPricePerLitreUSD === 'number' && !isNaN(record.fuelPricePerLitreUSD) ? record.fuelPricePerLitreUSD.toFixed(4) : '0.0000'}/L
           </Text>
           {record.exchangeRate && (
             <Text type="secondary" style={{ fontSize: '11px' }}>
