@@ -1953,9 +1953,31 @@ class ConstituencyViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_permissions(self):
+        """Role-based permissions for constituency management
+        
+        Parliament operations are managed by subcenter OST, so we allow:
+        - Read access: All authenticated users
+        - Write access: Main Center, Sub Center (OST), or Auditor roles
+        """
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
+        
+        # Create a composite permission for write operations
+        class ConstituencyWritePermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), ConstituencyWritePermission()]
+    
+    def list(self, request, *args, **kwargs):
+        """List all constituencies with proper error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve constituencies: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class VehicleCategoryViewSet(viewsets.ModelViewSet):
@@ -1966,7 +1988,11 @@ class VehicleCategoryViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
+        # For write operations, require either MainCenter or Auditor permission
+        combined_permission = type('MainCenterOrAuditorPermission', 
+                                 (MainCenterPermission | AuditorPermission,), 
+                                 {})
+        return [IsAuthenticated(), combined_permission()]
 
 
 class ParliamentSessionViewSet(viewsets.ModelViewSet):
@@ -3038,17 +3064,181 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing beneficiary profiles"""
+    """Enhanced ViewSet for managing beneficiary profiles with frontend compatibility"""
     serializer_class = BeneficiaryProfileSerializer
     permission_classes = [IsAuthenticated]
+    filterset_fields = ['category', 'constituency', 'fuel_type', 'is_active_beneficiary']
+    search_fields = ['user__first_name', 'user__last_name', 'employee_id', 'vehicle_make', 'vehicle_model', 'vehicle_registration']
+    ordering_fields = ['user__first_name', 'user__last_name', 'created', 'monthly_entitlement_litres']
+    ordering = ['-created']
     
     def get_queryset(self):
-        return BeneficiaryProfile.objects.filter(is_active_beneficiary=True)
+        """Enhanced queryset with optimized database queries and filtering"""
+        queryset = BeneficiaryProfile.objects.select_related(
+            'user', 'category', 'constituency', 'vehicle_category'
+        ).filter(is_active_beneficiary=True)
+        
+        # Apply search filters
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search) |
+                Q(employee_id__icontains=search) |
+                Q(vehicle_make__icontains=search) |
+                Q(vehicle_model__icontains=search) |
+                Q(vehicle_registration__icontains=search)
+            )
+        
+        # Apply status filter
+        status = self.request.query_params.get('status')
+        if status:
+            if status == 'ACTIVE':
+                queryset = queryset.filter(is_active_beneficiary=True, user__is_approved=True)
+            elif status == 'INACTIVE':
+                queryset = queryset.filter(is_active_beneficiary=False)
+            elif status == 'SUSPENDED':
+                queryset = queryset.filter(is_active_beneficiary=True, user__is_approved=False)
+        
+        # Apply category filter
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__name=category)
+        
+        # Apply constituency filter
+        constituency = self.request.query_params.get('constituency')
+        if constituency:
+            queryset = queryset.filter(constituency__name=constituency)
+        
+        return queryset
     
     def get_permissions(self):
+        """Role-based permissions for different actions"""
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission()]
+    
+    def create(self, request, *args, **kwargs):
+        """Create a new beneficiary with proper error handling"""
+        try:
+            # Log the incoming data for debugging
+            print("Incoming data:", request.data)
+            
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                print("Validation errors:", serializer.errors)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except Exception as e:
+            print("Creation error:", str(e))
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'error': f'Failed to create beneficiary: {str(e)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def update(self, request, *args, **kwargs):
+        """Update beneficiary with proper error handling"""
+        try:
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            
+            # Log the incoming data for debugging
+            print("Update incoming data:", request.data)
+            
+            # Handle nested user data if present
+            if 'user' in request.data:
+                user_data = request.data.pop('user')
+                if instance.user:
+                    # Update existing user fields
+                    for field, value in user_data.items():
+                        if hasattr(instance.user, field):
+                            setattr(instance.user, field, value)
+                    instance.user.save()
+            
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            if not serializer.is_valid():
+                print("Update validation errors:", serializer.errors)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            self.perform_update(serializer)
+            
+            if getattr(instance, '_prefetched_objects_cache', None):
+                instance._prefetched_objects_cache = {}
+                
+            return Response(serializer.data)
+            
+        except Exception as e:
+            print("Update error:", str(e))
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'error': f'Failed to update beneficiary: {str(e)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Handle PATCH requests"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+    
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Activate a beneficiary profile"""
+        beneficiary = self.get_object()
+        beneficiary.is_active_beneficiary = True
+        beneficiary.save()
+        return Response({'status': 'activated'})
+    
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a beneficiary profile"""
+        beneficiary = self.get_object()
+        beneficiary.is_active_beneficiary = False
+        beneficiary.save()
+        return Response({'status': 'deactivated'})
+    
+    @action(detail=True, methods=['get'])
+    def allocation_history(self, request, pk=None):
+        """Get allocation history for a beneficiary"""
+        beneficiary = self.get_object()
+        # This would return allocation history
+        # For now, return empty array
+        return Response([])
+    
+    @action(detail=False, methods=['get'])
+    def categories(self, request):
+        """Get available beneficiary categories"""
+        from .models import BeneficiaryCategory
+        categories = BeneficiaryCategory.objects.all()
+        return Response([{'id': cat.id, 'name': cat.name} for cat in categories])
+    
+    @action(detail=False, methods=['get'])
+    def constituencies(self, request):
+        """Get available constituencies"""
+        from .models import Constituency
+        constituencies = Constituency.objects.all()
+        return Response([{'id': const.id, 'name': const.name} for const in constituencies])
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get beneficiary statistics for dashboard"""
+        queryset = self.get_queryset()
+        total = queryset.count()
+        active = queryset.filter(is_active_beneficiary=True, user__is_approved=True).count()
+        inactive = queryset.filter(is_active_beneficiary=False).count()
+        suspended = queryset.filter(is_active_beneficiary=True, user__is_approved=False).count()
+        
+        return Response({
+            'total': total,
+            'active': active,
+            'inactive': inactive,
+            'suspended': suspended
+        })
 
 
 # Fuel Entitlement ViewSet - Critical for tracking parliament member entitlements

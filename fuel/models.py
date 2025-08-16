@@ -8,6 +8,7 @@ from model_utils.models import TimeStampedModel, SoftDeletableModel
 from decimal import Decimal
 import uuid
 from django.contrib.contenttypes.models import ContentType
+from django.conf import settings
 from .validators import validate_petrotrade_serial
 
 
@@ -3271,6 +3272,26 @@ class BeneficiaryProfile(TimeStampedModel):
         help_text="Fuel used in current month"
     )
     
+    # Political Information (Added for parliament operations)
+    party_affiliation = models.CharField(
+        max_length=100, 
+        blank=True, 
+        help_text="Political party affiliation"
+    )
+    
+    # Status field for beneficiary management
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('ACTIVE', 'Active'),
+            ('INACTIVE', 'Inactive'),
+            ('SUSPENDED', 'Suspended'),
+            ('PENDING_APPROVAL', 'Pending Approval'),
+        ],
+        default='ACTIVE',
+        help_text="Current beneficiary status"
+    )
+    
     class Meta:
         verbose_name = "Beneficiary Profile"
         verbose_name_plural = "Beneficiary Profiles"
@@ -3380,6 +3401,11 @@ class BeneficiaryProfile(TimeStampedModel):
             'used_this_month': self.used_this_month,
             'last_updated': self.last_allocation_date,
         }
+    
+    @property
+    def party(self):
+        """Frontend-compatible party property"""
+        return self.party_affiliation
 
 
 class BookDispatch(TimeStampedModel):

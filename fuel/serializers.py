@@ -4,6 +4,47 @@ from django.contrib.auth import get_user_model, authenticate
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
+
+class CategoryField(serializers.Field):
+    """Custom field that accepts category name for writes and returns structured data for reads"""
+    
+    def to_representation(self, value):
+        """Convert database object to structured data for API response"""
+        if value:
+            return {
+                'name': value.name,
+                'description': value.description,
+                'id': value.id
+            }
+        return None
+    
+    def to_internal_value(self, data):
+        """Convert string from API request to database value"""
+        if not data:
+            return None
+        # Return the string value - will be handled in serializer's update method
+        return data
+
+class ConstituencyField(serializers.Field):
+    """Custom field that accepts constituency name for writes and returns object for reads"""
+    
+    def to_representation(self, value):
+        """Convert database object to structured data for API response"""
+        if value:
+            return {
+                'name': value.name,
+                'province': value.province,
+                'district': value.district,
+                'id': value.id
+            }
+        return None
+    
+    def to_internal_value(self, data):
+        """Convert string from API request to database value"""
+        if not data:
+            return None
+        # Return the string value - will be handled in serializer's update method
+        return data
 # from rest_framework.exceptions import AuthenticationFailed # Not used in provided code
 # from typing import List, Dict, Optional, Union # Not used in provided code
 from .models import (
@@ -1379,6 +1420,46 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
 
 
 class BeneficiaryProfileSerializer(serializers.ModelSerializer):
+    """
+    Enhanced BeneficiaryProfile serializer aligned with frontend interfaces
+    """
+    # Frontend-compatible field mappings
+    id = serializers.ReadOnlyField()
+    parliamentaryId = serializers.CharField(source='employee_id', read_only=True)
+    memberId = serializers.CharField(source='employee_id', read_only=True)
+    name = serializers.SerializerMethodField()
+    title = serializers.CharField(source='position', read_only=True)
+    phoneNumber = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    address = serializers.SerializerMethodField()
+    dateOfBirth = serializers.SerializerMethodField()
+    nationalId = serializers.SerializerMethodField()
+    profilePhoto = serializers.SerializerMethodField()
+    # status field is handled by the model field directly
+    
+    # Related objects - custom fields that handle both read and write
+    category = CategoryField(required=False)
+    constituency = ConstituencyField(required=False) 
+    party = serializers.CharField(required=False, allow_blank=True, source='party_affiliation')
+    
+    # Structured data for frontend
+    contactInfo = serializers.SerializerMethodField()
+    vehicleInfo = serializers.SerializerMethodField()
+    allocationProfile = serializers.SerializerMethodField()
+    entitlements = serializers.SerializerMethodField()
+    fuelUsage = serializers.SerializerMethodField()
+    vehicles = serializers.SerializerMethodField()
+    
+    # Timestamps
+    lastActivity = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created', read_only=True)
+    joinDate = serializers.DateTimeField(source='created', read_only=True)
+    lastLogin = serializers.SerializerMethodField()
+    
+    # Nested user data for creation (write-only)
+    user = serializers.JSONField(write_only=True, required=False)
+    
+    # Legacy fields for backward compatibility
     user_details = SimpleUserSerializer(source='user', read_only=True)
     category_details = BeneficiaryCategorySerializer(source='category', read_only=True)
     constituency_details = ConstituencySerializer(source='constituency', read_only=True)
@@ -1390,7 +1471,139 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         model = BeneficiaryProfile
         fields = '__all__'
         read_only_fields = ('created', 'modified')
+        extra_kwargs = {
+            # Allow writing to category and constituency via string names
+            'category': {'required': False},
+            'constituency': {'required': False},
+        }
     
+    def get_name(self, obj):
+        """Get full name from user object"""
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return ""
+    
+    def get_phoneNumber(self, obj):
+        """Get phone number from user object"""
+        return obj.user.phone if obj.user else ""
+    
+    def get_email(self, obj):
+        """Get email from user object"""
+        return obj.user.email if obj.user else ""
+    
+    def get_address(self, obj):
+        """Get address from user object"""
+        return obj.user.full_address if obj.user else ""
+    
+
+    
+    def get_dateOfBirth(self, obj):
+        """Get date of birth (placeholder for now)"""
+        return None  # Add actual field when available
+    
+    def get_nationalId(self, obj):
+        """Get national ID from user object"""
+        return obj.user.national_id if obj.user else ""
+    
+    def get_profilePhoto(self, obj):
+        """Get profile photo from user object"""
+        return obj.user.profile_picture if obj.user else ""
+    
+    def get_status(self, obj):
+        """Get beneficiary status"""
+        # Use the new status field if it exists, otherwise fall back to computed status
+        if hasattr(obj, 'status') and obj.status:
+            return obj.status
+        # Fallback for backward compatibility
+        if not obj.is_active_beneficiary:
+            return 'INACTIVE'
+        if obj.user and obj.user.is_approved:
+            return 'ACTIVE'
+        return 'SUSPENDED'
+    
+
+    
+    def get_contactInfo(self, obj):
+        """Get structured contact info for frontend"""
+        return {
+            'email': obj.user.email if obj.user else "",
+            'phone': obj.user.phone if obj.user else "",
+            'office': obj.office_location,
+            'address': obj.user.full_address if obj.user else ""
+        }
+    
+    def get_vehicleInfo(self, obj):
+        """Get structured vehicle info for frontend"""
+        return {
+            'make': obj.vehicle_make,
+            'model': obj.vehicle_model,
+            'year': obj.vehicle_year,
+            'engineSize': obj.engine_size,
+            'registrationNumber': obj.vehicle_registration,
+            'fuelType': obj.fuel_type
+        }
+    
+    def get_allocationProfile(self, obj):
+        """Get allocation profile for frontend"""
+        return {
+            'monthlyAllocation': float(obj.monthly_entitlement_litres),
+            'currentBalance': float(obj.current_balance) if hasattr(obj, 'current_balance') else 0,
+            'usedThisMonth': float(obj.used_this_month) if hasattr(obj, 'used_this_month') else 0,
+            'lastUpdated': obj.last_allocation_date.isoformat() if hasattr(obj, 'last_allocation_date') and obj.last_allocation_date else None,
+            'baseAllocation': float(obj.base_allocation),
+            'multiplier': float(obj.category_multiplier)
+        }
+    
+    def get_entitlements(self, obj):
+        """Get entitlements for frontend"""
+        return {
+            'monthlyAllocation': float(obj.monthly_entitlement_litres),
+            'maxPerTransaction': 100,  # Default value, customize as needed
+            'vehicleCount': 1  # For now, single vehicle per beneficiary
+        }
+    
+    def get_fuelUsage(self, obj):
+        """Get fuel usage statistics"""
+        # Calculate usage from allocations
+        current_month_usage = 0
+        last_month_usage = 0
+        year_to_date_usage = 0
+        total_usage = 0
+        
+        # These would be calculated from actual allocation records
+        # For now, return placeholder values
+        return {
+            'currentMonth': current_month_usage,
+            'lastMonth': last_month_usage,
+            'yearToDate': year_to_date_usage,
+            'totalUsed': total_usage
+        }
+    
+    def get_vehicles(self, obj):
+        """Get vehicles array for frontend"""
+        if obj.vehicle_make or obj.vehicle_model or obj.vehicle_registration:
+            return [{
+                'id': str(obj.id),
+                'registration': obj.vehicle_registration,
+                'make': obj.vehicle_make,
+                'model': obj.vehicle_model,
+                'year': obj.vehicle_year,
+                'fuelType': obj.fuel_type
+            }]
+        return []
+    
+    def get_lastActivity(self, obj):
+        """Get last activity timestamp"""
+        if obj.user and obj.user.last_activity:
+            return obj.user.last_activity.isoformat()
+        return None
+    
+    def get_lastLogin(self, obj):
+        """Get last login timestamp"""
+        if obj.user and obj.user.last_activity:
+            return obj.user.last_activity.isoformat()
+        return None
+
     def get_total_allocated_this_month(self, obj):
         from datetime import datetime
         current_month = datetime.now().replace(day=1)
@@ -1404,6 +1617,211 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             status__in=['PENDING', 'APPROVED'],
             period_end__gte=timezone.now().date()
         ).count()
+    
+    def validate_employee_id(self, value):
+        """Validate employee_id to ensure uniqueness"""
+        if value:
+            # For updates, exclude the current instance
+            queryset = BeneficiaryProfile.objects.filter(employee_id=value)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            
+            if queryset.exists():
+                raise serializers.ValidationError("A beneficiary with this employee ID already exists.")
+        
+        return value or None  # Convert empty string to None
+    
+    def create(self, validated_data):
+        """Create a new beneficiary with associated user"""
+        from django.contrib.auth import get_user_model
+        from .models import BeneficiaryCategory, Constituency, VehicleCategory
+        from decimal import Decimal
+        import time
+        
+        # Debug: Print incoming data
+        print("=== BENEFICIARY SERIALIZER CREATE ===")
+        print("Validated data:", validated_data)
+        
+        User = get_user_model()
+        
+        # Extract user data if provided
+        user_data = validated_data.pop('user', {})
+        print("User data:", user_data)
+        
+        # Extract foreign key IDs
+        category_id = validated_data.pop('category', None)
+        constituency_id = validated_data.pop('constituency', None)
+        vehicle_category_id = validated_data.pop('vehicle_category', None)
+        
+        print("Category ID:", category_id)
+        print("Constituency ID:", constituency_id)
+        print("Vehicle Category ID:", vehicle_category_id)
+        
+        # Create user if user data is provided
+        if user_data:
+            # Generate unique username
+            base_username = user_data.get('email', '').split('@')[0] or validated_data.get('employee_id', 'user')
+            username = base_username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}_{counter}"
+                counter += 1
+            
+            user_data['username'] = username
+            user_data.setdefault('role', 'BENEFICIARY')
+            
+            # Handle password - set a default if not provided
+            if 'password' not in user_data:
+                user_data['password'] = 'TempPass123!'  # Should be changed on first login
+            
+            user = User.objects.create_user(**user_data)
+        else:
+            # Create a minimal user with required fields
+            employee_id = validated_data.get('employee_id', f"user_{int(time.time())}")
+            username = employee_id
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{employee_id}_{counter}"
+                counter += 1
+                
+            user = User.objects.create_user(
+                username=username,
+                role='BENEFICIARY',
+                password='TempPass123!'  # Should be changed on first login
+            )
+        
+        # Set user in validated_data
+        validated_data['user'] = user
+        
+        # Set foreign key relationships - Category is REQUIRED
+        if category_id:
+            try:
+                if isinstance(category_id, str):
+                    # If it's a string like 'MP', find by name
+                    category = BeneficiaryCategory.objects.get(name=category_id)
+                else:
+                    # If it's an ID, find by ID
+                    category = BeneficiaryCategory.objects.get(id=category_id)
+                validated_data['category'] = category
+            except BeneficiaryCategory.DoesNotExist:
+                # Create the category if it doesn't exist
+                category_name = category_id if isinstance(category_id, str) else str(category_id)
+                category = BeneficiaryCategory.objects.create(
+                    name=category_name,
+                    description=f"Parliamentary position: {category_name}"
+                )
+                validated_data['category'] = category
+        else:
+            # If no category provided, create a default one
+            category, created = BeneficiaryCategory.objects.get_or_create(
+                name='ADMINISTRATIVE_STAFF',
+                defaults={'description': 'Administrative Staff'}
+            )
+            validated_data['category'] = category
+        
+        if constituency_id:
+            try:
+                if isinstance(constituency_id, str):
+                    constituency = Constituency.objects.get(name=constituency_id)
+                else:
+                    constituency = Constituency.objects.get(id=constituency_id)
+                validated_data['constituency'] = constituency
+            except Constituency.DoesNotExist:
+                # Create the constituency if it doesn't exist
+                if isinstance(constituency_id, str):
+                    constituency = Constituency.objects.create(
+                        name=constituency_id,
+                        region="Auto-created"
+                    )
+                    validated_data['constituency'] = constituency
+        
+        if vehicle_category_id:
+            try:
+                vehicle_category = VehicleCategory.objects.get(id=vehicle_category_id)
+                validated_data['vehicle_category'] = vehicle_category
+            except VehicleCategory.DoesNotExist:
+                pass
+        
+        # Set default values for fields not in frontend
+        validated_data.setdefault('engine_multiplier', Decimal('1.0'))
+        
+        # Party field is now handled automatically via source='party_affiliation'
+        
+        # Handle employee_id - convert empty string to None for unique constraint
+        if 'employee_id' in validated_data and not validated_data['employee_id']:
+            validated_data['employee_id'] = None
+        
+        # Ensure status defaults to ACTIVE
+        if 'status' not in validated_data:
+            validated_data['status'] = 'ACTIVE'
+        
+        # Create the beneficiary profile
+        print("Final validated_data before creation:", validated_data)
+        beneficiary = BeneficiaryProfile.objects.create(**validated_data)
+        
+        print("Beneficiary created successfully:", beneficiary)
+        return beneficiary
+    
+    def update(self, instance, validated_data):
+        """Update beneficiary with proper handling of related fields"""
+        print(f"Updating beneficiary {instance.id} with data:", validated_data)
+        print(f"Keys in validated_data:", list(validated_data.keys()))
+        print(f"Looking for these fields:")
+        print(f"  - category: {validated_data.get('category', 'NOT FOUND')}")
+        print(f"  - constituency: {validated_data.get('constituency', 'NOT FOUND')}")
+        print(f"  - party: {validated_data.get('party', 'NOT FOUND')}")
+        print(f"  - position: {validated_data.get('position', 'NOT FOUND')}")
+        print(f"  - department: {validated_data.get('department', 'NOT FOUND')}")
+        print(f"  - office_location: {validated_data.get('office_location', 'NOT FOUND')}")
+        print(f"  - engine_size: {validated_data.get('engine_size', 'NOT FOUND')}")
+        print(f"  - current_balance: {validated_data.get('current_balance', 'NOT FOUND')}")
+        
+        # Handle category field - find or create category by name
+        category_id = validated_data.pop('category', None)
+        if category_id:
+            try:
+                if isinstance(category_id, str):
+                    # If it's a string, find by name
+                    category = BeneficiaryCategory.objects.get(name=category_id)
+                else:
+                    # If it's an ID, find by ID
+                    category = BeneficiaryCategory.objects.get(id=category_id)
+                validated_data['category'] = category
+            except BeneficiaryCategory.DoesNotExist:
+                # Create the category if it doesn't exist
+                category_name = category_id if isinstance(category_id, str) else str(category_id)
+                category = BeneficiaryCategory.objects.create(
+                    name=category_name,
+                    description=f"Parliamentary position: {category_name}"
+                )
+                validated_data['category'] = category
+        
+        # Handle constituency field - find by name
+        constituency_id = validated_data.pop('constituency', None)
+        if constituency_id:
+            try:
+                if isinstance(constituency_id, str):
+                    constituency = Constituency.objects.get(name=constituency_id)
+                    validated_data['constituency'] = constituency
+                # If it's already an ID, let Django handle it
+            except Constituency.DoesNotExist:
+                print(f"Warning: Constituency '{constituency_id}' not found, skipping update")
+        
+        # Party field is now handled automatically via source='party_affiliation'
+        
+        # Update the instance
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Auto-calculate current balance (allocated - used)
+        if hasattr(instance, 'monthly_entitlement_litres') and hasattr(instance, 'used_this_month'):
+            allocated = instance.monthly_entitlement_litres or Decimal('0')
+            used = instance.used_this_month or Decimal('0')
+            instance.current_balance = allocated - used
+            print(f"Auto-calculated balance: {allocated} - {used} = {instance.current_balance}")
+        
+        instance.save()
+        return instance
 
 
 class SessionAttendanceSerializer(serializers.ModelSerializer):
