@@ -191,45 +191,54 @@ const BoxReceiptManagement: FC = () => {
     try {
       const response = await apiClient.get('/boxes/');
       const data = response.data;
-      
+      console.log('API /boxes/ response:', data);
       // Handle both paginated and direct array responses
       const boxes = data.results || data;
-      
+      console.log('boxes array:', boxes);
       if (Array.isArray(boxes)) {
         // Map backend data to frontend format
-        const mappedBoxes = boxes.map((box: any) => ({
-          id: String(box.id),
-          boxId: box.box_code || `FCB-${String(box.id).padStart(4, '0')}`,
-          barcode: box.barcode || '',
-          supplier: 'Petrotrade Zimbabwe', // Default supplier
-          receivedDate: box.received_at ? new Date(box.received_at).toISOString().split('T')[0] : '',
-          receivedTime: box.received_at ? new Date(box.received_at).toTimeString().split(' ')[0] : '',
-          receivedBy: box.received_by?.first_name && box.received_by?.last_name 
-            ? `${box.received_by.first_name} ${box.received_by.last_name}` 
-            : 'System User',
-          fuelType: 'DIESEL' as 'PETROL' | 'DIESEL', // Default - backend doesn't have this field yet
-          couponAmount: 20, // Default coupon amount
-          numberOfBooks: box.books?.length || 0,
-          couponsPerBook: 100, // Standard coupons per book
-          totalCoupons: (box.books?.length || 0) * 10,
-          totalLitres: box.total_litres || 0,
-          firstCouponId: box.first_coupon_number || '',
-          lastCouponId: box.last_coupon_number || '',
-          monetaryValueUSD: 0, // Calculate based on litres and price
-          fuelPricePerLitreUSD: 1.40, // Current fuel price
-          exchangeRate: 27.50,
-          status: (box.status === 'received' ? 'RECEIVED' : 
-                  box.status === 'verified' ? 'VERIFIED' : 
-                  box.status === 'dispatched' ? 'DISPATCHED' : 
-                  box.status === 'damaged' ? 'DAMAGED' : 
-                  box.status === 'archived' ? 'ARCHIVED' : 
-                  'PENDING') as 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED',
-          verificationNotes: '',
-          invoiceNumber: '',
-          deliveryNote: '',
-          notes: '',
-        }));
-        
+        const mappedBoxes = boxes.map((box: any) => {
+          let firstCouponId = box.first_coupon_number;
+          let lastCouponId = box.last_coupon_number;
+          if (box.coupon_range && typeof box.coupon_range === 'string') {
+            const parts = box.coupon_range.split(' ');
+            firstCouponId = parts[0] || '';
+            lastCouponId = parts[1] || '';
+          }
+          return {
+            id: String(box.id),
+            boxId: box.box_code,
+            barcode: box.barcode,
+            supplier: box.supplier,
+            receivedDate: box.received_at ? new Date(box.received_at).toISOString().split('T')[0] : '',
+            receivedTime: box.received_at ? new Date(box.received_at).toTimeString().split(' ')[0] : '',
+            receivedBy: box.received_by?.first_name && box.received_by?.last_name 
+              ? `${box.received_by.first_name} ${box.received_by.last_name}` 
+              : box.received_by?.username,
+            fuelType: box.fuel_type,
+            couponAmount: box.coupon_amount,
+            numberOfBooks: box.number_of_books ?? (box.books?.length),
+            couponsPerBook: box.coupons_per_book,
+            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            totalLitres: box.total_litres,
+            firstCouponId,
+            lastCouponId,
+            monetaryValueUSD: box.monetary_value_usd,
+            fuelPricePerLitreUSD: box.fuel_price_per_litre_usd,
+            exchangeRate: box.exchange_rate,
+            status: (box.status === 'received' ? 'RECEIVED' : 
+                    box.status === 'verified' ? 'VERIFIED' : 
+                    box.status === 'dispatched' ? 'DISPATCHED' : 
+                    box.status === 'damaged' ? 'DAMAGED' : 
+                    box.status === 'archived' ? 'ARCHIVED' : 
+                    'PENDING') as 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED',
+            verificationNotes: box.verification_notes,
+            invoiceNumber: box.invoice_number,
+            deliveryNote: box.delivery_note,
+            notes: box.notes,
+          };
+        });
+        console.log('mappedBoxes:', mappedBoxes);
         setBoxReceipts(mappedBoxes);
       } else {
         console.warn('No boxes data received from API');
@@ -473,6 +482,7 @@ const BoxReceiptManagement: FC = () => {
         // Coupon Serial Numbers
         first_coupon_number: values.firstCouponId,
         last_coupon_number: values.lastCouponId,
+        coupon_range: `${values.firstCouponId} ${values.lastCouponId}`,
         
         // Calculated Totals
         total_coupons_calculated: (values.numberOfBooks || 0) * (values.couponsPerBook || 10),

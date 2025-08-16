@@ -644,12 +644,10 @@ class BoxViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Box.objects.all().select_related('assigned_to', 'received_by')
-        
-        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+        if user.is_superuser or user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
             return queryset
         elif user.role == 'SUB_CENTER' and user.sub_center:
             return queryset.filter(assigned_to=user.sub_center)
-        
         return queryset.none()
     
     def perform_create(self, serializer):

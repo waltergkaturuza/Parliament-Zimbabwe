@@ -722,6 +722,20 @@ class BoxSerializer(serializers.ModelSerializer):
     qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
     damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
 
+    coupon_range = serializers.SerializerMethodField()
+
+    def get_coupon_range(self, obj):
+        return f"{obj.first_coupon_number} {obj.last_coupon_number}"
+
+    def validate(self, data):
+        coupon_range = self.initial_data.get('coupon_range')
+        if coupon_range:
+            parts = coupon_range.split()
+            if len(parts) == 2:
+                data['first_coupon_number'] = parts[0]
+                data['last_coupon_number'] = parts[1]
+        return data
+
     class Meta:
         model = Box
         # Complete field list - all frontend fields mapped
@@ -743,6 +757,7 @@ class BoxSerializer(serializers.ModelSerializer):
             # Coupon Serial Numbers
             'first_coupon_number', 'last_coupon_number', 'first_coupon_id', 'last_coupon_id',
             'firstCouponId', 'lastCouponId', 'firstCouponNumber', 'lastCouponNumber',
+            'coupon_range',
             
             # Calculated Totals
             'total_coupons_calculated', 'total_coupons', 'totalCoupons',

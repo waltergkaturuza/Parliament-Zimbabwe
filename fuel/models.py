@@ -1231,6 +1231,10 @@ class Box(ArchivableModel):
         """Get all coupons in this box through all books"""
         return Coupon.objects.filter(book__box=self)
 
+    @property
+    def coupon_range(self):
+        return f"{self.first_coupon_number} {self.last_coupon_number}"
+
 
 class Book(ArchivableModel):
     """
