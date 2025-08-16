@@ -145,30 +145,3 @@ input, textarea {
     color: hsl(var(--foreground));
   }
 }
-
-/* Print styles - Hide warnings and alerts in print mode */
-@media print {
-  .ant-alert-warning,
-  .verification-warning,
-  .ant-alert[data-type="warning"] {
-    display: none !important;
-  }
-  
-  /* Also hide any step indicators during print */
-  .ant-steps {
-    display: none !important;
-  }
-  
-  /* Hide form buttons during print */
-  .ant-btn,
-  button {
-    display: none !important;
-  }
-  
-  /* Only show content for printing */
-  .ant-descriptions,
-  .ant-table,
-  .print-content {
-    display: block !important;
-  }
-}

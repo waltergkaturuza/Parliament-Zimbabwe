@@ -2,11 +2,11 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import {
-  Layout,
-  Menu,
-  Avatar,
-  Dropdown,
+import { 
+  Layout, 
+  Menu, 
+  Avatar, 
+  Dropdown, 
   Button,
   Badge,
   Space,
@@ -18,28 +18,28 @@ import {
   Divider,
   notification,
   Switch,
-  Tooltip,
+  Tooltip
 } from 'antd';
 import {
-  DashboardOutlined,
-  UserOutlined,
-  SettingOutlined,
-  LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  BellOutlined,
-  HomeOutlined,
-  CarOutlined,
+  UserOutlined,
+  DashboardOutlined,
+  LogoutOutlined,
+  SwapOutlined,
   FileTextOutlined,
+  AppstoreOutlined,
+  ContainerOutlined,
+  HomeOutlined,
+  SettingOutlined,
+  BellOutlined,
+  CarOutlined,
   TeamOutlined,
   BarChartOutlined,
   SafetyCertificateOutlined,
   BookOutlined,
   GiftOutlined,
-  SwapOutlined,
   AuditOutlined,
-  AppstoreOutlined,
-  ContainerOutlined,
   SecurityScanOutlined,
   CrownOutlined,
   UserSwitchOutlined,
@@ -209,6 +209,12 @@ const UnifiedLayout: React.FC = () => {
           icon: <ContainerOutlined />,
           label: 'Inventory Management',
           path: '/dashboard/subcenter-inventory',
+        },
+        {
+          key: 'parliament-operations',
+          icon: <HomeOutlined />,
+          label: 'Parliament Operations',
+          path: '/dashboard/parliament-operations',
         }
       );
     }
@@ -249,6 +255,12 @@ const UnifiedLayout: React.FC = () => {
           icon: <ClockCircleOutlined />,
           label: 'Attendance Tracking',
           path: '/dashboard/attendance',
+        },
+        {
+          key: 'constituencies',
+          icon: <EnvironmentOutlined />,
+          label: 'Constituencies',
+          path: '/dashboard/constituencies',
         },
         {
           key: 'fuel-allocations',

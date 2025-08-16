@@ -1190,7 +1190,7 @@ const BookDispatchManagementEnhanced: FC = () => {
         }}
         footer={null}
         width={1200}
-        destroyOnClose
+        destroyOnHidden
       >
         <div className="new-dispatch-modal">
           {/* Progress Steps */}

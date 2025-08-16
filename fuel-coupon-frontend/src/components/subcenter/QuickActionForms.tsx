@@ -638,7 +638,7 @@ const QuickActionForms: React.FC<QuickActionFormsProps> = ({
       onCancel={onClose}
       footer={null}
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}

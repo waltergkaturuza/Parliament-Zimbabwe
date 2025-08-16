@@ -13,6 +13,21 @@ from .models import (
 from django import forms
 from django.db import models
 
+class BeneficiaryProfileAdminForm(forms.ModelForm):
+    """Custom form for BeneficiaryProfile admin with organized sections"""
+    
+    class Meta:
+        model = BeneficiaryProfile
+        fields = '__all__'
+        widgets = {
+            'monthly_entitlement_litres': forms.NumberInput(attrs={'step': '0.01'}),
+            'base_allocation': forms.NumberInput(attrs={'step': '0.01'}),
+            'category_multiplier': forms.NumberInput(attrs={'step': '0.01'}),
+            'engine_multiplier': forms.NumberInput(attrs={'step': '0.01'}),
+            'current_balance': forms.NumberInput(attrs={'step': '0.01'}),
+            'used_this_month': forms.NumberInput(attrs={'step': '0.01'}),
+        }
+
 class BoxAdminForm(forms.ModelForm):
     """Custom form for Box admin with automatic calculations"""
     
@@ -419,6 +434,55 @@ class FuelRequirementConfigurationAdmin(admin.ModelAdmin):
         # Auto-calculate required coupons
         obj.required_coupons = obj.calculate_required_coupons()
         super().save_model(request, obj, form, change)
+
+# Constituency Admin
+@admin.register(Constituency)
+class ConstituencyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'province', 'district', 'total_beneficiaries']
+    list_filter = ['province', 'district']
+    search_fields = ['name', 'province', 'district']
+    ordering = ['province', 'name']
+    
+    def total_beneficiaries(self, obj):
+        return obj.constituency_beneficiaries.count()
+    total_beneficiaries.short_description = 'Total Beneficiaries'
+
+# BeneficiaryProfile Admin
+@admin.register(BeneficiaryProfile)
+class BeneficiaryProfileAdmin(admin.ModelAdmin):
+    list_display = ['get_full_name', 'employee_id', 'category', 'constituency', 'party_affiliation', 'status', 'monthly_entitlement_litres']
+    list_filter = ['status', 'category', 'is_active_beneficiary', 'vehicle_category']
+    search_fields = ['user__first_name', 'user__last_name', 'employee_id', 'vehicle_registration']
+    raw_id_fields = ['user', 'category', 'constituency', 'vehicle_category']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('user', 'employee_id', 'status', 'is_active_beneficiary')
+        }),
+        ('Categories and Assignments', {
+            'fields': ('category', 'constituency', 'vehicle_category')
+        }),
+        ('Position Details', {
+            'fields': ('position', 'department', 'office_location', 'party_affiliation')
+        }),
+        ('Fuel Allocation', {
+            'fields': ('monthly_entitlement_litres', 'base_allocation', 'category_multiplier', 'engine_multiplier')
+        }),
+        ('Fuel Usage Tracking', {
+            'fields': ('current_balance', 'used_this_month', 'last_allocation_date')
+        }),
+        ('Vehicle Information', {
+            'fields': ('vehicle_make', 'vehicle_model', 'vehicle_year', 'engine_size', 'vehicle_registration', 'fuel_type')
+        }),
+        ('Advanced Settings', {
+            'fields': ('engine_capacity_cc', 'distance_from_parliament_km'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_full_name(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}"
+    get_full_name.short_description = 'Beneficiary Name'
 
 # Admin Site Customization
 admin.site.site_header = "Fuel Coupon Management System"

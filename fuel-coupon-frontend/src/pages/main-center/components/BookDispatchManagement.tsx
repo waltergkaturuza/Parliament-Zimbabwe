@@ -1140,7 +1140,7 @@ const BookDispatchManagement: FC = () => {
         onCancel={handleModalClose}
         footer={null}
         width={900}
-        destroyOnClose
+        destroyOnHidden
       >
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Sub Center" icon={<EnvironmentOutlined />} />

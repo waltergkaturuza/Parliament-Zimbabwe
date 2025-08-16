@@ -165,7 +165,36 @@ urlpatterns = [
     # Router endpoints for missing paths
     path('subcenters/', SubCenterViewSet.as_view({'get': 'list'}), name='subcenters-list'),
     path('sub-centers/', SubCenterViewSet.as_view({'get': 'list'}), name='sub-centers-list'),  # Alternative path
-    path('beneficiaries/', BeneficiaryProfileViewSet.as_view({'get': 'list'}), name='beneficiaries-list'),
+    
+    # Beneficiaries endpoints - full CRUD support
+    path('beneficiaries/', BeneficiaryProfileViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    }), name='beneficiaries-list'),
+    path('beneficiaries/<int:pk>/', BeneficiaryProfileViewSet.as_view({
+        'get': 'retrieve',
+        'patch': 'partial_update',
+        'put': 'update',
+        'delete': 'destroy'
+    }), name='beneficiaries-detail'),
+    path('beneficiaries/<int:pk>/activate/', BeneficiaryProfileViewSet.as_view({
+        'post': 'activate'
+    }), name='beneficiaries-activate'),
+    path('beneficiaries/<int:pk>/deactivate/', BeneficiaryProfileViewSet.as_view({
+        'post': 'deactivate'
+    }), name='beneficiaries-deactivate'),
+    path('beneficiaries/<int:pk>/allocation-history/', BeneficiaryProfileViewSet.as_view({
+        'get': 'allocation_history'
+    }), name='beneficiaries-allocation-history'),
+    path('beneficiaries/categories/', BeneficiaryProfileViewSet.as_view({
+        'get': 'categories'
+    }), name='beneficiaries-categories'),
+    path('beneficiaries/constituencies/', BeneficiaryProfileViewSet.as_view({
+        'get': 'constituencies'
+    }), name='beneficiaries-constituencies'),
+    path('beneficiaries/stats/', BeneficiaryProfileViewSet.as_view({
+        'get': 'stats'
+    }), name='beneficiaries-stats'),
     
     # Audit endpoints
     path('audit-logs/', AuditLogViewSet.as_view({'get': 'list'}), name='audit-logs'),

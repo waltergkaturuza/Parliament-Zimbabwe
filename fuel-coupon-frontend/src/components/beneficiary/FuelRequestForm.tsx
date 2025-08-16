@@ -544,7 +544,7 @@ const BeneficiaryFuelRequest: React.FC<BeneficiaryFuelRequestProps> = ({
       onCancel={onClose}
       footer={null}
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       {renderEligibilityStatus()}
       {renderBeneficiaryInfo()}

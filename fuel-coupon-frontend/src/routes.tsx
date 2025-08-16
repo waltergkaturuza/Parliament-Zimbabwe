@@ -68,6 +68,7 @@ const SessionManagement = lazy(() => import('@/pages/parliament/SessionManagemen
 const ParliamentSessionsPage = lazy(() => import('@/pages/parliament/ParliamentSessionsPage'));
 const ProgramsPage = lazy(() => import('@/pages/parliament/ProgramsPage'));
 const AttendanceTracking = lazy(() => import('@/pages/parliament/AttendanceTracking'));
+const ConstituencyManagement = lazy(() => import('@/pages/parliament/ConstituencyManagement'));
 const FuelAllocations = lazy(() => import('@/pages/fuel/FuelAllocations'));
 
 // Parliament oversight pages (MAIN_CENTER)
@@ -209,6 +210,7 @@ const router = createBrowserRouter(
         <Route path="sessions" element={<Suspense fallback={<LoadingSpinner />}><ParliamentSessionsPage /></Suspense>} />
         <Route path="programs" element={<Suspense fallback={<LoadingSpinner />}><ProgramsPage /></Suspense>} />
         <Route path="attendance" element={<Suspense fallback={<LoadingSpinner />}><AttendanceTracking /></Suspense>} />
+        <Route path="constituencies" element={<Suspense fallback={<LoadingSpinner />}><ConstituencyManagement /></Suspense>} />
         <Route path="fuel-allocations" element={<Suspense fallback={<LoadingSpinner />}><FuelAllocations /></Suspense>} />
         <Route path="dynamic-allocations" element={<Suspense fallback={<LoadingSpinner />}><DynamicAllocations /></Suspense>} />
         

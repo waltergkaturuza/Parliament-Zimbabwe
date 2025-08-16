@@ -7,6 +7,7 @@ import {
   Space,
   Tag,
   Input,
+  InputNumber,
   Select,
   Modal,
   Form,
@@ -27,6 +28,8 @@ import {
   List,
   Empty,
   Image,
+  message,
+  notification,
 } from 'antd';
 import {
   PlusOutlined,
@@ -52,6 +55,8 @@ import {
   ReloadOutlined,
   ExportOutlined,
   ImportOutlined,
+  StopOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -113,14 +118,17 @@ const BeneficiaryManagement = () => {
   const [filters, setFilters] = useState<BeneficiaryFilters>({});
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
+  const [editingBeneficiary, setEditingBeneficiary] = useState<Beneficiary | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
   const queryClient = useQueryClient();
 
   // Fetch beneficiaries data
-  const { data: beneficiaries, isLoading, refetch } = useQuery<Beneficiary[]>({
+  const { data: beneficiariesResponse, isLoading, refetch } = useQuery({
     queryKey: ['beneficiaries', filters],
     queryFn: async () => {
       const params: any = {};
@@ -130,6 +138,63 @@ const BeneficiaryManagement = () => {
       
       return await BeneficiaryService.getBeneficiaries(params);
     }
+  });
+
+  // Fetch constituencies for dropdowns
+  const { data: constituenciesData, isLoading: constituenciesLoading } = useQuery({
+    queryKey: ['constituencies'],
+    queryFn: async () => {
+      const response = await fetch('/api/v1/constituencies/?page_size=100', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch constituencies');
+      const data = await response.json();
+      // Handle both paginated response and direct array
+      return Array.isArray(data) ? data : (data.results || []);
+    },
+  });
+
+  // Ensure constituencies is always an array
+  const constituencies = constituenciesData || [];
+
+  // Extract beneficiaries from response
+  const beneficiaries = beneficiariesResponse?.results || [];
+
+  // Mutations for CRUD operations
+  const activateBeneficiaryMutation = useMutation({
+    mutationFn: (id: string) => BeneficiaryService.activateBeneficiary(id),
+    onSuccess: () => {
+      message.success('Beneficiary activated successfully');
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+    },
+    onError: () => {
+      message.error('Failed to activate beneficiary');
+    },
+  });
+
+  const deactivateBeneficiaryMutation = useMutation({
+    mutationFn: (id: string) => BeneficiaryService.deactivateBeneficiary(id),
+    onSuccess: () => {
+      message.success('Beneficiary suspended successfully');
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+    },
+    onError: () => {
+      message.error('Failed to suspend beneficiary');
+    },
+  });
+
+  const deleteBeneficiaryMutation = useMutation({
+    mutationFn: (id: string) => BeneficiaryService.deleteBeneficiary(id),
+    onSuccess: () => {
+      message.success('Beneficiary deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+    },
+    onError: () => {
+      message.error('Failed to delete beneficiary');
+    },
   });
 
   const getStatusColor = (status: string) => {
@@ -143,12 +208,66 @@ const BeneficiaryManagement = () => {
 
   const getCategoryColor = (category: string) => {
     switch (category) {
+      case 'SPEAKER_NATIONAL_ASSEMBLY': return 'red';
+      case 'DEPUTY_SPEAKER': return 'volcano';
       case 'MP': return 'blue';
+      case 'WOMEN_QUOTA_MP': return 'magenta';
+      case 'YOUTH_QUOTA_MP': return 'cyan';
+      case 'MINISTER': return 'purple';
+      case 'DEPUTY_MINISTER': return 'geekblue';
+      case 'CHIEF_WHIP': return 'gold';
+      case 'PORTFOLIO_COMMITTEE_MEMBER': return 'lime';
+      case 'CLERK_OF_PARLIAMENT': return 'green';
+      case 'SERGEANT_AT_ARMS': return 'orange';
+      case 'LEGAL_ADVISOR': return 'yellow';
+      case 'HANSARD_STAFF': return 'processing';
+      case 'RESEARCH_OFFICER': return 'default';
+      case 'ADMINISTRATIVE_STAFF': return 'orange';
       case 'SENATOR': return 'purple';
-      case 'STAFF': return 'orange';
-      case 'OFFICIAL': return 'green';
+      case 'PRESIDENT_OF_SENATE': return 'red';
+      case 'DEPUTY_PRESIDENT_OF_SENATE': return 'volcano';
+      case 'TRADITIONAL_CHIEF_SENATOR': return 'gold';
+      case 'DISABILITY_REPRESENTATIVE_SENATE': return 'cyan';
+      case 'PARLIAMENTARY_LEGAL_COMMITTEE': return 'yellow';
+      case 'PUBLIC_ACCOUNTS_COMMITTEE': return 'green';
+      case 'COMMITTEE_CHAIRPERSON': return 'lime';
+      case 'STAFF': return 'orange'; // Legacy support
+      case 'OFFICIAL': return 'green'; // Legacy support
       default: return 'default';
     }
+  };
+
+  const handleEdit = (beneficiary: Beneficiary) => {
+    setEditingBeneficiary(beneficiary);
+    // Populate the edit form with beneficiary data
+    editForm.setFieldsValue({
+      firstName: beneficiary.name?.split(' ')[0] || '',
+      lastName: beneficiary.name?.split(' ').slice(1).join(' ') || '',
+      employeeId: beneficiary.parliamentaryId,
+      email: beneficiary.email,
+      phoneNumber: beneficiary.phoneNumber,
+      category: beneficiary.category?.name || beneficiary.category,
+      position: beneficiary.title,
+      department: beneficiary.department,
+      party: beneficiary.party,
+      constituency: beneficiary.constituency?.name || beneficiary.constituency,
+      officeLocation: beneficiary.officeLocation,
+      // Vehicle information
+      vehicleMake: beneficiary.vehicles?.[0]?.make,
+      vehicleModel: beneficiary.vehicles?.[0]?.model,
+      vehicleYear: beneficiary.vehicles?.[0]?.year,
+      vehicleRegistration: beneficiary.vehicles?.[0]?.registration,
+      engineSize: beneficiary.vehicles?.[0]?.engineSize,
+      fuelType: beneficiary.vehicles?.[0]?.fuelType || 'DIESEL',
+      // Administrative
+      status: beneficiary.status,
+      isActiveBeneficiary: beneficiary.isActiveBeneficiary,
+      // Entitlements
+      monthlyEntitlement: beneficiary.entitlements?.monthlyAllocation,
+      baseAllocation: beneficiary.allocationProfile?.baseAllocation,
+      currentBalance: beneficiary.fuelUsage?.currentBalance,
+    });
+    setIsEditModalOpen(true);
   };
 
   const columns = [
@@ -170,12 +289,19 @@ const BeneficiaryManagement = () => {
             </div>
             <div className="text-sm text-gray-500">{record.parliamentaryId}</div>
             <div className="flex items-center gap-2 mt-1">
-              <Tag color={getCategoryColor(record.category)}>
-                {record.category}
-              </Tag>
+              {(() => {
+                const categoryName = (record as any)?.category?.name || (record as any)?.category || 'N/A';
+                return (
+                  <Tag color={getCategoryColor(categoryName)}>
+                    {String(categoryName).replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </Tag>
+                );
+              })()}
               {record.constituency && (
                 <Text type="secondary" className="text-xs truncate">
-                  {record.constituency}
+                  {typeof (record as any).constituency === 'string'
+                    ? (record as any).constituency
+                    : (record as any).constituency?.name || ''}
                 </Text>
               )}
             </div>
@@ -191,12 +317,60 @@ const BeneficiaryManagement = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <PhoneOutlined className="text-gray-400" />
-            <Text className="text-sm">{record.phoneNumber}</Text>
+            <Text className="text-sm">{record.phoneNumber || 'No Phone'}</Text>
           </div>
           <div className="flex items-center gap-2">
             <MailOutlined className="text-gray-400" />
-            <Text className="text-sm truncate">{record.email}</Text>
+            <Text className="text-sm truncate">{record.email || 'No Email'}</Text>
           </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Parliamentary Position',
+      dataIndex: 'category',
+      key: 'category',
+      width: 200,
+      filters: [
+        { text: 'Speaker of National Assembly', value: 'SPEAKER_NATIONAL_ASSEMBLY' },
+        { text: 'Deputy Speaker', value: 'DEPUTY_SPEAKER' },
+        { text: 'Members of Parliament', value: 'MP' },
+        { text: 'Women Quota MPs', value: 'WOMEN_QUOTA_MP' },
+        { text: 'Youth Quota MPs', value: 'YOUTH_QUOTA_MP' },
+        { text: 'Ministers', value: 'MINISTER' },
+        { text: 'Deputy Ministers', value: 'DEPUTY_MINISTER' },
+        { text: 'Senators', value: 'SENATOR' },
+        { text: 'Administrative Staff', value: 'ADMINISTRATIVE_STAFF' },
+      ],
+      render: (category: any) => {
+        // Handle both object format {name: "STAFF"} and string format "STAFF"
+        const categoryName = category?.name || category || 'N/A';
+        const displayName = categoryName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return (
+          <Tag color={getCategoryColor(categoryName)}>{displayName}</Tag>
+        );
+      },
+    },
+    {
+      title: 'Party',
+      dataIndex: 'party',
+      key: 'party',
+      width: 100,
+      render: (party: string) => (
+        party ? <Tag color="purple">{party}</Tag> : <Text type="secondary">-</Text>
+      ),
+    },
+    {
+      title: 'Constituency',
+      dataIndex: 'constituency',
+      key: 'constituency',
+      width: 150,
+      render: (constituency: any) => (
+        <div className="text-sm">
+          <div className="font-medium">{constituency?.name || 'Not Assigned'}</div>
+          {constituency?.province && (
+            <div className="text-xs text-gray-500">{constituency.province}</div>
+          )}
         </div>
       ),
     },
@@ -221,27 +395,36 @@ const BeneficiaryManagement = () => {
       sorter: true,
       render: (record: Beneficiary) => (
         <div className="text-center">
-          <div className="font-semibold">${record.entitlements.monthlyAllocation}</div>
+          <div className="font-semibold">{record.entitlements?.monthlyAllocation || 0}L</div>
           <div className="text-xs text-gray-500">
-            Used: ${record.fuelUsage.currentMonth}
+            Used: {record.fuelUsage?.currentMonth || 0}L
           </div>
           <Progress
-            percent={Math.round((record.fuelUsage.currentMonth / record.entitlements.monthlyAllocation) * 100)}
+            percent={Math.round(((record.fuelUsage?.currentMonth || 0) / (record.entitlements?.monthlyAllocation || 1)) * 100)}
             size="small"
-            status={record.fuelUsage.currentMonth > record.entitlements.monthlyAllocation ? 'exception' : 'normal'}
+            status={(record.fuelUsage?.currentMonth || 0) > (record.entitlements?.monthlyAllocation || 0) ? 'exception' : 'normal'}
           />
         </div>
       ),
     },
     {
-      title: 'Vehicles',
+      title: 'Vehicle Info',
       key: 'vehicles',
-      width: 100,
+      width: 150,
       render: (record: Beneficiary) => (
-        <div className="text-center">
-          <Badge count={record.vehicles.length} showZero>
-            <CarOutlined className="text-2xl text-gray-400" />
-          </Badge>
+        <div className="text-sm">
+          {record.vehicles && Array.isArray(record.vehicles) && record.vehicles.length > 0 ? (
+            <div>
+              <div className="font-medium">{record.vehicles[0]?.make} {record.vehicles[0]?.model}</div>
+              <div className="text-xs text-gray-500">{record.vehicles[0]?.registration || 'No Reg'}</div>
+              <div className="text-xs text-gray-500">{record.vehicles[0]?.fuelType || 'N/A'}</div>
+            </div>
+          ) : (
+            <div className="text-center text-gray-400">
+              <CarOutlined />
+              <div className="text-xs">No Vehicle</div>
+            </div>
+          )}
         </div>
       ),
     },
@@ -279,6 +462,40 @@ const BeneficiaryManagement = () => {
               type="text"
               size="small"
               icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            />
+          </Tooltip>
+          <Tooltip title={record.status === 'ACTIVE' ? 'Suspend' : 'Activate'}>
+            <Button
+              type="text"
+              size="small"
+              icon={record.status === 'ACTIVE' ? <StopOutlined /> : <PlayCircleOutlined />}
+              onClick={() => {
+                if (record.status === 'ACTIVE') {
+                  deactivateBeneficiaryMutation.mutate(record.id.toString());
+                } else {
+                  activateBeneficiaryMutation.mutate(record.id.toString());
+                }
+              }}
+              danger={record.status === 'ACTIVE'}
+            />
+          </Tooltip>
+          <Tooltip title="Delete">
+            <Button
+              type="text"
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                Modal.confirm({
+                  title: 'Delete Beneficiary',
+                  content: `Are you sure you want to delete ${record.name}? This action cannot be undone.`,
+                  okText: 'Delete',
+                  okType: 'danger',
+                  cancelText: 'Cancel',
+                  onOk: () => deleteBeneficiaryMutation.mutate(record.id.toString()),
+                });
+              }}
+              danger
             />
           </Tooltip>
           <Tooltip title="Vehicles">
@@ -376,15 +593,35 @@ const BeneficiaryManagement = () => {
             onSearch={(value: string) => setFilters({ ...filters, search: value })}
           />
           <Select
-            placeholder="Category"
-            style={{ width: 120 }}
+            placeholder="Parliamentary Position"
+            style={{ width: 200 }}
             allowClear
+            showSearch
             onChange={(value) => setFilters({ ...filters, category: value })}
             options={[
-              { label: 'MP', value: 'MP' },
-              { label: 'Senator', value: 'SENATOR' },
-              { label: 'Staff', value: 'STAFF' },
-              { label: 'Official', value: 'OFFICIAL' },
+              { label: 'Speaker of National Assembly', value: 'SPEAKER_NATIONAL_ASSEMBLY' },
+              { label: 'Deputy Speaker', value: 'DEPUTY_SPEAKER' },
+              { label: 'Members of Parliament', value: 'MP' },
+              { label: 'Women Quota MPs', value: 'WOMEN_QUOTA_MP' },
+              { label: 'Youth Quota MPs', value: 'YOUTH_QUOTA_MP' },
+              { label: 'Ministers', value: 'MINISTER' },
+              { label: 'Deputy Ministers', value: 'DEPUTY_MINISTER' },
+              { label: 'Chief Whips', value: 'CHIEF_WHIP' },
+              { label: 'Portfolio Committee Members', value: 'PORTFOLIO_COMMITTEE_MEMBER' },
+              { label: 'Clerk of Parliament', value: 'CLERK_OF_PARLIAMENT' },
+              { label: 'Sergeant-at-Arms', value: 'SERGEANT_AT_ARMS' },
+              { label: 'Legal Advisors', value: 'LEGAL_ADVISOR' },
+              { label: 'Hansard Staff', value: 'HANSARD_STAFF' },
+              { label: 'Research Officers', value: 'RESEARCH_OFFICER' },
+              { label: 'Administrative Staff', value: 'ADMINISTRATIVE_STAFF' },
+              { label: 'Senators', value: 'SENATOR' },
+              { label: 'President of Senate', value: 'PRESIDENT_OF_SENATE' },
+              { label: 'Deputy President of Senate', value: 'DEPUTY_PRESIDENT_OF_SENATE' },
+              { label: 'Traditional Chiefs (Senators)', value: 'TRADITIONAL_CHIEF_SENATOR' },
+              { label: 'Disability Representatives (Senate)', value: 'DISABILITY_REPRESENTATIVE_SENATE' },
+              { label: 'Parliamentary Legal Committee', value: 'PARLIAMENTARY_LEGAL_COMMITTEE' },
+              { label: 'Public Accounts Committee', value: 'PUBLIC_ACCOUNTS_COMMITTEE' },
+              { label: 'Committee Chairpersons', value: 'COMMITTEE_CHAIRPERSON' },
             ]}
           />
           <Select
@@ -607,6 +844,753 @@ const BeneficiaryManagement = () => {
           </Tabs>
         )}
       </Drawer>
+
+      {/* Create Beneficiary Modal - Harmonized with Backend */}
+      <Modal
+        title="Add New Beneficiary"
+        open={isCreateModalOpen}
+        onCancel={() => {
+          setIsCreateModalOpen(false);
+          createForm.resetFields();
+        }}
+        onOk={() => createForm.submit()}
+        confirmLoading={isLoading}
+        width={900}
+        destroyOnHidden
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            try {
+              console.log('Form values:', values);
+              
+              // Transform form values to match backend serializer
+              const beneficiaryData = {
+                // Nested user object for creation
+                user: {
+                  first_name: values.firstName,
+                  last_name: values.lastName,
+                  email: values.email,
+                  phone: values.phoneNumber,
+                  full_address: values.address,
+                  national_id: values.nationalId,
+                  role: 'BENEFICIARY'
+                },
+                // Beneficiary profile fields  
+                employee_id: values.employeeId || `EMP-${Date.now()}`,
+                position: values.position,
+                department: values.department || '',
+                category: values.category, // This will be "MP", "SENATOR", "STAFF", or "OFFICIAL"
+                constituency: values.constituency || null,
+                party: values.party || null,
+                monthly_entitlement_litres: parseFloat(values.monthlyEntitlement || '300'),
+                // Vehicle info
+                vehicle_make: values.vehicleMake || '',
+                vehicle_model: values.vehicleModel || '',
+                vehicle_year: parseInt(values.vehicleYear || '2020'),
+                engine_size: values.engineSize || '',
+                vehicle_registration: values.vehicleRegistration || '',
+                fuel_type: values.fuelType || 'PETROL',
+                // Additional fields
+                office_location: values.officeLocation || '',
+                base_allocation: parseFloat(values.baseAllocation || '200'),
+                category_multiplier: parseFloat(values.categoryMultiplier || '1.0'),
+                // Remove fields not in frontend form
+                is_active_beneficiary: true
+              };
+
+              console.log('Sending data to backend:', beneficiaryData);
+              
+              const result = await BeneficiaryService.createBeneficiary(beneficiaryData);
+              console.log('Backend response:', result);
+              
+              message.success('Beneficiary created successfully!');
+              setIsCreateModalOpen(false);
+              createForm.resetFields();
+              refetch(); // Refresh the list
+            } catch (error: any) {
+              console.error('Failed to create beneficiary:', error);
+              const errorMessage = error?.response?.data?.error || 
+                                  error?.message || 
+                                  'Failed to create beneficiary. Please check all fields and try again.';
+              message.error(errorMessage);
+            }
+          }}
+        >
+          <div className="space-y-4">
+            {/* Personal Information */}
+            <Card size="small" title="Personal Information">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="firstName"
+                    label="First Name"
+                    rules={[{ required: true, message: 'Please enter first name' }]}
+                  >
+                    <Input placeholder="Enter first name" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="lastName"
+                    label="Last Name"
+                    rules={[{ required: true, message: 'Please enter last name' }]}
+                  >
+                    <Input placeholder="Enter last name" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="employeeId"
+                    label="Employee/Parliamentary ID"
+                    rules={[{ required: false, message: 'Please enter ID' }]}
+                  >
+                    <Input placeholder="Auto-generated if left empty" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="email"
+                    label="Email"
+                    rules={[
+                      { required: true, message: 'Please enter email' },
+                      { type: 'email', message: 'Please enter valid email' }
+                    ]}
+                  >
+                    <Input placeholder="Enter email address" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="phoneNumber"
+                    label="Phone Number"
+                    rules={[{ required: true, message: 'Please enter phone number' }]}
+                  >
+                    <Input placeholder="Enter phone number" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="nationalId"
+                    label="National ID"
+                    rules={[{ required: true, message: 'Please enter national ID' }]}
+                  >
+                    <Input placeholder="Enter national ID" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item
+                    name="address"
+                    label="Address"
+                    rules={[{ required: true, message: 'Please enter address' }]}
+                  >
+                    <Input.TextArea rows={2} placeholder="Enter full address" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Role & Position */}
+            <Card size="small" title="Role & Position">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="category"
+                    label="Parliamentary Position"
+                    rules={[{ required: true, message: 'Please select parliamentary position' }]}
+                  >
+                    <Select placeholder="Select parliamentary position" showSearch>
+                      <Select.Option value="SPEAKER_NATIONAL_ASSEMBLY">Speaker of the National Assembly</Select.Option>
+                      <Select.Option value="DEPUTY_SPEAKER">Deputy Speaker</Select.Option>
+                      <Select.Option value="MP">Members of Parliament (MPs)</Select.Option>
+                      <Select.Option value="WOMEN_QUOTA_MP">Women Quota MPs</Select.Option>
+                      <Select.Option value="YOUTH_QUOTA_MP">Youth Quota MPs</Select.Option>
+                      <Select.Option value="MINISTER">Ministers</Select.Option>
+                      <Select.Option value="DEPUTY_MINISTER">Deputy Ministers</Select.Option>
+                      <Select.Option value="CHIEF_WHIP">Chief Whips</Select.Option>
+                      <Select.Option value="PORTFOLIO_COMMITTEE_MEMBER">Portfolio Committee Members</Select.Option>
+                      <Select.Option value="CLERK_OF_PARLIAMENT">Clerk of Parliament</Select.Option>
+                      <Select.Option value="SERGEANT_AT_ARMS">Sergeant-at-Arms</Select.Option>
+                      <Select.Option value="LEGAL_ADVISOR">Legal Advisors</Select.Option>
+                      <Select.Option value="HANSARD_STAFF">Hansard Staff</Select.Option>
+                      <Select.Option value="RESEARCH_OFFICER">Research Officers</Select.Option>
+                      <Select.Option value="ADMINISTRATIVE_STAFF">Administrative Staff</Select.Option>
+                      <Select.Option value="SENATOR">Senators</Select.Option>
+                      <Select.Option value="PRESIDENT_OF_SENATE">President of the Senate</Select.Option>
+                      <Select.Option value="DEPUTY_PRESIDENT_OF_SENATE">Deputy President of the Senate</Select.Option>
+                      <Select.Option value="TRADITIONAL_CHIEF_SENATOR">Traditional Chiefs (Senators)</Select.Option>
+                      <Select.Option value="DISABILITY_REPRESENTATIVE_SENATE">Disability Representatives (Senate)</Select.Option>
+                      <Select.Option value="PARLIAMENTARY_LEGAL_COMMITTEE">Parliamentary Legal Committee</Select.Option>
+                      <Select.Option value="PUBLIC_ACCOUNTS_COMMITTEE">Public Accounts Committee</Select.Option>
+                      <Select.Option value="COMMITTEE_CHAIRPERSON">Committee Chairpersons</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="position"
+                    label="Position"
+                    rules={[{ required: true, message: 'Please enter position' }]}
+                  >
+                    <Input placeholder="Enter position/title" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="department"
+                    label="Department"
+                  >
+                    <Input placeholder="Enter department" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="constituency"
+                    label="Constituency"
+                  >
+                    <Select 
+                      placeholder="Select constituency" 
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+                      }
+                      loading={constituenciesLoading}
+                      notFoundContent={constituenciesLoading ? 'Loading...' : 'No constituencies found'}
+                    >
+                      {constituencies?.map((constituency: any) => (
+                        <Select.Option key={constituency.id} value={constituency.name}>
+                          {constituency.name} ({constituency.province})
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="party"
+                    label="Political Party"
+                  >
+                    <Select placeholder="Select party" allowClear>
+                      <Select.Option value="ZANU-PF">ZANU-PF</Select.Option>
+                      <Select.Option value="MDC-T">MDC-T</Select.Option>
+                      <Select.Option value="MDC-A">MDC-A</Select.Option>
+                      <Select.Option value="CCC">Citizens Coalition for Change (CCC)</Select.Option>
+                      <Select.Option value="ZAPU">ZAPU</Select.Option>
+                      <Select.Option value="ZPF">Zimbabwe People First (ZPF)</Select.Option>
+                      <Select.Option value="Independent">Independent</Select.Option>
+                      <Select.Option value="Other">Other</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="officeLocation"
+                    label="Office Location"
+                  >
+                    <Input placeholder="Enter office location" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Vehicle Information */}
+            <Card size="small" title="Vehicle Information">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleMake"
+                    label="Vehicle Make"
+                    rules={[{ required: true, message: 'Please enter vehicle make' }]}
+                  >
+                    <Input placeholder="e.g., Toyota, Mercedes" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleModel"
+                    label="Vehicle Model"
+                    rules={[{ required: true, message: 'Please enter vehicle model' }]}
+                  >
+                    <Input placeholder="e.g., Prado, C-Class" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleYear"
+                    label="Year"
+                    rules={[{ required: true, message: 'Please enter year' }]}
+                  >
+                    <Input placeholder="e.g., 2020" type="number" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="engineSize"
+                    label="Engine Size"
+                    rules={[{ required: true, message: 'Please enter engine size' }]}
+                  >
+                    <Input placeholder="e.g., 2.0L, 3.0L V6" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleRegistration"
+                    label="Registration Number"
+                    rules={[{ required: true, message: 'Please enter registration' }]}
+                  >
+                    <Input placeholder="Enter registration number" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="fuelType"
+                    label="Fuel Type"
+                    rules={[{ required: true, message: 'Please select fuel type' }]}
+                  >
+                    <Select placeholder="Select fuel type">
+                      <Select.Option value="PETROL">Petrol</Select.Option>
+                      <Select.Option value="DIESEL">Diesel</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Fuel Allocation */}
+            <Card size="small" title="Fuel Allocation">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="monthlyEntitlement"
+                    label="Monthly Entitlement (Litres)"
+                    rules={[{ required: true, message: 'Please enter monthly entitlement' }]}
+                    initialValue={300}
+                  >
+                    <Input type="number" placeholder="Enter litres" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="baseAllocation"
+                    label="Base Allocation (Litres)"
+                    initialValue={200}
+                  >
+                    <Input type="number" placeholder="Base allocation" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="categoryMultiplier"
+                    label="Category Multiplier"
+                    initialValue={1.0}
+                  >
+                    <Input type="number" step="0.1" placeholder="e.g., 1.5" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* Edit Beneficiary Modal */}
+      <Modal
+        title="Edit Beneficiary"
+        open={isEditModalOpen}
+        onCancel={() => {
+          setIsEditModalOpen(false);
+          setEditingBeneficiary(null);
+          editForm.resetFields();
+        }}
+        onOk={() => editForm.submit()}
+        width={1000}
+        confirmLoading={isLoading}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            try {
+              if (!editingBeneficiary) return;
+              
+              const updateData = {
+                user: {
+                  first_name: values.firstName,
+                  last_name: values.lastName,
+                  email: values.email,
+                  phone: values.phoneNumber,
+                },
+                position: values.position,
+                department: values.department || '',
+                category: values.category,
+                constituency: values.constituency || null,
+                party: values.party || null,
+                monthly_entitlement_litres: parseFloat(values.monthlyEntitlement || '300'),
+                office_location: values.officeLocation || '',
+                employee_id: values.employeeId || null,
+                // Vehicle information
+                vehicle_make: values.vehicleMake || '',
+                vehicle_model: values.vehicleModel || '',
+                vehicle_year: values.vehicleYear || null,
+                vehicle_registration: values.vehicleRegistration || '',
+                engine_size: values.engineSize || '',
+                fuel_type: values.fuelType || 'DIESEL',
+                // Administrative
+                status: values.status || 'ACTIVE',
+                is_active_beneficiary: values.isActiveBeneficiary !== false,
+                // Entitlements
+                base_allocation: parseFloat(values.baseAllocation || '200'),
+                // current_balance is computed on backend; do not send from client
+              };
+
+              // Update beneficiary via API
+              console.log('Updating beneficiary:', updateData);
+              await BeneficiaryService.updateBeneficiary(editingBeneficiary.id.toString(), updateData);
+              
+              setIsEditModalOpen(false);
+              setEditingBeneficiary(null);
+              editForm.resetFields();
+              refetch();
+              
+              notification.success({
+                message: 'Success',
+                description: 'Beneficiary updated successfully',
+              });
+            } catch (error) {
+              console.error('Failed to update beneficiary:', error);
+              notification.error({
+                message: 'Error',
+                description: 'Failed to update beneficiary',
+              });
+            }
+          }}
+        >
+          <div className="space-y-6">
+            {/* Personal Information */}
+            <Card size="small" title="Personal Information">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="firstName"
+                    label="First Name"
+                    rules={[{ required: true, message: 'Please enter first name' }]}
+                  >
+                    <Input placeholder="Enter first name" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="lastName"
+                    label="Last Name"
+                    rules={[{ required: true, message: 'Please enter last name' }]}
+                  >
+                    <Input placeholder="Enter last name" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="employeeId"
+                    label="Employee/Parliamentary ID"
+                    rules={[{ required: false, message: 'Please enter ID' }]}
+                  >
+                    <Input placeholder="Auto-generated if left empty" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="email"
+                    label="Email"
+                    rules={[
+                      { required: true, message: 'Please enter email' },
+                      { type: 'email', message: 'Please enter valid email' }
+                    ]}
+                  >
+                    <Input placeholder="Enter email address" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="phoneNumber"
+                    label="Phone Number"
+                    rules={[{ required: true, message: 'Please enter phone number' }]}
+                  >
+                    <Input placeholder="Enter phone number" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Role & Position */}
+            <Card size="small" title="Role & Position">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="category"
+                    label="Parliamentary Position"
+                    rules={[{ required: true, message: 'Please select parliamentary position' }]}
+                  >
+                    <Select placeholder="Select parliamentary position" showSearch>
+                      <Select.Option value="SPEAKER_NATIONAL_ASSEMBLY">Speaker of the National Assembly</Select.Option>
+                      <Select.Option value="DEPUTY_SPEAKER">Deputy Speaker</Select.Option>
+                      <Select.Option value="MP">Members of Parliament (MPs)</Select.Option>
+                      <Select.Option value="WOMEN_QUOTA_MP">Women Quota MPs</Select.Option>
+                      <Select.Option value="YOUTH_QUOTA_MP">Youth Quota MPs</Select.Option>
+                      <Select.Option value="MINISTER">Ministers</Select.Option>
+                      <Select.Option value="DEPUTY_MINISTER">Deputy Ministers</Select.Option>
+                      <Select.Option value="CHIEF_WHIP">Chief Whips</Select.Option>
+                      <Select.Option value="PORTFOLIO_COMMITTEE_MEMBER">Portfolio Committee Members</Select.Option>
+                      <Select.Option value="CLERK_OF_PARLIAMENT">Clerk of Parliament</Select.Option>
+                      <Select.Option value="SERGEANT_AT_ARMS">Sergeant-at-Arms</Select.Option>
+                      <Select.Option value="LEGAL_ADVISOR">Legal Advisors</Select.Option>
+                      <Select.Option value="HANSARD_STAFF">Hansard Staff</Select.Option>
+                      <Select.Option value="RESEARCH_OFFICER">Research Officers</Select.Option>
+                      <Select.Option value="ADMINISTRATIVE_STAFF">Administrative Staff</Select.Option>
+                      <Select.Option value="SENATOR">Senators</Select.Option>
+                      <Select.Option value="PRESIDENT_OF_SENATE">President of the Senate</Select.Option>
+                      <Select.Option value="DEPUTY_PRESIDENT_OF_SENATE">Deputy President of the Senate</Select.Option>
+                      <Select.Option value="TRADITIONAL_CHIEF_SENATOR">Traditional Chiefs (Senators)</Select.Option>
+                      <Select.Option value="DISABILITY_REPRESENTATIVE_SENATE">Disability Representatives (Senate)</Select.Option>
+                      <Select.Option value="PARLIAMENTARY_LEGAL_COMMITTEE">Parliamentary Legal Committee</Select.Option>
+                      <Select.Option value="PUBLIC_ACCOUNTS_COMMITTEE">Public Accounts Committee</Select.Option>
+                      <Select.Option value="COMMITTEE_CHAIRPERSON">Committee Chairpersons</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="position"
+                    label="Position"
+                    rules={[{ required: true, message: 'Please enter position' }]}
+                  >
+                    <Input placeholder="Enter position/title" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="department"
+                    label="Department"
+                  >
+                    <Input placeholder="Enter department" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="constituency"
+                    label="Constituency"
+                  >
+                    <Select 
+                      placeholder="Select constituency" 
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+                      }
+                      loading={constituenciesLoading}
+                      notFoundContent={constituenciesLoading ? 'Loading...' : 'No constituencies found'}
+                    >
+                      {constituencies?.map((constituency: any) => (
+                        <Select.Option key={constituency.id} value={constituency.name}>
+                          {constituency.name} ({constituency.province})
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="party"
+                    label="Political Party"
+                  >
+                    <Select placeholder="Select party" allowClear>
+                      <Select.Option value="ZANU-PF">ZANU-PF</Select.Option>
+                      <Select.Option value="MDC-T">MDC-T</Select.Option>
+                      <Select.Option value="MDC-A">MDC-A</Select.Option>
+                      <Select.Option value="CCC">Citizens Coalition for Change (CCC)</Select.Option>
+                      <Select.Option value="ZAPU">ZAPU</Select.Option>
+                      <Select.Option value="ZPF">Zimbabwe People First (ZPF)</Select.Option>
+                      <Select.Option value="Independent">Independent</Select.Option>
+                      <Select.Option value="Other">Other</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="officeLocation"
+                    label="Office Location"
+                  >
+                    <Input placeholder="Enter office location" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Vehicle Information */}
+            <Card size="small" title="Vehicle Information">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleMake"
+                    label="Vehicle Make"
+                  >
+                    <Input placeholder="e.g., Toyota, Mercedes" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleModel"
+                    label="Vehicle Model"
+                  >
+                    <Input placeholder="e.g., Prado, C-Class" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleYear"
+                    label="Year"
+                  >
+                    <InputNumber 
+                      placeholder="2020" 
+                      min={1990} 
+                      max={2030}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="vehicleRegistration"
+                    label="Registration Number"
+                  >
+                    <Input placeholder="e.g., ABC-123" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="engineSize"
+                    label="Engine Size"
+                  >
+                    <Input placeholder="e.g., 2.0L, 3.0L V6" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="fuelType"
+                    label="Fuel Type"
+                    initialValue="DIESEL"
+                  >
+                    <Select>
+                      <Select.Option value="DIESEL">Diesel</Select.Option>
+                      <Select.Option value="PETROL">Petrol</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Administrative Details */}
+            <Card size="small" title="Administrative Details">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="employeeId"
+                    label="Employee ID"
+                  >
+                    <Input placeholder="Enter employee ID" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="status"
+                    label="Status"
+                    initialValue="ACTIVE"
+                  >
+                    <Select>
+                      <Select.Option value="ACTIVE">Active</Select.Option>
+                      <Select.Option value="INACTIVE">Inactive</Select.Option>
+                      <Select.Option value="SUSPENDED">Suspended</Select.Option>
+                      <Select.Option value="PENDING_APPROVAL">Pending Approval</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="isActiveBeneficiary"
+                    label="Active Beneficiary"
+                    valuePropName="checked"
+                    initialValue={true}
+                  >
+                    <input type="checkbox" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Entitlements */}
+            <Card size="small" title="Fuel Entitlements">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="monthlyEntitlement"
+                    label="Monthly Entitlement (Litres)"
+                    rules={[{ required: true, message: 'Please enter monthly entitlement' }]}
+                  >
+                    <InputNumber
+                      placeholder="Enter monthly litres"
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="baseAllocation"
+                    label="Base Allocation"
+                  >
+                    <InputNumber
+                      placeholder="Base amount"
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="currentBalance"
+                    label="Current Balance (Litres)"
+                  >
+                    <InputNumber
+                      placeholder="Current balance"
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+          </div>
+        </Form>
+      </Modal>
     </div>
   );
 };
