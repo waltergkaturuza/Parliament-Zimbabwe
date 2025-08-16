@@ -2802,6 +2802,8 @@ class Program(TimeStampedModel):
     )
     location = models.CharField(
         max_length=200,
+        blank=True,
+        default='',
         help_text="Program venue or location"
     )
     sub_center = models.ForeignKey(
