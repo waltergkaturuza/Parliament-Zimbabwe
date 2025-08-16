@@ -1014,7 +1014,6 @@ class BoxSerializer(serializers.ModelSerializer):
         book_details = validated_data.pop('book_details', None)
         calculation_mode = validated_data.pop('calculation_mode', None)
         total_coupons = validated_data.pop('total_coupons', None)
-        
         # Update financial calculation data from frontend
         if 'monetary_value_usd' in validated_data:
             validated_data['total_value_usd'] = validated_data.pop('monetary_value_usd')
@@ -1022,25 +1021,24 @@ class BoxSerializer(serializers.ModelSerializer):
             validated_data['fuel_price_per_litre_usd'] = validated_data.pop('fuelPriceUSD')
         if 'exchange_rate' in validated_data:
             validated_data['exchange_rate_zwg_usd'] = validated_data.pop('exchange_rate')
-        
         # Update calculation mode and book details if provided
         if calculation_mode:
             validated_data['calculation_mode'] = calculation_mode
         if book_details:
             validated_data['book_details_json'] = book_details
-        
+            # Remove existing books for this box before recreating
+            instance.books.all().delete()
+            self._generate_books_for_box(instance, book_details)
         # Update status from frontend
         if 'status' in validated_data:
             status = validated_data.pop('status')
             validated_data['status'] = status
-        
         # Remove any remaining frontend-only fields
         frontend_only_fields = [
             'fuelPriceUSD', 'monetaryValueUSD'
         ]
         for field in frontend_only_fields:
             validated_data.pop(field, None)
-        
         return super().update(instance, validated_data)
 
 class BookSerializer(serializers.ModelSerializer):

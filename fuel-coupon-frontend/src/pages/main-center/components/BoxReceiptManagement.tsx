@@ -513,6 +513,7 @@ const BoxReceiptManagement: FC = () => {
         // Calculation Metadata
         calculation_mode: 'first-and-last',
         book_details: [], // This could be enhanced later with detailed book breakdown
+        booksGenerated: calculatedBooks, // or whatever array holds the generated books
       };
 
       if (selectedBox) {
