@@ -77,7 +77,7 @@ def recent_activity(request):
                 'title': alert.title,
                 'description': alert.message,
                 'time': alert.created,
-                'icon_type': 'warning' if alert.level == 'WARNING' else 'info'
+                'icon_type': 'warning' if alert.alert_type == 'WARNING' else 'info'
             })
         
         # Recent sub-center additions
