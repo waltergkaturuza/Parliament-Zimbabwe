@@ -40,9 +40,50 @@ pip install -r requirements.txt --no-cache-dir
 echo "📁 Collecting Static Files..."
 python manage.py collectstatic --noinput --clear
 
-# Database migrations
+# Database migrations with error handling
 echo "📊 Running Database Migrations..."
-python manage.py migrate --run-syncdb
+echo "  → Creating migrations first..."
+python manage.py makemigrations fuel || echo "⚠️ No new migrations created"
+
+echo "  → Running migrations..."
+python manage.py migrate --run-syncdb || {
+    echo "❌ Migration failed, attempting to fix..."
+    
+    # Try to fix missing column issues
+    python manage.py shell -c "
+    from django.db import connection, transaction
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        with connection.cursor() as cursor:
+            # Check if category_multiplier column exists
+            cursor.execute(\"\"\"
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'fuel_beneficiarycategory' 
+                AND column_name = 'category_multiplier'
+            \"\"\")
+            result = cursor.fetchone()
+            
+            if not result:
+                logger.info('Adding missing category_multiplier column...')
+                cursor.execute(\"\"\"
+                    ALTER TABLE fuel_beneficiarycategory 
+                    ADD COLUMN category_multiplier DECIMAL(5,2) DEFAULT 1.0
+                \"\"\")
+                logger.info('✅ Added category_multiplier column')
+            else:
+                logger.info('✅ category_multiplier column already exists')
+                
+    except Exception as e:
+        logger.error(f'❌ Database fix failed: {e}')
+    " || echo "❌ Manual database fix failed"
+    
+    # Try migration again
+    python manage.py migrate || echo "❌ Migrations still failing"
+}
 
 # Create superuser (if needed)
 echo "👤 Creating Admin User (if needed)..."

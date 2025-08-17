@@ -35,7 +35,7 @@ export interface CreateSessionData {
   organizer?: string; // User ID
   managing_subcenter?: string; // SubCenter ID
   program?: string | null; // Program ID
-  assigned_attendees?: (string | number)[]; // Beneficiary Profile IDs (will be converted to numbers)
+  assigned_attendees_input?: (string | number)[]; // Beneficiary Profile IDs (will be converted to numbers)
 }
 
 export class SessionService {
