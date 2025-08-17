@@ -175,7 +175,7 @@ const SystemAlertsPage: React.FC = () => {
         if (dateRange?.[1]) params.end_date = dateRange[1].format('YYYY-MM-DD');
         if (showExpired) params.show_expired = 'true';
 
-        const response = await apiClient.get('/api/system-alerts/', { params });
+        const response = await apiClient.get('/system-alerts/', { params });
         return response.data;
       } catch (error) {
         console.error('Error fetching alerts:', error);
@@ -190,7 +190,7 @@ const SystemAlertsPage: React.FC = () => {
     queryKey: ['system-alerts-stats'],
     queryFn: async () => {
       try {
-        const response = await apiClient.get('/api/system-alerts/stats/');
+        const response = await apiClient.get('/system-alerts/stats/');
         return response.data as AlertStats;
       } catch (error) {
         console.error('Error fetching alert stats:', error);
@@ -220,7 +220,7 @@ const SystemAlertsPage: React.FC = () => {
   // Mutation for creating alerts
   const createAlertMutation = useMutation({
     mutationFn: async (alertData: any) => {
-      const response = await apiClient.post('/api/system-alerts/create_system_alert/', alertData);
+      const response = await apiClient.post('/system-alerts/create_system_alert/', alertData);
       return response.data;
     },
     onSuccess: () => {
@@ -238,7 +238,7 @@ const SystemAlertsPage: React.FC = () => {
   // Mutation for updating alerts
   const updateAlertMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const response = await apiClient.put(`/api/system-alerts/${id}/`, data);
+      const response = await apiClient.put(`/system-alerts/${id}/`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -257,7 +257,7 @@ const SystemAlertsPage: React.FC = () => {
   // Action mutations
   const acknowledgeAlertMutation = useMutation({
     mutationFn: async (alertId: number) => {
-      const response = await apiClient.post(`/api/system-alerts/${alertId}/acknowledge/`);
+      const response = await apiClient.post(`/system-alerts/${alertId}/acknowledge/`);
       return response.data;
     },
     onSuccess: () => {
@@ -272,7 +272,7 @@ const SystemAlertsPage: React.FC = () => {
 
   const resolveAlertMutation = useMutation({
     mutationFn: async (alertId: number) => {
-      const response = await apiClient.post(`/api/system-alerts/${alertId}/resolve/`);
+      const response = await apiClient.post(`/system-alerts/${alertId}/resolve/`);
       return response.data;
     },
     onSuccess: () => {
@@ -287,7 +287,7 @@ const SystemAlertsPage: React.FC = () => {
 
   const dismissAlertMutation = useMutation({
     mutationFn: async (alertId: number) => {
-      const response = await apiClient.post(`/api/system-alerts/${alertId}/dismiss/`);
+      const response = await apiClient.post(`/system-alerts/${alertId}/dismiss/`);
       return response.data;
     },
     onSuccess: () => {
@@ -302,7 +302,7 @@ const SystemAlertsPage: React.FC = () => {
 
   const bulkResolveAlertsMutation = useMutation({
     mutationFn: async (alertIds: number[]) => {
-      const response = await apiClient.post('/api/system-alerts/bulk_resolve/', { alert_ids: alertIds });
+      const response = await apiClient.post('/system-alerts/bulk_resolve/', { alert_ids: alertIds });
       return response.data;
     },
     onSuccess: (data) => {

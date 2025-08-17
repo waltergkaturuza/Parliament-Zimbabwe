@@ -495,7 +495,7 @@ const BoxReceiptManagement: FC = () => {
             user = response.data;
           } catch (error2) {
             try {
-              const response = await apiClient.get('/api/auth/user/');
+              const response = await apiClient.get('/auth/user/');
               user = response.data;
             } catch (error3) {
               console.warn('Could not fetch current user from any endpoint');

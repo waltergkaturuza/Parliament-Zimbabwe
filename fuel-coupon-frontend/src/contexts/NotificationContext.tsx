@@ -113,49 +113,60 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   // Listen for real-time notifications via WebSocket (if implemented)
   useEffect(() => {
-    if ('WebSocket' in window) {
+    // Temporarily disable WebSocket connections until backend WebSocket support is confirmed
+    if (false && 'WebSocket' in window) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       // Remove /api/v1 from base URL for WebSocket connection
       const wsBaseUrl = baseUrl.replace('/api/v1', '');
       const wsUrl = wsBaseUrl.replace('http', 'ws').replace('https', 'wss') + `/ws/notifications/${userRole}/${userId}/`;
       let ws: WebSocket | null = null;
+      
       try {
         ws = new WebSocket(wsUrl);
+        
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'notification') {
+              playNotificationSound();
+              refreshStats();
+              
+              // Show toast notification
+              message.info({
+                content: `New notification: ${data.title}`,
+                duration: 5,
+              });
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse WebSocket message:', parseError);
+          }
+        };
+
+        ws.onopen = () => {
+          console.log('WebSocket connected for notifications');
+        };
+
+        ws.onclose = (event) => {
+          console.log('WebSocket disconnected:', event.code, event.reason);
+        };
+
+        ws.onerror = (error) => {
+          console.warn('WebSocket connection failed, falling back to polling:', error);
+        };
+
+        return () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
+        };
       } catch (err) {
-        console.warn('WebSocket not available yet, skipping.');
+        console.warn('WebSocket not available, using polling only:', err);
         return;
       }
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'notification') {
-          playNotificationSound();
-          refreshStats();
-          
-          // Show toast notification
-          message.info({
-            content: `New notification: ${data.title}`,
-            duration: 5,
-          });
-        }
-      };
-
-      ws.onopen = () => {
-        console.log('WebSocket connected for notifications');
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-
-      return () => {
-        if (ws) ws.close();
-      };
     }
+    
+    // WebSocket is disabled, rely on polling only
+    console.log('Using notification polling (WebSocket disabled)');
   }, [userRole, userId]);
 
   const value = {
