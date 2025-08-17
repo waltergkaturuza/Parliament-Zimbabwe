@@ -4594,11 +4594,11 @@ def fuel_statistics(request):
             
             # Calculate fuel volumes
             total_fuel_allocated = Coupon.objects.aggregate(
-                total=Sum('fuel_volume')
+                total=Sum('litres')
             )['total'] or 0
             
             used_fuel_volume = Coupon.objects.filter(status='USED').aggregate(
-                total=Sum('fuel_volume')
+                total=Sum('litres')
             )['total'] or 0
             
             available_fuel = total_fuel_allocated - used_fuel_volume
