@@ -645,23 +645,25 @@ class BoxSerializer(serializers.ModelSerializer):
     # Date and Time Fields (frontend sends separate fields)
     receivedDate = serializers.DateField(source='received_date', required=False, allow_null=True)
     receivedTime = serializers.TimeField(source='received_time', required=False, allow_null=True)
-    receivedBy = serializers.CharField(source='received_by.get_full_name', read_only=True)
+    # Use method field to safely handle null received_by in prod
+    receivedBy = serializers.SerializerMethodField(read_only=True)
     
     # Fuel and Structure Information
     fuelType = serializers.CharField(source='fuel_type', required=False)
     couponAmount = serializers.IntegerField(source='denomination', required=False)
     
     # Financial Information (USD)
-    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=6, decimal_places=4, required=False)
-    fuelPricePerLitreUsd = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=6, decimal_places=4, required=False)
-    fuelPriceUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=6, decimal_places=4, required=False, write_only=True)
-    totalValueUsd = serializers.DecimalField(source='total_value_usd', max_digits=10, decimal_places=2, required=False)
+    # Align serializer precision with model fields to avoid serialization errors in prod
+    fuelPricePerLitreUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=4, required=False)
+    fuelPricePerLitreUsd = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=4, required=False)
+    fuelPriceUSD = serializers.DecimalField(source='fuel_price_per_litre_usd', max_digits=8, decimal_places=4, required=False, write_only=True)
+    totalValueUsd = serializers.DecimalField(source='total_value_usd', max_digits=12, decimal_places=2, required=False)
     exchangeRate = serializers.DecimalField(source='exchange_rate_zwg_usd', max_digits=8, decimal_places=4, required=False)
     exchangeRateZwgUsd = serializers.DecimalField(source='exchange_rate_zwg_usd', max_digits=8, decimal_places=4, required=False)
     
     # Financial Information (ZWG) - Legacy support
     fuelPricePerLitre = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, write_only=True)
-    monetaryValueUSD = serializers.DecimalField(source='total_value_usd', max_digits=10, decimal_places=2, required=False)
+    monetaryValueUSD = serializers.DecimalField(source='total_value_usd', max_digits=12, decimal_places=2, required=False)
     
     # Coupon Serial Numbers
     firstCouponId = serializers.CharField(source='first_coupon_number', required=False, allow_blank=True)
@@ -718,14 +720,18 @@ class BoxSerializer(serializers.ModelSerializer):
     # QR Code and other metadata
     qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
     damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
-    # QR Code and other metadata
-    qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
-    damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
 
     coupon_range = serializers.SerializerMethodField()
 
     def get_coupon_range(self, obj):
         return f"{obj.first_coupon_number} {obj.last_coupon_number}"
+
+    def get_receivedBy(self, obj):
+        """Safely return the full name of the receiver or empty string."""
+        try:
+            return obj.received_by.get_full_name() if getattr(obj, 'received_by', None) else ""
+        except Exception:
+            return ""
 
     def validate(self, data):
         # If coupon_range is present, use it to set first and last coupon numbers
