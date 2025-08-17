@@ -2294,9 +2294,9 @@ const BoxReceiptManagement: FC = () => {
           {currentStep === 2 && (
             <>
               <div style={{ marginBottom: 24 }}>
-                <Title level={4}>💰 Final Calculation</Title>
+                <Title level={4}>🤖 Intelligent Book Configuration</Title>
                 <Text type="secondary">
-                  Enter coupon details and the system will auto-calculate the last coupon number and monetary values.
+                  Choose your preferred calculation method. The system will automatically generate all book details.
                 </Text>
               </div>
 
