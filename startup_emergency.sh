@@ -1,23 +1,39 @@
 #!/bin/bash
-
-# Emergency Azure Startup - Ultra Minimal
-echo "🚨 EMERGENCY STARTUP - Parliament Fuel System"
-
-# Set basic environment
-export DJANGO_SETTINGS_MODULE="config.settings.production"
-export PYTHONPATH="/home/site/wwwroot"
-export PORT=${PORT:-8000}
-
-# Navigate to app
+# Emergency startup for Azure debugging
+echo "=== EMERGENCY STARTUP DEBUG ==="
 cd /home/site/wwwroot
 
-echo "📍 Current directory: $(pwd)"
-echo "📁 Files present:"
-ls -la
+# Basic environment check
+echo "Current directory: $(pwd)"
+echo "Files present: $(ls -la | head -5)"
 
-# Check Python and Django
-echo "🐍 Python version: $(python --version)"
-echo "📦 Django check:"
+# Python basic check
+echo "Python path: $(which python)"
+python --version
+
+# Set minimal environment
+export DJANGO_SETTINGS_MODULE=config.settings_minimal
+export PYTHONPATH="/home/site/wwwroot:$PYTHONPATH"
+
+# Try basic Django import
+echo "Testing Django..."
+python -c "
+try:
+    import django
+    print('✅ Django import OK')
+    print(f'Django version: {django.get_version()}')
+except Exception as e:
+    print(f'❌ Django import failed: {e}')
+    exit(1)
+"
+
+# Install absolutely minimal requirements
+echo "Installing minimal deps..."
+pip install django djangorestframework gunicorn --quiet
+
+# Start with simplest possible server
+echo "Starting minimal server..."
+python manage.py runserver 0.0.0.0:8000 --settings=config.settings_minimal
 python -c "import django; print(f'Django version: {django.get_version()}')" || echo "❌ Django import failed"
 
 # Install requirements with error handling
