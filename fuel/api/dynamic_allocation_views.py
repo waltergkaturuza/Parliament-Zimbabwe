@@ -10,8 +10,8 @@ RESTful API endpoints for the Dynamic Fuel Allocation System providing:
 Designed for TypeScript frontend integration with comprehensive data structures.
 """
 
-from rest_framework import status, generics, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import status, generics, permissions, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -39,10 +39,10 @@ from ..serializers import (
 logger = logging.getLogger(__name__)
 
 
-class FuelAllocationRuleViewSet(generics.ListCreateAPIView):
+class FuelAllocationRuleViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing fuel allocation rules.
-    Supports CRUD operations and rule validation.
+    Supports full CRUD operations and rule validation.
     """
     queryset = FuelAllocationRule.objects.all()
     serializer_class = FuelAllocationRuleSerializer
@@ -76,12 +76,23 @@ class FuelAllocationRuleViewSet(generics.ListCreateAPIView):
                 pass
         
         return queryset.order_by('priority', 'rule_name')
+    
+    @action(detail=False, methods=['get'])
+    def applicable(self, request):
+        """Get applicable rules for a beneficiary"""
+        beneficiary_id = request.query_params.get('beneficiary_id')
+        if beneficiary_id:
+            # Custom logic for getting applicable rules
+            rules = self.get_queryset().filter(is_active=True)
+            serializer = self.get_serializer(rules, many=True)
+            return Response(serializer.data)
+        return Response(self.get_queryset().filter(is_active=True), many=True)
 
 
-class FuelPriceViewSet(generics.ListCreateAPIView):
+class FuelPriceViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing fuel prices.
-    Supports price history and current price retrieval.
+    Supports full CRUD operations, price history and current price retrieval.
     """
     queryset = FuelPrice.objects.all()
     serializer_class = FuelPriceSerializer
@@ -98,6 +109,43 @@ class FuelPriceViewSet(generics.ListCreateAPIView):
         
         # Filter by active status
         is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        return queryset.order_by('-effective_date')
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """Get current effective fuel price"""
+        fuel_type = request.query_params.get('fuel_type', 'DIESEL')
+        date_param = request.query_params.get('date')
+        
+        if date_param:
+            try:
+                target_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            target_date = timezone.now().date()
+        
+        fuel_price = FuelPrice.get_current_price(fuel_type=fuel_type, date=target_date)
+        
+        if not fuel_price:
+            return Response(
+                {'error': f'No fuel price found for {fuel_type} on {target_date}'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        return Response({
+            'fuel_price': FuelPriceSerializer(fuel_price).data,
+            'query': {
+                'fuel_type': fuel_type,
+                'date': target_date.isoformat()
+            }
+        })
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         
