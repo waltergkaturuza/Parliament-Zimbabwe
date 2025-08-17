@@ -4130,15 +4130,18 @@ def analytics_consumption_trend(request):
         days = int(request.GET.get('days', 30))
         start_date = timezone.now() - timedelta(days=days)
         
-        # Get daily consumption data
-        daily_consumption = FuelTransaction.objects.filter(
+        # Get daily consumption data (use TruncDate instead of deprecated .extra)
+        daily_qs = FuelTransaction.objects.filter(
             timestamp__gte=start_date
-        ).extra(
-            select={'day': 'date(timestamp)'}
+        ).annotate(
+            day=TruncDate('timestamp')
         ).values('day').annotate(
             total_liters=Sum('litres_consumed'),
             transaction_count=Count('id')
         ).order_by('day')
+
+        # Materialize to safely compute additional metrics in Python
+        daily_consumption = list(daily_qs)
         
         # Format data for frontend charts
         consumption_data = []
@@ -4156,14 +4159,16 @@ def analytics_consumption_trend(request):
             })
         
         # Calculate trend indicators
-        recent_week = daily_consumption.filter(day__gte=timezone.now().date() - timedelta(days=7))
-        previous_week = daily_consumption.filter(
-            day__gte=timezone.now().date() - timedelta(days=14),
-            day__lt=timezone.now().date() - timedelta(days=7)
-        )
-        
-        recent_avg = recent_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
-        previous_avg = previous_week.aggregate(avg=Avg('total_liters'))['avg'] or 0
+        today = timezone.now().date()
+        cutoff_recent = today - timedelta(days=7)
+        cutoff_previous_start = today - timedelta(days=14)
+
+        recent_values = [item['total_liters'] or 0 for item in daily_consumption if item['day'] and item['day'] >= cutoff_recent]
+        previous_values = [item['total_liters'] or 0 for item in daily_consumption if item['day'] and cutoff_previous_start <= item['day'] < cutoff_recent]
+
+        # Avoid division by zero when calculating averages
+        recent_avg = (sum(recent_values) / len(recent_values)) if recent_values else 0
+        previous_avg = (sum(previous_values) / len(previous_values)) if previous_values else 0
         
         trend_percentage = ((recent_avg - previous_avg) / previous_avg * 100) if previous_avg > 0 else 0
         
@@ -5033,8 +5038,8 @@ class CouponDistributionViewSet(viewsets.ModelViewSet):
         total_distributions = queryset.count()
         
         # Group by date
-        daily_distributions = queryset.extra(
-            select={'date': 'date(distribution_date)'}
+        daily_distributions = queryset.annotate(
+            date=TruncDate('distribution_date')
         ).values('date').annotate(count=models.Count('id')).order_by('-date')[:30]
         
         # Group by beneficiary

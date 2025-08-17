@@ -661,17 +661,16 @@ class AllocationAnalytics:
             avg_litres=Avg('total_allocation_litres')
         )
         
-        # Get breakdown by engine bands
-        engine_breakdown = allocations.extra(
-            select={
-                'engine_band': """
-                CASE 
-                    WHEN engine_capacity_cc < 2800 THEN 'Under 2800cc'
-                    WHEN engine_capacity_cc BETWEEN 2800 AND 3199 THEN '2800-3199cc'
-                    ELSE '3200cc and above'
-                END
-                """
-            }
+        # Get breakdown by engine bands (avoid deprecated .extra)
+        from django.db.models import Case, When, Value, CharField
+        engine_band_expr = Case(
+            When(engine_capacity_cc__lt=2800, then=Value('Under 2800cc')),
+            When(engine_capacity_cc__gte=2800, engine_capacity_cc__lte=3199, then=Value('2800-3199cc')),
+            default=Value('3200cc and above'),
+            output_field=CharField()
+        )
+        engine_breakdown = allocations.annotate(
+            engine_band=engine_band_expr
         ).values('engine_band').annotate(
             count=Count('id'),
             total_litres=Sum('total_allocation_litres'),

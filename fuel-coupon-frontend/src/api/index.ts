@@ -108,7 +108,8 @@ apiClient.interceptors.response.use(
 // Health check utility for backend connectivity (can be used in all pages)
 export async function checkBackendHealth() {
   try {
-    const resp = await apiClient.get('/health/');
+  // Backend exposes health under /home/health/
+  const resp = await apiClient.get('/home/health/');
     return resp.data;
   } catch (err) {
     console.error('Backend health check failed:', err);

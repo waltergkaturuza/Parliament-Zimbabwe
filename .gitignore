@@ -62,6 +62,17 @@ Thumbs.db
 *.log
 logs/
 
+# Extracted/archived logs and artifacts
+_extracted_logs/
+app-logs/
+app_logs/
+backend-logs/
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
 # Node modules (for frontend)
 fuel-coupon-frontend/node_modules/
 fuel-coupon-frontend/dist/
