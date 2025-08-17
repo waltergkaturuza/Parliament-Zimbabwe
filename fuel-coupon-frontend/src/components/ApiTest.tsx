@@ -1,7 +1,7 @@
 // src/components/ApiTest.tsx
 import { useState } from 'react';
 import { Button, Card, Typography, Space, Input } from 'antd';
-import axios from 'axios';
+import apiClient from '@/api';
 
 const { Title, Text } = Typography;
 
@@ -14,57 +14,37 @@ const ApiTest = () => {
     setResponse('');
     
     try {
-      console.log('Making direct API call...');
+      console.log('Making API call with apiClient...');
       
-  const result = await fetch('/api/v1/auth/login/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: 'superuser',
-          password: 'admin123'
-        })
+      const result = await apiClient.post('/auth/login/', {
+        username: 'superuser',
+        password: 'admin123'
       });
       
-      console.log('Fetch result:', result);
-      
-      if (result.ok) {
-        const data = await result.json();
-        setResponse(`SUCCESS: ${JSON.stringify(data, null, 2)}`);
-      } else {
-        const errorData = await result.text();
-        setResponse(`ERROR (${result.status}): ${errorData}`);
-      }
-    } catch (error) {
-      console.error('Fetch error:', error);
-      setResponse(`FETCH ERROR: ${error}`);
+      console.log('API result:', result);
+      setResponse(`SUCCESS: ${JSON.stringify(result.data, null, 2)}`);
+    } catch (error: any) {
+      console.error('API error:', error);
+      setResponse(`API ERROR: ${error.message} - Status: ${error.response?.status}`);
     }
     
     setLoading(false);
   };
 
-  const testAxiosCall = async () => {
+  const testAlternativeCall = async () => {
     setLoading(true);
     setResponse('');
     
     try {
-      console.log('Making axios API call...');
+      console.log('Making alternative API call...');
       
-  const result = await axios.post('/api/v1/auth/login/', {
-        username: 'superuser',
-        password: 'admin123'
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      const result = await apiClient.get('/users/');
       
-      console.log('Axios result:', result);
+      console.log('Alternative result:', result);
       setResponse(`SUCCESS: ${JSON.stringify(result.data, null, 2)}`);
     } catch (error: any) {
-      console.error('Axios error:', error);
-      setResponse(`AXIOS ERROR: ${error.message} - Status: ${error.response?.status}`);
+      console.error('Alternative error:', error);
+      setResponse(`ALTERNATIVE ERROR: ${error.message} - Status: ${error.response?.status}`);
     }
     
     setLoading(false);
@@ -76,19 +56,19 @@ const ApiTest = () => {
         <Title level={4}>Test Login API</Title>
         
         <Space>
-          <Button 
-            type="primary" 
-            onClick={testDirectAPICall} 
+          <Button
+            type="primary"
+            onClick={testDirectAPICall}
             loading={loading}
           >
-            Test with Fetch
+            Test Login API
           </Button>
           
-          <Button 
-            onClick={testAxiosCall} 
+          <Button
+            onClick={testAlternativeCall}
             loading={loading}
           >
-            Test with Axios
+            Test Users API
           </Button>
         </Space>
         

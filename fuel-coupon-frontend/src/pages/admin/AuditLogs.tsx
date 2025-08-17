@@ -100,7 +100,7 @@ const AuditLogs: FC = () => {
   const loadFilterOptions = async () => {
     try {
       // Load users for filtering
-      const usersResponse = await apiClient.get('/api/v1/users/', {
+      const usersResponse = await apiClient.get('/users/', {
         params: { page_size: 100 }
       });
       const users = usersResponse.data.results || usersResponse.data || [];

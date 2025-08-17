@@ -221,7 +221,7 @@ const BookDispatchManagementEnhanced: FC = () => {
   const loadDispatches = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/dispatches/');
+      const response = await apiClient.get('/dispatches/');
       setDispatches(response.data.results || response.data);
     } catch (error) {
       message.error('Failed to load dispatches');
@@ -233,7 +233,7 @@ const BookDispatchManagementEnhanced: FC = () => {
 
   const loadAvailableBooks = async () => {
     try {
-      const response = await apiClient.get('/api/v1/books/available-for-dispatch/');
+      const response = await apiClient.get('/books/available-for-dispatch/');
       setAvailableBooks(response.data.results || response.data);
     } catch (error) {
       message.error('Failed to load available books');
@@ -243,7 +243,7 @@ const BookDispatchManagementEnhanced: FC = () => {
 
   const loadSubcenters = async () => {
     try {
-      const response = await apiClient.get('/api/v1/subcenters/');
+      const response = await apiClient.get('/subcenters/');
       setSubcenters(response.data.results || response.data);
     } catch (error) {
       message.error('Failed to load subcenters');
@@ -304,7 +304,7 @@ const BookDispatchManagementEnhanced: FC = () => {
     try {
       setLoading(true);
       
-      let endpoint = '/api/v1/dispatches/generate-coupons/';
+      let endpoint = '/dispatches/generate-coupons/';
       let payload: any = {
         mode: config.mode
       };
@@ -480,7 +480,7 @@ const BookDispatchManagementEnhanced: FC = () => {
         verifiedAt: dayjs().toISOString()
       };
 
-      const response = await apiClient.post('/api/v1/dispatches/', dispatchData);
+      const response = await apiClient.post('/dispatches/', dispatchData);
       
       setDispatches(prev => [response.data, ...prev]);
       setIsModalVisible(false);

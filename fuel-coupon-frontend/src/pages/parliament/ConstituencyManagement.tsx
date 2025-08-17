@@ -31,6 +31,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
+import apiClient from '@/api';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -76,52 +77,24 @@ const ZIMBABWE_PROVINCES = {
 // API Service
 const ConstituencyService = {
   async getConstituencies(): Promise<Constituency[]> {
-    const response = await fetch('/api/v1/constituencies/?page_size=100', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!response.ok) throw new Error('Failed to fetch constituencies');
-    const data = await response.json();
+    const response = await apiClient.get('/constituencies/?page_size=100');
+    const data = response.data;
     // Handle both paginated response and direct array
     return Array.isArray(data) ? data : (data.results || []);
   },
 
   async createConstituency(data: ConstituencyFormData): Promise<Constituency> {
-    const response = await fetch('/api/v1/constituencies/', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to create constituency');
-    return response.json();
+    const response = await apiClient.post('/constituencies/', data);
+    return response.data;
   },
 
   async updateConstituency(id: number, data: Partial<ConstituencyFormData>): Promise<Constituency> {
-    const response = await fetch(`/api/v1/constituencies/${id}/`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to update constituency');
-    return response.json();
+    const response = await apiClient.patch(`/constituencies/${id}/`, data);
+    return response.data;
   },
 
   async deleteConstituency(id: number): Promise<void> {
-    const response = await fetch(`/api/v1/constituencies/${id}/`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-      },
-    });
-    if (!response.ok) throw new Error('Failed to delete constituency');
+    await apiClient.delete(`/constituencies/${id}/`);
   },
 };
 

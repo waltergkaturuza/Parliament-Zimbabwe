@@ -62,6 +62,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import BeneficiaryService from '@/api/beneficiaries';
+import apiClient from '@/api';
 
 const { Search } = Input;
 const { Title, Text } = Typography;
@@ -144,14 +145,8 @@ const BeneficiaryManagement = () => {
   const { data: constituenciesData, isLoading: constituenciesLoading } = useQuery({
     queryKey: ['constituencies'],
     queryFn: async () => {
-      const response = await fetch('/api/v1/constituencies/?page_size=100', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch constituencies');
-      const data = await response.json();
+      const response = await apiClient.get('/constituencies/?page_size=100');
+      const data = response.data;
       // Handle both paginated response and direct array
       return Array.isArray(data) ? data : (data.results || []);
     },
