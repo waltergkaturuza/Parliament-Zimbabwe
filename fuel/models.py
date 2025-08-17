@@ -791,15 +791,15 @@ class Box(ArchivableModel):
         
         # Validate coupon serial format (should be Petrotrade format)
         if self.first_coupon_number:
-            if not re.match(r'^PU\d{2}[A-Z]{2}\d{6}$', self.first_coupon_number):
+            if not re.match(r'^.+\d{6,}$', self.first_coupon_number):
                 raise ValidationError({
-                    'first_coupon_number': 'Invalid format. Should be like PU06GH355101'
+                    'first_coupon_number': 'Invalid format. Should end with at least 6 digits.'
                 })
         
         if self.last_coupon_number:
-            if not re.match(r'^PU\d{2}[A-Z]{2}\d{6}$', self.last_coupon_number):
+            if not re.match(r'^.+\d{6,}$', self.last_coupon_number):
                 raise ValidationError({
-                    'last_coupon_number': 'Invalid format. Should be like PU06GH355200'
+                    'last_coupon_number': 'Invalid format. Should end with at least 6 digits.'
                 })
         
         # Validate coupon number sequence
@@ -883,15 +883,29 @@ class Box(ArchivableModel):
             if self.book_details_json and isinstance(self.book_details_json, list):
                 # Use detailed book information from frontend
                 for book_detail in self.book_details_json:
-                    Book.objects.get_or_create(
-                        box=self,
-                        book_number=book_detail.get('book_number', book_detail.get('book_id', '')),
-                        defaults={
-                            'first_coupon_number': book_detail.get('first_coupon_id', ''),
-                            'last_coupon_number': book_detail.get('last_coupon_id', ''),
-                            'initial_coupon_count': book_detail.get('number_of_coupons', self.coupons_per_book)
-                        }
-                    )
+                    book_number = book_detail.get('book_number', book_detail.get('bookId', book_detail.get('book_id', '')))
+                    
+                    # Generate unique book_code to avoid conflicts
+                    book_code = f"{self.box_code}-BOOK-{book_number}"
+                    
+                    # Check if book already exists with this code
+                    existing_book = Book.objects.filter(book_code=book_code).first()
+                    if existing_book:
+                        # Update existing book instead of creating new one
+                        existing_book.first_coupon_number = book_detail.get('firstCouponId', book_detail.get('first_coupon_id', ''))
+                        existing_book.last_coupon_number = book_detail.get('lastCouponId', book_detail.get('last_coupon_id', ''))
+                        existing_book.initial_coupon_count = book_detail.get('numberOfCoupons', book_detail.get('number_of_coupons', self.coupons_per_book))
+                        existing_book.save()
+                    else:
+                        # Create new book
+                        Book.objects.create(
+                            box=self,
+                            book_number=book_number,
+                            book_code=book_code,
+                            first_coupon_number=book_detail.get('firstCouponId', book_detail.get('first_coupon_id', '')),
+                            last_coupon_number=book_detail.get('lastCouponId', book_detail.get('last_coupon_id', '')),
+                            initial_coupon_count=book_detail.get('numberOfCoupons', book_detail.get('number_of_coupons', self.coupons_per_book))
+                        )
             else:
                 # Generate books automatically based on sequential numbering
                 self._generate_sequential_books()
@@ -917,15 +931,27 @@ class Box(ArchivableModel):
             start_coupon = first_num + (book_num - 1) * coupons_per_book
             end_coupon = start_coupon + coupons_per_book - 1
             
-            Book.objects.get_or_create(
-                box=self,
-                book_number=f"Book {book_num}",
-                defaults={
-                    'first_coupon_number': f"{prefix}{start_coupon:06d}",
-                    'last_coupon_number': f"{prefix}{end_coupon:06d}",
-                    'initial_coupon_count': coupons_per_book
-                }
-            )
+            book_number = f"Book {book_num}"
+            book_code = f"{self.box_code}-BOOK-{book_number}"
+            
+            # Check if book already exists with this code
+            existing_book = Book.objects.filter(book_code=book_code).first()
+            if existing_book:
+                # Update existing book instead of creating new one
+                existing_book.first_coupon_number = f"{prefix}{start_coupon:06d}"
+                existing_book.last_coupon_number = f"{prefix}{end_coupon:06d}"
+                existing_book.initial_coupon_count = coupons_per_book
+                existing_book.save()
+            else:
+                # Create new book
+                Book.objects.create(
+                    box=self,
+                    book_number=book_number,
+                    book_code=book_code,
+                    first_coupon_number=f"{prefix}{start_coupon:06d}",
+                    last_coupon_number=f"{prefix}{end_coupon:06d}",
+                    initial_coupon_count=coupons_per_book
+                )
 
     @property
     def total_coupons(self):

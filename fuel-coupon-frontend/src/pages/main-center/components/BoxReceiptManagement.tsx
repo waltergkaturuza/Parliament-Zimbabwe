@@ -1,6 +1,7 @@
 // src/pages/main-center/components/BoxReceiptManagement.tsx
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '@/api/index';
 import {
   Card,
@@ -133,14 +134,39 @@ interface SmartCalculationMode {
   description: string;
 }
 
+// Add this helper function back near the columns definition
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'PENDING': return 'orange';
+    case 'RECEIVED': return 'blue';
+    case 'VERIFIED': return 'green';
+    case 'DISPATCHED': return 'purple';
+    case 'DAMAGED': return 'red';
+    case 'ARCHIVED': return 'grey';
+    default: return 'default';
+  }
+};
+
+// Add this helper function back near the columns definition
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'PENDING': return <ClockCircleOutlined />;
+    case 'RECEIVED': return <InboxOutlined />;
+    case 'VERIFIED': return <CheckOutlined />;
+    case 'DISPATCHED': return <SendOutlined />;
+    case 'DAMAGED': return <AlertOutlined />;
+    case 'ARCHIVED': return <FolderOutlined />;
+    default: return null;
+  }
+};
+
 const BoxReceiptManagement: FC = () => {
+  const navigate = useNavigate();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
-  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [selectedBox, setSelectedBox] = useState<BoxReceipt | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm();
-  const [verifyForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [boxReceipts, setBoxReceipts] = useState<BoxReceipt[]>([]);
   const [nextBoxNumber, setNextBoxNumber] = useState(() => {
@@ -148,8 +174,6 @@ const BoxReceiptManagement: FC = () => {
     const year = new Date().getFullYear();
     return `FCB-${year}-0001`;
   });
-  const [calculatedBooks, setCalculatedBooks] = useState<BookInfo[]>([]);
-  const [calculationMode, setCalculationMode] = useState<SmartCalculationMode['mode']>('first-and-count');
   const [activeTab, setActiveTab] = useState<'receipts' | 'verification' | 'inventory'>('receipts');
   
   // Archive-related state
@@ -157,17 +181,12 @@ const BoxReceiptManagement: FC = () => {
   const [archiveModalVisible, setArchiveModalVisible] = useState(false);
   const [archiveForm] = Form.useForm();
   
-  // Verification state
-  const [verificationChecklist, setVerificationChecklist] = useState<string[]>([]);
-  const [allVerificationSelected, setAllVerificationSelected] = useState(false);
-  
-  // Book verification state
-  const [verifiedBooks, setVerifiedBooks] = useState<number[]>([]);
-  const [allBooksSelected, setAllBooksSelected] = useState(false);
-  
   // Print/Download state
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [selectedBoxForPrint, setSelectedBoxForPrint] = useState<BoxReceipt | null>(null);
+  
+  // Book state (needed for calculations)
+  const [verifiedBooks, setVerifiedBooks] = useState<number[]>([]);
 
   // Fetch data on component mount
   useEffect(() => {
@@ -287,44 +306,214 @@ const BoxReceiptManagement: FC = () => {
     }
   };
 
-  // Auto-calculate coupon IDs and book information
-  const calculateCouponRange = (fuelType: string, couponAmount: number, totalCoupons: number) => {
-    // Use the Parliament coupon numbering format from the image
-    // Get the last coupon number from existing boxes
-    const existingBoxes = boxReceipts.filter(box => 
-      box.fuelType === fuelType && box.couponAmount === couponAmount
-    );
-    
-    let lastCouponNumber = 355100; // Starting from the range shown in the image
-    if (existingBoxes.length > 0) {
-      const lastBox = existingBoxes
-        .sort((a, b) => b.lastCouponId.localeCompare(a.lastCouponId))[0];
-      
-      const match = lastBox.lastCouponId.match(/(\d+)$/);
-      if (match) {
-        lastCouponNumber = parseInt(match[1]);
+  // Coupon format validation regex: [AA–ZZ][000–999][AA–ZZ][000000–999999]
+  const COUPON_FORMAT_REGEX = /^[A-Z]{2}[0-9]{3}[A-Z]{2}[0-9]{6}$/;
+
+  // Validate coupon format
+  const validateCouponFormat = (couponId: string): boolean => {
+    return COUPON_FORMAT_REGEX.test(couponId);
+  };
+
+  // Increment coupon code using odometer-style logic
+  const incrementCoupon = (code: string): string => {
+    if (!validateCouponFormat(code)) {
+      throw new Error('Invalid coupon format');
+    }
+
+    // Split the code into components
+    const prefixLetters = code.substring(0, 2);       // First 2 letters (AA–ZZ)
+    const prefixNumber = parseInt(code.substring(2, 5)); // 3-digit number (000–999)
+    const seriesLetters = code.substring(5, 7);       // Second 2 letters (AA–ZZ)
+    const numericPart = parseInt(code.substring(7));  // Last 6-digit number (000000–999999)
+
+    // Increment numeric part (last 6 digits)
+    let newNumericPart = numericPart + 1;
+    let newSeriesLetters = seriesLetters;
+    let newPrefixNumber = prefixNumber;
+    let newPrefixLetters = prefixLetters;
+
+    if (newNumericPart > 999999) {
+      newNumericPart = 0;
+      // Increment second letter pair
+      newSeriesLetters = incrementLetters(seriesLetters);
+      if (newSeriesLetters === "AA") { // rolled over
+        // Increment 3-digit number
+        newPrefixNumber += 1;
+        if (newPrefixNumber > 999) {
+          newPrefixNumber = 0;
+          // Increment first letter pair
+          newPrefixLetters = incrementLetters(prefixLetters);
+        }
       }
     }
 
-    // Use the actual format from the coupon image: PU00GH355xxx
-    const prefix = 'PU00GH';
-    
-    const firstCouponNumber = lastCouponNumber + 1;
-    const lastCouponNumberCalculated = firstCouponNumber + totalCoupons - 1;
-    
-    const firstCouponId = `${prefix}${firstCouponNumber.toString().padStart(6, '0')}`;
-    const lastCouponId = `${prefix}${lastCouponNumberCalculated.toString().padStart(6, '0')}`;
-    
-    return {
-      firstCouponId,
-      lastCouponId,
-    };
+    // Rebuild the code with proper zero-padding
+    return `${newPrefixLetters}${newPrefixNumber.toString().padStart(3, '0')}${newSeriesLetters}${newNumericPart.toString().padStart(6, '0')}`;
+  };
+
+  // Increment a 2-letter uppercase code (AA–ZZ)
+  const incrementLetters = (pair: string): string => {
+    const first = pair[0];
+    const second = pair[1];
+
+    // Convert to numeric 0–25
+    let f = first.charCodeAt(0) - 'A'.charCodeAt(0);
+    let s = second.charCodeAt(0) - 'A'.charCodeAt(0);
+
+    // Increment like base-26
+    s += 1;
+    if (s > 25) {
+      s = 0;
+      f += 1;
+      if (f > 25) {
+        f = 0; // rollover from ZZ → AA
+      }
+    }
+
+    return String.fromCharCode(f + 'A'.charCodeAt(0)) + String.fromCharCode(s + 'A'.charCodeAt(0));
+  };
+
+  // Calculate last coupon ID from first coupon ID using proper increment logic
+  const calculateLastCouponFromFirst = (firstCouponId: string, totalCoupons: number): string => {
+    if (!validateCouponFormat(firstCouponId)) {
+      throw new Error('Invalid first coupon format');
+    }
+
+    let currentCoupon = firstCouponId;
+    for (let i = 1; i < totalCoupons; i++) {
+      currentCoupon = incrementCoupon(currentCoupon);
+    }
+    return currentCoupon;
+  };
+
+  // Auto-calculate coupon IDs and book information with conflict detection
+  const calculateCouponRange = async (fuelType: string, couponAmount: number, totalCoupons: number) => {
+    try {
+      // Fetch the latest coupon ranges from the server to avoid conflicts
+      const response = await apiClient.get('/boxes/', {
+        params: {
+          ordering: '-first_coupon_number',
+          limit: 50 // Get more boxes to ensure we find the highest number
+        }
+      });
+      
+      const serverBoxes = response.data.results || response.data || [];
+      
+      // Find the highest existing coupon using proper format comparison
+      let highestCoupon = 'AA000AA000000'; // Start from the lowest possible coupon
+      
+      serverBoxes.forEach((box: any) => {
+        if (box.last_coupon_number && validateCouponFormat(box.last_coupon_number)) {
+          if (compareCoupons(box.last_coupon_number, highestCoupon) > 0) {
+            highestCoupon = box.last_coupon_number;
+          }
+        }
+        if (box.first_coupon_number && validateCouponFormat(box.first_coupon_number)) {
+          if (compareCoupons(box.first_coupon_number, highestCoupon) > 0) {
+            highestCoupon = box.first_coupon_number;
+          }
+        }
+      });
+
+      // Generate next coupon range
+      const firstCouponId = incrementCoupon(highestCoupon);
+      const lastCouponId = calculateLastCouponFromFirst(firstCouponId, totalCoupons);
+      
+      return {
+        firstCouponId,
+        lastCouponId,
+      };
+    } catch (error) {
+      console.error('Error calculating coupon range:', error);
+      // Fallback to a safe starting range
+      const firstCouponId = 'PU018TY000001';
+      const lastCouponId = calculateLastCouponFromFirst(firstCouponId, totalCoupons);
+      
+      return {
+        firstCouponId,
+        lastCouponId,
+      };
+    }
+  };
+
+  // Compare two coupon codes to determine which is higher
+  const compareCoupons = (coupon1: string, coupon2: string): number => {
+    if (!validateCouponFormat(coupon1) || !validateCouponFormat(coupon2)) {
+      return 0;
+    }
+
+    // Compare each component in order of significance
+    const c1_prefix1 = coupon1.substring(0, 2);
+    const c1_number = coupon1.substring(2, 5);
+    const c1_prefix2 = coupon1.substring(5, 7);
+    const c1_numeric = coupon1.substring(7);
+
+    const c2_prefix1 = coupon2.substring(0, 2);
+    const c2_number = coupon2.substring(2, 5);
+    const c2_prefix2 = coupon2.substring(5, 7);
+    const c2_numeric = coupon2.substring(7);
+
+    // Compare first letter pair
+    if (c1_prefix1 !== c2_prefix1) {
+      return c1_prefix1.localeCompare(c2_prefix1);
+    }
+
+    // Compare 3-digit number
+    if (c1_number !== c2_number) {
+      return parseInt(c1_number) - parseInt(c2_number);
+    }
+
+    // Compare second letter pair
+    if (c1_prefix2 !== c2_prefix2) {
+      return c1_prefix2.localeCompare(c2_prefix2);
+    }
+
+    // Compare 6-digit numeric part
+    return parseInt(c1_numeric) - parseInt(c2_numeric);
   };
 
   // Calculate monetary value based on fuel price and total litres
   const calculateMonetaryValue = (totalLitres: number, pricePerLitre: number) => {
     return totalLitres * pricePerLitre;
   };
+
+  // Store current user data
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Fetch current user on component mount
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        // Try multiple API endpoints to get current user
+        let user = null;
+        try {
+          const response = await apiClient.get('/auth/user/');
+          user = response.data;
+        } catch (error) {
+          try {
+            const response = await apiClient.get('/users/me/');
+            user = response.data;
+          } catch (error2) {
+            try {
+              const response = await apiClient.get('/api/auth/user/');
+              user = response.data;
+            } catch (error3) {
+              console.warn('Could not fetch current user from any endpoint');
+            }
+          }
+        }
+        
+        if (user) {
+          console.log('Current user fetched:', user);
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        console.warn('Error fetching current user:', error);
+      }
+    };
+    
+    fetchCurrentUser();
+  }, []);
 
   // Form handlers
   const handleAddBox = async () => {
@@ -333,46 +522,20 @@ const BoxReceiptManagement: FC = () => {
     form.resetFields();
     const newBoxNumber = await generateNextBoxNumber();
     
-    // Auto-fill received by with current user's full name
-    try {
-      // Try multiple API endpoints to get current user
-      let user = null;
-      try {
-        const response = await apiClient.get('/auth/user/');
-        user = response.data;
-      } catch (error) {
-        try {
-          const response = await apiClient.get('/users/me/');
-          user = response.data;
-        } catch (error2) {
-          try {
-            const response = await apiClient.get('/api/auth/user/');
-            user = response.data;
-          } catch (error3) {
-            console.warn('Could not fetch current user from any endpoint');
-          }
-        }
-      }
-      
-      if (user) {
-        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-        form.setFieldsValue({ 
-          receivedBy: fullName || user.username || 'Current User',
-          boxId: newBoxNumber 
-        });
-      } else {
-        // Fallback - just set a placeholder
-        form.setFieldsValue({ 
-          receivedBy: 'Administrator', // Default placeholder
-          boxId: newBoxNumber 
-        });
-      }
-    } catch (error) {
-      console.warn('Auto-fill error:', error);
-      // Just set the box ID if user fetch fails
-      form.setFieldsValue({ 
+    // Auto-fill received by with current user's full name and ID
+    if (currentUser) {
+      const fullName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim();
+      form.setFieldsValue({
+        receivedBy: fullName || currentUser.username || 'Current User',
+        receivedById: currentUser.id, // Store the user ID separately
+        boxId: newBoxNumber
+      });
+    } else {
+      // Fallback - just set a placeholder
+      form.setFieldsValue({
         receivedBy: 'Administrator',
-        boxId: newBoxNumber 
+        receivedById: null,
+        boxId: newBoxNumber
       });
     }
     
@@ -388,212 +551,437 @@ const BoxReceiptManagement: FC = () => {
     const couponsPerBook = allFields.find((f: any) => f.name[0] === 'couponsPerBook')?.value || 100;
     const firstCouponId = allFields.find((f: any) => f.name[0] === 'firstCouponId')?.value;
 
-    // Calculate totals
+    // Calculate totals first
+    const totalCoupons = numberOfBooks && couponsPerBook ? numberOfBooks * couponsPerBook : 0;
+    const totalLitres = couponAmount && totalCoupons ? totalCoupons * couponAmount : 0;
+
+    // Enhanced intelligent calculation system
     if (numberOfBooks && couponsPerBook) {
-      const totalCoupons = numberOfBooks * couponsPerBook;
-      const totalLitres = couponAmount ? totalCoupons * couponAmount : 0;
-      
-      form.setFieldsValue({ 
+      // Update calculated fields immediately
+      form.setFieldsValue({
         totalLitres,
         totalCoupons,
-        couponsPerBook 
+        couponsPerBook
       });
 
-      // Calculate last coupon ID if first coupon ID is provided
+      // Smart last coupon ID calculation
       if (firstCouponId && totalCoupons > 0) {
         const lastCouponId = calculateLastCouponId(firstCouponId, totalCoupons);
         form.setFieldsValue({ lastCouponId });
+        
+        // Show success message for automatic calculation
+        if (changedFields.some((field: any) => field.name[0] === 'firstCouponId' || field.name[0] === 'numberOfBooks' || field.name[0] === 'couponsPerBook')) {
+          message.success(`✅ Last coupon calculated: ${lastCouponId}`, 2);
+        }
       }
 
-      // Calculate monetary values
+      // Enhanced monetary value calculations
       if (fuelPriceUSD && totalLitres > 0) {
         const monetaryValueUSD = totalLitres * fuelPriceUSD;
         const monetaryValueZWG = monetaryValueUSD * exchangeRate;
         const fuelPriceZWG = fuelPriceUSD * exchangeRate;
         
-        form.setFieldsValue({ 
+        form.setFieldsValue({
           monetaryValueUSD,
           monetaryValue: monetaryValueZWG,
           fuelPricePerLitre: fuelPriceZWG
         });
+
+        // Show calculation summary
+        if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitreUSD')) {
+          message.info(`💰 Total value: $${monetaryValueUSD.toLocaleString()} USD (≈ ZWG ${monetaryValueZWG.toLocaleString()})`, 3);
+        }
       }
     }
 
-    // Auto-generate coupon range if no manual input provided
-    if (fuelType && couponAmount && numberOfBooks && !firstCouponId) {
-      const totalCoupons = numberOfBooks * couponsPerBook;
-      const couponData = calculateCouponRange(fuelType, couponAmount, totalCoupons);
-      form.setFieldsValue({
-        firstCouponId: couponData.firstCouponId,
-        lastCouponId: couponData.lastCouponId,
+    // Intelligent coupon range generation with validation
+    if (fuelType && couponAmount && numberOfBooks && couponsPerBook && !firstCouponId) {
+      calculateCouponRange(fuelType, couponAmount, totalCoupons).then((couponData) => {
+        form.setFieldsValue({
+          firstCouponId: couponData.firstCouponId,
+          lastCouponId: couponData.lastCouponId,
+        });
+
+        message.info(`🎯 Auto-generated coupon range: ${couponData.firstCouponId} to ${couponData.lastCouponId}`, 4);
+      }).catch((error) => {
+        console.error('Error generating coupon range:', error);
+        message.error('Failed to generate coupon range. Please enter manually.');
       });
+    }
+
+    // Validation and warnings
+    if (numberOfBooks && numberOfBooks > 25) {
+      message.warning('⚠️ Large number of books detected. Please verify this is correct.', 3);
+    }
+
+    if (totalCoupons && totalCoupons > 5000) {
+      message.warning('⚠️ High coupon count detected. Please double-check calculations.', 3);
     }
   };
 
-  // New function to calculate last coupon ID from first coupon ID
+  // New function to calculate last coupon ID from first coupon ID using proper format
   const calculateLastCouponId = (firstCouponId: string, totalCoupons: number) => {
-    // Extract the numeric part from the coupon ID (e.g., PU00GH355101 -> 355101)
-    const match = firstCouponId.match(/([A-Z]+)(\d+)$/);
-    if (!match) return firstCouponId;
+    try {
+      if (!validateCouponFormat(firstCouponId)) {
+        console.warn('Invalid coupon format, using fallback calculation');
+        // Fallback to old logic for backward compatibility
+        const match = firstCouponId.match(/^(.*?)(\d+)$/);
+        if (!match) return firstCouponId;
+        const prefix = match[1];
+        const firstNumber = parseInt(match[2]);
+        const lastNumber = firstNumber + totalCoupons - 1;
+        const numberLength = match[2].length;
+        return prefix + lastNumber.toString().padStart(numberLength, '0');
+      }
+      
+      return calculateLastCouponFromFirst(firstCouponId, totalCoupons);
+    } catch (error) {
+      console.error('Error calculating last coupon ID:', error);
+      return firstCouponId;
+    }
+  };
 
-    const prefix = match[1];
-    const firstNumber = parseInt(match[2]);
-    const lastNumber = firstNumber + totalCoupons - 1;
+  // Check if two coupon ranges overlap
+  const couponRangesOverlap = (range1First: string, range1Last: string, range2First: string, range2Last: string): boolean => {
+    // Check if both ranges use the new 14-character format
+    const range1NewFormat = validateCouponFormat(range1First) && validateCouponFormat(range1Last);
+    const range2NewFormat = validateCouponFormat(range2First) && validateCouponFormat(range2Last);
     
-    // Maintain the same number of digits as the original
-    const numberLength = match[2].length;
-    const lastCouponId = firstCouponId.replace(/\d+$/, lastNumber.toString().padStart(numberLength, '0'));
+    // If both ranges use the new format, use proper coupon comparison
+    if (range1NewFormat && range2NewFormat) {
+      const range1FirstComp = compareCoupons(range1First, range2Last);
+      const range1LastComp = compareCoupons(range1Last, range2First);
+      
+      // Range1 overlaps with Range2 if:
+      // range1First <= range2Last AND range1Last >= range2First
+      return (range1FirstComp <= 0 && range1LastComp >= 0);
+    }
     
-    return lastCouponId;
+    // If one or both ranges use old format, they cannot overlap with new format
+    // New format coupons are in a completely different namespace
+    if (range1NewFormat !== range2NewFormat) {
+      return false; // Different formats cannot overlap
+    }
+    
+    // Both ranges use old format - fallback to numeric comparison
+    const r1FirstMatch = range1First.match(/(\d+)$/);
+    const r1LastMatch = range1Last.match(/(\d+)$/);
+    const r2FirstMatch = range2First.match(/(\d+)$/);
+    const r2LastMatch = range2Last.match(/(\d+)$/);
+    
+    if (r1FirstMatch && r1LastMatch && r2FirstMatch && r2LastMatch) {
+      const r1First = parseInt(r1FirstMatch[1]);
+      const r1Last = parseInt(r1LastMatch[1]);
+      const r2First = parseInt(r2FirstMatch[1]);
+      const r2Last = parseInt(r2LastMatch[1]);
+      
+      return (r1First <= r2Last && r1Last >= r2First);
+    }
+    
+    return false;
+  };
+
+  // Validate coupon range uniqueness with proper format checking
+  const validateCouponRange = async (firstCouponId: string, lastCouponId: string, excludeBoxId?: string) => {
+    try {
+      const response = await apiClient.get('/boxes/');
+      const boxes = response.data.results || response.data || [];
+      
+      // Validate input format
+      if (!validateCouponFormat(firstCouponId)) {
+        return {
+          isValid: false,
+          error: `Invalid first coupon format: ${firstCouponId}. Expected format: [AA–ZZ][000–999][AA–ZZ][000000–999999]`
+        };
+      }
+      
+      if (!validateCouponFormat(lastCouponId)) {
+        return {
+          isValid: false,
+          error: `Invalid last coupon format: ${lastCouponId}. Expected format: [AA–ZZ][000–999][AA–ZZ][000000–999999]`
+        };
+      }
+      
+      // Check for overlaps with existing boxes
+      for (const box of boxes) {
+        // Skip the current box if we're editing
+        if (excludeBoxId && box.id === excludeBoxId) continue;
+        
+        if (box.first_coupon_number && box.last_coupon_number) {
+          const hasOverlap = couponRangesOverlap(
+            firstCouponId,
+            lastCouponId,
+            box.first_coupon_number,
+            box.last_coupon_number
+          );
+          
+          if (hasOverlap) {
+            return {
+              isValid: false,
+              conflictingBox: box.box_code,
+              conflictingRange: `${box.first_coupon_number} - ${box.last_coupon_number}`
+            };
+          }
+        }
+      }
+      
+      return { isValid: true };
+    } catch (error) {
+      console.error('Error validating coupon range:', error);
+      return { isValid: true }; // Allow submission if validation fails
+    }
   };
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      
       setLoading(true);
 
-      // Safe date formatting with fallbacks
-      const receivedDate = values.receivedDate 
-        ? (typeof values.receivedDate.format === 'function' 
-           ? values.receivedDate.format('YYYY-MM-DD') 
-           : new Date().toISOString().split('T')[0])
-        : new Date().toISOString().split('T')[0];
+      // Extract receivedDate and receivedTime from values
+      const receivedDate = values.receivedDate;
+      const receivedTime = values.receivedTime;
 
-      const receivedTime = values.receivedTime 
-        ? (typeof values.receivedTime.format === 'function' 
-           ? values.receivedTime.format('HH:mm') 
-           : new Date().toTimeString().slice(0, 5))
-        : new Date().toTimeString().slice(0, 5);
+      // Ensure critical fields have values - use selectedBox data as fallback
+      const barcode = values.barcode || selectedBox?.barcode || '';
+      const supplier = values.supplier || selectedBox?.supplier || 'Petrotrade Zimbabwe';
+      const receivedBy = values.receivedBy || selectedBox?.receivedBy || 'Administrator';
+      // Get the user ID for received_by field (backend expects user ID, not name)
+      let receivedById = values.receivedById || currentUser?.id;
+      if (!receivedById) {
+        if (
+          selectedBox?.receivedBy &&
+          typeof selectedBox.receivedBy === 'object' &&
+          selectedBox.receivedBy !== null &&
+          'id' in selectedBox.receivedBy &&
+          typeof (selectedBox.receivedBy as any).id !== 'undefined'
+        ) {
+          receivedById = (selectedBox.receivedBy as any).id;
+        } else if (currentUser?.id) {
+          receivedById = currentUser.id;
+        }
+      }
+
+      // Robust validation for critical fields
+      if (!barcode.trim() || !supplier.trim() || !receivedBy.trim() || !receivedById) {
+        message.error('Barcode, Supplier, and Received By (with valid user) are required fields. Please fill all required fields.');
+        setLoading(false);
+        return;
+      }
+
+      // DEBUG: Check critical fields
+      console.log('=== CRITICAL FIELDS CHECK ===');
+      console.log('barcode:', barcode, 'type:', typeof barcode);
+      console.log('supplier:', supplier, 'type:', typeof supplier);
+      console.log('receivedBy:', receivedBy, 'type:', typeof receivedBy);
+      console.log('receivedById:', receivedById, 'type:', typeof receivedById);
+      
+      // Validate required fields and provide defaults for missing ones
+      if (!values.firstCouponId || !values.numberOfBooks || !values.couponsPerBook) {
+        message.error('First coupon ID, number of books, and coupons per book are required.');
+        setLoading(false);
+        return;
+      }
+
+      // Calculate last coupon if not provided
+      let lastCouponId = values.lastCouponId;
+      if (!lastCouponId && values.firstCouponId && values.totalCoupons) {
+        lastCouponId = calculateLastCouponId(values.firstCouponId, values.totalCoupons);
+      }
+
+      // Prepare clean payload with guaranteed non-empty values and proper field mapping
+      const totalCoupons = values.totalCoupons || (values.numberOfBooks * values.couponsPerBook);
+      const totalLitres = values.totalLitres || (totalCoupons * values.couponAmount);
+      
+      // Generate book_details_json for backend book creation
+      const bookDetailsJson = [];
+      if (values.numberOfBooks && values.couponsPerBook && values.firstCouponId) {
+        for (let i = 0; i < values.numberOfBooks; i++) {
+          const bookNumber = i + 1;
+          // Calculate book coupon range (simplified for now - backend will handle proper calculation)
+          bookDetailsJson.push({
+            book_number: bookNumber,
+            coupons_per_book: values.couponsPerBook,
+            // Backend will calculate proper coupon ranges
+          });
+        }
+      }
+
+      // Ensure proper datetime format for received_at
+      let receivedAtISO = '';
+      try {
+        if (receivedDate && receivedTime) {
+          // Handle both dayjs objects and string values
+          const dateStr = typeof receivedDate === 'string' ? receivedDate : receivedDate.format('YYYY-MM-DD');
+          const timeStr = typeof receivedTime === 'string' ? receivedTime : receivedTime.format('HH:mm');
+          receivedAtISO = `${dateStr}T${timeStr}:00Z`;
+        } else {
+          receivedAtISO = new Date().toISOString();
+        }
+      } catch (error) {
+        console.warn('Error formatting received_at, using current time:', error);
+        receivedAtISO = new Date().toISOString();
+      }
 
       const boxData = {
-        // Don't send box_code - let backend auto-generate to avoid duplicates
-        // box_code: values.boxId || nextBoxNumber || `FCB-${new Date().getFullYear()}-AUTO`,
+        // Core identification
+        box_code: selectedBox ? undefined : (values.boxId || nextBoxNumber), // Only include for new boxes
+        barcode: barcode.trim() || 'AUTO-GENERATED',
         
-        // Basic Information
-        barcode: values.barcode || '',
+        // Fuel specifications (exact backend field names)
         fuel_type: values.fuelType,
-        denomination: values.couponAmount,
+        denomination: values.couponAmount, // Backend expects 'denomination', not 'coupon_amount'
         
-        // Structure Information
+        // Structure and counting
         number_of_books: values.numberOfBooks,
-        coupons_per_book: values.couponsPerBook || 10,
+        coupons_per_book: values.couponsPerBook,
+        total_coupons: totalCoupons,
+        total_litres: totalLitres,
         
-        // Coupon Serial Numbers
+        // Coupon range
         first_coupon_number: values.firstCouponId,
-        last_coupon_number: values.lastCouponId,
-        coupon_range: `${values.firstCouponId} ${values.lastCouponId}`,
+        last_coupon_number: lastCouponId || values.lastCouponId,
         
-        // Calculated Totals
-        total_coupons_calculated: (values.numberOfBooks || 0) * (values.couponsPerBook || 10),
-        total_litres: (values.numberOfBooks || 0) * (values.couponsPerBook || 10) * (values.couponAmount || 20),
+        // Status and workflow
+        status: 'RECEIVED', // Hardcoded as per workflow
+        calculation_mode: 'first-and-count', // Hardcoded calculation mode
         
-        // Financial Information (USD)
-        fuel_price_per_litre_usd: values.fuelPricePerLitreUSD || values.fuelPriceUSD || 1.40,
-        exchange_rate_zwg_usd: values.exchangeRate || 27.5,
-        total_value_usd: ((values.numberOfBooks || 0) * (values.couponsPerBook || 10) * (values.couponAmount || 20) * (values.fuelPricePerLitreUSD || values.fuelPriceUSD || 1.40)),
-        total_value_zwg: ((values.numberOfBooks || 0) * (values.couponsPerBook || 10) * (values.couponAmount || 20) * (values.fuelPricePerLitreUSD || values.fuelPriceUSD || 1.40) * (values.exchangeRate || 27.5)),
+        // Receipt tracking
+        received_at: receivedAtISO,
+        received_by: receivedById || null, // Send user ID, not name
         
-        // Status and Dates
-        status: 'RECEIVED',
-        received_at: `${receivedDate}T${receivedTime}:00Z`,
-        received_date: receivedDate,
-        received_time: receivedTime,
-        
-        // Additional Information  
-        supplier: values.supplier || '',
+        // Supply chain information
+        supplier: supplier.trim() || 'Petrotrade Zimbabwe',
         delivery_note: values.deliveryNote || '',
         invoice_number: values.invoiceNumber || '',
+        
+        // Financial data
+        monetary_value_usd: values.monetaryValueUSD !== undefined && values.monetaryValueUSD !== null && values.monetaryValueUSD !== '' ? Number(values.monetaryValueUSD) : 0,
+        fuel_price_per_litre_usd: values.fuelPricePerLitreUSD || 0,
+        exchange_rate: values.exchangeRate || 27.50,
+        
+        // Notes and verification
         notes: values.notes || '',
-        verification_notes: values.couponVerificationNotes || '',
+        verification_notes: values.couponVerificationNotes || values.verificationNotes || '',
         
-        // Digital Signature
+        // Book generation data (CRITICAL for backend)
+        book_details_json: bookDetailsJson,
+        
+        // Optional fields (add if needed in your workflow)
+        // assigned_to: values.assignedTo || null, // Uncomment if you add this field to the form
+        
+        // Legacy/additional fields for compatibility
         received_by_signature: values.signature || '',
-        
-        // Calculation Metadata
-        calculation_mode: 'first-and-last',
-        book_details: [], // This could be enhanced later with detailed book breakdown
-        booksGenerated: calculatedBooks, // or whatever array holds the generated books
       };
 
+      // Remove undefined fields to avoid backend issues
+      Object.keys(boxData).forEach(key => {
+        if (boxData[key] === undefined) {
+          delete boxData[key];
+        }
+      });
+
+      // DEBUG: Log final payload
+      console.log('=== FINAL PAYLOAD DEBUG ===');
+      console.log('Final boxData payload:', boxData);
+      console.log('Payload JSON:', JSON.stringify(boxData, null, 2));
+      
+      let response;
       if (selectedBox) {
-        // Edit existing box - include the box_code for updates
-        boxData.box_code = values.boxId || selectedBox.box_code;
-        const response = await apiClient.put(`/boxes/${selectedBox.id}/`, boxData);
-        if (response.status === 200) {
-          // Update local state
-          setBoxReceipts(prev => prev.map(box => 
-            box.id === selectedBox.id 
-              ? { ...selectedBox, ...values, receivedDate, receivedTime }
-              : box
-          ));
-          message.success('Box updated successfully!');
+        // For editing existing box, don't send box_code to avoid duplicate error
+        response = await apiClient.put(`/boxes/${selectedBox.id}/`, boxData);
+      } else {
+        // For new box, include box_code
+        (boxData as any).box_code = values.boxId || nextBoxNumber;
+        response = await apiClient.post('/boxes/', boxData);
+      }
+
+      if (response && (response.status === 200 || response.status === 201)) {
+        // Fetch the saved box from backend to get last_coupon_number and other calculated fields
+        const boxId = response.data.id || (selectedBox && selectedBox.id);
+        if (boxId) {
+          const boxResp = await apiClient.get(`/boxes/${boxId}/`);
+          const savedBox = boxResp.data;
+          // Update form fields with backend-calculated values
+          form.setFieldsValue({
+            lastCouponId: savedBox.last_coupon_number || lastCouponId, // Always set lastCouponId
+            totalCoupons: savedBox.total_coupons_calculated,
+            totalLitres: savedBox.total_litres,
+            boxId: savedBox.box_code,
+            barcode: savedBox.barcode,
+          });
+          message.success('Box saved! Backend calculated last coupon and totals. You can now generate books.');
+        } else if (lastCouponId) {
+          // Fallback: if backend does not return, set calculated lastCouponId
+          form.setFieldsValue({ lastCouponId });
+        }
+        // Refresh the table to show the new/updated box
+        await fetchBoxReceipts();
+        // Do NOT close or reset the form; allow user to proceed to generate books
+        // setIsModalVisible(false);
+        // setSelectedBox(null);
+        // form.resetFields();
+        // await generateNextBoxNumber();
+      }
+    } catch (error: any) {
+      console.error('Error saving box:', error);
+      
+      // DEBUG: Enhanced error logging
+      console.log('=== ERROR DETAILS DEBUG ===');
+      console.log('Error object:', error);
+      console.log('Error response:', error.response);
+      console.log('Error response data:', error.response?.data);
+      console.log('Error response status:', error.response?.status);
+      console.log('Error message:', error.message);
+      
+      // Handle specific error types
+      if (error.response?.status === 500) {
+        // Check if it's an integrity error (duplicate coupon numbers)
+        const errorText = error.response?.data || '';
+        if (typeof errorText === 'string' && errorText.includes('IntegrityError')) {
+          message.error(
+            'Duplicate coupon numbers detected! These coupon serial numbers are already in use by another box. Please use different coupon numbers.',
+            8
+          );
+        } else {
+          message.error('Server error occurred while saving the box. Please try again.');
+        }
+      } else if (error.response?.status === 400) {
+        // DEBUG: Log detailed 400 error information
+        console.log('=== 400 BAD REQUEST DEBUG ===');
+        const errorData = error.response?.data;
+        console.log('400 Error data:', errorData);
+        
+        if (errorData && typeof errorData === 'object') {
+          // Log each field error
+          Object.keys(errorData).forEach(field => {
+            console.log(`Field "${field}" error:`, errorData[field]);
+          });
+          
+          // Show specific field errors to user
+          const fieldErrors = [];
+          if (errorData.barcode) fieldErrors.push(`Barcode: ${Array.isArray(errorData.barcode) ? errorData.barcode.join(', ') : errorData.barcode}`);
+          if (errorData.supplier) fieldErrors.push(`Supplier: ${Array.isArray(errorData.supplier) ? errorData.supplier.join(', ') : errorData.supplier}`);
+          if (errorData.received_by) fieldErrors.push(`Received By: ${Array.isArray(errorData.received_by) ? errorData.received_by.join(', ') : errorData.received_by}`);
+          if (errorData.first_coupon_number) fieldErrors.push(`First Coupon: ${Array.isArray(errorData.first_coupon_number) ? errorData.first_coupon_number.join(', ') : errorData.first_coupon_number}`);
+          if (errorData.last_coupon_number) fieldErrors.push(`Last Coupon: ${Array.isArray(errorData.last_coupon_number) ? errorData.last_coupon_number.join(', ') : errorData.last_coupon_number}`);
+          
+          // Handle box_code duplicate error specifically
+          if (errorData.box_code) {
+            const boxCodeError = Array.isArray(errorData.box_code) ? errorData.box_code[0] : errorData.box_code;
+            message.error(`Box Code Error: ${boxCodeError}`, 8);
+          } else if (fieldErrors.length > 0) {
+            message.error(`Field validation errors: ${fieldErrors.join('; ')}`, 10);
+          } else {
+            message.error(`Invalid data provided. Server response: ${JSON.stringify(errorData)}`, 8);
+          }
+        } else {
+          message.error(`Invalid data provided. Please check all fields and try again. Server response: ${errorData}`, 8);
         }
       } else {
-        // Create new box
-        const response = await apiClient.post('/boxes/', boxData);
-        if (response.status === 201) {
-          const newBox: BoxReceipt = {
-            id: String(response.data.id),
-            boxId: response.data.box_code, // Use backend-generated box_code
-            ...values,
-            receivedDate,
-            receivedTime,
-            status: 'RECEIVED' as const,
-          };
-          setBoxReceipts(prev => [newBox, ...prev]);
-          
-          // Update the form with the backend-generated box_code for user reference
-          form.setFieldsValue({ boxId: response.data.box_code });
-          
-          message.success(`Box received successfully! Generated Box ID: ${response.data.box_code}`);
-        }
+        message.error('Failed to save box receipt. Please check your connection and try again.');
       }
-
-      setIsModalVisible(false);
-      setSelectedBox(null);
-      form.resetFields();
-      await generateNextBoxNumber();
-    } catch (error) {
-      console.error('Error saving box:', error);
-      message.error('Failed to save box receipt');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleVerifyBox = async (box: BoxReceipt) => {
-    setSelectedBox(box);
-    verifyForm.setFieldsValue({
-      boxId: box.boxId,
-      verificationNotes: box.verificationNotes || '',
-    });
-    setVerifyModalVisible(true);
-  };
-
-  const handleConfirmVerification = async () => {
-    try {
-      const values = await verifyForm.validateFields();
-      
-      if (selectedBox) {
-        const updatedBox = {
-          ...selectedBox,
-          status: 'VERIFIED' as const,
-          verificationNotes: values.verificationNotes,
-        };
-
-        // Update in local state (replace with API call)
-        setBoxReceipts(prev => 
-          prev.map(box => box.id === selectedBox.id ? updatedBox : box)
-        );
-
-        message.success('Box verified successfully!');
-        setVerifyModalVisible(false);
-        setSelectedBox(null);
-      }
-    } catch (error) {
-      console.error('Error verifying box:', error);
-      message.error('Failed to verify box');
     }
   };
 
@@ -793,27 +1181,6 @@ const BoxReceiptManagement: FC = () => {
     });
   };
 
-  const handleSelectAllBooks = () => {
-    if (!selectedBoxForPrint) return;
-    
-    const allBookNumbers = Array.from({ length: selectedBoxForPrint.numberOfBooks }, (_, i) => i + 1);
-    
-    if (allBooksSelected) {
-      setVerifiedBooks([]);
-      setAllBooksSelected(false);
-    } else {
-      setVerifiedBooks(allBookNumbers);
-      setAllBooksSelected(true);
-    }
-  };
-
-  // Update allBooksSelected when verifiedBooks changes
-  useEffect(() => {
-    if (selectedBoxForPrint) {
-      const totalBooks = selectedBoxForPrint.numberOfBooks;
-      setAllBooksSelected(verifiedBooks.length === totalBooks && totalBooks > 0);
-    }
-  }, [verifiedBooks, selectedBoxForPrint]);
 
   const generateVerificationReport = () => {
     if (!selectedBoxForPrint) return;
@@ -1219,276 +1586,6 @@ const BoxReceiptManagement: FC = () => {
     }
   };
 
-  // Smart calculation modes for intelligent generator
-  const calculationModes: SmartCalculationMode[] = [
-    {
-      mode: 'first-and-count',
-      label: 'First Serial + Coupon Count',
-      description: 'Enter first coupon number and number of coupons per book. System calculates last numbers.'
-    },
-    {
-      mode: 'last-and-count', 
-      label: 'Last Serial + Coupon Count',
-      description: 'Enter last coupon number and number of coupons per book. System calculates first numbers.'
-    },
-    {
-      mode: 'first-and-last',
-      label: 'First + Last of Box',
-      description: 'Enter first coupon of first book and last coupon of last book. System distributes across books.'
-    },
-    {
-      mode: 'full-range',
-      label: 'Complete Range',
-      description: 'Enter complete coupon range. System automatically calculates books and distribution.'
-    }
-  ];
-
-  // Helper functions for intelligent book generation
-  const generateBooksFromRange = () => {
-    const numberOfBooks = form.getFieldValue('numberOfBooks') || 0;
-    const couponsPerBook = form.getFieldValue('couponsPerBook') || 100;
-    const firstCouponId = form.getFieldValue('firstCouponId') || '';
-    const lastCouponId = form.getFieldValue('lastCouponId') || '';
-
-    if (numberOfBooks <= 0 || numberOfBooks > 25) {
-      message.error('Number of books must be between 1 and 25');
-      return;
-    }
-
-    if (couponsPerBook <= 0 || couponsPerBook > 100) {
-      message.error('Coupons per book must be between 1 and 100');
-      return;
-    }
-
-    try {
-      const books: BookInfo[] = [];
-      
-      switch (calculationMode) {
-        case 'first-and-count':
-          if (!firstCouponId) {
-            message.error('Please enter the first coupon ID');
-            return;
-          }
-          
-          // Extract prefix and number from first coupon ID
-          const firstMatch = firstCouponId.match(/^(.+?)(\d+)$/);
-          if (!firstMatch) {
-            message.error('Invalid first coupon ID format');
-            return;
-          }
-          
-          const prefix = firstMatch[1];
-          const startNumber = parseInt(firstMatch[2]);
-          const numberLength = firstMatch[2].length;
-          
-          // Generate books
-          for (let i = 0; i < numberOfBooks; i++) {
-            const bookFirstNumber = startNumber + (i * couponsPerBook);
-            const bookLastNumber = bookFirstNumber + couponsPerBook - 1;
-            
-            books.push({
-              bookId: `Book-${i + 1}`,
-              firstCouponId: `${prefix}${bookFirstNumber.toString().padStart(numberLength, '0')}`,
-              lastCouponId: `${prefix}${bookLastNumber.toString().padStart(numberLength, '0')}`,
-              numberOfCoupons: couponsPerBook
-            });
-          }
-          
-          // Update last coupon ID in form
-          const finalCouponNumber = startNumber + (numberOfBooks * couponsPerBook) - 1;
-          const finalCouponId = `${prefix}${finalCouponNumber.toString().padStart(numberLength, '0')}`;
-          form.setFieldValue('lastCouponId', finalCouponId);
-          break;
-
-        case 'last-and-count':
-          if (!lastCouponId) {
-            message.error('Please enter the last coupon ID');
-            return;
-          }
-          
-          // Extract prefix and number from last coupon ID
-          const lastMatch = lastCouponId.match(/^(.+?)(\d+)$/);
-          if (!lastMatch) {
-            message.error('Invalid last coupon ID format');
-            return;
-          }
-          
-          const lastPrefix = lastMatch[1];
-          const endNumber = parseInt(lastMatch[2]);
-          const lastNumberLength = lastMatch[2].length;
-          
-          // Calculate first number
-          const totalCoupons = numberOfBooks * couponsPerBook;
-          const firstNumber = endNumber - totalCoupons + 1;
-          
-          // Generate books
-          for (let i = 0; i < numberOfBooks; i++) {
-            const bookFirstNumber = firstNumber + (i * couponsPerBook);
-            const bookLastNumber = bookFirstNumber + couponsPerBook - 1;
-            
-            books.push({
-              bookId: `Book-${i + 1}`,
-              firstCouponId: `${lastPrefix}${bookFirstNumber.toString().padStart(lastNumberLength, '0')}`,
-              lastCouponId: `${lastPrefix}${bookLastNumber.toString().padStart(lastNumberLength, '0')}`,
-              numberOfCoupons: couponsPerBook
-            });
-          }
-          
-          // Update first coupon ID in form
-          const firstCouponNumber = endNumber - totalCoupons + 1;
-          const firstCouponIdCalculated = `${lastPrefix}${firstCouponNumber.toString().padStart(lastNumberLength, '0')}`;
-          form.setFieldValue('firstCouponId', firstCouponIdCalculated);
-          break;
-
-        case 'first-and-last':
-          if (!firstCouponId || !lastCouponId) {
-            message.error('Please enter both first and last coupon IDs');
-            return;
-          }
-          
-          // Extract numbers from both IDs
-          const firstBoxMatch = firstCouponId.match(/^(.+?)(\d+)$/);
-          const lastBoxMatch = lastCouponId.match(/^(.+?)(\d+)$/);
-          
-          if (!firstBoxMatch || !lastBoxMatch) {
-            message.error('Invalid coupon ID format');
-            return;
-          }
-          
-          if (firstBoxMatch[1] !== lastBoxMatch[1]) {
-            message.error('First and last coupon IDs must have the same prefix');
-            return;
-          }
-          
-          const boxPrefix = firstBoxMatch[1];
-          const firstBoxNumber = parseInt(firstBoxMatch[2]);
-          const lastBoxNumber = parseInt(lastBoxMatch[2]);
-          const boxNumberLength = Math.max(firstBoxMatch[2].length, lastBoxMatch[2].length);
-          
-          const totalBoxCoupons = lastBoxNumber - firstBoxNumber + 1;
-          const calculatedCouponsPerBook = Math.ceil(totalBoxCoupons / numberOfBooks);
-          
-          // Update coupons per book
-          form.setFieldValue('couponsPerBook', calculatedCouponsPerBook);
-          
-          // Generate books
-          for (let i = 0; i < numberOfBooks; i++) {
-            const bookFirstNumber = firstBoxNumber + (i * calculatedCouponsPerBook);
-            const bookLastNumber = Math.min(bookFirstNumber + calculatedCouponsPerBook - 1, lastBoxNumber);
-            
-            books.push({
-              bookId: `Book-${i + 1}`,
-              firstCouponId: `${boxPrefix}${bookFirstNumber.toString().padStart(boxNumberLength, '0')}`,
-              lastCouponId: `${boxPrefix}${bookLastNumber.toString().padStart(boxNumberLength, '0')}`,
-              numberOfCoupons: bookLastNumber - bookFirstNumber + 1
-            });
-            
-            // Stop if we've reached the last coupon
-            if (bookLastNumber >= lastBoxNumber) break;
-          }
-          break;
-
-        case 'full-range':
-          if (!firstCouponId || !lastCouponId) {
-            message.error('Please enter both first and last coupon IDs for full range calculation');
-            return;
-          }
-          
-          // Similar to first-and-last but automatically calculates optimal book distribution
-          const fullFirstMatch = firstCouponId.match(/^(.+?)(\d+)$/);
-          const fullLastMatch = lastCouponId.match(/^(.+?)(\d+)$/);
-          
-          if (!fullFirstMatch || !fullLastMatch) {
-            message.error('Invalid coupon ID format');
-            return;
-          }
-          
-          if (fullFirstMatch[1] !== fullLastMatch[1]) {
-            message.error('First and last coupon IDs must have the same prefix');
-            return;
-          }
-          
-          const fullPrefix = fullFirstMatch[1];
-          const fullFirstNumber = parseInt(fullFirstMatch[2]);
-          const fullLastNumber = parseInt(fullLastMatch[2]);
-          const fullNumberLength = Math.max(fullFirstMatch[2].length, fullLastMatch[2].length);
-          
-          const fullTotalCoupons = fullLastNumber - fullFirstNumber + 1;
-          
-          // Calculate optimal books and coupons per book
-          let optimalBooks = numberOfBooks || Math.ceil(fullTotalCoupons / 100); // Default to 100 coupons per book
-          let optimalCouponsPerBook = Math.ceil(fullTotalCoupons / optimalBooks);
-          
-          // Ensure we don't exceed 100 coupons per book
-          if (optimalCouponsPerBook > 100) {
-            optimalBooks = Math.ceil(fullTotalCoupons / 100);
-            optimalCouponsPerBook = Math.ceil(fullTotalCoupons / optimalBooks);
-          }
-          
-          // Update form fields
-          form.setFieldValue('numberOfBooks', optimalBooks);
-          form.setFieldValue('couponsPerBook', optimalCouponsPerBook);
-          
-          // Generate books
-          for (let i = 0; i < optimalBooks; i++) {
-            const bookFirstNumber = fullFirstNumber + (i * optimalCouponsPerBook);
-            const bookLastNumber = Math.min(bookFirstNumber + optimalCouponsPerBook - 1, fullLastNumber);
-            
-            books.push({
-              bookId: `Book-${i + 1}`,
-              firstCouponId: `${fullPrefix}${bookFirstNumber.toString().padStart(fullNumberLength, '0')}`,
-              lastCouponId: `${fullPrefix}${bookLastNumber.toString().padStart(fullNumberLength, '0')}`,
-              numberOfCoupons: bookLastNumber - bookFirstNumber + 1
-            });
-            
-            // Stop if we've reached the last coupon
-            if (bookLastNumber >= fullLastNumber) break;
-          }
-          break;
-      }
-      
-      setCalculatedBooks(books);
-      
-      // Update total coupons
-      const totalCalculatedCoupons = books.reduce((sum, book) => sum + book.numberOfCoupons, 0);
-      form.setFieldValue('totalCoupons', totalCalculatedCoupons);
-      
-      // Update total litres
-      const couponAmount = form.getFieldValue('couponAmount') || 20;
-      form.setFieldValue('totalLitres', totalCalculatedCoupons * couponAmount);
-      
-      message.success(`Successfully generated ${books.length} books with ${totalCalculatedCoupons} total coupons`);
-      
-    } catch (error) {
-      console.error('Error generating books:', error);
-      message.error('Failed to generate books. Please check your input values.');
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PENDING': return 'orange';
-      case 'RECEIVED': return 'blue';
-      case 'VERIFIED': return 'green';
-      case 'DISPATCHED': return 'purple';
-      case 'DAMAGED': return 'red';
-      case 'ARCHIVED': return 'grey';
-      default: return 'default';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PENDING': return <ClockCircleOutlined />;
-      case 'RECEIVED': return <InboxOutlined />;
-      case 'VERIFIED': return <CheckOutlined />;
-      case 'DISPATCHED': return <SendOutlined />;
-      case 'DAMAGED': return <AlertOutlined />;
-      case 'ARCHIVED': return <FolderOutlined />;
-      default: return null;
-    }
-  };
-
   const columns: ColumnsType<BoxReceipt> = [
     {
       title: 'Box ID',
@@ -1629,7 +1726,7 @@ const BoxReceiptManagement: FC = () => {
                 type="default"
                 size="small"
                 icon={<CheckOutlined />}
-                onClick={() => handleVerifyBox(record)}
+                onClick={() => navigate('/dashboard/coupon-verification')}
               />
             </Tooltip>
           )}
@@ -1671,10 +1768,47 @@ const BoxReceiptManagement: FC = () => {
                 icon={<EditOutlined />}
                 onClick={() => {
                   setSelectedBox(record);
+                  // Properly populate all form fields including the missing ones
+                  // Extract user ID from receivedBy if it's an object
+                  let receivedByName = record.receivedBy;
+                  let receivedById = null;
+                  
+                  if (typeof record.receivedBy === 'object' && record.receivedBy) {
+                    const userObj = record.receivedBy as any;
+                    receivedByName = `${userObj.first_name || ''} ${userObj.last_name || ''}`.trim() || userObj.username;
+                    receivedById = userObj.id;
+                  } else if (typeof record.receivedBy === 'string') {
+                    receivedByName = record.receivedBy;
+                    // Try to find the user ID from current user if names match
+                    if (currentUser && receivedByName.includes(currentUser.first_name) && receivedByName.includes(currentUser.last_name)) {
+                      receivedById = currentUser.id;
+                    }
+                  }
+                  
                   form.setFieldsValue({
-                    ...record,
+                    boxId: record.boxId,
+                    barcode: record.barcode || '',
+                    supplier: record.supplier || '',
+                    receivedBy: receivedByName || '',
+                    receivedById: receivedById,
                     receivedDate: record.receivedDate ? dayjs(record.receivedDate) : null,
                     receivedTime: record.receivedTime ? dayjs(record.receivedTime, 'HH:mm') : null,
+                    invoiceNumber: record.invoiceNumber || '',
+                    deliveryNote: record.deliveryNote || '',
+                    fuelType: record.fuelType,
+                    couponAmount: record.couponAmount,
+                    fuelPricePerLitreUSD: record.fuelPricePerLitreUSD,
+                    exchangeRate: record.exchangeRate || 27.50,
+                    fuelPricePerLitre: record.fuelPricePerLitre,
+                    firstCouponId: record.firstCouponId,
+                    numberOfBooks: record.numberOfBooks,
+                    couponsPerBook: record.couponsPerBook,
+                    totalCoupons: record.totalCoupons,
+                    lastCouponId: record.lastCouponId,
+                    totalLitres: record.totalLitres,
+                    monetaryValueUSD: record.monetaryValueUSD,
+                    notes: record.notes || '',
+                    verificationNotes: record.verificationNotes || '',
                   });
                   setIsModalVisible(true);
                 }}
@@ -1891,28 +2025,52 @@ const BoxReceiptManagement: FC = () => {
       {activeTab === 'verification' && (
         <Card title="Box Verification Center" extra={
           <Space>
-            <Text type="secondary">Verify received boxes and view their contents</Text>
+            <Text type="secondary">Use the dedicated Coupon Verification page for advanced verification workflows</Text>
+            <Button
+              type="primary"
+              icon={<BarcodeOutlined />}
+              onClick={() => navigate('/dashboard/coupon-verification')}
+            >
+              Open Coupon Verification
+            </Button>
           </Space>
         }>
+          <Alert
+            message="Enhanced Verification Available"
+            description="The book generation and verification functionality has been moved to a dedicated Coupon Verification page for better workflow management."
+            type="info"
+            showIcon
+            action={
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => navigate('/dashboard/coupon-verification')}
+              >
+                Go to Verification
+              </Button>
+            }
+            style={{ marginBottom: 16 }}
+          />
+          
           {/* Pending Verification Boxes */}
           <div style={{ marginBottom: 24 }}>
             <Title level={5}>Boxes Pending Verification</Title>
             {boxReceipts.filter(box => box.status === 'RECEIVED').map(box => (
-              <Card 
-                key={box.id} 
-                size="small" 
+              <Card
+                key={box.id}
+                size="small"
                 style={{ marginBottom: 16 }}
                 title={`Box ${box.boxId}`}
                 extra={
                   <Space>
                     <Tag color="orange">Pending Verification</Tag>
-                    <Button 
-                      type="primary" 
+                    <Button
+                      type="primary"
                       size="small"
-                      icon={<CheckOutlined />}
-                      onClick={() => handleVerifyBox(box)}
+                      icon={<BarcodeOutlined />}
+                      onClick={() => navigate('/dashboard/coupon-verification')}
                     >
-                      Verify Now
+                      Verify & Generate Books
                     </Button>
                   </Space>
                 }
@@ -1944,32 +2102,29 @@ const BoxReceiptManagement: FC = () => {
                 </Row>
               </Card>
             ))}
-            
             {boxReceipts.filter(box => box.status === 'RECEIVED').length === 0 && (
-              <Alert 
-                message="No boxes pending verification" 
-                description="All received boxes have been verified." 
-                type="info" 
-                showIcon 
+              <Alert
+                message="No boxes pending verification"
+                description="All received boxes have been verified."
+                type="info"
+                showIcon
               />
             )}
           </div>
-
           <Divider />
-
           {/* Verified Boxes */}
           <div>
             <Title level={5}>Recently Verified Boxes</Title>
             {boxReceipts.filter(box => box.status === 'VERIFIED').slice(0, 5).map(box => (
-              <Card 
-                key={box.id} 
-                size="small" 
+              <Card
+                key={box.id}
+                size="small"
                 style={{ marginBottom: 16 }}
                 title={`Box ${box.boxId}`}
                 extra={
                   <Space>
                     <Tag color="green">Verified</Tag>
-                    <Button 
+                    <Button
                       size="small"
                       icon={<EyeOutlined />}
                       onClick={() => handleViewBox(box)}
@@ -2092,9 +2247,6 @@ const BoxReceiptManagement: FC = () => {
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Basic Info" icon={<InboxOutlined />} />
           <Step title="Fuel Details" icon={<CarOutlined />} />
-          <Step title="Intelligent Books" icon={<BarcodeOutlined />} />
-          <Step title="Coupon Verification" icon={<CheckOutlined />} />
-          <Step title="Final Approval" icon={<FileTextOutlined />} />
         </Steps>
 
         <Form
@@ -2154,7 +2306,14 @@ const BoxReceiptManagement: FC = () => {
                     name="receivedBy"
                     rules={[{ required: true, message: 'Please enter receiver name' }]}
                   >
-                    <Input placeholder="Enter receiver name" />
+                    <Input
+                      placeholder="Enter receiver name"
+                      value={currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username : ''}
+                    />
+                  </Form.Item>
+                  {/* Hidden field to store user ID */}
+                  <Form.Item name="receivedById" style={{ display: 'none' }}>
+                    <Input type="hidden" />
                   </Form.Item>
                 </Col>
               </Row>
@@ -2288,467 +2447,165 @@ const BoxReceiptManagement: FC = () => {
                 </Col>
               </Row>
 
-              <div style={{ textAlign: 'right' }}>
-                <Space>
-                  <Button onClick={() => setCurrentStep(0)}>
-                    Previous
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={() => setCurrentStep(2)}
-                  >
-                    Next: Coupon Intelligence
-                  </Button>
-                </Space>
-              </div>
-            </>
-          )}
-
-          {currentStep === 2 && (
-            <>
-              <div style={{ marginBottom: 24 }}>
-                <Title level={4}>🤖 Intelligent Book Configuration</Title>
-                <Text type="secondary">
-                  Choose your preferred calculation method. The system will automatically generate all book details.
-                </Text>
-              </div>
-
-              {/* Smart Calculation Mode Selection */}
-              <Card style={{ marginBottom: 16 }} size="small">
-                <Title level={5}>🔧 Calculation Mode</Title>
-                <Radio.Group 
-                  value={calculationMode} 
-                  onChange={(e) => setCalculationMode(e.target.value)}
-                  style={{ width: '100%' }}
-                >
-                  <Row gutter={[16, 16]}>
-                    {calculationModes.map((mode) => (
-                      <Col span={12} key={mode.mode}>
-                        <Radio.Button 
-                          value={mode.mode} 
-                          style={{ width: '100%', height: 'auto', padding: '8px 12px' }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 'bold' }}>{mode.label}</div>
-                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                              {mode.description}
-                            </div>
-                          </div>
-                        </Radio.Button>
-                      </Col>
-                    ))}
-                  </Row>
-                </Radio.Group>
-              </Card>
-
-              {/* Smart Input Fields based on calculation mode */}
-              <Card style={{ marginBottom: 16 }} size="small">
-                <Title level={5}>📊 Input Parameters</Title>
-                <Row gutter={24}>
-                  {(calculationMode === 'first-and-count' || calculationMode === 'first-and-last' || calculationMode === 'full-range') && (
-                    <Col span={8}>
-                      <Form.Item
-                        label="First Coupon ID"
-                        name="firstCouponId"
-                        rules={[{ required: true, message: 'Enter first coupon ID' }]}
-                      >
-                        <Input 
-                          placeholder="PU006H1355101"
-                          style={{ fontFamily: 'monospace', fontSize: '14px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                  )}
-
-                  {(calculationMode === 'last-and-count' || calculationMode === 'first-and-last' || calculationMode === 'full-range') && (
-                    <Col span={8}>
-                      <Form.Item
-                        label="Last Coupon ID"
-                        name="lastCouponId"
-                        rules={[{ required: true, message: 'Enter last coupon ID' }]}
-                      >
-                        <Input 
-                          placeholder="PU00GH357500"
-                          style={{ fontFamily: 'monospace', fontSize: '14px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                  )}
-
-                  {(calculationMode === 'first-and-count' || calculationMode === 'last-and-count' || calculationMode === 'first-and-last') && (
-                    <Col span={4}>
-                      <Form.Item
-                        label="Number of Books"
-                        name="numberOfBooks"
-                        rules={[{ required: true, message: 'Enter number of books' }]}
-                      >
-                        <InputNumber
-                          min={1}
-                          max={25}
-                          style={{ width: '100%' }}
-                          placeholder="1-25 books"
-                        />
-                      </Form.Item>
-                    </Col>
-                  )}
-
-                  {(calculationMode === 'first-and-count' || calculationMode === 'last-and-count') && (
-                    <Col span={4}>
-                      <Form.Item
-                        label="Coupons per Book"
-                        name="couponsPerBook"
-                        rules={[{ required: true, message: 'Enter coupons per book' }]}
-                      >
-                        <InputNumber
-                          min={1}
-                          max={100}
-                          style={{ width: '100%' }}
-                          placeholder="1-100 coupons"
-                        />
-                      </Form.Item>
-                    </Col>
-                  )}
-                </Row>
-
-                {/* Generate Books Button - full width */}
-                <Row style={{ marginTop: 16 }}>
-                  <Col span={24} style={{ textAlign: 'center' }}>
-                    <Button 
-                      type="primary" 
-                      size="large"
-                      icon={<BarcodeOutlined />}
-                      onClick={generateBooksFromRange}
-                      style={{ 
-                        borderRadius: '8px', 
-                        width: '300px',
-                        height: '50px',
-                        fontSize: '16px',
-                        fontWeight: 'bold'
-                      }}
+              {/* Enhanced Coupon Details Section */}
+              <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
+                <Title level={5} style={{ color: '#52c41a', marginBottom: 16 }}>
+                  📊 Coupon Intelligence & Book Details
+                </Title>
+                
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item
+                      label="First Coupon Number"
+                      name="firstCouponId"
+                      rules={[{ required: true, message: 'Please enter first coupon number' }]}
+                      tooltip="Enter the first coupon serial number in the box"
                     >
-                      🚀 Generate Books
-                    </Button>
+                      <Input
+                        placeholder="e.g., PU018TY000001"
+                        style={{ fontFamily: 'monospace', fontSize: '14px' }}
+                        addonBefore={<BarcodeOutlined />}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item
+                      label="Total Number of Books"
+                      name="numberOfBooks"
+                      rules={[{ required: true, message: 'Please enter number of books' }]}
+                      tooltip="Total number of coupon books in this box"
+                    >
+                      <InputNumber
+                        min={1}
+                        max={50}
+                        style={{ width: '100%' }}
+                        placeholder="e.g., 10"
+                        addonBefore={<FileTextOutlined />}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item
+                      label="Coupons per Book"
+                      name="couponsPerBook"
+                      rules={[{ required: true, message: 'Please enter coupons per book' }]}
+                      tooltip="Number of coupons in each book"
+                      initialValue={100}
+                    >
+                      <InputNumber
+                        min={1}
+                        max={200}
+                        style={{ width: '100%' }}
+                        placeholder="e.g., 100"
+                        addonBefore={<BarcodeOutlined />}
+                      />
+                    </Form.Item>
                   </Col>
                 </Row>
 
-                <Alert 
-                  type="info" 
-                  showIcon 
-                  message={calculationModes.find(m => m.mode === calculationMode)?.description}
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item
+                      label="Total Number of Coupons"
+                      name="totalCoupons"
+                      tooltip="Automatically calculated: Books × Coupons per Book"
+                    >
+                      <InputNumber
+                        disabled
+                        style={{ width: '100%', backgroundColor: '#f0f0f0' }}
+                        formatter={(value) => `${(value || 0).toLocaleString()} coupons`}
+                        addonBefore={<BarcodeOutlined />}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item
+                      label="Last Coupon Number"
+                      name="lastCouponId"
+                      tooltip="Automatically calculated from first coupon + total coupons"
+                    >
+                      <Input
+                        disabled
+                        style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#f0f0f0' }}
+                        addonBefore={<BarcodeOutlined />}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item
+                      label="Total Litres"
+                      name="totalLitres"
+                      tooltip="Automatically calculated: Total Coupons × Coupon Amount"
+                    >
+                      <InputNumber
+                        disabled
+                        style={{ width: '100%', backgroundColor: '#f0f0f0' }}
+                        formatter={(value) => `${(value || 0).toLocaleString()} L`}
+                        addonBefore={<CarOutlined />}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Alert
+                  message="Smart Calculation Active"
+                  description="The system will automatically calculate the last coupon number, total coupons, and total litres based on your inputs. Ensure the first coupon number is correct."
+                  type="info"
+                  showIcon
                   style={{ marginTop: 16 }}
                 />
               </Card>
 
-              {/* Generated Books Display */}
-              {calculatedBooks.length > 0 && (
-                <Card style={{ marginBottom: 16 }} size="small">
-                  <Title level={5}>📚 Generated Books ({calculatedBooks.length})</Title>
-                  <Row gutter={[12, 12]}>
-                    {calculatedBooks.map((book, index) => (
-                      <Col span={3} key={book.bookId}>
-                        <Card 
-                          size="small" 
-                          style={{ 
-                            textAlign: 'center', 
-                            backgroundColor: '#f6f8ff',
-                            minHeight: '120px',
-                            borderRadius: '8px'
-                          }}
-                        >
-                          <div style={{ 
-                            fontWeight: 'bold', 
-                            color: '#1890ff', 
-                            fontSize: '13px',
-                            marginBottom: '6px'
-                          }}>
-                            {book.bookId}
-                          </div>
-                          <div style={{ 
-                            fontSize: '11px', 
-                            fontFamily: 'Consolas, Monaco, monospace', 
-                            lineHeight: '1.1',
-                            color: '#333',
-                            wordBreak: 'break-all',
-                            marginBottom: '2px'
-                          }}>
-                            {book.firstCouponId}
-                          </div>
-                          <div style={{ fontSize: '9px', color: '#999', margin: '2px 0' }}>to</div>
-                          <div style={{ 
-                            fontSize: '11px', 
-                            fontFamily: 'Consolas, Monaco, monospace', 
-                            lineHeight: '1.1',
-                            color: '#333',
-                            wordBreak: 'break-all',
-                            marginBottom: '4px'
-                          }}>
-                            {book.lastCouponId}
-                          </div>
-                          <div style={{ 
-                            fontSize: '10px', 
-                            color: '#52c41a', 
-                            fontWeight: '500'
-                          }}>
-                            {book.numberOfCoupons} coupons
-                          </div>
-                        </Card>
-                      </Col>
-                    ))}
-                  </Row>
-                </Card>
-              )}
-
-              <div style={{ textAlign: 'right' }}>
-                <Space>
-                  <Button onClick={() => setCurrentStep(1)}>
-                    Previous
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={() => setCurrentStep(3)}
-                    disabled={calculatedBooks.length === 0}
-                  >
-                    Next: Verification
-                  </Button>
-                </Space>
-              </div>
-            </>
-          )}
-
-          {currentStep === 3 && (
-            <>
-              <Alert
-                message="Coupon Verification Required"
-                description="Verify coupon sequences, book integrity, and barcode scanning before proceeding."
-                type="warning"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-
-              <Form.Item
-                label={
-                  <Space>
-                    <span>Coupon Verification Checklist</span>
-                    <Button 
-                      size="small" 
-                      type="link" 
-                      onClick={() => {
-                        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-                        const allChecked = Array.from(checkboxes).every((checkbox: any) => checkbox.checked);
-                        checkboxes.forEach((checkbox: any) => {
-                          checkbox.checked = !allChecked;
-                          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-                        });
-                      }}
-                    >
-                      Select All
-                    </Button>
-                  </Space>
-                }
-              >
-                <Checkbox.Group style={{ width: '100%' }}>
-                  <Row>
-                    <Col span={24} style={{ marginBottom: 8 }}>
-                      <Checkbox value="first_coupon">First coupon ID verified: <Text code>{form.getFieldValue('firstCouponId')}</Text></Checkbox>
-                    </Col>
-                    <Col span={24} style={{ marginBottom: 8 }}>
-                      <Checkbox value="last_coupon">Last coupon ID verified: <Text code>{form.getFieldValue('lastCouponId')}</Text></Checkbox>
-                    </Col>
-                    <Col span={24} style={{ marginBottom: 8 }}>
-                      <Checkbox value="coupon_count">Coupon count matches: {form.getFieldValue('numberOfBooks') * form.getFieldValue('couponsPerBook')} coupons</Checkbox>
-                    </Col>
-                    <Col span={24} style={{ marginBottom: 8 }}>
-                      <Checkbox value="book_integrity">All {form.getFieldValue('numberOfBooks')} books are intact and properly bound</Checkbox>
-                    </Col>
-                    <Col span={24} style={{ marginBottom: 8 }}>
-                      <Checkbox value="barcode_scan">Box barcode scanned successfully: <Text code>{form.getFieldValue('barcode')}</Text></Checkbox>
-                    </Col>
-                    <Col span={24} style={{ marginBottom: 8 }}>
-                      <Checkbox value="no_damage">No visible damage to coupons or books</Checkbox>
-                    </Col>
-                  </Row>
-                </Checkbox.Group>
-              </Form.Item>
-
-              {/* Generated Books Verification */}
-              <Form.Item
-                label="Generated Books Verification"
-                tooltip="Verify all generated books with coupon ranges and integrity"
-              >
-                <Card size="small" style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <Title level={5} style={{ margin: 0 }}>📚 All Generated Books ({calculatedBooks.length})</Title>
-                    <Space>
-                      <Button 
-                        size="small" 
-                        type={allBooksSelected ? "primary" : "default"}
-                        onClick={handleSelectAllBooks}
-                        icon={allBooksSelected ? <CheckOutlined /> : undefined}
-                      >
-                        {allBooksSelected ? 'Deselect All' : 'Select All'} Books
-                      </Button>
-                      <Text type="secondary">
-                        {verifiedBooks.length} / {calculatedBooks.length} verified
-                      </Text>
-                    </Space>
-                  </div>
-                  
-                  <Row gutter={[16, 16]}>
-                    {calculatedBooks.map((book, index) => {
-                      const bookNumber = index + 1;
-                      const isVerified = verifiedBooks.includes(bookNumber);
-                      return (
-                        <Col span={12} key={bookNumber}>
-                          <Card 
-                            size="small" 
-                            style={{ 
-                              border: isVerified ? '2px solid #52c41a' : '1px solid #d9d9d9',
-                              backgroundColor: isVerified ? '#f6ffed' : '#fff',
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => handleBookVerificationChange(bookNumber, !isVerified)}
-                            extra={
-                              <Checkbox
-                                checked={isVerified}
-                                onChange={(e) => handleBookVerificationChange(bookNumber, e.target.checked)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            }
-                          >
-                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text strong>📖 Book {bookNumber}</Text>
-                                {isVerified && <Tag color="green" icon={<CheckOutlined />}>VERIFIED</Tag>}
-                              </div>
-                              <Text type="secondary">First: <Text code>{book.firstCouponId}</Text></Text>
-                              <Text type="secondary">Last: <Text code>{book.lastCouponId}</Text></Text>
-                              <Text type="secondary">Coupons: <Tag color="blue">{book.numberOfCoupons}</Tag></Text>
-                              <Text type="secondary">Value: <Tag color="orange">{book.numberOfCoupons * (selectedBoxForPrint?.couponAmount || 0)} L</Tag></Text>
-                            </Space>
-                          </Card>
-                        </Col>
-                      );
-                    })}
-                  </Row>
-                  
-                  {verifiedBooks.length === calculatedBooks.length && calculatedBooks.length > 0 && (
-                    <Alert
-                      type="success"
-                      message="All Books Verified!"
-                      description={`Successfully verified all ${calculatedBooks.length} books. Ready for dispatch and processing.`}
-                      showIcon
-                      style={{ marginTop: 16 }}
-                    />
-                  )}
-                  
-                  {calculatedBooks.length === 0 && (
-                    <Alert
-                      message="No books generated yet"
-                      description="Complete the form fields above and click 'Generate Books' to see book verification options."
-                      type="info"
-                      showIcon
-                    />
-                  )}
-                </Card>
-              </Form.Item>
-
-              <Form.Item
-                label="Verification Notes"
-                name="couponVerificationNotes"
-              >
-                <TextArea
-                  rows={3}
-                  placeholder="Enter coupon verification notes, any discrepancies found, or issues identified..."
-                />
-              </Form.Item>
-
-              {/* Print/Download Options */}
+              {/* Notes Section */}
               <Card size="small" style={{ marginBottom: 16 }}>
-                <Title level={5}>📄 Verification Documentation</Title>
-                <Space>
-                  <Button 
-                    icon={<PrinterOutlined />}
-                    onClick={() => window.print()}
-                  >
-                    Print Verification Report
-                  </Button>
-                  <Button 
-                    icon={<DownloadOutlined />}
-                    type="primary"
-                    ghost
-                  >
-                    Download PDF Report
-                  </Button>
-                </Space>
+                <Form.Item
+                  label="Notes & Observations"
+                  name="notes"
+                >
+                  <TextArea
+                    rows={3}
+                    placeholder="Enter any verification notes, damage reports, or observations..."
+                  />
+                </Form.Item>
               </Card>
 
               <div style={{ textAlign: 'right' }}>
                 <Space>
-                  <Button onClick={() => setCurrentStep(2)}>
-                    Previous
-                  </Button>
-                  <Button onClick={() => setCurrentStep(4)}>
-                    Next: Final Approval
-                  </Button>
-                </Space>
-              </div>
-            </>
-          )}
-
-          {currentStep === 4 && (
-            <>
-              <Alert
-                message="Final Approval Required"
-                description="Please verify all box details and confirm receipt before submitting."
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-
-              <Form.Item
-                label="Final Notes"
-                name="notes"
-              >
-                <TextArea
-                  rows={4}
-                  placeholder="Enter any verification notes, damage reports, or observations..."
-                />
-              </Form.Item>
-
-              <Form.Item label="Digital Signature">
-                <Upload
-                  name="signature"
-                  listType="picture-card"
-                  className="avatar-uploader"
-                  showUploadList={false}
-                  beforeUpload={() => false}
-                >
-                  <div>
-                    <UploadOutlined />
-                    <div style={{ marginTop: 8 }}>Upload Signature</div>
-                  </div>
-                </Upload>
-              </Form.Item>
-
-              <div style={{ textAlign: 'right' }}>
-                <Space>
-                  <Button onClick={() => setCurrentStep(3)}>
+                  <Button onClick={() => setCurrentStep(0)}>
                     Previous
                   </Button>
                   <Button onClick={() => setIsModalVisible(false)}>
                     Cancel
                   </Button>
                   <Button
+                    type="default"
+                    loading={loading}
+                    onClick={async () => {
+                      await handleSubmit();
+                      // Keep modal open for further actions like book generation
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button
                     type="primary"
                     loading={loading}
-                    onClick={handleSubmit}
+                    onClick={async () => {
+                      await handleSubmit();
+                      setIsModalVisible(false);
+                      setSelectedBox(null);
+                      form.resetFields();
+                      await generateNextBoxNumber();
+                      message.success('Box receipt saved and closed successfully!');
+                    }}
                   >
-                    Confirm Receipt
+                    Save & Close
                   </Button>
                 </Space>
               </div>
             </>
           )}
+
         </Form>
       </Modal>
 
@@ -2823,79 +2680,6 @@ const BoxReceiptManagement: FC = () => {
             )}
           </div>
         )}
-      </Modal>
-
-      {/* Verification Modal */}
-      <Modal
-        title={
-          <Space>
-            <CheckOutlined />
-            Verify Box - {selectedBox?.boxId}
-          </Space>
-        }
-        open={verifyModalVisible}
-        onCancel={() => setVerifyModalVisible(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setVerifyModalVisible(false)}>
-            Cancel
-          </Button>,
-          <Button
-            key="verify"
-            type="primary"
-            onClick={handleConfirmVerification}
-          >
-            Confirm Verification
-          </Button>,
-        ]}
-      >
-        <Form form={verifyForm} layout="vertical">
-          <Alert
-            message="Box Verification"
-            description="Please verify the box contents, seal integrity, and barcode before confirming."
-            type="warning"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-
-          <Form.Item
-            label="Box ID"
-            name="boxId"
-          >
-            <Input disabled />
-          </Form.Item>
-
-          <Form.Item
-            label="Verification Checklist"
-          >
-            <Checkbox.Group style={{ width: '100%' }}>
-              <Row>
-                <Col span={24}>
-                  <Checkbox value="seal">Box seal is intact</Checkbox>
-                </Col>
-                <Col span={24}>
-                  <Checkbox value="books">All 20 books are present</Checkbox>
-                </Col>
-                <Col span={24}>
-                  <Checkbox value="barcode">Barcode scanned successfully</Checkbox>
-                </Col>
-                <Col span={24}>
-                  <Checkbox value="damage">No visible damage</Checkbox>
-                </Col>
-              </Row>
-            </Checkbox.Group>
-          </Form.Item>
-
-          <Form.Item
-            label="Verification Notes"
-            name="verificationNotes"
-            rules={[{ required: true, message: 'Please enter verification notes' }]}
-          >
-            <TextArea
-              rows={4}
-              placeholder="Enter detailed verification notes..."
-            />
-          </Form.Item>
-        </Form>
       </Modal>
 
       {/* Print Verification Report Modal */}

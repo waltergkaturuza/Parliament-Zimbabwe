@@ -186,57 +186,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database Configuration - Azure PostgreSQL with fallbacks
-import dj_database_url
-
-if os.environ.get('DATABASE_URL'):
-    # Parse DATABASE_URL if provided
-    DATABASES = {
-        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
+# Database Configuration - Simplified for local development
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-    print(f"DEBUG: Using DATABASE_URL = {os.environ.get('DATABASE_URL')[:50]}...")
-elif os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME'):
-    # Use environment variables for Azure PostgreSQL
-    db_name = os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME', 'parliament-fuel-db')
-    db_user = os.environ.get('DATABASE_USER') or os.environ.get('DB_USER', 'yalezopkar')
-    db_password = os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', 'MyNewSecurePass123')
-    db_host = os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST', 'parliament-fuel-postgres.postgres.database.azure.com')
-    db_port = os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT', '5432')
-    
-    # For Azure PostgreSQL, format username with @servername suffix if needed
-    if '@' not in db_user and 'azure.com' in db_host:
-        server_name = db_host.split('.')[0]  # Extract server name from FQDN
-        db_user = f"{db_user}@{server_name}"
-        print(f"DEBUG: Using Azure PostgreSQL user format: {db_user}")
-    
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': db_name,
-            'USER': db_user,
-            'PASSWORD': db_password,
-            'HOST': db_host,
-            'PORT': db_port,
-            'OPTIONS': {
-                'sslmode': 'require',  # Required for Azure PostgreSQL
-            },
-        }
-    }
-    
-    # Debug database configuration
-    print(f"DEBUG: Database NAME = {db_name}")
-    print(f"DEBUG: Database USER = {db_user}")
-    print(f"DEBUG: Database HOST = {db_host}")
-    print(f"DEBUG: Database PORT = {db_port}")
-else:
-    # Default SQLite for local development
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-    print("DEBUG: Using SQLite database for local development")
+}
+print("DEBUG: Using SQLite database for local development")
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

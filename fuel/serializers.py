@@ -728,12 +728,27 @@ class BoxSerializer(serializers.ModelSerializer):
         return f"{obj.first_coupon_number} {obj.last_coupon_number}"
 
     def validate(self, data):
+        # If coupon_range is present, use it to set first and last coupon numbers
         coupon_range = self.initial_data.get('coupon_range')
-        if coupon_range:
+        if coupon_range and 'undefined' not in coupon_range and coupon_range.strip() != '':
             parts = coupon_range.split()
-            if len(parts) == 2:
+            if len(parts) == 2 and all(parts):
                 data['first_coupon_number'] = parts[0]
                 data['last_coupon_number'] = parts[1]
+        # Allow saving with just first_coupon_number, number_of_books, and coupons_per_book
+        # Only require last_coupon_number if books are being generated
+        # Validate calculated fields if present
+        total_coupons = data.get('total_coupons_calculated')
+        total_litres = data.get('total_litres')
+        total_value_usd = data.get('total_value_usd')
+        if (total_coupons is not None and total_coupons <= 0) or (total_litres is not None and total_litres <= 0) or (total_value_usd is not None and total_value_usd <= 0):
+            raise serializers.ValidationError({'calculated_fields': 'Calculated totals (coupons, litres, or value) must be greater than zero.'})
+        # Accept booksGenerated as book_details if book_details is missing
+        book_details = self.initial_data.get('book_details')
+        books_generated = self.initial_data.get('booksGenerated')
+        if not book_details and books_generated:
+            data['book_details'] = books_generated
+        # Only require book_details if books are being generated
         return data
 
     class Meta:
@@ -959,38 +974,35 @@ class BoxSerializer(serializers.ModelSerializer):
         """
         import logging
         logger = logging.getLogger(__name__)
-        
         try:
             if book_details and isinstance(book_details, list):
-                # Use detailed book information from frontend
                 logger.info(f"Generating {len(book_details)} books from frontend details")
+                seen_book_numbers = set()
                 for book_data in book_details:
-                    book_number = book_data.get('book_number', book_data.get('book_id', 'Unknown'))
-                    first_coupon = book_data.get('first_coupon_id', '')
-                    last_coupon = book_data.get('last_coupon_id', '')
+                    # Always use book_number, fallback to book_id
+                    book_number = str(book_data.get('book_number') or book_data.get('book_id') or 'Unknown')
+                    if book_number in seen_book_numbers:
+                        logger.warning(f"Duplicate book_number '{book_number}' in incoming list, skipping.")
+                        continue
+                    seen_book_numbers.add(book_number)
+                    first_coupon = book_data.get('first_coupon_number') or book_data.get('first_coupon_id', '')
+                    last_coupon = book_data.get('last_coupon_number') or book_data.get('last_coupon_id', '')
                     coupon_count = book_data.get('number_of_coupons', book_data.get('coupons_count', 100))
-                    
                     # Create the book
-                    book = Book.objects.create(
+                    Book.objects.create(
                         box=box,
-                        book_number=str(book_number),
+                        book_number=book_number,
                         first_coupon_number=first_coupon,
                         last_coupon_number=last_coupon,
                         initial_coupon_count=coupon_count,
                         generated_by=getattr(self.context.get('request', None), 'user', None)
                     )
-                    
-                    logger.info(f"Created book {book.book_code} with range {first_coupon}-{last_coupon}")
-                    
+                    logger.info(f"Created book {book_number} with range {first_coupon}-{last_coupon}")
             elif box.number_of_books and box.coupons_per_book and box.first_coupon_number and box.last_coupon_number:
-                # Fall back to automatic generation based on box parameters
                 logger.info(f"Generating {box.number_of_books} books automatically from box parameters")
                 box.generate_books_and_coupons()
-                
         except Exception as e:
-            # Log the error but don't fail the entire creation
             logger.error(f"Error generating books for box {box.box_code}: {e}")
-            
             # Try simple book generation as fallback
             try:
                 for i in range(1, (box.number_of_books or 1) + 1):
@@ -2849,3 +2861,26 @@ class CalculationRequestSerializer(serializers.Serializer):
         if not FuelAllocationRule.objects.filter(id=value, is_active=True).exists():
             raise serializers.ValidationError("Active allocation rule not found")
         return value
+
+    def validate(self, data):
+        # Validate received_by (must be a valid user ID)
+        received_by = data.get('received_by') or self.initial_data.get('received_by')
+        if not received_by or str(received_by).strip() in ('', 'null', 'None'):
+            raise serializers.ValidationError({'received_by': 'Received By (user) is a required field and cannot be blank.'})
+
+        # Validate supplier (required by business logic)
+        supplier = data.get('supplier') or self.initial_data.get('supplier')
+        if not supplier or str(supplier).strip() == '':
+            raise serializers.ValidationError({'supplier': 'Supplier is a required field and cannot be blank.'})
+
+        # Set defaults for optional fields if blank
+        data['delivery_note'] = data.get('delivery_note') or self.initial_data.get('delivery_note') or ''
+        data['invoice_number'] = data.get('invoice_number') or self.initial_data.get('invoice_number') or ''
+        data['verification_notes'] = data.get('verification_notes') or self.initial_data.get('verification_notes') or ''
+        data['received_by_signature'] = data.get('received_by_signature') or self.initial_data.get('received_by_signature') or ''
+        # Ensure monetary_value_usd is a number (default to 0 if blank)
+        monetary_value_usd = data.get('monetary_value_usd') or self.initial_data.get('monetary_value_usd')
+        try:
+            data['monetary_value_usd'] = float(monetary_value_usd) if monetary_value_usd not in (None, '', 'null', 'None') else 0
+        except Exception:
+            data['monetary_value_usd'] = 0

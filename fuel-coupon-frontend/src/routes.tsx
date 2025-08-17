@@ -48,6 +48,7 @@ const SubCenterMonitoringPage = lazy(() => import('@/pages/main-center/SubCenter
 const AnalyticsFinancePage = lazy(() => import('@/pages/main-center/AnalyticsFinancePage'));
 
 const CouponManagement = lazy(() => import('@/pages/fuel/CouponManagement'));
+const CouponVerification = lazy(() => import('@/pages/Coupons/CouponVerification'));
 const BeneficiaryManagement = lazy(() => import('@/pages/parliament/BeneficiaryManagement'));
 const ReportsAnalytics = lazy(() => import('@/pages/reports/ReportsAnalytics'));
 const SubCenterDashboardPage = lazy(() => import('@/pages/subcenter/SubCenterDashboard'));
@@ -217,6 +218,9 @@ const router = createBrowserRouter(
         <Route path="constituencies" element={<Suspense fallback={<LoadingSpinner />}><ConstituencyManagement /></Suspense>} />
         <Route path="fuel-allocations" element={<Suspense fallback={<LoadingSpinner />}><FuelAllocations /></Suspense>} />
         <Route path="dynamic-allocations" element={<Suspense fallback={<LoadingSpinner />}><DynamicAllocations /></Suspense>} />
+        
+        {/* Coupon Routes */}
+        <Route path="coupon-verification" element={<Suspense fallback={<LoadingSpinner />}><CouponVerification /></Suspense>} />
         
         {/* Parliament Oversight Routes (MAIN_CENTER) */}
         <Route path="parliament-reports" element={

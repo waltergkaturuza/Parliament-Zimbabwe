@@ -1,76 +1,74 @@
 #!/usr/bin/env python
+"""
+Script to create test data for the fuel coupon system
+"""
 import os
-import sys
 import django
 
-# Set up Django environment
-sys.path.append('.')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+# Setup Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.local')
 django.setup()
 
-from django.contrib.auth import get_user_model
-from fuel.models import SubCenter, Coupon, CouponDistribution, FuelTransaction
-
-User = get_user_model()
+from fuel.models import User, Box
+from django.contrib.auth.hashers import make_password
+import datetime
 
 def create_test_data():
     print("Creating test data...")
     
-    # Create test users if they don't exist
-    if not User.objects.filter(username='testuser').exists():
+    # Create or get test user
+    try:
+        user = User.objects.get(username='testuser')
+        print(f'✓ User found: {user.username}, ID: {user.id}')
+    except User.DoesNotExist:
+        print('Creating test user...')
         user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123',
-            role='BENEFICIARY'
+            first_name='Test',
+            last_name='User',
+            password='testpass123'
         )
-        print(f"Created test user: {user.username}")
+        print(f'✓ User created: {user.username}, ID: {user.id}')
     
-    # Create sub centers
-    if not SubCenter.objects.exists():
-        subcenter = SubCenter.objects.create(
-            name='Test SubCenter',
-            location='Test Location',
-            is_active=True
+    # Create test boxes
+    boxes_created = 0
+    for i in range(1, 6):  # Create 5 test boxes
+        box_code = f'BOX{i:03d}'
+        box, created = Box.objects.get_or_create(
+            box_code=box_code,
+            defaults={
+                'supplier': f'Test Supplier {i}',
+                'invoice_number': f'INV{i:03d}',
+                'barcode': f'BC{i:03d}',
+                'received_by': user,
+                'received_date': datetime.date.today(),
+                'status': 'received'
+            }
         )
-        print(f"Created subcenter: {subcenter.name}")
+        if created:
+            boxes_created += 1
+        print(f'✓ Box {i} - ID: {box.id}, Code: {box.box_code}, Created: {created}')
     
-    # Create coupons
-    if not Coupon.objects.exists():
-        for i in range(5):
-            coupon = Coupon.objects.create(
-                coupon_number=f'TEST{i+1:04d}',
-                fuel_type='PETROL',
-                volume=50.0
-            )
-            print(f"Created coupon: {coupon.coupon_number}")
+    # Summary
+    total_users = User.objects.count()
+    total_boxes = Box.objects.count()
     
-    # Create distributions
-    if not CouponDistribution.objects.exists():
-        user = User.objects.filter(role='BENEFICIARY').first()
-        coupons = Coupon.objects.all()[:3]
-        
-        for coupon in coupons:
-            distribution = CouponDistribution.objects.create(
-                coupon=coupon,
-                beneficiary=user,
-                notes='Test distribution'
-            )
-            print(f"Created distribution: {distribution}")
+    print(f'\n=== SUMMARY ===')
+    print(f'Total users in database: {total_users}')
+    print(f'Total boxes in database: {total_boxes}')
+    print(f'New boxes created: {boxes_created}')
     
-    # Create transactions
-    if not FuelTransaction.objects.exists():
-        coupon = Coupon.objects.first()
-        if coupon:
-            transaction = FuelTransaction.objects.create(
-                coupon=coupon,
-                status='APPROVED',
-                fuel_volume=45.0,
-                notes='Test transaction'
-            )
-            print(f"Created transaction: {transaction}")
+    # List all boxes for verification
+    print(f'\n=== ALL BOXES ===')
+    for box in Box.objects.all():
+        print(f'  Box ID {box.id}: {box.box_code} - {box.supplier} (Status: {box.status})')
     
-    print("Test data creation completed!")
+    return total_boxes > 0
 
 if __name__ == '__main__':
-    create_test_data()
+    success = create_test_data()
+    if success:
+        print('\n✅ Test data creation completed successfully!')
+    else:
+        print('\n❌ Test data creation failed!')
