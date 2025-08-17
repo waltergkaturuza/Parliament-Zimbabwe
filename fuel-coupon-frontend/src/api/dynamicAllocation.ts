@@ -151,7 +151,7 @@ export const allocationAnalyticsApi = {
     total_usd: number;
     active_sessions: number;
   }> => {
-    const response = await apiClient.get(`${API_BASE}/analytics/summary/`);
+    const response = await apiClient.get(`${API_BASE}/analytics/`);
     return response.data;
   },
 
