@@ -13,6 +13,7 @@ from .views_main import (
     # NEW: Missing view implementations from views_main
     main_dashboard, analytics_consumption_trend, analytics_fuel_requirements,
     change_password, mark_all_notifications_read, subcenter_statistics,
+    dynamic_allocation,
     
     # Existing ViewSets
     UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
@@ -161,6 +162,9 @@ urlpatterns = [
     
     # Books endpoints
     path('books/received/', BookViewSet.as_view({'get': 'received'}), name='books-received-v1'),
+    
+    # Dynamic allocation endpoint
+    path('dynamic-allocation/', dynamic_allocation, name='dynamic-allocation'),
     
     # Router endpoints for missing paths
     path('subcenters/', SubCenterViewSet.as_view({'get': 'list'}), name='subcenters-list'),

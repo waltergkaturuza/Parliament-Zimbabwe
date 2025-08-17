@@ -486,7 +486,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
             total_books = Book.objects.filter(box__assigned_to=subcenter).count()
             books_used = Book.objects.filter(box__assigned_to=subcenter, is_assigned=True).count()
             total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
-            coupons_used = Coupon.objects.filter(book__box__assigned_to=subcenter, is_used=True).count()
+            coupons_used = Coupon.objects.filter(book__box__assigned_to=subcenter, status='USED').count()
             
             data = {
                 'center_id': subcenter.code or f'SC-{subcenter.id}',
@@ -496,8 +496,8 @@ class SubCenterViewSet(viewsets.ModelViewSet):
                 'total_coupons': total_coupons,
                 'coupons_used': coupons_used,
                 'active_members': User.objects.filter(sub_center=subcenter, is_active=True).count(),
-                'pending_handovers': BookDispatch.objects.filter(to_subcenter=subcenter, status='PENDING').count(),
-                'last_handover': BookDispatch.objects.filter(to_subcenter=subcenter).order_by('-created_at').first().created_at.strftime('%Y-%m-%d') if BookDispatch.objects.filter(to_subcenter=subcenter).exists() else '',
+                'pending_handovers': BookDispatch.objects.filter(to_center=subcenter, status='PENDING').count(),
+                'last_handover': BookDispatch.objects.filter(to_center=subcenter).order_by('-created').first().created.strftime('%Y-%m-%d') if BookDispatch.objects.filter(to_center=subcenter).exists() else '',
                 'total_value_usd': total_coupons * 2.5,  # Assume $2.5 average per coupon
                 'monthly_consumption_usd': coupons_used * 2.5,
             }
@@ -1027,7 +1027,7 @@ class BookViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         queryset = Book.objects.filter(
-            box__is_received=True
+            box__received_at__isnull=False
         ).select_related('box', 'box__assigned_to', 'assigned_to')
         
         if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
@@ -3566,13 +3566,13 @@ class PoolVehicleViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = PoolVehicle.objects.select_related('sub_center').all()
+        queryset = PoolVehicle.objects.select_related('assigned_subcenter').all()
         
         if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
             return queryset  # Main Center and Auditors see all vehicles
         elif user.role == 'SUB_CENTER' and user.sub_center:
             # Sub Center officers see only vehicles in their center
-            return queryset.filter(sub_center=user.sub_center)
+            return queryset.filter(assigned_subcenter=user.sub_center)
         
         return queryset.none()
     
@@ -3584,7 +3584,7 @@ class PoolVehicleViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Auto-assign to user's subcenter if they're a subcenter officer
         if self.request.user.role == 'SUB_CENTER' and self.request.user.sub_center:
-            serializer.save(sub_center=self.request.user.sub_center)
+            serializer.save(assigned_subcenter=self.request.user.sub_center)
         else:
             serializer.save()
     
@@ -4244,12 +4244,12 @@ def analytics_fuel_requirements(request):
         
         # Get current stock levels
         available_petrol_coupons = Coupon.objects.filter(
-            fuel_type='PETROL', 
+            book__box__fuel_type='PETROL', 
             status='AVAILABLE'
         ).count()
         
         available_diesel_coupons = Coupon.objects.filter(
-            fuel_type='DIESEL', 
+            book__box__fuel_type='DIESEL', 
             status='AVAILABLE'
         ).count()
         
@@ -4484,6 +4484,90 @@ def subcenter_statistics(request):
         )
 
 
+# Dynamic Allocation API View - for /api/v1/dynamic-allocation/
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def dynamic_allocation(request):
+    """
+    Dynamic allocation endpoint for managing coupon allocations
+    """
+    try:
+        if request.method == 'GET':
+            # Return allocation options and current allocations
+            user = request.user
+            
+            # Get available coupons for allocation
+            available_coupons = Coupon.objects.filter(status='AVAILABLE').count()
+            allocated_coupons = Coupon.objects.filter(status='ALLOCATED').count()
+            
+            # Get recent allocations
+            recent_allocations = CouponAllocation.objects.all().order_by('-allocation_date')[:10]
+            
+            allocation_data = []
+            for allocation in recent_allocations:
+                allocation_data.append({
+                    'id': allocation.id,
+                    'beneficiary': allocation.beneficiary.get_full_name(),
+                    'book': allocation.book.book_number if allocation.book else 'N/A',
+                    'quantity': allocation.quantity,
+                    'date': allocation.allocation_date.strftime('%Y-%m-%d')
+                })
+            
+            return Response({
+                'available_coupons': available_coupons,
+                'allocated_coupons': allocated_coupons,
+                'recent_allocations': allocation_data,
+                'allocation_options': {
+                    'allocation_types': ['MANUAL', 'AUTOMATIC', 'BULK'],
+                    'priority_levels': ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
+                }
+            })
+            
+        elif request.method == 'POST':
+            # Process dynamic allocation request
+            allocation_type = request.data.get('allocation_type', 'MANUAL')
+            beneficiary_id = request.data.get('beneficiary_id')
+            quantity = request.data.get('quantity', 1)
+            
+            if not beneficiary_id:
+                return Response({'error': 'beneficiary_id is required'}, status=400)
+            
+            try:
+                beneficiary = User.objects.get(id=beneficiary_id, role='BENEFICIARY')
+            except User.DoesNotExist:
+                return Response({'error': 'Beneficiary not found'}, status=404)
+            
+            # Simple allocation logic - find available coupons
+            available_coupons = Coupon.objects.filter(status='AVAILABLE')[:quantity]
+            
+            if len(available_coupons) < quantity:
+                return Response({
+                    'error': f'Only {len(available_coupons)} coupons available, but {quantity} requested'
+                }, status=400)
+            
+            # Allocate the coupons
+            allocated_count = 0
+            for coupon in available_coupons:
+                coupon.allocated_to = beneficiary
+                coupon.status = 'ALLOCATED'
+                coupon.allocated_date = timezone.now()
+                coupon.save()
+                allocated_count += 1
+            
+            return Response({
+                'message': f'Successfully allocated {allocated_count} coupons to {beneficiary.get_full_name()}',
+                'allocated_count': allocated_count,
+                'beneficiary': beneficiary.get_full_name(),
+                'allocation_type': allocation_type
+            })
+            
+    except Exception as e:
+        return Response(
+            {'error': f'Dynamic allocation failed: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 # =========================== END MISSING VIEW IMPLEMENTATIONS ===========================
 
 # Fuel Statistics API View
@@ -4650,7 +4734,7 @@ def analytics_view(request):
 
         # --- Query Data ---
         fuel_transactions = FuelTransaction.objects.filter(timestamp__date__range=[start_date, end_date])
-        attendances = SessionAttendance.objects.filter(session__date__range=[start_date, end_date])
+        attendances = SessionAttendance.objects.filter(session__start_date__range=[start_date, end_date])
         entitlements = FuelEntitlement.objects.filter(created__date__range=[start_date, end_date])
 
         # --- Aggregate Data ---
@@ -4658,7 +4742,7 @@ def analytics_view(request):
         total_coupons_used = fuel_transactions.filter(coupon__isnull=False).count()
         
         total_attendance = attendances.count()
-        present_attendance = attendances.filter(attended=True).count()
+        present_attendance = attendances.filter(status='PRESENT').count()
         attendance_rate = (present_attendance / total_attendance * 100) if total_attendance > 0 else 0
 
         total_entitlements = entitlements.count()
@@ -4817,7 +4901,7 @@ class SessionAttendanceViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset().filter(session=session)
         
         total_attendances = queryset.count()
-        present_count = queryset.filter(attended=True).count()
+        present_count = queryset.filter(status='PRESENT').count()
         absent_count = total_attendances - present_count
         
         # Get total fuel allocated
@@ -4857,7 +4941,7 @@ class SessionAttendanceViewSet(viewsets.ModelViewSet):
         
         # Get statistics
         total_sessions = queryset.count()
-        attended_sessions = queryset.filter(attended=True).count()
+        attended_sessions = queryset.filter(status='PRESENT').count()
         total_fuel_received = queryset.filter(
             attended=True,
             fuel_allocated__isnull=False
