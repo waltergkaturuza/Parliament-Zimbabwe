@@ -21,7 +21,8 @@ import {
   Badge,
   Tooltip,
   Steps,
-  Popconfirm
+  Popconfirm,
+  Tabs
 } from 'antd';
 import {
   EyeOutlined,
@@ -33,16 +34,23 @@ import {
   BookOutlined,
   BarcodeOutlined,
   SignatureOutlined,
-  AuditOutlined
+  AuditOutlined,
+  CalculatorOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import apiClient from '@/api/index';
+import { IntelligentGenerator } from '../../../components/IntelligentGenerator';
+import { BooksVerification } from '../../../components/BooksVerification';
+import { CouponCalculations } from '../../../components/CouponCalculations';
+import type { BookInfo } from '../../../utils/couponCalculations';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 const { TextArea } = Input;
 const { Step } = Steps;
+const { TabPane } = Tabs;
 
 interface CouponSerial {
   id: string;
@@ -100,6 +108,11 @@ const BoxVerificationPage: React.FC = () => {
   const [signOffModalVisible, setSignOffModalVisible] = useState(false);
   const [verificationForm] = Form.useForm();
   const [signOffForm] = Form.useForm();
+  
+  // New state for enhanced verification tabs
+  const [activeTab, setActiveTab] = useState('main');
+  const [generatedBooks, setGeneratedBooks] = useState<BookInfo[]>([]);
+  const [intelligentForm] = Form.useForm();
 
   useEffect(() => {
     loadBoxes();
@@ -268,6 +281,12 @@ const BoxVerificationPage: React.FC = () => {
     });
   };
 
+  // Handler for intelligent generator
+  const handleGenerateBooks = (books: BookInfo[]) => {
+    setGeneratedBooks(books);
+    message.success(`Generated ${books.length} books for verification`);
+  };
+
   const columns: ColumnsType<BoxVerification> = [
     {
       title: 'Box ID',
@@ -367,20 +386,87 @@ const BoxVerificationPage: React.FC = () => {
     <div>
       <Card>
         <div style={{ marginBottom: 16 }}>
-          <Title level={4}>Box & Coupon Verification</Title>
+          <Title level={4}>Enhanced Box & Coupon Verification</Title>
           <Text type="secondary">
-            Verify each box and its books, then confirm and sign off on the coupon serials
+            Comprehensive verification with intelligent generation, books verification, and calculations
           </Text>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={boxes}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1000 }}
-        />
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          type="card"
+          size="large"
+        >
+          <TabPane
+            tab={
+              <span>
+                <SecurityScanOutlined />
+                Main Verification
+              </span>
+            }
+            key="main"
+          >
+            <Table
+              columns={columns}
+              dataSource={boxes}
+              rowKey="id"
+              loading={loading}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1000 }}
+            />
+          </TabPane>
+
+          <TabPane
+            tab={
+              <span>
+                <SettingOutlined />
+                Intelligent Generator
+              </span>
+            }
+            key="generator"
+          >
+            <IntelligentGenerator 
+              onGenerate={handleGenerateBooks}
+              form={intelligentForm}
+            />
+          </TabPane>
+
+          <TabPane
+            tab={
+              <span>
+                <BookOutlined />
+                Books Verification
+              </span>
+            }
+            key="books"
+          >
+            <BooksVerification 
+              books={generatedBooks}
+              form={intelligentForm}
+              couponAmount={selectedBox?.couponAmount || 0}
+            />
+          </TabPane>
+
+          <TabPane
+            tab={
+              <span>
+                <CalculatorOutlined />
+                Calculations
+              </span>
+            }
+            key="calculations"
+          >
+            <CouponCalculations
+              firstCouponId={intelligentForm.getFieldValue('firstCouponId')}
+              totalCoupons={intelligentForm.getFieldValue('totalCoupons')}
+              fuelType={selectedBox?.fuelType}
+              couponAmount={selectedBox?.couponAmount}
+              pricePerLitre={1.5} // Default price, can be made dynamic
+              numberOfBooks={intelligentForm.getFieldValue('numberOfBooks')}
+            />
+          </TabPane>
+        </Tabs>
       </Card>
 
       {/* Box Verification Modal */}
