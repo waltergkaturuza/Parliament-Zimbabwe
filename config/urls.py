@@ -48,11 +48,15 @@ def cors_test_view(request):
     
     return response
 
-# JWT Token views
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-    TokenVerifyView,
-)
+def get_jwt_token_refresh_view():
+    """Lazy import to avoid circular dependency"""
+    from rest_framework_simplejwt.views import TokenRefreshView
+    return TokenRefreshView.as_view()
+
+def get_jwt_token_verify_view():
+    """Lazy import to avoid circular dependency"""
+    from rest_framework_simplejwt.views import TokenVerifyView
+    return TokenVerifyView.as_view()
 
 urlpatterns = [
     path('', home_view, name='home'),  # Add root URL
@@ -67,8 +71,9 @@ urlpatterns = [
     # Business Central Integration
     path('bc/', include('fuel.urls_bc')),
 
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # JWT Token endpoints with lazy imports
+    path('api/token/refresh/', get_jwt_token_refresh_view(), name='token_refresh'),
+    path('api/token/verify/', get_jwt_token_verify_view(), name='token_verify'),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     # path('admin/statistics/program-summary/',
