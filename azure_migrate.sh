@@ -5,7 +5,7 @@ echo "=== Azure Django Remote Migration ==="
 echo ""
 
 # App details
-RESOURCE_GROUP="parliament-fuel-tg"
+RESOURCE_GROUP="parliament-fuel-system-rg"
 APP_NAME="parliament-fuel-system-d0bvbjfrdbepdrfh"
 
 echo "🔍 Checking Azure CLI login status..."

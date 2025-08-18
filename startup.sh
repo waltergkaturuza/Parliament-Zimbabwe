@@ -170,6 +170,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Fix missing database columns
+echo "🔧 Fixing missing database columns..."
+python manage.py fix_missing_columns
+
+if [ $? -ne 0 ]; then
+    echo "❌ Database schema fix failed!"
+    exit 1
+fi
+
 # Collect static files
 echo "📁 Collecting static files..."
 python manage.py collectstatic --noinput --clear
