@@ -2972,3 +2972,307 @@ class CalculationRequestSerializer(serializers.Serializer):
             data['monetary_value_usd'] = float(monetary_value_usd) if monetary_value_usd not in (None, '', 'null', 'None') else 0
         except Exception:
             data['monetary_value_usd'] = 0
+
+        return data
+
+
+# ===== MAINCENTER-SPECIFIC SERIALIZERS =====
+# These serializers provide enhanced field mappings for MainCenter dashboard components
+
+class MainCenterDashboardSerializer(serializers.Serializer):
+    """
+    Serializer for MainCenter dashboard statistics
+    Provides fields expected by MainCenterDashboard.tsx component
+    """
+    # Primary Statistics (matching frontend expectations exactly)
+    totalBoxesReceived = serializers.IntegerField(help_text="Total boxes received in system")
+    totalBooksDispatched = serializers.IntegerField(help_text="Total books dispatched to subcenters")
+    totalCouponsActive = serializers.IntegerField(help_text="Total active coupons (available + allocated)")
+    totalMonetaryValue = serializers.IntegerField(help_text="Total monetary value in ZWG")
+    activeSubCenters = serializers.IntegerField(help_text="Number of active sub-centers")
+    pendingHandovers = serializers.IntegerField(help_text="Number of pending handovers")
+    
+    # Secondary Statistics
+    pendingReceipts = serializers.IntegerField(help_text="Number of pending box receipts")
+    lowInventoryAlerts = serializers.IntegerField(help_text="Number of low inventory alerts")
+    todayReceipts = serializers.IntegerField(help_text="Number of receipts today")
+    completedDispatchesToday = serializers.IntegerField(help_text="Number of dispatches completed today")
+    
+    # Fuel Pricing
+    currentPetrolPrice = serializers.IntegerField(help_text="Current petrol price in ZWG per litre")
+    currentDieselPrice = serializers.IntegerField(help_text="Current diesel price in ZWG per litre")
+    
+    # Detailed Breakdown (optional nested data)
+    coupons = serializers.DictField(required=False, help_text="Detailed coupon breakdown")
+    subcenters = serializers.DictField(required=False, help_text="Detailed subcenter statistics")
+    users = serializers.DictField(required=False, help_text="User statistics")
+    financial = serializers.DictField(required=False, help_text="Financial breakdown")
+    recent_activity = serializers.DictField(required=False, help_text="Recent activity metrics")
+    
+    # Metadata
+    last_updated = serializers.DateTimeField(help_text="When the data was last updated")
+    data_source = serializers.CharField(default='real_time', help_text="Source of the data")
+    user_role = serializers.CharField(help_text="Role of the requesting user")
+    generated_by = serializers.CharField(help_text="User who generated the data")
+
+
+class SubCenterMonitoringSerializer(serializers.ModelSerializer):
+    """
+    Enhanced serializer for SubCenter data used in MainCenter SubCenterMonitoring component
+    Provides all fields expected by the frontend table and cards
+    """
+    # Basic SubCenter fields (from model)
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField()
+    code = serializers.CharField()
+    location = serializers.CharField()
+    status = serializers.SerializerMethodField()
+    
+    # Manager and contact information
+    manager_name = serializers.SerializerMethodField()
+    manager_email = serializers.SerializerMethodField()
+    contact_number = serializers.CharField(default='Not provided')
+    email = serializers.CharField(default='Not provided')
+    
+    # Inventory statistics (calculated fields)
+    total_boxes = serializers.SerializerMethodField()
+    total_books = serializers.SerializerMethodField()
+    books_used = serializers.SerializerMethodField()
+    books_remaining = serializers.SerializerMethodField()
+    total_coupons = serializers.SerializerMethodField()
+    available_coupons = serializers.SerializerMethodField()
+    used_coupons = serializers.SerializerMethodField()
+    
+    # Financial information
+    total_value_usd = serializers.SerializerMethodField()
+    total_value_zwg = serializers.SerializerMethodField()
+    monthly_consumption_usd = serializers.SerializerMethodField()
+    
+    # Performance metrics
+    performance_score = serializers.SerializerMethodField()
+    alerts_count = serializers.SerializerMethodField()
+    
+    # Metadata
+    last_activity = serializers.SerializerMethodField()
+    created = serializers.SerializerMethodField()
+    coordinates = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SubCenter
+        fields = [
+            'id', 'name', 'code', 'location', 'status',
+            'manager_name', 'manager_email', 'contact_number', 'email',
+            'total_boxes', 'total_books', 'books_used', 'books_remaining',
+            'total_coupons', 'available_coupons', 'used_coupons',
+            'total_value_usd', 'total_value_zwg', 'monthly_consumption_usd',
+            'performance_score', 'alerts_count',
+            'last_activity', 'created', 'coordinates'
+        ]
+    
+    def get_status(self, obj):
+        return 'ACTIVE' if obj.is_active else 'INACTIVE'
+    
+    def get_manager_name(self, obj):
+        if hasattr(obj, 'managed_by') and obj.managed_by:
+            return obj.managed_by.get_full_name()
+        return 'Not assigned'
+    
+    def get_manager_email(self, obj):
+        if hasattr(obj, 'managed_by') and obj.managed_by:
+            return obj.managed_by.email
+        return ''
+    
+    def get_total_boxes(self, obj):
+        return Box.objects.filter(assigned_to=obj).count()
+    
+    def get_total_books(self, obj):
+        return Book.objects.filter(box__assigned_to=obj).count()
+    
+    def get_books_used(self, obj):
+        return Book.objects.filter(box__assigned_to=obj, is_assigned=True).count()
+    
+    def get_books_remaining(self, obj):
+        total = self.get_total_books(obj)
+        used = self.get_books_used(obj)
+        return total - used
+    
+    def get_total_coupons(self, obj):
+        return Coupon.objects.filter(book__box__assigned_to=obj).count()
+    
+    def get_available_coupons(self, obj):
+        return Coupon.objects.filter(
+            book__box__assigned_to=obj,
+            status='AVAILABLE'
+        ).count()
+    
+    def get_used_coupons(self, obj):
+        return Coupon.objects.filter(
+            book__box__assigned_to=obj,
+            status='USED'
+        ).count()
+    
+    def get_total_value_usd(self, obj):
+        total_coupons = self.get_total_coupons(obj)
+        # Assuming 20L per coupon at $1.30 average
+        return round(total_coupons * 20 * 1.30, 2)
+    
+    def get_total_value_zwg(self, obj):
+        return round(self.get_total_value_usd(obj) * 27.5, 2)
+    
+    def get_monthly_consumption_usd(self, obj):
+        used_coupons = self.get_used_coupons(obj)
+        # Estimate monthly consumption
+        return round(used_coupons * 20 * 1.30 * 0.1, 2)
+    
+    def get_performance_score(self, obj):
+        total_coupons = self.get_total_coupons(obj)
+        used_coupons = self.get_used_coupons(obj)
+        available_coupons = self.get_available_coupons(obj)
+        
+        if total_coupons == 0:
+            return 0
+        
+        usage_rate = (used_coupons / total_coupons) * 100
+        performance_score = min(100, max(0, usage_rate + 
+            (30 if available_coupons > 10 else 15)
+        ))
+        return round(performance_score, 1)
+    
+    def get_alerts_count(self, obj):
+        alerts = 0
+        available_coupons = self.get_available_coupons(obj)
+        books_remaining = self.get_books_remaining(obj)
+        performance_score = self.get_performance_score(obj)
+        
+        if available_coupons < 50:
+            alerts += 1
+        if books_remaining < 5:
+            alerts += 1
+        if performance_score < 70:
+            alerts += 1
+        
+        return alerts
+    
+    def get_last_activity(self, obj):
+        if hasattr(obj, 'updated'):
+            return obj.updated.isoformat()
+        return timezone.now().isoformat()
+    
+    def get_created(self, obj):
+        if hasattr(obj, 'created'):
+            return obj.created.isoformat()
+        return timezone.now().isoformat()
+    
+    def get_coordinates(self, obj):
+        if hasattr(obj, 'latitude') and obj.latitude:
+            return {
+                'lat': obj.latitude,
+                'lng': obj.longitude
+            }
+        return None
+
+
+class FuelStatisticsSerializer(serializers.Serializer):
+    """
+    Serializer for comprehensive fuel statistics used in analytics
+    """
+    summary = serializers.DictField(help_text="Summary statistics")
+    recent_activity = serializers.DictField(help_text="Recent activity metrics")
+    consumption_trend = serializers.ListField(help_text="Daily consumption trend data")
+    financial = serializers.DictField(help_text="Financial information")
+    usage_by_subcenter = serializers.ListField(help_text="Usage breakdown by subcenter")
+    fuel_breakdown = serializers.DictField(help_text="Petrol vs Diesel breakdown")
+    metadata = serializers.DictField(help_text="Generation metadata")
+
+
+class BoxReceiptEnhancedSerializer(serializers.ModelSerializer):
+    """
+    Enhanced serializer for box receipts with MainCenter-specific fields
+    """
+    received_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    total_estimated_value = serializers.SerializerMethodField()
+    verification_status = serializers.SerializerMethodField()
+    days_since_receipt = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Box
+        fields = '__all__'
+        extra_fields = [
+            'received_by_name', 'assigned_to_name', 'total_estimated_value',
+            'verification_status', 'days_since_receipt'
+        ]
+    
+    def get_received_by_name(self, obj):
+        if obj.received_by:
+            return obj.received_by.get_full_name()
+        return 'Unknown'
+    
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return obj.assigned_to.name
+        return 'Not assigned'
+    
+    def get_total_estimated_value(self, obj):
+        if obj.total_coupons and obj.denomination:
+            # Estimate based on denomination and current fuel prices
+            return obj.total_coupons * obj.denomination * 1.30  # $1.30 average
+        return 0
+    
+    def get_verification_status(self, obj):
+        # Simple verification status based on available data
+        if obj.is_received and obj.box_code:
+            return 'VERIFIED'
+        return 'PENDING'
+    
+    def get_days_since_receipt(self, obj):
+        if obj.received_date:
+            delta = timezone.now().date() - obj.received_date
+            return delta.days
+        return 0
+
+
+class BookDispatchEnhancedSerializer(serializers.ModelSerializer):
+    """
+    Enhanced serializer for book dispatches with MainCenter dashboard fields
+    """
+    dispatched_to_name = serializers.SerializerMethodField()
+    dispatched_by_name = serializers.SerializerMethodField()
+    total_books_count = serializers.SerializerMethodField()
+    total_coupons_count = serializers.SerializerMethodField()
+    estimated_value = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BookDispatch
+        fields = '__all__'
+        extra_fields = [
+            'dispatched_to_name', 'dispatched_by_name', 'total_books_count',
+            'total_coupons_count', 'estimated_value', 'status_display'
+        ]
+    
+    def get_dispatched_to_name(self, obj):
+        if obj.to_center:
+            return obj.to_center.name
+        return 'Unknown destination'
+    
+    def get_dispatched_by_name(self, obj):
+        if obj.dispatched_by:
+            return obj.dispatched_by.get_full_name()
+        return 'Unknown dispatcher'
+    
+    def get_total_books_count(self, obj):
+        # Count related books if this dispatch has books
+        return obj.books.count() if hasattr(obj, 'books') else 0
+    
+    def get_total_coupons_count(self, obj):
+        # Estimate coupons based on books
+        books_count = self.get_total_books_count(obj)
+        return books_count * 100  # Assume 100 coupons per book average
+    
+    def get_estimated_value(self, obj):
+        coupons_count = self.get_total_coupons_count(obj)
+        return coupons_count * 20 * 1.30  # 20L per coupon * $1.30
+    
+    def get_status_display(self, obj):
+        return obj.get_status_display() if hasattr(obj, 'get_status_display') else obj.status

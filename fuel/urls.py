@@ -2,48 +2,56 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-# Import directly from views_main to avoid circular import issues
-from .views_main import (
-    # Authentication views
-    RegisterView, LoginView, user_profile_view,
-    
-    # Admin views
-    admin_dashboard, fuel_statistics, analytics_view, notification_stats,
-    
-    # NEW: Missing view implementations from views_main
-    main_dashboard, analytics_consumption_trend, analytics_fuel_requirements,
-    change_password, mark_all_notifications_read, subcenter_statistics,
-    dynamic_allocation,
-    
-    # Missing frontend endpoints
-    auth_roles, subcenters_stats, programs_stats,
-    
-    # Existing ViewSets
-    UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
-    
-    # New Parliament-specific ViewSets
-    BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
-    ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
-    FuelEntitlementViewSet, ProgramViewSet,
-    
-    # Subcenter management ViewSets
-    PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
-    
-    # Fuel requirements management ViewSet
-    FuelRequirementConfigurationViewSet,
-    
-    # Dispatch and allocation ViewSets
-    BookDispatchViewSet, CouponAllocationViewSet,
-    
-    # System management ViewSets
-    SystemAlertViewSet, AuditLogViewSet,
-    
-    # Business Central integration - moved from views_bc to views_main
-    test_business_central_connection,
-    
-    # CORS test views
-    cors_test, health_check,
-)
+# Use lazy imports to avoid circular import issues
+def get_view_function(view_name):
+    """Lazy import function to avoid circular imports"""
+    from . import views_main
+    return getattr(views_main, view_name)
+
+# Import ViewSets and views that don't cause circular imports
+try:
+    from .views_main import (
+        # Authentication views
+        RegisterView, LoginView, user_profile_view, auth_roles,
+        
+        # Admin views
+        admin_dashboard, fuel_statistics, analytics_view, notification_stats,
+        
+        # NEW: Missing view implementations from views_main
+        main_dashboard, analytics_consumption_trend,
+        change_password, mark_all_notifications_read, subcenter_statistics,
+        dynamic_allocation, subcenters_stats,
+        
+        # Existing ViewSets
+        UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
+        
+        # New Parliament-specific ViewSets
+        BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
+        ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
+        FuelEntitlementViewSet, ProgramViewSet,
+        
+        # Subcenter management ViewSets
+        PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
+        
+        # Fuel requirements management ViewSet
+        FuelRequirementConfigurationViewSet,
+        
+        # Dispatch and allocation ViewSets
+        BookDispatchViewSet, CouponAllocationViewSet,
+        
+        # System management ViewSets
+        SystemAlertViewSet, AuditLogViewSet,
+        
+        # Business Central integration - moved from views_bc to views_main
+        test_business_central_connection,
+        
+        # CORS test views
+        cors_test, health_check,
+    )
+except ImportError as e:
+    print(f"Import error in fuel/urls.py: {e}")
+    # Fallback imports will be handled by lazy loading
+    pass
 
 # Import debug views
 from .views_debug import test_azure_database, health_check as debug_health_check
@@ -124,7 +132,7 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     path('auth/user/', user_profile_view, name='current-user'),  # Add user profile endpoint
-    path('auth/roles/', auth_roles, name='auth-roles'),  # Available user roles
+    path('auth/roles/', get_view_function('auth_roles'), name='auth-roles'),  # Available user roles
     path('users/me/', user_profile_view, name='user-me'),  # Alternative endpoint for current user
     # Change password (no hard-coded api/v1 here; config/urls.py adds the prefix)
     path('auth/change-password/', change_password, name='change-password-v1'),
@@ -153,12 +161,16 @@ urlpatterns = [
     # Analytics endpoints - keep relative paths only
     path('analytics/', analytics_view, name='analytics-view'),
     path('analytics/consumption-trend/', analytics_consumption_trend, name='consumption-trend-analytics'),
-    path('analytics/fuel-requirements/', analytics_fuel_requirements, name='fuel-requirements-analytics'),
+    path('analytics/fuel-requirements/', fuel_statistics, name='fuel-requirements-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # General statistics endpoint
     
-    # Fuel pricing endpoints
+    # Fuel pricing and statistics endpoints
+    path('fuel-stats/', fuel_statistics, name='fuel-statistics'),
     path('fuel-prices/', fuel_statistics, name='fuel-prices'),
+    
+    # SubCenter statistics endpoint
+    path('subcenters/stats/', get_view_function('subcenters_stats'), name='subcenters-stats'),
     
     # Users endpoints with role filtering
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
@@ -217,7 +229,7 @@ urlpatterns = [
     path('subcenters/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
     # General subcenter statistics endpoint - Using new function-based view
     path('subcenter/statistics/', subcenter_statistics, name='subcenter-statistics-v1'),
-    path('subcenters/stats/', subcenters_stats, name='subcenters-stats'),  # Frontend stats endpoint
+    path('subcenters/stats/', get_view_function('subcenters_stats'), name='subcenters-stats'),  # Frontend stats endpoint
     # Individual subcenter statistics endpoint
     path('subcenters/<int:pk>/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-detail-statistics'),
     

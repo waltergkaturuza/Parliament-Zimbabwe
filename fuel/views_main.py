@@ -631,7 +631,124 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         return Response(activities[:15])  # Return top 15 activities
 
-    # Removed perform_create as managed_by is now potentially set via SubCenterOfficer or explicitly
+    def list(self, request, *args, **kwargs):
+        """Enhanced list to return data in MainCenter SubCenterMonitoring format"""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Handle pagination
+        page_size = request.query_params.get('page_size', 50)
+        page = request.query_params.get('page', 1)
+        
+        try:
+            page_size = int(page_size)
+            page = int(page)
+        except (ValueError, TypeError):
+            page_size = 50
+            page = 1
+        
+        # Simple pagination
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_queryset = queryset[start:end]
+        
+        # Enhanced serialization for MainCenter frontend
+        enhanced_data = []
+        for subcenter in paginated_queryset:
+            # Calculate real-time statistics
+            total_boxes = Box.objects.filter(assigned_to=subcenter).count()
+            total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+            books_used = Book.objects.filter(
+                box__assigned_to=subcenter, 
+                is_assigned=True
+            ).count()
+            books_remaining = total_books - books_used
+            
+            total_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter
+            ).count()
+            available_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter,
+                status='AVAILABLE'
+            ).count()
+            used_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter,
+                status='USED'
+            ).count()
+            
+            # Calculate monetary value
+            average_value_per_coupon_usd = 26  # 20L * $1.30 average
+            total_value_usd = total_coupons * average_value_per_coupon_usd
+            
+            # Performance metrics
+            performance_score = 0
+            if total_coupons > 0:
+                usage_rate = (used_coupons / total_coupons) * 100
+                performance_score = min(100, max(0, usage_rate + 
+                    (30 if available_coupons > 10 else 15)
+                ))
+            
+            # Alert calculations
+            alerts_count = 0
+            if available_coupons < 50:
+                alerts_count += 1
+            if books_remaining < 5:
+                alerts_count += 1
+            if performance_score < 70:
+                alerts_count += 1
+            
+            # Manager information
+            manager_name = 'Not assigned'
+            manager_email = ''
+            if hasattr(subcenter, 'managed_by') and subcenter.managed_by:
+                manager_name = subcenter.managed_by.get_full_name()
+                manager_email = subcenter.managed_by.email
+            
+            enhanced_data.append({
+                'id': subcenter.id,
+                'name': subcenter.name,
+                'code': subcenter.code or f'SC{str(subcenter.id).zfill(3)}',
+                'location': subcenter.location or 'Not specified',
+                'status': 'ACTIVE' if subcenter.is_active else 'INACTIVE',
+                
+                # Manager and contact information
+                'manager_name': manager_name,
+                'manager_email': manager_email,
+                'contact_number': subcenter.contact_number if hasattr(subcenter, 'contact_number') else 'Not provided',
+                'email': subcenter.email if hasattr(subcenter, 'email') else 'Not provided',
+                
+                # Inventory statistics
+                'total_boxes': total_boxes,
+                'total_books': total_books,
+                'books_used': books_used,
+                'books_remaining': books_remaining,
+                'total_coupons': total_coupons,
+                'available_coupons': available_coupons,
+                'used_coupons': used_coupons,
+                
+                # Financial information
+                'total_value_usd': round(total_value_usd, 2),
+                'total_value_zwg': round(total_value_usd * 27.5, 2),
+                'monthly_consumption_usd': round(used_coupons * average_value_per_coupon_usd * 0.1, 2),
+                
+                # Performance metrics
+                'performance_score': round(performance_score, 1),
+                'alerts_count': alerts_count,
+                
+                # Metadata
+                'last_activity': subcenter.updated.isoformat() if hasattr(subcenter, 'updated') else timezone.now().isoformat(),
+                'created': subcenter.created.isoformat() if hasattr(subcenter, 'created') else timezone.now().isoformat(),
+                
+                # Basic serializer data
+                **SubCenterSerializer(subcenter).data
+            })
+        
+        return Response({
+            'results': enhanced_data,
+            'count': queryset.count(),
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (queryset.count() + page_size - 1) // page_size
+        })
 
 
 # === COUPON RECEPTION AND DISPATCH VIEWSETS ===
@@ -4071,47 +4188,182 @@ def notification_stats(request):
 @permission_classes([IsAuthenticated])
 def main_dashboard(request):
     """
-    Main dashboard endpoint for /api/v1/dashboard/
+    Enhanced main dashboard endpoint for /api/v1/dashboard/
+    Provides all fields expected by MainCenterDashboard.tsx frontend component
     """
     try:
-        user = request.user
+        from django.db.models import Sum, Count, Avg
+        from datetime import timedelta
         
-        # Basic statistics for the main dashboard
-        stats = {
-            'total_users': User.objects.count(),
-            'active_users': User.objects.filter(is_active=True).count(),
-            'pending_approvals': User.objects.filter(is_approved=False, rejection_reason__isnull=True).count(),
+        user = request.user
+        today = timezone.now().date()
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        
+        # Calculate real-time statistics expected by MainCenter frontend
+        
+        # Box Receipt Statistics (frontend expects: totalBoxesReceived)
+        total_boxes_received = Box.objects.filter(is_received=True).count()
+        today_receipts = Box.objects.filter(
+            received_date__date=today,
+            is_received=True
+        ).count()
+        pending_receipts = Box.objects.filter(is_received=False).count()
+        
+        # Book Dispatch Statistics (frontend expects: totalBooksDispatched)  
+        total_books_dispatched = BookDispatch.objects.filter(
+            status__in=['DISPATCHED', 'RECEIVED']
+        ).count()
+        completed_dispatches_today = BookDispatch.objects.filter(
+            dispatch_date__date=today,
+            status='DISPATCHED'
+        ).count()
+        pending_handovers = BookDispatch.objects.filter(status='PENDING').count()
+        
+        # Coupon Statistics (frontend expects: totalCouponsActive)
+        total_coupons = Coupon.objects.count()
+        total_coupons_active = Coupon.objects.filter(
+            status__in=['AVAILABLE', 'ALLOCATED']
+        ).count()
+        available_coupons = Coupon.objects.filter(status='AVAILABLE').count()
+        allocated_coupons = Coupon.objects.filter(status='ALLOCATED').count()
+        used_coupons = Coupon.objects.filter(status='USED').count()
+        
+        # SubCenter Statistics (frontend expects: activeSubCenters)
+        total_subcenters = SubCenter.objects.count()
+        active_subcenters = SubCenter.objects.filter(is_active=True).count()
+        
+        # Financial Statistics (frontend expects: totalMonetaryValue)
+        # Calculate total monetary value of active coupons
+        petrol_coupons = Coupon.objects.filter(
+            book__box__fuel_type='PETROL',
+            status__in=['AVAILABLE', 'ALLOCATED']
+        )
+        diesel_coupons = Coupon.objects.filter(
+            book__box__fuel_type='DIESEL',
+            status__in=['AVAILABLE', 'ALLOCATED']
+        )
+        
+        # Get current fuel pricing (use latest FuelData or defaults)
+        try:
+            latest_fuel_data = FuelData.objects.first()
+            if latest_fuel_data:
+                petrol_price_usd = latest_fuel_data.petrol_price_usd
+                diesel_price_usd = latest_fuel_data.diesel_price_usd
+                exchange_rate = latest_fuel_data.exchange_rate_usd_to_zwg
+            else:
+                petrol_price_usd = 1.25  # Default
+                diesel_price_usd = 1.35  # Default
+                exchange_rate = 27.5     # Default
+        except:
+            petrol_price_usd = 1.25
+            diesel_price_usd = 1.35
+            exchange_rate = 27.5
+        
+        # Calculate monetary value (assuming 20L per coupon average)
+        average_litres_per_coupon = 20
+        petrol_value_usd = petrol_coupons.count() * average_litres_per_coupon * petrol_price_usd
+        diesel_value_usd = diesel_coupons.count() * average_litres_per_coupon * diesel_price_usd
+        total_monetary_value_usd = petrol_value_usd + diesel_value_usd
+        total_monetary_value_zwg = total_monetary_value_usd * exchange_rate
+        
+        # Low Inventory Alerts
+        low_inventory_threshold = 50  # Coupons
+        low_inventory_alerts = 0
+        for subcenter in SubCenter.objects.filter(is_active=True):
+            subcenter_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter,
+                status='AVAILABLE'
+            ).count()
+            if subcenter_coupons < low_inventory_threshold:
+                low_inventory_alerts += 1
+        
+        # Recent Activity Statistics
+        recent_sessions = ParliamentSession.objects.filter(
+            start_date__gte=thirty_days_ago
+        ).count()
+        recent_transactions = FuelTransaction.objects.filter(
+            timestamp__gte=seven_days_ago
+        ).count()
+        
+        # User Statistics
+        total_users = User.objects.count()
+        active_users = User.objects.filter(is_active=True, is_approved=True).count()
+        pending_approvals = User.objects.filter(
+            is_approved=False, 
+            rejection_reason__isnull=True
+        ).count()
+        
+        # Construct response matching MainCenterDashboard.tsx expectations
+        dashboard_stats = {
+            # Primary Statistics (matching frontend field names exactly)
+            'totalBoxesReceived': total_boxes_received,
+            'totalBooksDispatched': total_books_dispatched,
+            'totalCouponsActive': total_coupons_active,
+            'totalMonetaryValue': int(total_monetary_value_zwg),  # ZWG value as integer
+            'activeSubCenters': active_subcenters,
+            'pendingHandovers': pending_handovers,
             
-            # Inventory stats
-            'total_boxes': Box.objects.count(),
-            'active_boxes': Box.objects.filter(is_archived=False).count(),
-            'total_books': Book.objects.count(),
-            'assigned_books': Book.objects.filter(is_assigned=True).count(),
+            # Secondary Statistics  
+            'pendingReceipts': pending_receipts,
+            'lowInventoryAlerts': low_inventory_alerts,
+            'todayReceipts': today_receipts,
+            'completedDispatchesToday': completed_dispatches_today,
             
-            # Coupon stats
-            'total_coupons': Coupon.objects.count(),
-            'available_coupons': Coupon.objects.filter(status='AVAILABLE').count(),
-            'allocated_coupons': Coupon.objects.filter(status='ALLOCATED').count(),
-            'used_coupons': Coupon.objects.filter(status='USED').count(),
+            # Fuel Pricing (frontend expects current prices)
+            'currentPetrolPrice': int(petrol_price_usd * exchange_rate),  # ZWG per litre
+            'currentDieselPrice': int(diesel_price_usd * exchange_rate),  # ZWG per litre
             
-            # Parliament stats
-            'total_subcenters': SubCenter.objects.count(),
-            'active_subcenters': SubCenter.objects.filter(is_active=True).count(),
+            # Detailed Breakdown
+            'coupons': {
+                'total': total_coupons,
+                'available': available_coupons,
+                'allocated': allocated_coupons,
+                'used': used_coupons,
+                'active': total_coupons_active
+            },
             
-            # Recent activity
-            'recent_sessions': ParliamentSession.objects.filter(
-                start_date__gte=timezone.now() - timedelta(days=30)
-            ).count(),
-            'recent_transactions': FuelTransaction.objects.filter(
-                timestamp__gte=timezone.now() - timedelta(days=7)
-            ).count(),
+            'subcenters': {
+                'total': total_subcenters,
+                'active': active_subcenters,
+                'inactive': total_subcenters - active_subcenters
+            },
             
-            'last_updated': timezone.now().isoformat()
+            'users': {
+                'total': total_users,
+                'active': active_users,
+                'pending_approvals': pending_approvals
+            },
+            
+            'financial': {
+                'total_value_usd': round(total_monetary_value_usd, 2),
+                'total_value_zwg': int(total_monetary_value_zwg),
+                'petrol_value_usd': round(petrol_value_usd, 2),
+                'diesel_value_usd': round(diesel_value_usd, 2),
+                'exchange_rate': exchange_rate
+            },
+            
+            'recent_activity': {
+                'sessions_30_days': recent_sessions,
+                'transactions_7_days': recent_transactions,
+                'receipts_today': today_receipts,
+                'dispatches_today': completed_dispatches_today
+            },
+            
+            # Metadata
+            'last_updated': timezone.now().isoformat(),
+            'data_source': 'real_time',
+            'user_role': user.role,
+            'generated_by': user.get_full_name() or user.username
         }
         
-        return Response(stats)
+        return Response(dashboard_stats)
         
     except Exception as e:
+        import traceback
+        logger.error(f"Main dashboard error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
         return Response(
             {'error': f'Failed to retrieve dashboard statistics: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -4193,10 +4445,194 @@ def analytics_consumption_trend(request):
         )
 
 
-# Analytics Fuel Requirements View - for /api/v1/analytics/fuel-requirements/
+# Analytics Fuel Statistics View - for /api/v1/fuel-stats/
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def analytics_fuel_requirements(request):
+def fuel_statistics(request):
+    """
+    Comprehensive fuel statistics for analytics and finance dashboard
+    """
+    try:
+        from django.db.models import Sum, Count, Avg, Q
+        from datetime import timedelta
+        
+        # Get query parameters
+        period = request.GET.get('period', '30')  # days
+        fuel_type = request.GET.get('fuel_type', 'all')
+        
+        try:
+            period_days = int(period)
+        except:
+            period_days = 30
+            
+        start_date = timezone.now() - timedelta(days=period_days)
+        
+        # Fuel type filtering
+        fuel_filter = Q()
+        if fuel_type and fuel_type != 'all':
+            fuel_filter = Q(book__box__fuel_type=fuel_type.upper())
+        
+        # Coupon statistics
+        total_coupons = Coupon.objects.filter(fuel_filter).count()
+        available_coupons = Coupon.objects.filter(fuel_filter, status='AVAILABLE').count()
+        allocated_coupons = Coupon.objects.filter(fuel_filter, status='ALLOCATED').count()
+        used_coupons = Coupon.objects.filter(fuel_filter, status='USED').count()
+        
+        # Recent usage statistics
+        recent_usage = FuelTransaction.objects.filter(
+            timestamp__gte=start_date
+        )
+        if fuel_type and fuel_type != 'all':
+            recent_usage = recent_usage.filter(
+                coupon__book__box__fuel_type=fuel_type.upper()
+            )
+        
+        total_recent_transactions = recent_usage.count()
+        total_litres_consumed = recent_usage.aggregate(
+            total=Sum('litres_consumed')
+        )['total'] or 0
+        
+        # Daily consumption trend
+        daily_consumption = recent_usage.extra(
+            select={'day': "DATE(timestamp)"}
+        ).values('day').annotate(
+            daily_litres=Sum('litres_consumed'),
+            daily_transactions=Count('id')
+        ).order_by('day')
+        
+        # Convert to list for JSON serialization
+        consumption_trend = []
+        for item in daily_consumption:
+            consumption_trend.append({
+                'date': item['day'].strftime('%Y-%m-%d') if item['day'] else '',
+                'litres': item['daily_litres'] or 0,
+                'transactions': item['daily_transactions'] or 0
+            })
+        
+        # Financial calculations
+        try:
+            latest_fuel_data = FuelData.objects.first()
+            if latest_fuel_data:
+                petrol_price_usd = latest_fuel_data.petrol_price_usd
+                diesel_price_usd = latest_fuel_data.diesel_price_usd
+                exchange_rate = latest_fuel_data.exchange_rate_usd_to_zwg
+            else:
+                petrol_price_usd = 1.25
+                diesel_price_usd = 1.35
+                exchange_rate = 27.5
+        except:
+            petrol_price_usd = 1.25
+            diesel_price_usd = 1.35
+            exchange_rate = 27.5
+        
+        # Calculate financial impact
+        petrol_coupons = Coupon.objects.filter(
+            book__box__fuel_type='PETROL'
+        ).count()
+        diesel_coupons = Coupon.objects.filter(
+            book__box__fuel_type='DIESEL'
+        ).count()
+        
+        # Assuming 20L per coupon average
+        avg_litres_per_coupon = 20
+        petrol_value_usd = petrol_coupons * avg_litres_per_coupon * petrol_price_usd
+        diesel_value_usd = diesel_coupons * avg_litres_per_coupon * diesel_price_usd
+        total_value_usd = petrol_value_usd + diesel_value_usd
+        total_value_zwg = total_value_usd * exchange_rate
+        
+        # Usage by subcenter
+        subcenter_usage = []
+        for subcenter in SubCenter.objects.filter(is_active=True):
+            subcenter_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter,
+                status='USED'
+            ).count()
+            
+            subcenter_usage.append({
+                'subcenter_id': subcenter.id,
+                'subcenter_name': subcenter.name,
+                'coupons_used': subcenter_coupons,
+                'estimated_litres': subcenter_coupons * avg_litres_per_coupon,
+                'estimated_value_usd': subcenter_coupons * avg_litres_per_coupon * 1.30  # Average price
+            })
+        
+        # Sort by usage
+        subcenter_usage.sort(key=lambda x: x['coupons_used'], reverse=True)
+        
+        return Response({
+            'summary': {
+                'total_coupons': total_coupons,
+                'available_coupons': available_coupons,
+                'allocated_coupons': allocated_coupons,
+                'used_coupons': used_coupons,
+                'usage_rate': round((used_coupons / total_coupons * 100) if total_coupons > 0 else 0, 2)
+            },
+            
+            'recent_activity': {
+                'period_days': period_days,
+                'total_transactions': total_recent_transactions,
+                'total_litres_consumed': round(total_litres_consumed, 2),
+                'average_daily_consumption': round(total_litres_consumed / period_days, 2) if period_days > 0 else 0
+            },
+            
+            'consumption_trend': consumption_trend,
+            
+            'financial': {
+                'total_value_usd': round(total_value_usd, 2),
+                'total_value_zwg': round(total_value_zwg, 2),
+                'petrol_value_usd': round(petrol_value_usd, 2),
+                'diesel_value_usd': round(diesel_value_usd, 2),
+                'current_prices': {
+                    'petrol_usd': petrol_price_usd,
+                    'diesel_usd': diesel_price_usd,
+                    'exchange_rate': exchange_rate
+                }
+            },
+            
+            'usage_by_subcenter': subcenter_usage[:10],  # Top 10
+            
+            'fuel_breakdown': {
+                'petrol': {
+                    'total_coupons': petrol_coupons,
+                    'available': Coupon.objects.filter(
+                        book__box__fuel_type='PETROL', 
+                        status='AVAILABLE'
+                    ).count(),
+                    'used': Coupon.objects.filter(
+                        book__box__fuel_type='PETROL', 
+                        status='USED'
+                    ).count()
+                },
+                'diesel': {
+                    'total_coupons': diesel_coupons,
+                    'available': Coupon.objects.filter(
+                        book__box__fuel_type='DIESEL', 
+                        status='AVAILABLE'
+                    ).count(),
+                    'used': Coupon.objects.filter(
+                        book__box__fuel_type='DIESEL', 
+                        status='USED'
+                    ).count()
+                }
+            },
+            
+            'metadata': {
+                'generated_at': timezone.now().isoformat(),
+                'period_filter': f'Last {period_days} days',
+                'fuel_type_filter': fuel_type,
+                'data_source': 'real_time'
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Fuel statistics error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        return Response(
+            {'error': f'Failed to retrieve fuel statistics: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     """
     Fuel requirements analytics endpoint - calculates projected fuel needs
     """
@@ -5577,3 +6013,257 @@ class CouponHandoverViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': f'Failed to load statistics: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ======================= MISSING FRONTEND ENDPOINTS =======================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def auth_roles(request):
+    """
+    Get available user roles for frontend dropdowns
+    """
+    try:
+        roles = [
+            {'code': role_code, 'name': role_name}
+            for role_code, role_name in UserModel.ROLE_CHOICES
+        ]
+        return Response({
+            'roles': roles,
+            'status': 'success'
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'status': 'error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenters_stats(request):
+    """
+    Enhanced subcenter statistics for MainCenter SubCenterMonitoring component
+    """
+    try:
+        from django.db.models import Sum, Count, Avg, Q
+        from datetime import timedelta
+        
+        # Get query parameters for filtering
+        status_filter = request.GET.get('status', 'all')
+        include_inactive = request.GET.get('include_inactive', 'false').lower() == 'true'
+        
+        # Base queryset
+        subcenters_qs = SubCenter.objects.all()
+        
+        if not include_inactive and status_filter == 'all':
+            subcenters_qs = subcenters_qs.filter(is_active=True)
+        elif status_filter != 'all':
+            subcenters_qs = subcenters_qs.filter(is_active=(status_filter == 'active'))
+        
+        # Basic counts
+        total_subcenters = SubCenter.objects.count()
+        active_subcenters = SubCenter.objects.filter(is_active=True).count()
+        inactive_subcenters = total_subcenters - active_subcenters
+        
+        # Subcenters with officers
+        subcenters_with_officers = SubCenter.objects.filter(
+            officers__isnull=False
+        ).distinct().count()
+        
+        # Recent subcenters (last 30 days)
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        recent_subcenters = SubCenter.objects.filter(
+            created__gte=thirty_days_ago
+        ).count()
+        
+        # Detailed subcenter data for SubCenterMonitoring component
+        subcenters_data = []
+        for subcenter in subcenters_qs.select_related():
+            # Calculate statistics for each subcenter
+            total_boxes = Box.objects.filter(assigned_to=subcenter).count()
+            total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+            books_used = Book.objects.filter(
+                box__assigned_to=subcenter, 
+                is_assigned=True
+            ).count()
+            books_remaining = total_books - books_used
+            
+            total_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter
+            ).count()
+            available_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter,
+                status='AVAILABLE'
+            ).count()
+            used_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter,
+                status='USED'
+            ).count()
+            
+            # Calculate monetary value (assuming 20L per coupon, $1.30 per litre average)
+            average_value_per_coupon_usd = 20 * 1.30  # 20L * $1.30
+            total_value_usd = total_coupons * average_value_per_coupon_usd
+            total_value_zwg = total_value_usd * 27.5  # Exchange rate
+            
+            # Recent activity and performance metrics
+            recent_transactions = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=subcenter,
+                timestamp__gte=timezone.now() - timedelta(days=7)
+            ).count()
+            
+            # Performance score calculation (based on various factors)
+            performance_score = 0
+            if total_coupons > 0:
+                usage_rate = (used_coupons / total_coupons) * 100
+                performance_score = min(100, max(0, usage_rate + 
+                    (recent_transactions * 5) + 
+                    (50 if available_coupons > 10 else 25)
+                ))
+            
+            # Alert calculations
+            alerts_count = 0
+            if available_coupons < 50:  # Low inventory
+                alerts_count += 1
+            if recent_transactions == 0:  # No recent activity
+                alerts_count += 1
+            if performance_score < 70:  # Low performance
+                alerts_count += 1
+            
+            # Manager information
+            manager_info = None
+            if hasattr(subcenter, 'managed_by') and subcenter.managed_by:
+                manager_info = {
+                    'id': subcenter.managed_by.id,
+                    'name': subcenter.managed_by.get_full_name(),
+                    'email': subcenter.managed_by.email
+                }
+            
+            subcenters_data.append({
+                'id': subcenter.id,
+                'name': subcenter.name,
+                'code': subcenter.code or f'SC{str(subcenter.id).zfill(3)}',
+                'location': subcenter.location or 'Not specified',
+                'status': 'ACTIVE' if subcenter.is_active else 'INACTIVE',
+                
+                # Manager information
+                'manager_name': manager_info['name'] if manager_info else 'Not assigned',
+                'manager_email': manager_info['email'] if manager_info else '',
+                'contact_number': subcenter.contact_number or 'Not provided',
+                'email': subcenter.email or 'Not provided',
+                
+                # Inventory statistics
+                'total_boxes': total_boxes,
+                'total_books': total_books,
+                'books_used': books_used,
+                'books_remaining': books_remaining,
+                'total_coupons': total_coupons,
+                'available_coupons': available_coupons,
+                'used_coupons': used_coupons,
+                
+                # Financial information
+                'total_value_usd': round(total_value_usd, 2),
+                'total_value_zwg': round(total_value_zwg, 2),
+                'monthly_consumption_usd': round(used_coupons * average_value_per_coupon_usd * 0.1, 2),  # Estimate
+                
+                # Performance metrics
+                'performance_score': round(performance_score, 1),
+                'recent_transactions': recent_transactions,
+                'alerts_count': alerts_count,
+                
+                # Metadata
+                'last_activity': subcenter.updated.isoformat() if hasattr(subcenter, 'updated') else timezone.now().isoformat(),
+                'created': subcenter.created.isoformat() if hasattr(subcenter, 'created') else timezone.now().isoformat(),
+                
+                # Coordinates (if available)
+                'coordinates': {
+                    'lat': getattr(subcenter, 'latitude', None),
+                    'lng': getattr(subcenter, 'longitude', None)
+                } if hasattr(subcenter, 'latitude') and subcenter.latitude else None
+            })
+        
+        # Summary statistics
+        summary_stats = {
+            'total_subcenters': total_subcenters,
+            'active_subcenters': active_subcenters,
+            'inactive_subcenters': inactive_subcenters,
+            'subcenters_with_officers': subcenters_with_officers,
+            'recent_subcenters': recent_subcenters,
+            
+            # Aggregated metrics from subcenters_data
+            'total_books_across_centers': sum(sc['total_books'] for sc in subcenters_data),
+            'total_coupons_across_centers': sum(sc['total_coupons'] for sc in subcenters_data),
+            'total_value_usd_across_centers': sum(sc['total_value_usd'] for sc in subcenters_data),
+            'average_performance_score': round(
+                sum(sc['performance_score'] for sc in subcenters_data) / len(subcenters_data)
+                if subcenters_data else 0, 1
+            ),
+            'centers_with_alerts': sum(1 for sc in subcenters_data if sc['alerts_count'] > 0),
+            'low_inventory_centers': sum(1 for sc in subcenters_data if sc['available_coupons'] < 50),
+        }
+        
+        return Response({
+            # Legacy format for backward compatibility
+            'total_subcenters': total_subcenters,
+            'active_subcenters': active_subcenters,
+            'inactive_subcenters': inactive_subcenters,
+            'subcenters_with_officers': subcenters_with_officers,
+            'recent_subcenters': recent_subcenters,
+            'status': 'success',
+            
+            # Enhanced data for SubCenterMonitoring
+            'summary': summary_stats,
+            'results': subcenters_data,
+            'count': len(subcenters_data),
+            'filters_applied': {
+                'status': status_filter,
+                'include_inactive': include_inactive
+            },
+            'last_updated': timezone.now().isoformat()
+        })
+    except Exception as e:
+        import traceback
+        logger.error(f"Subcenters stats error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        return Response({
+            'error': str(e),
+            'status': 'error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def programs_stats(request):
+    """
+    Get program statistics for dashboard
+    """
+    try:
+        total_programs = Program.objects.count()
+        active_programs = Program.objects.filter(is_active=True).count()
+        inactive_programs = total_programs - active_programs
+        
+        # Programs with sessions
+        programs_with_sessions = Program.objects.filter(
+            sessions__isnull=False
+        ).distinct().count()
+        
+        # Recent programs (last 30 days)
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        recent_programs = Program.objects.filter(
+            created__gte=thirty_days_ago
+        ).count()
+        
+        return Response({
+            'total_programs': total_programs,
+            'active_programs': active_programs,
+            'inactive_programs': inactive_programs,
+            'programs_with_sessions': programs_with_sessions,
+            'recent_programs': recent_programs,
+            'status': 'success'
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'status': 'error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
