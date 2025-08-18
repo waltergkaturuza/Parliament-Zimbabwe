@@ -15,6 +15,9 @@ from .views_main import (
     change_password, mark_all_notifications_read, subcenter_statistics,
     dynamic_allocation,
     
+    # Missing frontend endpoints
+    auth_roles, subcenters_stats, programs_stats,
+    
     # Existing ViewSets
     UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
     
@@ -121,6 +124,7 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     path('auth/user/', user_profile_view, name='current-user'),  # Add user profile endpoint
+    path('auth/roles/', auth_roles, name='auth-roles'),  # Available user roles
     path('users/me/', user_profile_view, name='user-me'),  # Alternative endpoint for current user
     # Change password (no hard-coded api/v1 here; config/urls.py adds the prefix)
     path('auth/change-password/', change_password, name='change-password-v1'),
@@ -209,10 +213,11 @@ urlpatterns = [
     path('audit/transactions/', AuditLogViewSet.as_view({'get': 'transactions'}), name='audit-transactions'),
     
     # Subcenter endpoints - use relative paths
-    path('subcenter/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview-v1'),
-    path('subcenter/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
+    path('subcenters/overview/', SubCenterViewSet.as_view({'get': 'overview'}), name='subcenter-overview'),
+    path('subcenters/activities/', SubCenterViewSet.as_view({'get': 'activities'}), name='subcenter-activities'),
     # General subcenter statistics endpoint - Using new function-based view
     path('subcenter/statistics/', subcenter_statistics, name='subcenter-statistics-v1'),
+    path('subcenters/stats/', subcenters_stats, name='subcenters-stats'),  # Frontend stats endpoint
     # Individual subcenter statistics endpoint
     path('subcenters/<int:pk>/statistics/', SubCenterViewSet.as_view({'get': 'statistics'}), name='subcenter-detail-statistics'),
     

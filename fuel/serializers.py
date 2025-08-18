@@ -433,13 +433,47 @@ class SubCenterSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    # total_coupons is a property on the model, accessed directly from the object instance if needed, no need to define here unless custom logic required.
+    
+    # Frontend-expected computed fields
+    users_count = serializers.SerializerMethodField()
+    active_programs = serializers.SerializerMethodField()
+    distributed_coupons = serializers.SerializerMethodField()
+    capacity = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = SubCenter
-        # Added 'created', 'modified' from TimeStampedModel
-        fields = ['id', 'code', 'name', 'location', 'managed_by', 'managed_by_details', 'is_active', 'created', 'modified']
-        read_only_fields = ['id', 'created', 'modified'] # Set created/modified as readonly
+        # Added 'created', 'modified' from TimeStampedModel + frontend fields
+        fields = [
+            'id', 'code', 'name', 'location', 'managed_by', 'managed_by_details', 
+            'is_active', 'capacity', 'users_count', 'active_programs', 
+            'distributed_coupons', 'created', 'modified'
+        ]
+        read_only_fields = [
+            'id', 'created', 'modified', 'users_count', 'active_programs', 'distributed_coupons'
+        ] # Set created/modified as readonly
+    
+    def get_users_count(self, obj):
+        """Get count of users assigned to this subcenter"""
+        return User.objects.filter(sub_center=obj, is_active=True).count()
+    
+    def get_active_programs(self, obj):
+        """Get count of active programs for this subcenter"""
+        from django.utils import timezone
+        try:
+            return Program.objects.filter(
+                sub_center=obj,
+                is_active=True,
+                end_date__gte=timezone.now().date()
+            ).count()
+        except:
+            return 0
+    
+    def get_distributed_coupons(self, obj):
+        """Get count of distributed coupons from this subcenter"""
+        return Coupon.objects.filter(
+            book__box__assigned_to=obj,
+            status='USED'
+        ).count()
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -2165,22 +2199,40 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 
 class PoolVehicleSerializer(serializers.ModelSerializer):
-    """Serializer for PoolVehicle model"""
+    """Enhanced PoolVehicle serializer with frontend compatibility"""
     sub_center_details = SimpleSubCenterSerializer(source='sub_center', read_only=True)
     current_driver_details = serializers.SerializerMethodField()
+    
+    # Frontend field mappings
+    registration_number = serializers.CharField(source='vehicle_number', required=False)
+    vehicle_type = serializers.CharField(source='vehicle_category', required=False)
+    engine_cc = serializers.IntegerField(source='engine_capacity', required=False)
+    assigned_subcenter = serializers.PrimaryKeyRelatedField(
+        source='sub_center', 
+        queryset=SubCenter.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
+    current_mileage = serializers.IntegerField(source='mileage', required=False)
+    last_service_date = serializers.DateField(required=False, allow_null=True)
+    next_service_due = serializers.DateField(source='next_service_date', required=False, allow_null=True)
+    insurance_expiry = serializers.DateField(required=False, allow_null=True)
+    current_driver = serializers.SerializerMethodField()
     
     class Meta:
         model = PoolVehicle
         fields = [
-            'id', 'vehicle_number', 'make', 'model', 'year', 'engine_capacity',
-            'fuel_type', 'vehicle_category', 'sub_center', 'sub_center_details',
-            'status', 'mileage', 'last_service_date', 'next_service_date',
-            'insurance_expiry', 'license_expiry', 'current_driver_details',
+            'id', 'vehicle_number', 'registration_number', 'make', 'model', 'year', 
+            'engine_capacity', 'engine_cc', 'fuel_type', 'vehicle_category', 'vehicle_type',
+            'sub_center', 'sub_center_details', 'assigned_subcenter',
+            'status', 'mileage', 'current_mileage', 'last_service_date', 'next_service_date', 'next_service_due',
+            'insurance_expiry', 'license_expiry', 'current_driver_details', 'current_driver',
             'notes', 'created', 'modified'
         ]
-        read_only_fields = ['id', 'created', 'modified']
+        read_only_fields = ['id', 'created', 'modified', 'current_driver_details', 'current_driver']
     
     def get_current_driver_details(self, obj):
+        """Get current driver details from active assignment"""
         current_assignment = obj.assignments.filter(
             status='ACTIVE',
             end_date__isnull=True
@@ -2188,27 +2240,53 @@ class PoolVehicleSerializer(serializers.ModelSerializer):
         if current_assignment and current_assignment.driver:
             return {
                 'id': current_assignment.driver.id,
-                'name': current_assignment.driver.full_name,
+                'full_name': current_assignment.driver.full_name,
+                'employee_id': getattr(current_assignment.driver, 'employee_id', ''),
                 'license_number': current_assignment.driver.license_number
             }
         return None
+    
+    def get_current_driver(self, obj):
+        """Get current driver data (alias for frontend compatibility)"""
+        return self.get_current_driver_details(obj)
 
 
 class DriverSerializer(serializers.ModelSerializer):
-    """Serializer for Driver model"""
+    """Enhanced Driver serializer with frontend compatibility"""
     current_vehicle_details = serializers.SerializerMethodField()
+    
+    # Frontend field mappings
+    employee_id = serializers.CharField(required=False, allow_blank=True)
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+    id_number = serializers.CharField(required=False, allow_blank=True)
+    license_class = serializers.CharField(required=False, allow_blank=True)
+    license_expiry = serializers.DateField(required=False, allow_null=True)
+    phone_number = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    assigned_subcenter = serializers.PrimaryKeyRelatedField(
+        source='sub_center', 
+        queryset=SubCenter.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
+    hire_date = serializers.DateField(required=False, allow_null=True)
+    current_vehicle = serializers.SerializerMethodField()
     
     class Meta:
         model = Driver
         fields = [
-            'id', 'full_name', 'license_number', 'license_class', 'license_expiry',
-            'phone_number', 'email', 'status', 'employment_status',
-            'hire_date', 'current_vehicle_details', 'notes',
-            'created', 'modified'
+            'id', 'employee_id', 'first_name', 'last_name', 'full_name', 
+            'id_number', 'license_number', 'license_class', 'license_expiry',
+            'phone_number', 'email', 'address', 'status', 'employment_status',
+            'assigned_subcenter', 'hire_date', 'current_vehicle_details', 'current_vehicle',
+            'notes', 'created', 'modified'
         ]
-        read_only_fields = ['id', 'created', 'modified']
+        read_only_fields = ['id', 'created', 'modified', 'current_vehicle_details', 'current_vehicle', 'full_name']
     
     def get_current_vehicle_details(self, obj):
+        """Get current vehicle details from active assignment"""
         current_assignment = obj.assignments.filter(
             status='ACTIVE',
             end_date__isnull=True
@@ -2216,11 +2294,15 @@ class DriverSerializer(serializers.ModelSerializer):
         if current_assignment and current_assignment.vehicle:
             return {
                 'id': current_assignment.vehicle.id,
-                'vehicle_number': current_assignment.vehicle.vehicle_number,
+                'registration_number': current_assignment.vehicle.vehicle_number,
                 'make': current_assignment.vehicle.make,
                 'model': current_assignment.vehicle.model
             }
         return None
+    
+    def get_current_vehicle(self, obj):
+        """Get current vehicle data (alias for frontend compatibility)"""
+        return self.get_current_vehicle_details(obj)
 
 
 class VehicleAssignmentSerializer(serializers.ModelSerializer):

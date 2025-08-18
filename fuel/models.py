@@ -274,6 +274,11 @@ class SubCenter(TimeStampedModel):
         limit_choices_to={'role__in': ['MAIN_CENTER', 'SUB_CENTER']}
     )
     is_active = models.BooleanField(default=True)
+    capacity = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum capacity for beneficiaries/operations"
+    )
 
     class Meta:
         ordering = ['name']
