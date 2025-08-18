@@ -54,7 +54,12 @@ except ImportError as e:
     pass
 
 # Import debug views
-from .views_debug import test_azure_database, health_check as debug_health_check
+from .views_debug import (
+    test_azure_database,
+    health_check as debug_health_check,
+    migrations_status,
+    model_health_check,
+)
 
 # Import CORS bypass views
 from .cors_test_views import cors_bypass_login, cors_test_endpoint
@@ -250,6 +255,8 @@ urlpatterns = [
     # Debug endpoints for Azure testing
     path('api/debug/azure-db/', test_azure_database, name='test-azure-database'),
     path('api/debug/health/', debug_health_check, name='debug-health-check'),
+    path('api/debug/migrations/', migrations_status, name='debug-migrations-status'),
+    path('api/debug/model-health/', model_health_check, name='debug-model-health'),
     
     # Setup endpoints for initial deployment
     path('api/setup/database-status/', database_status_api, name='database-status'),

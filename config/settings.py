@@ -28,7 +28,7 @@ FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'jolly-ocean-0e0dee90f.2
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
-    'localhost', 
+    'localhost',
     '0.0.0.0',  # Allow all interfaces for local development
     AZURE_HOSTNAME,  # Actual Azure hostname
     'parliament-fuel-system.azurewebsites.net',  # Alternative hostname
@@ -41,6 +41,9 @@ ALLOWED_HOSTS = [
     '169.254.130.7',  # Azure internal IP from logs
     '169.254.130.1',  # Additional Azure internal range
     '169.254.130.10', # Additional Azure internal range
+    # New Azure internal IPs from deployment logs
+    '169.254.131.9',  # From deployment error logs
+    '169.254.131.10', # From deployment error logs
 ]
 
 # For local development, allow all hosts if DEBUG is True
@@ -80,7 +83,6 @@ AUTH_USER_MODEL = 'fuel.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
-    'cors_debug_middleware.CORSDebugMiddleware',  # Temporary CORS debugging
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
