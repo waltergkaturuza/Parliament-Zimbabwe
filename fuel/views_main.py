@@ -177,7 +177,33 @@ class LoginView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().select_related('sub_center', 'approved_by')
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission]
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        """Role-based permissions for user management
+        
+        - Read access: All authenticated users
+        - Write access: Main Center, Auditor roles only
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        
+        # Create a composite permission for write operations
+        class UserWritePermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role in ['MAIN_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), UserWritePermission()]
+
+    def list(self, request, *args, **kwargs):
+        """List all users with proper error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve users: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -453,12 +479,33 @@ class SubCenterOfficerViewSet(viewsets.ModelViewSet):
 class SubCenterViewSet(viewsets.ModelViewSet):
     queryset = SubCenter.objects.all().select_related('managed_by') # Select related managed_by
     serializer_class = SubCenterSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        # Example: Allow read for all authenticated users, write only for specific roles
-        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
+        """Role-based permissions for subcenter management
+        
+        - Read access: All authenticated users
+        - Write access: Main Center, Auditor roles only
+        """
+        if self.action in ['list', 'retrieve', 'overview']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission()] # Only Main Center can manage subcenters
+        
+        # Create a composite permission for write operations
+        class SubCenterWritePermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role in ['MAIN_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), SubCenterWritePermission()]
+
+    def list(self, request, *args, **kwargs):
+        """List all subcenters with proper error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve subcenters: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -756,7 +803,33 @@ class SubCenterViewSet(viewsets.ModelViewSet):
 class BoxViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Box management with coupon generation"""
     serializer_class = BoxSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """Role-based permissions for box management
+        
+        - Read access: All authenticated users (Main Center and Sub Center)
+        - Write access: Main Center, Sub Center roles
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        
+        # Create a composite permission for write operations
+        class BoxWritePermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), BoxWritePermission()]
+    
+    def list(self, request, *args, **kwargs):
+        """List all boxes with proper error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve boxes: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def get_queryset(self):
         user = self.request.user
@@ -1078,7 +1151,33 @@ class BoxViewSet(viewsets.ModelViewSet):
 class BookViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Book management with sequential allocation"""
     serializer_class = BookSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission]
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """Role-based permissions for book management
+        
+        - Read access: All authenticated users
+        - Write access: Main Center, Sub Center, Auditor roles
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        
+        # Create a composite permission for write operations
+        class BookWritePermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), BookWritePermission()]
+
+    def list(self, request, *args, **kwargs):
+        """List all books with proper error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve books: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def get_queryset(self):
         user = self.request.user
@@ -1662,9 +1761,35 @@ class CanManageCoupon(BasePermission):
 
 class CouponViewSet(viewsets.ModelViewSet):
     serializer_class = CouponSerializer
-    permission_classes = [IsAuthenticated, CanManageCoupon]
+    permission_classes = [IsAuthenticated]
     # Use a base queryset that other methods will filter down
     queryset = Coupon.objects.all().select_related('book__box__assigned_to', 'allocated_to') # Select related for efficiency
+
+    def get_permissions(self):
+        """Role-based permissions for coupon management
+        
+        - Read access: All authenticated users
+        - Write access: Main Center, Sub Center, Auditor roles
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        
+        # Create a composite permission for write operations
+        class CouponWritePermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']
+        
+        return [IsAuthenticated(), CouponWritePermission()]
+
+    def list(self, request, *args, **kwargs):
+        """List all coupons with proper error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve coupons: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def get_queryset(self):
         # Apply filtering based on user role
