@@ -833,7 +833,7 @@ class BoxViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = Box.objects.all().select_related('assigned_to', 'received_by')
+        queryset = Box.objects.all().select_related('assigned_to', 'received_by', 'verified_by')
         if user.is_superuser or user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
             return queryset
         elif user.role == 'SUB_CENTER' and user.sub_center:
