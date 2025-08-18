@@ -5414,29 +5414,6 @@ def analytics_view(request):
                 'end_date': request.query_params.get('end_date', 'N/A'),
             }
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                'start_date': start_date_str,
-                'end_date': end_date_str,
-            },
-            'fuel_summary': {
-                'total_fuel_dispensed': round(total_fuel_dispensed, 2),
-                'total_coupons_used': total_coupons_used,
-                'average_transaction_litres': round(total_fuel_dispensed / fuel_transactions.count(), 2) if fuel_transactions.count() > 0 else 0,
-            },
-            'attendance_summary': {
-                'total_sessions_tracked': total_attendance,
-                'present_beneficiaries': present_attendance,
-                'attendance_rate': round(attendance_rate, 2),
-            },
-            'entitlement_summary': {
-                'total_entitlements_created': total_entitlements,
-                'total_litres_allocated': round(total_litres_allocated, 2),
-            }
-        }
-
-        return Response(data, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response({'error': f'Failed to retrieve analytics data: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SessionAttendanceViewSet(viewsets.ModelViewSet):
