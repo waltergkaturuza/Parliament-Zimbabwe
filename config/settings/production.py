@@ -333,6 +333,10 @@ if os.environ.get('REDIS_URL'):
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 3600 * 8  # 8 hours
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_SECURE = False  # Set to False for Azure App Service (SSL termination at load balancer)
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'  # Allow cross-site requests for admin
+SESSION_SAVE_EVERY_REQUEST = True
 
 # CSRF settings - Must match frontend URL
 CSRF_TRUSTED_ORIGINS = [
@@ -341,6 +345,12 @@ CSRF_TRUSTED_ORIGINS = [
     'https://fuel.parliament.gov.zw',
     'https://parliament.gov.zw',
 ]
+
+# CSRF Cookie settings for Django Admin
+CSRF_COOKIE_SECURE = False  # Set to False for Azure App Service (SSL termination at load balancer)
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access for admin forms
+CSRF_COOKIE_SAMESITE = 'Lax'  # Allow cross-site requests for admin
+CSRF_USE_SESSIONS = False  # Use cookies instead of sessions for CSRF tokens
 
 # CORS settings - Enhanced for production frontend-backend communication
 CORS_ALLOWED_ORIGINS = [
@@ -484,6 +494,42 @@ if 'default' in DATABASES:
         'connect_timeout': 10,  # This is valid for psycopg3
         'application_name': 'fuel_coupon_system',
     })
+
+# Django Admin Configuration for Production
+ADMIN_URL = 'admin/'
+ADMIN_ENABLED = True
+
+# Media files configuration for Django Admin
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Additional Django Admin settings
+ADMIN_REORDER = True
+ADMIN_SHOW_USER_EMAIL = True
+
+# File upload settings for admin
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+
+# Template context processors for admin
+if 'TEMPLATES' in locals() or 'TEMPLATES' in globals():
+    for template_config in TEMPLATES:
+        if 'context_processors' in template_config.get('OPTIONS', {}):
+            template_config['OPTIONS']['context_processors'].extend([
+                'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.request',
+            ])
+
+# Ensure admin works with CSRF and sessions
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'
+CSRF_COOKIE_NAME = 'csrftoken'
+SESSION_COOKIE_NAME = 'sessionid'
+
+# Fix for Django admin on Azure App Service
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
 # Time zone
 TIME_ZONE = 'Africa/Harare'
