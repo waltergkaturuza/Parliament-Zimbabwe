@@ -1,7 +1,7 @@
 // src/pages/analytics/UsageAnalytics.tsx
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
-import { Card, Row, Col, Statistic, DatePicker, Select, Button, Table, Typography, Spin, message } from 'antd';
+import { Card, Row, Col, Statistic, DatePicker, Select, Button, Table, Typography, Spin, message, Dropdown, Menu } from 'antd';
 import { BarChartOutlined, DollarOutlined, RiseOutlined, PieChartOutlined, DownloadOutlined, SyncOutlined } from '@ant-design/icons';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -16,6 +16,8 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import analyticsApi, { UsageAnalyticsData } from '../../api/analytics';
+import { generateLineChartData, generateBarChartData, generatePieChartData, formatCurrency, formatNumber, formatPercentage } from '../../utils/analytics';
 import apiClient from '@/api/index';
 import dayjs from 'dayjs';
 
@@ -36,40 +38,9 @@ const { Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-interface UsageData {
-  totalCouponsIssued: number;
-  totalCouponsUsed: number;
-  totalFuelLiters: number;
-  totalCostUSD: number;
-  usageRate: number;
-  dailyUsage: Array<{
-    date: string;
-    coupons: number;
-    liters: number;
-    cost: number;
-  }>;
-  subCenterUsage: Array<{
-    subCenter: string;
-    coupons: number;
-    liters: number;
-    cost: number;
-  }>;
-  beneficiaryUsage: Array<{
-    beneficiary: string;
-    coupons: number;
-    liters: number;
-    cost: number;
-  }>;
-  fuelTypeBreakdown: Array<{
-    type: string;
-    value: number;
-    percentage: number;
-  }>;
-}
-
 const UsageAnalytics: FC = () => {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<UsageData>({
+  const [data, setData] = useState<UsageAnalyticsData>({
     totalCouponsIssued: 0,
     totalCouponsUsed: 0,
     totalFuelLiters: 0,
@@ -114,41 +85,10 @@ const UsageAnalytics: FC = () => {
         sub_center: selectedSubCenter !== 'all' ? selectedSubCenter : undefined
       };
 
-      const response = await apiClient.get('/analytics/', { params });
+      // Use real analytics API
+      const analyticsData = await analyticsApi.getUsageAnalytics(params);
+      setData(analyticsData);
       
-      // Mock data for demonstration - replace with actual API response
-      const mockData: UsageData = {
-        totalCouponsIssued: 2500,
-        totalCouponsUsed: 1875,
-        totalFuelLiters: 18750,
-        totalCostUSD: 23437.50,
-        usageRate: 75,
-        dailyUsage: Array.from({ length: 30 }, (_, i) => ({
-          date: dayjs().subtract(29 - i, 'day').format('YYYY-MM-DD'),
-          coupons: Math.floor(Math.random() * 100) + 50,
-          liters: Math.floor(Math.random() * 1000) + 500,
-          cost: Math.floor(Math.random() * 1250) + 625
-        })),
-        subCenterUsage: [
-          { subCenter: 'Parliament Main', coupons: 650, liters: 6500, cost: 8125 },
-          { subCenter: 'Ministry Block A', coupons: 425, liters: 4250, cost: 5312.50 },
-          { subCenter: 'Ministry Block B', coupons: 380, liters: 3800, cost: 4750 },
-          { subCenter: 'Government House', coupons: 420, liters: 4200, cost: 5250 }
-        ],
-        beneficiaryUsage: [
-          { beneficiary: 'Hon. John Doe', coupons: 85, liters: 850, cost: 1062.50 },
-          { beneficiary: 'Hon. Jane Smith', coupons: 78, liters: 780, cost: 975 },
-          { beneficiary: 'Hon. Peter Jones', coupons: 72, liters: 720, cost: 900 },
-          { beneficiary: 'Hon. Mary Brown', coupons: 69, liters: 690, cost: 862.50 },
-          { beneficiary: 'Hon. David Wilson', coupons: 65, liters: 650, cost: 812.50 }
-        ],
-        fuelTypeBreakdown: [
-          { type: 'Petrol', value: 11250, percentage: 60 },
-          { type: 'Diesel', value: 7500, percentage: 40 }
-        ]
-      };
-
-      setData(mockData);
     } catch (error) {
       console.error('Error loading analytics data:', error);
       message.error('Failed to load analytics data');
@@ -157,34 +97,27 @@ const UsageAnalytics: FC = () => {
     }
   };
 
-  const exportData = () => {
-    // Mock export functionality
-    message.success('Analytics data exported successfully');
+  const exportData = async (format: 'csv' | 'pdf' | 'excel' = 'excel') => {
+    try {
+      const params = {
+        start_date: dateRange[0].format('YYYY-MM-DD'),
+        end_date: dateRange[1].format('YYYY-MM-DD'),
+        sub_center: selectedSubCenter !== 'all' ? selectedSubCenter : undefined,
+        format
+      };
+      
+      await analyticsApi.exportAnalytics(params);
+      message.success(`Analytics data exported successfully as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      message.error('Failed to export analytics data');
+    }
   };
 
   // Chart configurations using Chart.js format
-  const lineChartData = {
-    labels: data.dailyUsage.map(item => dayjs(item.date).format('MM/DD')),
-    datasets: [
-      {
-        label: 'Fuel Usage (L)',
-        data: data.dailyUsage.map(item => item.liters),
-        borderColor: '#1890ff',
-        backgroundColor: 'rgba(24, 144, 255, 0.1)',
-        tension: 0.4,
-        pointRadius: 4,
-      },
-      {
-        label: 'Coupons Used',
-        data: data.dailyUsage.map(item => item.coupons),
-        borderColor: '#52c41a',
-        backgroundColor: 'rgba(82, 196, 26, 0.1)',
-        tension: 0.4,
-        pointRadius: 4,
-        yAxisID: 'y1',
-      }
-    ],
-  };
+  const lineChartData = generateLineChartData(data);
+  const barChartData = generateBarChartData(data);
+  const pieChartData = generatePieChartData(data);
 
   const lineChartOptions = {
     responsive: true,
@@ -232,27 +165,6 @@ const UsageAnalytics: FC = () => {
     },
   };
 
-  const barChartData = {
-    labels: data.subCenterUsage.map(item => item.subCenter),
-    datasets: [
-      {
-        label: 'Fuel Usage (L)',
-        data: data.subCenterUsage.map(item => item.liters),
-        backgroundColor: 'rgba(82, 196, 26, 0.8)',
-        borderColor: '#52c41a',
-        borderWidth: 1,
-      },
-      {
-        label: 'Cost (USD)',
-        data: data.subCenterUsage.map(item => item.cost),
-        backgroundColor: 'rgba(24, 144, 255, 0.8)',
-        borderColor: '#1890ff',
-        borderWidth: 1,
-        yAxisID: 'y1',
-      }
-    ],
-  };
-
   const barChartOptions = {
     responsive: true,
     plugins: {
@@ -273,46 +185,10 @@ const UsageAnalytics: FC = () => {
         position: 'left' as const,
         title: {
           display: true,
-          text: 'Liters'
+          text: 'Coupons Used'
         }
       },
-      y1: {
-        type: 'linear' as const,
-        display: true,
-        position: 'right' as const,
-        title: {
-          display: true,
-          text: 'Cost (USD)'
-        },
-        grid: {
-          drawOnChartArea: false,
-        },
-      },
     },
-  };
-
-  const pieChartData = {
-    labels: data.fuelTypeBreakdown.map(item => item.type),
-    datasets: [
-      {
-        data: data.fuelTypeBreakdown.map(item => item.value),
-        backgroundColor: [
-          '#FF6384',
-          '#36A2EB',
-          '#FFCE56',
-          '#4BC0C0',
-          '#9966FF',
-        ],
-        borderColor: [
-          '#FF6384',
-          '#36A2EB',
-          '#FFCE56',
-          '#4BC0C0',
-          '#9966FF',
-        ],
-        borderWidth: 1,
-      },
-    ],
   };
 
   const pieChartOptions = {
@@ -343,19 +219,21 @@ const UsageAnalytics: FC = () => {
       title: 'Coupons Used',
       dataIndex: 'coupons',
       key: 'coupons',
+      render: (coupons: number) => formatNumber(coupons),
       sorter: (a: any, b: any) => a.coupons - b.coupons
     },
     {
       title: 'Fuel (L)',
       dataIndex: 'liters',
       key: 'liters',
+      render: (liters: number) => formatNumber(liters),
       sorter: (a: any, b: any) => a.liters - b.liters
     },
     {
       title: 'Cost (USD)',
       dataIndex: 'cost',
       key: 'cost',
-      render: (cost: number) => `$${cost.toFixed(2)}`,
+      render: (cost: number) => formatCurrency(cost),
       sorter: (a: any, b: any) => a.cost - b.cost
     }
   ];
@@ -423,13 +301,35 @@ const UsageAnalytics: FC = () => {
               >
                 Refresh
               </Button>
-              <Button
-                type="primary"
-                icon={<DownloadOutlined />}
-                onClick={exportData}
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: 'excel',
+                      label: 'Export as Excel',
+                      onClick: () => exportData('excel')
+                    },
+                    {
+                      key: 'csv',
+                      label: 'Export as CSV',
+                      onClick: () => exportData('csv')
+                    },
+                    {
+                      key: 'pdf',
+                      label: 'Export as PDF',
+                      onClick: () => exportData('pdf')
+                    }
+                  ]
+                }}
+                trigger={['click']}
               >
-                Export
-              </Button>
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                >
+                  Export
+                </Button>
+              </Dropdown>
             </div>
           </Col>
         </Row>
@@ -441,7 +341,7 @@ const UsageAnalytics: FC = () => {
           <Card>
             <Statistic
               title="Coupons Issued"
-              value={data.totalCouponsIssued}
+              value={formatNumber(data.totalCouponsIssued)}
               prefix={<BarChartOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -451,8 +351,8 @@ const UsageAnalytics: FC = () => {
           <Card>
             <Statistic
               title="Coupons Used"
-              value={data.totalCouponsUsed}
-              suffix={`/ ${data.totalCouponsIssued}`}
+              value={formatNumber(data.totalCouponsUsed)}
+              suffix={`/ ${formatNumber(data.totalCouponsIssued)}`}
               valueStyle={{ color: '#52c41a' }}
             />
           </Card>
@@ -461,7 +361,7 @@ const UsageAnalytics: FC = () => {
           <Card>
             <Statistic
               title="Total Fuel (L)"
-              value={data.totalFuelLiters}
+              value={formatNumber(data.totalFuelLiters)}
               prefix={<RiseOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
@@ -470,10 +370,9 @@ const UsageAnalytics: FC = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="Total Cost (USD)"
-              value={data.totalCostUSD}
+              title="Total Cost"
+              value={formatCurrency(data.totalCostUSD)}
               prefix={<DollarOutlined />}
-              precision={2}
               valueStyle={{ color: '#fa8c16' }}
             />
           </Card>
@@ -486,8 +385,7 @@ const UsageAnalytics: FC = () => {
           <Card>
             <Statistic
               title="Overall Usage Rate"
-              value={data.usageRate}
-              suffix="%"
+              value={formatPercentage(data.usageRate)}
               valueStyle={{ 
                 color: data.usageRate >= 80 ? '#52c41a' : 
                        data.usageRate >= 60 ? '#fa8c16' : '#ff4d4f',
