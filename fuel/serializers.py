@@ -827,7 +827,7 @@ class BoxSerializer(serializers.ModelSerializer):
             'fuelPricePerLitre', 'monetary_value_usd',
             
             # Status and Workflow
-            'status', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
+            'status', 'is_received', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
             
             # Notes and Documentation
             'notes', 'signature', 'received_by_signature', 'receivedBySignature',
