@@ -279,6 +279,17 @@ class SubCenter(TimeStampedModel):
         blank=True,
         help_text="Maximum capacity for beneficiaries/operations"
     )
+    contact_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="Primary contact phone number for the sub-center"
+    )
+    email = models.EmailField(
+        blank=True,
+        null=True,
+        help_text="Primary email address for the sub-center"
+    )
 
     class Meta:
         ordering = ['name']
@@ -736,6 +747,10 @@ class Box(ArchivableModel):
     )
     
     # Missing Frontend Fields - Added for Complete Harmonization
+    is_received = models.BooleanField(
+        default=True,
+        help_text="Whether this box has been received (calculated from status or explicit)"
+    )
     supplier = models.CharField(
         max_length=200,
         blank=True,
