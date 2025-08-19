@@ -1,0 +1,5 @@
+# Azure App Service Startup Command for Migration Triggers
+# Place this in Azure App Service Configuration -> Startup Command
+
+# Run migrations automatically on startup
+python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout 120 --workers 3
