@@ -1,466 +1,541 @@
 // src/pages/audit/TransactionAudit.tsx
 import { useState, useEffect } from 'react';
+import type { FC } from 'react';
 import {
   Card,
   Table,
   Button,
-  Space,
-  Tag,
-  DatePicker,
   Input,
   Select,
+  DatePicker,
+  Space,
+  Typography,
   Row,
   Col,
   Statistic,
+  Tag,
   Alert,
-  Typography,
-  Modal,
-  Descriptions,
-  Timeline,
+  Spin,
   message,
+  Modal,
+  Badge,
+  Tooltip,
 } from 'antd';
 import {
   SearchOutlined,
-  EyeOutlined,
+  FilterOutlined,
   ExportOutlined,
-  SecurityScanOutlined,
-  WarningOutlined,
+  EyeOutlined,
+  AlertOutlined,
   CheckCircleOutlined,
-  ExclamationCircleOutlined,
   ClockCircleOutlined,
-  UserOutlined,
-  EnvironmentOutlined,
+  WarningOutlined,
+  ShieldOutlined,
 } from '@ant-design/icons';
-import apiClient from '../../api/index';
-import type { AuditTransaction, AuditTrail } from '../../types';
+import { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import { auditAPI } from '../../api/audit';
+import type { AuditTransaction } from '../../types/audit';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-const { Search } = Input;
 
-const TransactionAudit: React.FC = () => {
-  const [loading, setLoading] = useState(false);
+const TransactionAudit: FC = () => {
+  const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<AuditTransaction[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<AuditTransaction | null>(null);
-  const [auditTrail, setAuditTrail] = useState<AuditTrail[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [filters, setFilters] = useState({
-    dateRange: null as any,
-    status: 'all',
-    type: 'all',
-    center: 'all',
-    searchTerm: '',
-  });
-  const [auditStats, setAuditStats] = useState({
-    totalTransactions: 0,
-    flaggedTransactions: 0,
-    suspiciousActivities: 0,
-    auditScore: 0,
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  
+  // Filters
+  const [searchText, setSearchText] = useState('');
+  const [selectedUser, setSelectedUser] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
+  const [selectedRiskLevel, setSelectedRiskLevel] = useState<string>('');
+  const [dateRange, setDateRange] = useState<any[]>([]);
+
+  // Statistics
+  const [stats, setStats] = useState({
+    total: 0,
+    verified: 0,
+    flagged: 0,
+    suspicious: 0,
+    pending: 0,
+    highRisk: 0,
   });
 
   useEffect(() => {
     fetchTransactions();
-    fetchAuditStats();
-  }, [filters]);
+    fetchStats();
+  }, []);
 
   const fetchTransactions = async () => {
-    setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filters.dateRange) {
-        params.append('start_date', filters.dateRange[0].format('YYYY-MM-DD'));
-        params.append('end_date', filters.dateRange[1].format('YYYY-MM-DD'));
-      }
-      if (filters.status !== 'all') params.append('status', filters.status);
-      if (filters.type !== 'all') params.append('type', filters.type);
-      if (filters.center !== 'all') params.append('center', filters.center);
-      if (filters.searchTerm) params.append('search', filters.searchTerm);
-
-      const response = await apiClient.get(`/audit/transactions/?${params.toString()}`);
-      setTransactions(response.data?.results || []);
+      setLoading(true);
+      const response = await auditAPI.getTransactions({
+        search: searchText,
+        user: selectedUser || undefined,
+        status: selectedStatus || undefined,
+        start_date: dateRange[0] ? dayjs(dateRange[0]).format('YYYY-MM-DD') : undefined,
+        end_date: dateRange[1] ? dayjs(dateRange[1]).format('YYYY-MM-DD') : undefined,
+      });
+      
+      setTransactions(response.results || []);
     } catch (error) {
-      console.error('Failed to fetch audit transactions:', error);
+      console.error('Failed to fetch transactions:', error);
       message.error('Failed to load audit transactions');
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAuditStats = async () => {
+  const fetchStats = async () => {
     try {
-      const response = await apiClient.get('/audit/transaction-stats/');
-      setAuditStats(response.data || {});
+      const response = await auditAPI.getTransactionStats();
+      setStats(response);
     } catch (error) {
-      console.error('Failed to fetch audit stats:', error);
+      console.error('Failed to fetch stats:', error);
     }
   };
 
-  const fetchAuditTrail = async (transactionId: string) => {
-    try {
-      const response = await apiClient.get(`/audit/transactions/${transactionId}/trail/`);
-      setAuditTrail(response.data || []);
-    } catch (error) {
-      console.error('Failed to fetch audit trail:', error);
-      message.error('Failed to load audit trail');
-    }
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchTransactions();
+    }, 500);
 
-  const viewTransactionDetails = async (transaction: AuditTransaction) => {
+    return () => clearTimeout(timer);
+  }, [searchText, selectedUser, selectedStatus, selectedRiskLevel, dateRange]);
+
+  const handleViewDetails = (transaction: AuditTransaction) => {
     setSelectedTransaction(transaction);
-    await fetchAuditTrail(transaction.id);
-    setModalVisible(true);
+    setDetailModalVisible(true);
   };
 
-  const exportAuditReport = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filters.dateRange) {
-        params.append('start_date', filters.dateRange[0].format('YYYY-MM-DD'));
-        params.append('end_date', filters.dateRange[1].format('YYYY-MM-DD'));
-      }
+  const handleExport = () => {
+    // TODO: Implement export functionality
+    message.info('Export functionality will be implemented');
+  };
 
-      const response = await apiClient.get(`/audit/transactions/export/?${params.toString()}`, {
-        responseType: 'blob',
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `transaction-audit-${new Date().toISOString().split('T')[0]}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      
-      message.success('Audit report exported successfully');
-    } catch (error) {
-      console.error('Failed to export audit report:', error);
-      message.error('Failed to export audit report');
+  const getRiskColor = (riskScore: number) => {
+    if (riskScore >= 80) return '#ff4d4f';
+    if (riskScore >= 60) return '#fa8c16';
+    if (riskScore >= 40) return '#fadb14';
+    return '#52c41a';
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'verified': return 'green';
+      case 'flagged': return 'red';
+      case 'suspicious': return 'orange';
+      case 'pending': return 'blue';
+      default: return 'default';
     }
-  };
-
-  const getRiskLevel = (score: number) => {
-    if (score >= 80) return { level: 'High', color: 'red' };
-    if (score >= 40) return { level: 'Medium', color: 'orange' };
-    return { level: 'Low', color: 'green' };
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'flagged':
-        return <WarningOutlined style={{ color: '#faad14' }} />;
-      case 'suspicious':
-        return <ExclamationCircleOutlined style={{ color: '#f5222d' }} />;
-      case 'verified':
-        return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
-      default:
-        return <ClockCircleOutlined style={{ color: '#1890ff' }} />;
+      case 'verified': return <CheckCircleOutlined />;
+      case 'flagged': return <AlertOutlined />;
+      case 'suspicious': return <WarningOutlined />;
+      case 'pending': return <ClockCircleOutlined />;
+      default: return null;
     }
   };
 
-  const columns = [
+  const columns: ColumnsType<AuditTransaction> = [
     {
       title: 'Transaction ID',
       dataIndex: 'id',
       key: 'id',
       width: 120,
       render: (id: string) => (
-        <Text copyable={{ text: id }} className="font-mono text-sm">
-          {id.substring(0, 8)}...
-        </Text>
+        <Text code>{id.slice(0, 8)}...</Text>
       ),
     },
     {
       title: 'Type',
       dataIndex: 'type',
       key: 'type',
+      width: 120,
       render: (type: string) => (
-        <Tag color="blue">{type.replace('_', ' ').toUpperCase()}</Tag>
+        <Tag color="blue">{type.toUpperCase()}</Tag>
       ),
     },
     {
       title: 'User',
-      dataIndex: 'user',
       key: 'user',
-      render: (user: any) => (
-        <Space>
-          <UserOutlined />
-          <Text>{user?.username || 'Unknown'}</Text>
-        </Space>
+      width: 150,
+      render: (_, record) => (
+        <div>
+          {record.user ? (
+            <>
+              <div style={{ fontWeight: 'bold' }}>
+                {record.user.first_name} {record.user.last_name}
+              </div>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                @{record.user.username}
+              </Text>
+            </>
+          ) : (
+            <Text type="secondary">System</Text>
+          )}
+        </div>
       ),
     },
     {
       title: 'Center',
-      dataIndex: 'center',
       key: 'center',
-      render: (center: any) => (
-        <Space>
-          <EnvironmentOutlined />
-          <Text>{center?.name || 'N/A'}</Text>
-        </Space>
+      width: 120,
+      render: (_, record) => (
+        record.center ? (
+          <div>
+            <div style={{ fontWeight: 'bold' }}>{record.center.name}</div>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {record.center.code}
+            </Text>
+          </div>
+        ) : (
+          <Text type="secondary">-</Text>
+        )
       ),
     },
     {
       title: 'Risk Score',
       dataIndex: 'risk_score',
       key: 'risk_score',
-      render: (score: number) => {
-        const risk = getRiskLevel(score);
-        return (
-          <Tag color={risk.color}>
-            {risk.level} ({score}%)
-          </Tag>
-        );
-      },
+      width: 100,
+      render: (score: number) => (
+        <div style={{ textAlign: 'center' }}>
+          <Badge
+            count={score}
+            style={{ 
+              backgroundColor: getRiskColor(score),
+              color: '#fff'
+            }}
+          />
+        </div>
+      ),
+      sorter: (a, b) => a.risk_score - b.risk_score,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      width: 120,
       render: (status: string) => (
-        <Space>
-          {getStatusIcon(status)}
-          <Text>{status.toUpperCase()}</Text>
-        </Space>
+        <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
+          {status.toUpperCase()}
+        </Tag>
       ),
     },
     {
-      title: 'Timestamp',
+      title: 'Created',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (date: string) => new Date(date).toLocaleString(),
+      width: 140,
+      render: (date: string) => (
+        <div>
+          <div>{dayjs(date).format('MMM DD, YYYY')}</div>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {dayjs(date).format('HH:mm:ss')}
+          </Text>
+        </div>
+      ),
+      sorter: (a, b) => dayjs(a.created_at).unix() - dayjs(b.created_at).unix(),
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: AuditTransaction) => (
+      width: 100,
+      render: (_, record) => (
         <Space>
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
-            onClick={() => viewTransactionDetails(record)}
-          >
-            Details
-          </Button>
+          <Tooltip title="View Details">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => handleViewDetails(record)}
+            />
+          </Tooltip>
         </Space>
       ),
     },
   ];
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+        <div style={{ marginTop: 16 }}>Loading transaction audit data...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '24px', fontFamily: 'Rockwell, serif' }}>
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <Title level={2} className="mb-0">Transaction Audit</Title>
-          <Text type="secondary">Monitor and analyze all system transactions for security and compliance</Text>
-        </div>
-        <Button
-          type="primary"
-          icon={<ExportOutlined />}
-          onClick={exportAuditReport}
-        >
-          Export Report
-        </Button>
+      <div style={{ marginBottom: '24px' }}>
+        <Title level={2} style={{ fontFamily: 'Rockwell, serif', fontSize: '18px', margin: 0 }}>
+          <ShieldOutlined /> Transaction Audit
+        </Title>
+        <p style={{ color: '#666', margin: '8px 0 0 0', fontSize: '16px' }}>
+          Monitor and analyze all system transactions for security and compliance
+        </p>
       </div>
 
-      {/* Statistics */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
+      {/* Statistics Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        <Col xs={24} sm={12} md={4}>
+          <Card size="small">
             <Statistic
               title="Total Transactions"
-              value={auditStats.totalTransactions}
-              prefix={<SecurityScanOutlined />}
+              value={stats.total}
+              prefix={<AlertOutlined />}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
+        <Col xs={24} sm={12} md={4}>
+          <Card size="small">
+            <Statistic
+              title="Verified"
+              value={stats.verified}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={4}>
+          <Card size="small">
             <Statistic
               title="Flagged"
-              value={auditStats.flaggedTransactions}
-              valueStyle={{ color: '#faad14' }}
-              prefix={<WarningOutlined />}
+              value={stats.flagged}
+              prefix={<AlertOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
+        <Col xs={24} sm={12} md={4}>
+          <Card size="small">
             <Statistic
               title="Suspicious"
-              value={auditStats.suspiciousActivities}
-              valueStyle={{ color: '#f5222d' }}
-              prefix={<ExclamationCircleOutlined />}
+              value={stats.suspicious}
+              prefix={<WarningOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
+        <Col xs={24} sm={12} md={4}>
+          <Card size="small">
             <Statistic
-              title="Audit Score"
-              value={auditStats.auditScore}
-              precision={1}
-              suffix="/100"
-              valueStyle={{
-                color: auditStats.auditScore >= 80 ? '#52c41a' : 
-                       auditStats.auditScore >= 60 ? '#faad14' : '#f5222d'
-              }}
+              title="Pending"
+              value={stats.pending}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={4}>
+          <Card size="small">
+            <Statistic
+              title="High Risk"
+              value={stats.highRisk}
+              prefix={<AlertOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
             />
           </Card>
         </Col>
       </Row>
 
       {/* Filters */}
-      <Card title="Filters">
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <RangePicker
-              style={{ width: '100%' }}
-              placeholder={['Start Date', 'End Date']}
-              onChange={(dates) => setFilters({ ...filters, dateRange: dates })}
+      <Card style={{ marginBottom: '16px' }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={12} md={6}>
+            <Input
+              placeholder="Search transactions..."
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
             />
           </Col>
-          <Col xs={24} sm={12} lg={4}>
+          <Col xs={24} sm={12} md={4}>
             <Select
               style={{ width: '100%' }}
               placeholder="Status"
-              value={filters.status}
-              onChange={(status) => setFilters({ ...filters, status })}
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+              allowClear
             >
-              <Option value="all">All Status</Option>
               <Option value="verified">Verified</Option>
               <Option value="flagged">Flagged</Option>
               <Option value="suspicious">Suspicious</Option>
               <Option value="pending">Pending</Option>
             </Select>
           </Col>
-          <Col xs={24} sm={12} lg={4}>
+          <Col xs={24} sm={12} md={4}>
             <Select
               style={{ width: '100%' }}
-              placeholder="Type"
-              value={filters.type}
-              onChange={(type) => setFilters({ ...filters, type })}
+              placeholder="Risk Level"
+              value={selectedRiskLevel}
+              onChange={setSelectedRiskLevel}
+              allowClear
             >
-              <Option value="all">All Types</Option>
-              <Option value="book_handover">Book Handover</Option>
-              <Option value="fuel_distribution">Fuel Distribution</Option>
-              <Option value="coupon_issuance">Coupon Issuance</Option>
-              <Option value="user_action">User Action</Option>
+              <Option value="high">High (80+)</Option>
+              <Option value="medium">Medium (40-79)</Option>
+              <Option value="low">Low (0-39)</Option>
             </Select>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Search
-              placeholder="Search transactions..."
-              allowClear
-              value={filters.searchTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilters({ ...filters, searchTerm: e.target.value })}
-              onSearch={() => fetchTransactions()}
+          <Col xs={24} sm={12} md={6}>
+            <RangePicker
+              style={{ width: '100%' }}
+              value={dateRange}
+              onChange={setDateRange}
+              format="DD/MM/YYYY"
             />
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <Space>
+              <Button
+                icon={<FilterOutlined />}
+                onClick={fetchTransactions}
+              >
+                Filter
+              </Button>
+              <Button
+                icon={<ExportOutlined />}
+                onClick={handleExport}
+              >
+                Export
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Card>
 
-      {/* Alert for high-risk transactions */}
-      {auditStats.suspiciousActivities > 0 && (
+      {/* High Risk Alert */}
+      {stats.highRisk > 0 && (
         <Alert
-          message={`${auditStats.suspiciousActivities} Suspicious Activities Detected`}
-          description="Review flagged transactions immediately and take appropriate action."
-          type="error"
+          message={`${stats.highRisk} high-risk transactions detected`}
+          description="Review these transactions immediately for potential security issues."
+          type="warning"
           showIcon
-          action={
-            <Button size="small" danger>
-              Review Now
-            </Button>
-          }
+          closable
+          style={{ marginBottom: '16px' }}
         />
       )}
 
       {/* Transactions Table */}
-      <Card title="Transaction Audit Log">
+      <Card
+        title={`Transaction Audit (${transactions.length} transactions)`}
+        extra={
+          <Space>
+            <Button icon={<ExportOutlined />} onClick={handleExport}>
+              Export Data
+            </Button>
+          </Space>
+        }
+      >
         <Table
-          dataSource={transactions}
           columns={columns}
+          dataSource={transactions}
           rowKey="id"
           loading={loading}
           pagination={{
+            total: transactions.length,
             pageSize: 20,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) =>
               `${range[0]}-${range[1]} of ${total} transactions`,
           }}
+          scroll={{ x: 1000 }}
         />
       </Card>
 
-      {/* Transaction Details Modal */}
+      {/* Transaction Detail Modal */}
       <Modal
         title="Transaction Details"
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
+        open={detailModalVisible}
+        onCancel={() => setDetailModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setDetailModalVisible(false)}>
+            Close
+          </Button>,
+        ]}
         width={800}
       >
         {selectedTransaction && (
-          <div className="space-y-4">
-            <Descriptions title="Transaction Information" bordered column={2}>
-              <Descriptions.Item label="Transaction ID" span={2}>
-                <Text copyable={{ text: selectedTransaction.id }} className="font-mono">
-                  {selectedTransaction.id}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Type">
-                {selectedTransaction.type?.replace('_', ' ').toUpperCase()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Space>
-                  {getStatusIcon(selectedTransaction.status)}
+          <div>
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <Text strong>Transaction ID:</Text>
+                <br />
+                <Text code>{selectedTransaction.id}</Text>
+              </Col>
+              <Col span={12}>
+                <Text strong>Type:</Text>
+                <br />
+                <Tag color="blue">{selectedTransaction.type}</Tag>
+              </Col>
+              <Col span={12}>
+                <Text strong>Risk Score:</Text>
+                <br />
+                <Badge
+                  count={selectedTransaction.risk_score}
+                  style={{ 
+                    backgroundColor: getRiskColor(selectedTransaction.risk_score),
+                    color: '#fff'
+                  }}
+                />
+              </Col>
+              <Col span={12}>
+                <Text strong>Status:</Text>
+                <br />
+                <Tag color={getStatusColor(selectedTransaction.status)} icon={getStatusIcon(selectedTransaction.status)}>
                   {selectedTransaction.status.toUpperCase()}
-                </Space>
-              </Descriptions.Item>
-              <Descriptions.Item label="Risk Score">
-                {(() => {
-                  const risk = getRiskLevel(selectedTransaction.risk_score);
-                  return (
-                    <Tag color={risk.color}>
-                      {risk.level} ({selectedTransaction.risk_score}%)
-                    </Tag>
-                  );
-                })()}
-              </Descriptions.Item>
-              <Descriptions.Item label="User">
-                {selectedTransaction.user?.username || 'Unknown'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Center">
-                {selectedTransaction.center?.name || 'N/A'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Timestamp">
-                {new Date(selectedTransaction.created_at).toLocaleString()}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <Card title="Audit Trail" size="small">
-              <Timeline>
-                {auditTrail.map((trail, index) => (
-                  <Timeline.Item
-                    key={index}
-                    color={trail.action_type === 'create' ? 'green' : 
-                           trail.action_type === 'update' ? 'blue' : 'red'}
-                  >
-                    <div>
-                      <Text strong>{trail.action_type.toUpperCase()}</Text>
-                      <br />
-                      <Text type="secondary">{trail.description}</Text>
-                      <br />
-                      <Text type="secondary" className="text-xs">
-                        {trail.user} • {new Date(trail.timestamp).toLocaleString()}
-                      </Text>
-                    </div>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
-            </Card>
+                </Tag>
+              </Col>
+              <Col span={24}>
+                <Text strong>User:</Text>
+                <br />
+                <Text>
+                  {selectedTransaction.user 
+                    ? `${selectedTransaction.user.first_name} ${selectedTransaction.user.last_name} (@${selectedTransaction.user.username})`
+                    : 'System'
+                  }
+                </Text>
+              </Col>
+              <Col span={24}>
+                <Text strong>Center:</Text>
+                <br />
+                <Text>
+                  {selectedTransaction.center 
+                    ? `${selectedTransaction.center.name} (${selectedTransaction.center.code})`
+                    : 'N/A'
+                  }
+                </Text>
+              </Col>
+              <Col span={24}>
+                <Text strong>Created:</Text>
+                <br />
+                <Text>{dayjs(selectedTransaction.created_at).format('MMMM DD, YYYY HH:mm:ss')}</Text>
+              </Col>
+              {selectedTransaction.details && (
+                <Col span={24}>
+                  <Text strong>Details:</Text>
+                  <pre style={{ 
+                    background: '#f5f5f5', 
+                    padding: '12px', 
+                    borderRadius: '4px',
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    overflow: 'auto'
+                  }}>
+                    {JSON.stringify(selectedTransaction.details, null, 2)}
+                  </pre>
+                </Col>
+              )}
+            </Row>
           </div>
         )}
       </Modal>

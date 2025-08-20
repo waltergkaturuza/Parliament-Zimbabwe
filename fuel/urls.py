@@ -286,10 +286,12 @@ urlpatterns = [
     # Audit endpoints
     path('audit-logs/', lazy_viewset_action('AuditLogViewSet', {'get': 'list'}), name='audit-logs'),
     path('audit-logs/filter-options/', lazy_viewset_action('AuditLogViewSet', {'get': 'filter_options'}), name='audit-filter-options'),
+    path('audit-logs/export-audit-data/', lazy_viewset_action('AuditLogViewSet', {'post': 'export_audit_data'}), name='audit-export-data'),
     path('audit/compliance-stats/', lazy_viewset_action('AuditLogViewSet', {'get': 'compliance_stats'}), name='audit-compliance-stats'),
-    path('audit/compliance-reports/', lazy_viewset_action('AuditLogViewSet', {'get': 'compliance_reports'}), name='audit-compliance-reports'),
+    path('audit/compliance-reports/', lazy_viewset_action('AuditLogViewSet', {'get': 'compliance_reports', 'post': 'compliance_reports'}), name='audit-compliance-reports'),
     path('audit/transaction-stats/', lazy_viewset_action('AuditLogViewSet', {'get': 'transaction_stats'}), name='audit-transaction-stats'),
     path('audit/transactions/', lazy_viewset_action('AuditLogViewSet', {'get': 'transactions'}), name='audit-transactions'),
+    path('audit/security-events/', lazy_viewset_action('AuditLogViewSet', {'get': 'security_events'}), name='audit-security-events'),
     
     # Subcenter endpoints - use relative paths
     path('subcenters/overview/', lazy_viewset_action('SubCenterViewSet', {'get': 'overview'}), name='subcenter-overview'),

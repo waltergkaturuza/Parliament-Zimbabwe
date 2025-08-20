@@ -840,28 +840,42 @@ class BoxViewSet(viewsets.ModelViewSet):
 
         # Try to add select_related optimizations, but handle missing columns gracefully
         try:
-            queryset = queryset.select_related('assigned_to', 'received_by', 'verified_by')
+            # Check if fields exist by attempting a limited query first
+            test_query = Box.objects.values('id').first()
+            if test_query:
+                # Test if related fields exist
+                try:
+                    queryset = queryset.select_related('assigned_to', 'received_by', 'verified_by')
+                except Exception:
+                    try:
+                        queryset = queryset.select_related('assigned_to', 'received_by')
+                    except Exception:
+                        try:
+                            queryset = queryset.select_related('assigned_to')
+                        except Exception:
+                            queryset = Box.objects.all()
         except Exception:
-            try:
-                queryset = queryset.select_related('assigned_to', 'received_by')
-            except Exception:
-                queryset = Box.objects.all()
+            queryset = Box.objects.all()
 
         # If not authenticated, return empty set (permission class should block anyway)
         if not getattr(user, 'is_authenticated', False):
             return queryset.none()
 
         # Apply role-based filtering safely
-        role = getattr(user, 'role', None)
-        if getattr(user, 'is_superuser', False) or role in ('MAIN_CENTER', 'AUDITOR'):
-            return queryset
-        if role == 'SUB_CENTER':
-            sub_center_id = getattr(user, 'sub_center_id', None)
-            if sub_center_id:
-                return queryset.filter(assigned_to_id=sub_center_id)
-            sub_center = getattr(user, 'sub_center', None)
-            if sub_center:
-                return queryset.filter(assigned_to=sub_center)
+        try:
+            role = getattr(user, 'role', None)
+            if getattr(user, 'is_superuser', False) or role in ('MAIN_CENTER', 'AUDITOR'):
+                return queryset
+            if role == 'SUB_CENTER':
+                sub_center_id = getattr(user, 'sub_center_id', None)
+                if sub_center_id:
+                    return queryset.filter(assigned_to_id=sub_center_id)
+                sub_center = getattr(user, 'sub_center', None)
+                if sub_center:
+                    return queryset.filter(assigned_to=sub_center)
+        except Exception:
+            pass
+        
         return queryset.none()
     
     def perform_create(self, serializer):
@@ -3691,6 +3705,98 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             'action_summary': list(action_summary),
             'recent_user_activity': list(user_activity)
         })
+    
+    @action(detail=False, methods=['post'])
+    def export_audit_data(self, request):
+        """Export audit data in CSV or JSON format"""
+        format_type = request.data.get('format', 'csv')
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+        
+        # Get filtered queryset
+        queryset = self.get_queryset()
+        
+        if start_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created__date__gte=start_date)
+            except ValueError:
+                pass
+        
+        if end_date:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created__date__lte=end_date)
+            except ValueError:
+                pass
+        
+        if format_type == 'csv':
+            import csv
+            from django.http import HttpResponse
+            
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="audit_logs_{timezone.now().strftime("%Y%m%d")}.csv"'
+            
+            writer = csv.writer(response)
+            writer.writerow(['ID', 'User', 'Action', 'Model', 'Details', 'IP Address', 'Severity', 'Timestamp'])
+            
+            for log in queryset[:1000]:  # Limit to 1000 records
+                writer.writerow([
+                    log.id,
+                    log.user.username if log.user else 'System',
+                    log.action,
+                    log.model_name,
+                    str(log.details or {}),
+                    log.ip_address or '',
+                    log.severity,
+                    log.created.strftime('%Y-%m-%d %H:%M:%S')
+                ])
+            
+            return response
+        else:
+            # JSON format
+            data = []
+            for log in queryset[:1000]:
+                data.append({
+                    'id': log.id,
+                    'user': log.user.username if log.user else 'System',
+                    'action': log.action,
+                    'model': log.model_name,
+                    'details': log.details or {},
+                    'ip_address': log.ip_address or '',
+                    'severity': log.severity,
+                    'timestamp': log.created.strftime('%Y-%m-%d %H:%M:%S')
+                })
+            
+            return Response({'data': data})
+    
+    @action(detail=False, methods=['get'])
+    def security_events(self, request):
+        """Get security-related audit events"""
+        # Filter for security-related actions
+        security_actions = ['LOGIN', 'LOGOUT', 'FAILED_LOGIN', 'PASSWORD_CHANGE', 'PERMISSION_DENIED']
+        
+        security_logs = AuditLog.objects.filter(
+            action__in=security_actions
+        ).order_by('-created')[:100]
+        
+        events = []
+        for log in security_logs:
+            events.append({
+                'id': log.id,
+                'event_type': log.action,
+                'user': log.user.username if log.user else 'System',
+                'ip_address': log.ip_address or '',
+                'severity': log.severity,
+                'timestamp': log.created.strftime('%Y-%m-%d %H:%M:%S'),
+                'details': log.details or {}
+            })
+        
+        return Response({
+            'results': events,
+            'total_events': len(events),
+            'high_risk_events': len([e for e in events if log.severity in ['HIGH', 'CRITICAL']])
+        })
 
 
 class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
@@ -5634,6 +5740,102 @@ def analytics_view(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # --- Enhanced Financial Analytics ---
+        try:
+            # Get boxes in date range for financial calculations
+            boxes = Box.objects.filter(
+                models.Q(received_at__date__range=[start_date, end_date]) |
+                models.Q(created__date__range=[start_date, end_date])
+            )
+            
+            # Calculate daily financial data with error handling for missing fields
+            daily_data = []
+            current_date = start_date
+            while current_date <= end_date:
+                daily_boxes = boxes.filter(
+                    models.Q(received_at__date=current_date) |
+                    models.Q(created__date=current_date)
+                )
+                
+                # Safe field access with error handling
+                daily_revenue_usd = 0
+                daily_revenue_zwg = 0
+                daily_books = 0
+                daily_coupons = 0
+                daily_litres = 0
+                
+                for box in daily_boxes:
+                    try:
+                        daily_revenue_usd += float(getattr(box, 'total_value_usd', 0) or 0)
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                    
+                    try:
+                        daily_revenue_zwg += float(getattr(box, 'total_value_zwg', 0) or 0)
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                    
+                    try:
+                        daily_books += int(getattr(box, 'number_of_books', 0) or 0)
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                    
+                    try:
+                        daily_coupons += int(getattr(box, 'total_coupons', 0) or getattr(box, 'total_coupons_calculated', 0) or 0)
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                    
+                    try:
+                        daily_litres += float(getattr(box, 'total_litres', 0) or 0)
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                
+                # Calculate operational costs (simplified estimation)
+                daily_costs_usd = daily_revenue_usd * 0.15  # 15% operational cost estimation
+                daily_profit_usd = daily_revenue_usd - daily_costs_usd
+                
+                daily_data.append({
+                    'date': current_date.strftime('%Y-%m-%d'),
+                    'revenue_usd': round(daily_revenue_usd, 2),
+                    'revenue_zwg': round(daily_revenue_zwg, 2),
+                    'costs_usd': round(daily_costs_usd, 2),
+                    'profit_usd': round(daily_profit_usd, 2),
+                    'coupons_issued': daily_coupons,
+                    'books_issued': daily_books,
+                    'litres_allocated': round(daily_litres, 2),
+                    'boxes_processed': daily_boxes.count()
+                })
+                
+                current_date += timedelta(days=1)
+            
+            # Calculate totals and averages
+            total_revenue_usd = sum(item['revenue_usd'] for item in daily_data)
+            total_costs_usd = sum(item['costs_usd'] for item in daily_data)
+            total_profit_usd = total_revenue_usd - total_costs_usd
+            total_coupons = sum(item['coupons_issued'] for item in daily_data)
+            total_litres = sum(item['litres_allocated'] for item in daily_data)
+            
+            # Calculate growth rates
+            if len(daily_data) > 1:
+                first_week = daily_data[:7] if len(daily_data) >= 7 else daily_data[:len(daily_data)//2]
+                last_week = daily_data[-7:] if len(daily_data) >= 7 else daily_data[len(daily_data)//2:]
+                
+                first_week_avg = sum(item['revenue_usd'] for item in first_week) / len(first_week)
+                last_week_avg = sum(item['revenue_usd'] for item in last_week) / len(last_week)
+                
+                revenue_growth = ((last_week_avg - first_week_avg) / (first_week_avg or 1)) * 100
+            else:
+                revenue_growth = 0
+            
+        except Exception as e:
+            daily_data = []
+            total_revenue_usd = 0
+            total_costs_usd = 0
+            total_profit_usd = 0
+            total_coupons = 0
+            total_litres = 0
+            revenue_growth = 0
+
         # --- Query Data with Error Handling ---
         try:
             fuel_transactions = FuelTransaction.objects.filter(timestamp__date__range=[start_date, end_date])
@@ -5675,12 +5877,27 @@ def analytics_view(request):
             total_entitlements = 0
             total_litres_allocated = 0
 
-        # --- Prepare Response ---
+        # --- Prepare Enhanced Response ---
         data = {
             'date_range': {
                 'start_date': start_date_str,
                 'end_date': end_date_str,
             },
+            'financial_summary': {
+                'total_revenue_usd': round(total_revenue_usd, 2),
+                'total_costs_usd': round(total_costs_usd, 2),
+                'total_profit_usd': round(total_profit_usd, 2),
+                'profit_margin': round((total_profit_usd / total_revenue_usd * 100) if total_revenue_usd > 0 else 0, 2),
+                'revenue_growth_rate': round(revenue_growth, 2),
+                'average_daily_revenue': round(total_revenue_usd / max(1, (end_date - start_date).days + 1), 2),
+            },
+            'operational_summary': {
+                'total_boxes_processed': boxes.count() if 'boxes' in locals() else 0,
+                'total_coupons_issued': total_coupons,
+                'total_litres_allocated': round(total_litres, 2),
+                'average_value_per_box': round(total_revenue_usd / max(1, boxes.count()) if 'boxes' in locals() else 0, 2),
+            },
+            'daily_data': daily_data,
             'fuel_summary': {
                 'total_fuel_dispensed': round(float(total_fuel_dispensed), 2),
                 'total_coupons_used': total_coupons_used,
@@ -5696,7 +5913,7 @@ def analytics_view(request):
                 'total_litres_allocated': round(float(total_litres_allocated), 2),
             },
             'status': 'success',
-            'message': 'Analytics data retrieved successfully'
+            'message': 'Enhanced analytics data retrieved successfully'
         }
 
         return Response(data, status=status.HTTP_200_OK)
@@ -5749,39 +5966,63 @@ def analytics_received_breakdown(request):
         results = {}
         for box in boxes_qs:
             try:
-                fuel_type = getattr(box, 'fuel_type', 'UNKNOWN') or 'UNKNOWN'
-            except Exception:
+                # Safe field access with fallbacks
                 fuel_type = 'UNKNOWN'
-            try:
-                denom = int(getattr(box, 'denomination', 0) or 0)
-            except Exception:
+                try:
+                    fuel_type = getattr(box, 'fuel_type', None) or 'UNKNOWN'
+                except Exception:
+                    fuel_type = 'UNKNOWN'
+                
                 denom = 0
-            total_coupons = int(getattr(box, 'total_coupons_calculated', 0) or 0)
-            try:
-                status_val = getattr(box, 'status', '') or ''
-            except Exception:
+                try:
+                    denom = int(getattr(box, 'denomination', 0) or 0)
+                except (ValueError, TypeError, AttributeError):
+                    denom = 0
+                
+                total_coupons = 0
+                try:
+                    # Try multiple field names for total coupons
+                    total_coupons = int(
+                        getattr(box, 'total_coupons_calculated', None) or 
+                        getattr(box, 'total_coupons', None) or 
+                        0
+                    )
+                except (ValueError, TypeError, AttributeError):
+                    total_coupons = 0
+                
                 status_val = ''
-            try:
-                verified_at = getattr(box, 'verified_at', None)
-            except Exception:
+                try:
+                    status_val = getattr(box, 'status', '') or ''
+                except Exception:
+                    status_val = ''
+                
                 verified_at = None
-            is_verified = (status_val == 'VERIFIED') or bool(verified_at)
+                try:
+                    verified_at = getattr(box, 'verified_at', None)
+                except Exception:
+                    verified_at = None
+                
+                is_verified = (status_val == 'VERIFIED') or bool(verified_at)
 
-            key = (fuel_type, denom)
-            if key not in results:
-                results[key] = {
-                    'fuel_type': fuel_type,
-                    'denomination': denom,
-                    'received_coupons': 0,
-                    'verified_coupons': 0,
-                    'unverified_coupons': 0,
-                }
+                key = (fuel_type, denom)
+                if key not in results:
+                    results[key] = {
+                        'fuel_type': fuel_type,
+                        'denomination': denom,
+                        'received_coupons': 0,
+                        'verified_coupons': 0,
+                        'unverified_coupons': 0,
+                    }
 
-            results[key]['received_coupons'] += total_coupons
-            if is_verified:
-                results[key]['verified_coupons'] += total_coupons
-            else:
-                results[key]['unverified_coupons'] += total_coupons
+                results[key]['received_coupons'] += total_coupons
+                if is_verified:
+                    results[key]['verified_coupons'] += total_coupons
+                else:
+                    results[key]['unverified_coupons'] += total_coupons
+            except Exception as e:
+                # Log the error but continue processing other boxes
+                logger.warning(f"Error processing box {getattr(box, 'id', 'unknown')}: {str(e)}")
+                continue
 
         breakdown = sorted(results.values(), key=lambda x: (x['fuel_type'], x['denomination']))
         return Response({

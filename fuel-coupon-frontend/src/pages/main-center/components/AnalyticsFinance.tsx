@@ -60,6 +60,18 @@ interface FinancialData {
   coupons: number;
 }
 
+interface SummaryData {
+  totalRevenue: number;
+  totalCosts: number;
+  totalProfit: number;
+  profitMargin: number;
+  revenueGrowth: number;
+  totalBoxes: number;
+  totalCoupons: number;
+  totalLitres: number;
+  averageValuePerBox: number;
+}
+
 const AnalyticsFinance: FC = () => {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
     dayjs().subtract(30, 'days'),
@@ -68,6 +80,17 @@ const AnalyticsFinance: FC = () => {
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [loading, setLoading] = useState(true);
   const [financialData, setFinancialData] = useState<FinancialData[]>([]);
+  const [summaryData, setSummaryData] = useState<SummaryData>({
+    totalRevenue: 0,
+    totalCosts: 0,
+    totalProfit: 0,
+    profitMargin: 0,
+    revenueGrowth: 0,
+    totalBoxes: 0,
+    totalCoupons: 0,
+    totalLitres: 0,
+    averageValuePerBox: 0
+  });
 
   useEffect(() => {
     loadFinancialData();
@@ -77,7 +100,7 @@ const AnalyticsFinance: FC = () => {
     setLoading(true);
     try {
       const [startDate, endDate] = dateRange;
-      const response = await apiClient.get('/financial-analytics/', {
+      const response = await apiClient.get('/analytics/', {
         params: {
           start_date: startDate.format('YYYY-MM-DD'),
           end_date: endDate.format('YYYY-MM-DD'),
@@ -91,12 +114,36 @@ const AnalyticsFinance: FC = () => {
           date: dayjs(item.date).format('DD/MM'),
           revenueUSD: item.revenue_usd || 0,
           costsUSD: item.costs_usd || 0,
-          profitUSD: (item.revenue_usd || 0) - (item.costs_usd || 0),
+          profitUSD: item.profit_usd || 0,
           coupons: item.coupons_issued || 0,
         }));
         setFinancialData(mappedData);
+        
+        // Store summary data for display
+        setSummaryData({
+          totalRevenue: data.financial_summary?.total_revenue_usd || 0,
+          totalCosts: data.financial_summary?.total_costs_usd || 0,
+          totalProfit: data.financial_summary?.total_profit_usd || 0,
+          profitMargin: data.financial_summary?.profit_margin || 0,
+          revenueGrowth: data.financial_summary?.revenue_growth_rate || 0,
+          totalBoxes: data.operational_summary?.total_boxes_processed || 0,
+          totalCoupons: data.operational_summary?.total_coupons_issued || 0,
+          totalLitres: data.operational_summary?.total_litres_allocated || 0,
+          averageValuePerBox: data.operational_summary?.average_value_per_box || 0
+        });
       } else {
         setFinancialData([]);
+        setSummaryData({
+          totalRevenue: 0,
+          totalCosts: 0,
+          totalProfit: 0,
+          profitMargin: 0,
+          revenueGrowth: 0,
+          totalBoxes: 0,
+          totalCoupons: 0,
+          totalLitres: 0,
+          averageValuePerBox: 0
+        });
       }
     } catch (error) {
       console.error('Error loading financial data:', error);
@@ -137,17 +184,13 @@ const AnalyticsFinance: FC = () => {
     }
   };
 
-  // Calculate totals and percentages
-  const totalRevenueUSD = financialData.reduce((sum, item) => sum + item.revenueUSD, 0);
-  const totalCostsUSD = financialData.reduce((sum, item) => sum + item.costsUSD, 0);
-  const totalProfitUSD = totalRevenueUSD - totalCostsUSD;
-  const profitMargin = totalRevenueUSD > 0 ? (totalProfitUSD / totalRevenueUSD) * 100 : 0;
-  const totalCoupons = financialData.reduce((sum, item) => sum + item.coupons, 0);
-
-  // Growth calculations
-  const revenueGrowth = financialData.length > 1 
-    ? ((financialData[financialData.length - 1].revenueUSD - financialData[0].revenueUSD) / (financialData[0].revenueUSD || 1)) * 100
-    : 0;
+  // Calculate totals and percentages from summary data
+  const totalRevenueUSD = summaryData.totalRevenue;
+  const totalCostsUSD = summaryData.totalCosts;
+  const totalProfitUSD = summaryData.totalProfit;
+  const profitMargin = summaryData.profitMargin;
+  const totalCoupons = summaryData.totalCoupons;
+  const revenueGrowth = summaryData.revenueGrowth;
 
   // Chart colors
   const chartColors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1'];
@@ -267,6 +310,7 @@ const AnalyticsFinance: FC = () => {
                 {revenueGrowth >= 0 ? <RiseOutlined /> : <FallOutlined />}
                 {Math.abs(revenueGrowth).toFixed(1)}%
               </Tag>
+              <Text type="secondary" style={{ marginLeft: 8 }}>growth</Text>
             </div>
           </Card>
         </Col>
@@ -280,6 +324,11 @@ const AnalyticsFinance: FC = () => {
               precision={0}
               valueStyle={{ color: '#f5222d' }}
             />
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary">
+                {((totalCostsUSD / (totalRevenueUSD || 1)) * 100).toFixed(1)}% of revenue
+              </Text>
+            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
@@ -306,10 +355,51 @@ const AnalyticsFinance: FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Coupons Issued"
-              value={totalCoupons}
-              suffix="coupons"
+              title="Boxes Processed"
+              value={summaryData.totalBoxes}
+              prefix={<FileTextOutlined />}
               valueStyle={{ color: '#1890ff' }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary">
+                ${summaryData.averageValuePerBox.toFixed(0)} avg/box
+              </Text>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Secondary Metrics */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={8}>
+          <Card size="small">
+            <Statistic
+              title="Total Coupons Issued"
+              value={summaryData.totalCoupons}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={8}>
+          <Card size="small">
+            <Statistic
+              title="Total Litres Allocated"
+              value={summaryData.totalLitres}
+              suffix="L"
+              precision={0}
+              valueStyle={{ color: '#eb2f96' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={8}>
+          <Card size="small">
+            <Statistic
+              title="Average Daily Revenue"
+              value={totalRevenueUSD / Math.max(1, (dateRange[1].diff(dateRange[0], 'days') + 1))}
+              prefix={<DollarOutlined />}
+              suffix="USD"
+              precision={0}
+              valueStyle={{ color: '#faad14' }}
             />
           </Card>
         </Col>
