@@ -7,11 +7,19 @@ Provides comprehensive data serialization for TypeScript frontend integration.
 
 from rest_framework import serializers
 from decimal import Decimal
-from ..models import (
-    FuelAllocationRule, FuelPrice, DynamicAllocation,
-    BeneficiaryProfile, HarmonizedBeneficiaryProfile,
-    ParliamentSession, User, BeneficiaryCategory, Constituency
-)
+try:
+    from ..models import (
+        FuelAllocationRule, FuelPrice, DynamicAllocation,
+        BeneficiaryProfile, HarmonizedBeneficiaryProfile,
+        ParliamentSession, User, BeneficiaryCategory, Constituency
+    )
+except Exception:
+    from ..models import (
+        FuelAllocationRule, FuelPrice, DynamicAllocation,
+        BeneficiaryProfile,
+        ParliamentSession, User, BeneficiaryCategory, Constituency
+    )
+    HarmonizedBeneficiaryProfile = None  # type: ignore
 
 
 class FuelAllocationRuleSerializer(serializers.ModelSerializer):

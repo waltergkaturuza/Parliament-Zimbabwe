@@ -3,17 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <span className="font-medium">Book {book.book_number.toString().padStart(2, '0')}</span>
-                    </div>
-                    <div className="font-mono text-sm">
-                      {book.first_serial} - {book.last_serial}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {book.coupon_count} coupons
-                    </div>
-                  </div>
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { CheckCircle, AlertCircle, Calculator, BookOpen, Fuel, Loader2 } from 'lucide-react';

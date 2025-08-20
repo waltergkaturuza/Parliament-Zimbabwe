@@ -765,7 +765,7 @@ const AdminDashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [receivedPeriod, setReceivedPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [dispatchRange, setDispatchRange] = useState<'7d'|'30d'|'90d'|'year'>('30d');
-  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d' | 'ytd'>('30d');
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d'|'30d'|'90d'|'year'>('30d');
 
   const {
     data: adminStats,

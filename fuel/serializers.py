@@ -47,16 +47,30 @@ class ConstituencyField(serializers.Field):
         return data
 # from rest_framework.exceptions import AuthenticationFailed # Not used in provided code
 # from typing import List, Dict, Optional, Union # Not used in provided code
-from .models import (
-    User, SubCenter, Box, Book, Coupon,
-    FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
-    BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, CouponHandover, SystemAlert, FuelEntitlement,
-    PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
-    FuelRequirementConfiguration, Program, HarmonizedBeneficiaryProfile,
-    # Dynamic Fuel Allocation System Models
-    FuelAllocationRule, FuelPrice, DynamicAllocation
-)
+try:
+    from .models import (
+        User, SubCenter, Box, Book, Coupon,
+        FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
+        BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
+        BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, CouponHandover, SystemAlert, FuelEntitlement,
+        PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
+        FuelRequirementConfiguration, Program, HarmonizedBeneficiaryProfile,
+        # Dynamic Fuel Allocation System Models
+        FuelAllocationRule, FuelPrice, DynamicAllocation
+    )
+except Exception:
+    # Fallback when HarmonizedBeneficiaryProfile (or other optional models) is not present
+    from .models import (
+        User, SubCenter, Box, Book, Coupon,
+        FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
+        BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
+        BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, CouponHandover, SystemAlert, FuelEntitlement,
+        PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
+        FuelRequirementConfiguration, Program,
+        # Dynamic Fuel Allocation System Models
+        FuelAllocationRule, FuelPrice, DynamicAllocation
+    )
+    HarmonizedBeneficiaryProfile = None  # type: ignore
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 # import re # Not used in provided code
 # from drf_spectacular.utils import extend_schema_field, extend_schema, OpenApiTypes, OpenApiResponse # Not used in provided code
@@ -92,6 +106,18 @@ class SimpleBookSerializer(serializers.ModelSerializer):
      class Meta:
         model = Book
         fields = ('id', 'book_number', 'box', 'box_code') # Link to box and show code
+
+# --- Graceful handling when HarmonizedBeneficiaryProfile model is absent ---
+if HarmonizedBeneficiaryProfile is None:
+    # Provide no-op serializer stubs to keep imports working; endpoints using these will be disabled elsewhere.
+    class HarmonizedBeneficiaryProfileSerializer(serializers.Serializer):
+        pass
+
+    class HarmonizedBeneficiaryProfileWriteSerializer(serializers.Serializer):
+        pass
+
+    class HarmonizedBeneficiaryProfileListSerializer(serializers.Serializer):
+        pass
 
 
 class BookDispatchSerializer(serializers.ModelSerializer):
@@ -2433,66 +2459,6 @@ class BoxReceiptSerializer(serializers.ModelSerializer):
                 )
         
         return data
-
-
-# Ad-hoc Book Receipt (receive a single book without full box context)
-class BookAdhocReceiptSerializer(serializers.Serializer):
-    """Validate inputs for receiving a single book worth of coupons"""
-    box_code = serializers.CharField(required=False, allow_blank=True)
-    fuel_type = serializers.ChoiceField(choices=[('PETROL', 'Petrol'), ('DIESEL', 'Diesel')])
-    denomination = serializers.IntegerField(min_value=1)
-    first_coupon_number = serializers.CharField()
-    last_coupon_number = serializers.CharField()
-    assigned_to = serializers.IntegerField(required=False)  # SubCenter ID
-    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-
-    def validate(self, attrs):
-        first = attrs.get('first_coupon_number')
-        last = attrs.get('last_coupon_number')
-
-        # Basic serial validation: same prefix, numeric part increasing
-        import re
-        m1 = re.search(r'^(\D+)(\d+)$', str(first)) if first else None
-        m2 = re.search(r'^(\D+)(\d+)$', str(last)) if last else None
-        if not (m1 and m2):
-            raise serializers.ValidationError('Invalid coupon serial format; expected PREFIX + number e.g. PU006H355101')
-        if m1.group(1) != m2.group(1):
-            raise serializers.ValidationError('First and last coupon numbers must share the same prefix')
-        if int(m1.group(2)) > int(m2.group(2)):
-            raise serializers.ValidationError('Last coupon number must be greater than or equal to first coupon number')
-        attrs['__prefix'] = m1.group(1)
-        attrs['__start'] = int(m1.group(2))
-        attrs['__end'] = int(m2.group(2))
-        attrs['__num_len'] = len(m1.group(2))
-        return attrs
-
-
-class PageAdhocReceiptSerializer(serializers.Serializer):
-    """Validate inputs for receiving contiguous coupon pages (treated as a small book)"""
-    box_code = serializers.CharField(required=False, allow_blank=True)
-    fuel_type = serializers.ChoiceField(choices=[('PETROL', 'Petrol'), ('DIESEL', 'Diesel')])
-    denomination = serializers.IntegerField(min_value=1)
-    first_coupon_number = serializers.CharField()
-    last_coupon_number = serializers.CharField()
-    assigned_to = serializers.IntegerField(required=False)  # SubCenter ID
-    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-
-    def validate(self, attrs):
-        # Same validation as BookAdhocReceiptSerializer
-        import re
-        m1 = re.search(r'^(\D+)(\d+)$', str(attrs.get('first_coupon_number')))
-        m2 = re.search(r'^(\D+)(\d+)$', str(attrs.get('last_coupon_number')))
-        if not (m1 and m2):
-            raise serializers.ValidationError('Invalid coupon serial format; expected PREFIX + number')
-        if m1.group(1) != m2.group(1):
-            raise serializers.ValidationError('First and last coupon numbers must share the same prefix')
-        if int(m1.group(2)) > int(m2.group(2)):
-            raise serializers.ValidationError('Last coupon number must be greater than or equal to first coupon number')
-        attrs['__prefix'] = m1.group(1)
-        attrs['__start'] = int(m1.group(2))
-        attrs['__end'] = int(m2.group(2))
-        attrs['__num_len'] = len(m1.group(2))
-        return attrs
 
 
 class FuelRequirementConfigurationSerializer(serializers.ModelSerializer):

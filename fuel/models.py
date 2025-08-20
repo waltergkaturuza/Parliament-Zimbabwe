@@ -4751,12 +4751,3 @@ class CouponHandover(TimeStampedModel):
     
     class Meta:
         db_table = 'fuel_couponhandover'
-
-
-class HarmonizedBeneficiaryProfile(TimeStampedModel):
-    """Temporary stub for HarmonizedBeneficiaryProfile model"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    profile_data = models.JSONField(default=dict, blank=True)
-    
-    class Meta:
-        db_table = 'fuel_harmonizedbeneficiaryprofile'

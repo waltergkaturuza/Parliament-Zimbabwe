@@ -175,6 +175,27 @@ const BoxReceiptManagement: FC = () => {
     return `FCB-${year}-0001`;
   });
   const [activeTab, setActiveTab] = useState<'receipts' | 'verification' | 'inventory'>('receipts');
+  // Receive type: Box (default), Book, Page
+  const [receiveType, setReceiveType] = useState<'BOX' | 'BOOK' | 'PAGE'>('BOX');
+  
+  // Handle receiveType changes to update form fields
+  useEffect(() => {
+    if (receiveType === 'BOX') {
+      form.setFieldsValue({
+        couponsPerBook: 100,
+      });
+    } else if (receiveType === 'BOOK') {
+      form.setFieldsValue({
+        couponsPerBook: 100,
+        numberOfBooks: 1,
+      });
+    } else if (receiveType === 'PAGE') {
+      form.setFieldsValue({
+        couponsPerBook: 1,
+        numberOfBooks: 1,
+      });
+    }
+  }, [receiveType, form]);
   
   // Archive-related state
   const [showArchived, setShowArchived] = useState(false);
@@ -553,13 +574,19 @@ const BoxReceiptManagement: FC = () => {
     const couponAmount = allFields.find((f: any) => f.name[0] === 'couponAmount')?.value;
     const numberOfBooks = allFields.find((f: any) => f.name[0] === 'numberOfBooks')?.value;
     const fuelPriceUSD = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitreUSD')?.value;
-    const exchangeRate = allFields.find((f: any) => f.name[0] === 'exchangeRate')?.value || 27.50;
+  const exchangeRate = allFields.find((f: any) => f.name[0] === 'exchangeRate')?.value || 27.50;
     const couponsPerBook = allFields.find((f: any) => f.name[0] === 'couponsPerBook')?.value || 100;
     const firstCouponId = allFields.find((f: any) => f.name[0] === 'firstCouponId')?.value;
+  const fuelPriceZWG = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitre')?.value;
+  const manualTotalCoupons = allFields.find((f: any) => f.name[0] === 'totalCoupons')?.value;
+  const manualTotalLitres = allFields.find((f: any) => f.name[0] === 'totalLitres')?.value;
 
     // Calculate totals first
-    const totalCoupons = numberOfBooks && couponsPerBook ? numberOfBooks * couponsPerBook : 0;
-    const totalLitres = couponAmount && totalCoupons ? totalCoupons * couponAmount : 0;
+  // Prefer manual overrides if present
+  const computedTotalCoupons = numberOfBooks && couponsPerBook ? numberOfBooks * couponsPerBook : 0;
+  const totalCoupons = typeof manualTotalCoupons === 'number' && manualTotalCoupons > 0 ? manualTotalCoupons : computedTotalCoupons;
+  const computedTotalLitres = couponAmount && totalCoupons ? totalCoupons * (couponAmount as number) : 0;
+  const totalLitres = typeof manualTotalLitres === 'number' && manualTotalLitres > 0 ? manualTotalLitres : computedTotalLitres;
 
     // Enhanced intelligent calculation system
     if (numberOfBooks && couponsPerBook) {
@@ -582,18 +609,28 @@ const BoxReceiptManagement: FC = () => {
       }
 
       // Enhanced monetary value calculations
-      if (fuelPriceUSD && totalLitres > 0) {
+      // Priority: if ZWG price edited, derive USD; otherwise use USD to derive ZWG
+      if ((typeof fuelPriceZWG === 'number' && fuelPriceZWG > 0) && exchangeRate) {
+        const derivedUSD = Number(fuelPriceZWG) / Number(exchangeRate);
+        const monetaryValueUSD = totalLitres > 0 ? totalLitres * derivedUSD : 0;
+        const monetaryValueZWG = monetaryValueUSD * Number(exchangeRate);
+        form.setFieldsValue({
+          fuelPricePerLitreUSD: derivedUSD,
+          monetaryValueUSD,
+          monetaryValue: monetaryValueZWG,
+        });
+        if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitre')) {
+          message.info(`💰 Using ZWG price. Derived USD: $${derivedUSD.toFixed(4)}/L`, 3);
+        }
+      } else if (fuelPriceUSD && totalLitres > 0) {
         const monetaryValueUSD = totalLitres * fuelPriceUSD;
         const monetaryValueZWG = monetaryValueUSD * exchangeRate;
-        const fuelPriceZWG = fuelPriceUSD * exchangeRate;
-        
+        const zwgFromUsd = fuelPriceUSD * exchangeRate;
         form.setFieldsValue({
           monetaryValueUSD,
           monetaryValue: monetaryValueZWG,
-          fuelPricePerLitre: fuelPriceZWG
+          fuelPricePerLitre: zwgFromUsd,
         });
-
-        // Show calculation summary
         if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitreUSD')) {
           message.info(`💰 Total value: $${monetaryValueUSD.toLocaleString()} USD (≈ ZWG ${monetaryValueZWG.toLocaleString()})`, 3);
         }
@@ -789,11 +826,25 @@ const BoxReceiptManagement: FC = () => {
       console.log('receivedBy:', receivedBy, 'type:', typeof receivedBy);
       console.log('receivedById:', receivedById, 'type:', typeof receivedById);
       
-      // Validate required fields and provide defaults for missing ones
-      if (!values.firstCouponId || !values.numberOfBooks || !values.couponsPerBook) {
-        message.error('First coupon ID, number of books, and coupons per book are required.');
-        setLoading(false);
-        return;
+      // Validate required fields depending on receive type
+      if (receiveType === 'BOX') {
+        if (!values.firstCouponId || !values.numberOfBooks || !values.couponsPerBook) {
+          message.error('First coupon ID, number of books, and coupons per book are required for Box receipt.');
+          setLoading(false);
+          return;
+        }
+      } else if (receiveType === 'BOOK') {
+        if (!values.firstCouponId || (!values.couponsPerBook && !values.totalCoupons)) {
+          message.error('First coupon ID and either coupons per book or total coupons are required for Book receipt.');
+          setLoading(false);
+          return;
+        }
+      } else if (receiveType === 'PAGE') {
+        if (!values.firstCouponId || !values.totalCoupons) {
+          message.error('First coupon ID and total number of pages/coupons are required for Page receipt.');
+          setLoading(false);
+          return;
+        }
       }
 
       // Calculate last coupon if not provided and persist it into the form so it is included in values
@@ -810,21 +861,32 @@ const BoxReceiptManagement: FC = () => {
       }
 
       // Prepare clean payload with guaranteed non-empty values and proper field mapping
-      const totalCoupons = values.totalCoupons || (values.numberOfBooks * values.couponsPerBook);
-      const totalLitres = values.totalLitres || (totalCoupons * values.couponAmount);
+  // Compute totals with overrides
+  const totalCoupons = values.totalCoupons || (values.numberOfBooks && values.couponsPerBook ? (values.numberOfBooks * values.couponsPerBook) : undefined);
+  const totalLitres = values.totalLitres || ((totalCoupons && values.couponAmount) ? (totalCoupons * values.couponAmount) : undefined);
       
       // Generate book_details_json for backend book creation
-      const bookDetailsJson = [];
-      if (values.numberOfBooks && values.couponsPerBook && values.firstCouponId) {
-        for (let i = 0; i < values.numberOfBooks; i++) {
-          const bookNumber = i + 1;
-          // Calculate book coupon range (simplified for now - backend will handle proper calculation)
-          bookDetailsJson.push({
-            book_number: bookNumber,
-            coupons_per_book: values.couponsPerBook,
-            // Backend will calculate proper coupon ranges
-          });
+      let bookDetailsJson: any[] = [];
+      if (receiveType === 'BOX') {
+        if (values.numberOfBooks && values.couponsPerBook && values.firstCouponId) {
+          for (let i = 0; i < values.numberOfBooks; i++) {
+            const bookNumber = i + 1;
+            bookDetailsJson.push({
+              book_number: bookNumber,
+              coupons_per_book: values.couponsPerBook,
+            });
+          }
         }
+      } else if (receiveType === 'BOOK' || receiveType === 'PAGE') {
+        // Treat as a single book worth of coupons/pages for now
+        const singleCount = values.totalCoupons || values.couponsPerBook || 0;
+        const lastId = lastCouponId || (values.firstCouponId && singleCount ? calculateLastCouponId(values.firstCouponId, singleCount) : undefined);
+        bookDetailsJson.push({
+          book_number: 1,
+          first_coupon_number: values.firstCouponId,
+          last_coupon_number: lastId,
+          number_of_coupons: singleCount,
+        });
       }
 
       // Ensure proper datetime format for received_at
@@ -843,7 +905,7 @@ const BoxReceiptManagement: FC = () => {
         receivedAtISO = new Date().toISOString();
       }
 
-      const boxData = {
+      const boxData: any = {
         // Core identification
         box_code: selectedBox ? undefined : (values.boxId || nextBoxNumber), // Only include for new boxes
         barcode: barcode.trim() || 'AUTO-GENERATED',
@@ -853,8 +915,8 @@ const BoxReceiptManagement: FC = () => {
         denomination: values.couponAmount, // Backend expects 'denomination', not 'coupon_amount'
         
         // Structure and counting
-        number_of_books: values.numberOfBooks,
-        coupons_per_book: values.couponsPerBook,
+        number_of_books: receiveType === 'BOX' ? values.numberOfBooks : 1,
+        coupons_per_book: receiveType === 'BOX' ? values.couponsPerBook : (values.totalCoupons || values.couponsPerBook || 0),
         total_coupons: totalCoupons,
         total_litres: totalLitres,
         
@@ -881,7 +943,9 @@ const BoxReceiptManagement: FC = () => {
         exchange_rate: values.exchangeRate || 27.50,
         
         // Notes and verification
-        notes: values.notes || '',
+        notes: receiveType === 'PAGE'
+          ? `${values.notes || ''}\n[PAGE_RECEIPT] Pages/Coupons received: ${values.totalCoupons || 0}. Recorded under a single-book entry pending dedicated page endpoint.`.trim()
+          : (values.notes || ''),
         verification_notes: values.couponVerificationNotes || values.verificationNotes || '',
         
         // Book generation data (CRITICAL for backend)
@@ -2255,8 +2319,11 @@ const BoxReceiptManagement: FC = () => {
       <Modal
         title={
           <Space>
-            <InboxOutlined />
-            {selectedBox ? 'Edit Box Receipt' : 'Receive New Box from Petrotrade'}
+            {receiveType === 'BOX' ? <InboxOutlined /> : receiveType === 'BOOK' ? <FileTextOutlined /> : <span>📄</span>}
+            {selectedBox ? 
+              `Edit ${receiveType === 'BOX' ? 'Box' : receiveType === 'BOOK' ? 'Book' : 'Page'} Receipt` : 
+              `Receive New ${receiveType === 'BOX' ? 'Box from Petrotrade' : receiveType === 'BOOK' ? 'Book' : 'Page(s)'}`
+            }
           </Space>
         }
         open={isModalVisible}
@@ -2265,8 +2332,38 @@ const BoxReceiptManagement: FC = () => {
         width={1200}
         destroyOnHidden
       >
+        {/* Receive Type selector */}
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Text strong>Receive Type</Text>
+            <Radio.Group
+              value={receiveType}
+              onChange={(e) => setReceiveType(e.target.value)}
+              optionType="button"
+            >
+              <Radio.Button value="BOX">Box</Radio.Button>
+              <Radio.Button value="BOOK">Book</Radio.Button>
+              <Radio.Button value="PAGE">Coupon Page</Radio.Button>
+            </Radio.Group>
+            {receiveType !== 'BOX' && (
+              <Alert
+                type={receiveType === 'PAGE' ? 'warning' : 'info'}
+                showIcon
+                message={receiveType === 'PAGE' ? 'Page-level receipt (beta)' : 'Book-level receipt'}
+                description={
+                  receiveType === 'PAGE'
+                    ? 'Page-level saving will be recorded with the box. Dedicated backend endpoint for pages is pending; we will include details in notes for now.'
+                    : 'We will record a single book using the details below and attach it to a new or existing box.'
+                }
+              />
+            )}
+          </Space>
+        </Card>
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
-          <Step title="Basic Info" icon={<InboxOutlined />} />
+          <Step 
+            title={receiveType === 'BOX' ? 'Box Info' : receiveType === 'BOOK' ? 'Book Info' : 'Page Info'} 
+            icon={receiveType === 'BOX' ? <InboxOutlined /> : receiveType === 'BOOK' ? <FileTextOutlined /> : <span>📄</span>} 
+          />
           <Step title="Fuel Details" icon={<CarOutlined />} />
         </Steps>
 
@@ -2280,11 +2377,11 @@ const BoxReceiptManagement: FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
-                    label="Box ID"
+                    label={receiveType === 'BOX' ? 'Box ID' : receiveType === 'BOOK' ? 'Parent Box ID' : 'Parent Box ID'}
                     name="boxId"
-                    rules={[{ required: true, message: 'Box ID is required' }]}
+                    rules={[{ required: true, message: `${receiveType === 'BOX' ? 'Box' : 'Parent Box'} ID is required` }]}
                   >
-                    <Input disabled placeholder="Generating Box ID..." />
+                    <Input disabled placeholder={receiveType === 'BOX' ? 'Generating Box ID...' : 'Parent Box ID for this item...'} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -2294,7 +2391,7 @@ const BoxReceiptManagement: FC = () => {
                     rules={[{ required: false, message: 'Please enter barcode' }]}
                   >
                     <Input 
-                      placeholder="Scan or enter barcode (auto-generated if empty)"
+                      placeholder={`Scan or enter ${receiveType.toLowerCase()} barcode (auto-generated if empty)`}
                       addonAfter={
                         <Button
                           type="text"
@@ -2447,7 +2544,7 @@ const BoxReceiptManagement: FC = () => {
               </Row>
 
               <Row gutter={16}>
-                <Col span={12}>
+        <Col span={12}>
                   <Form.Item
                     label="USD/ZWG Exchange Rate"
                     name="exchangeRate"
@@ -2468,7 +2565,7 @@ const BoxReceiptManagement: FC = () => {
                     name="fuelPricePerLitre"
                   >
                     <InputNumber
-                      disabled
+          // editable to allow manual override; we derive USD when this changes
                       style={{ width: '100%' }}
                       formatter={(value) => `ZWG ${(value || 0).toLocaleString()}`}
                     />
@@ -2476,19 +2573,21 @@ const BoxReceiptManagement: FC = () => {
                 </Col>
               </Row>
 
-              {/* Enhanced Coupon Details Section */}
+              {/* Enhanced Coupon Details Section - Dynamic based on receive type */}
               <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
                 <Title level={5} style={{ color: '#52c41a', marginBottom: 16 }}>
-                  📊 Coupon Intelligence & Book Details
+                  📊 {receiveType === 'BOX' ? 'Coupon Intelligence & Book Details' : 
+                       receiveType === 'BOOK' ? 'Single Book Details' : 
+                       'Page/Coupon Details'}
                 </Title>
                 
                 <Row gutter={16}>
                   <Col span={8}>
                     <Form.Item
-                      label="First Coupon Number"
+                      label={receiveType === 'PAGE' ? 'First Page/Coupon Number' : 'First Coupon Number'}
                       name="firstCouponId"
-                      rules={[{ required: true, message: 'Please enter first coupon number' }]}
-                      tooltip="Enter the first coupon serial number in the box"
+                      rules={[{ required: true, message: `Please enter first ${receiveType === 'PAGE' ? 'page/coupon' : 'coupon'} number` }]}
+                      tooltip={receiveType === 'PAGE' ? 'Enter the first page/coupon serial number' : 'Enter the first coupon serial number in the box'}
                     >
                       <Input
                         placeholder="e.g., PU018TY000001"
@@ -2497,36 +2596,70 @@ const BoxReceiptManagement: FC = () => {
                       />
                     </Form.Item>
                   </Col>
+                  {receiveType === 'BOX' && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Total Number of Books"
+                        name="numberOfBooks"
+                        rules={[{ required: true, message: 'Please enter number of books' }]}
+                        tooltip="Total number of coupon books in this box"
+                      >
+                        <InputNumber
+                          min={1}
+                          max={50}
+                          style={{ width: '100%' }}
+                          placeholder="e.g., 10"
+                          addonBefore={<FileTextOutlined />}
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+                  {receiveType === 'BOOK' && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Single Book ID"
+                        name="bookId"
+                        tooltip="Identifier for this single book"
+                      >
+                        <Input
+                          placeholder="e.g., BOOK-001"
+                          addonBefore={<FileTextOutlined />}
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
+                  {receiveType === 'PAGE' && (
+                    <Col span={8}>
+                      <Form.Item
+                        label="Page Range"
+                        name="pageRange"
+                        tooltip="Pages being received (e.g., 1-5, 10-15)"
+                      >
+                        <Input
+                          placeholder="e.g., 1-5 or 10"
+                          addonBefore="📄"
+                        />
+                      </Form.Item>
+                    </Col>
+                  )}
                   <Col span={8}>
                     <Form.Item
-                      label="Total Number of Books"
-                      name="numberOfBooks"
-                      rules={[{ required: true, message: 'Please enter number of books' }]}
-                      tooltip="Total number of coupon books in this box"
-                    >
-                      <InputNumber
-                        min={1}
-                        max={50}
-                        style={{ width: '100%' }}
-                        placeholder="e.g., 10"
-                        addonBefore={<FileTextOutlined />}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={8}>
-                    <Form.Item
-                      label="Coupons per Book"
+                      label={receiveType === 'BOX' ? 'Coupons per Book' : 
+                             receiveType === 'BOOK' ? 'Coupons in Book' : 
+                             'Number of Pages/Coupons'}
                       name="couponsPerBook"
-                      rules={[{ required: true, message: 'Please enter coupons per book' }]}
-                      tooltip="Number of coupons in each book"
-                      initialValue={100}
+                      rules={[{ required: true, message: `Please enter ${receiveType === 'PAGE' ? 'number of pages/coupons' : 'coupons per book'}` }]}
+                      tooltip={receiveType === 'BOX' ? 'Number of coupons in each book' : 
+                              receiveType === 'BOOK' ? 'Total coupons in this single book' : 
+                              'Number of pages/coupons being received'}
+                      initialValue={receiveType === 'PAGE' ? 1 : 100}
                     >
                       <InputNumber
                         min={1}
-                        max={200}
+                        max={receiveType === 'PAGE' ? 50 : 200}
                         style={{ width: '100%' }}
-                        placeholder="e.g., 100"
-                        addonBefore={<BarcodeOutlined />}
+                        placeholder={receiveType === 'PAGE' ? 'e.g., 5' : 'e.g., 100'}
+                        addonBefore={receiveType === 'PAGE' ? '📄' : <BarcodeOutlined />}
                       />
                     </Form.Item>
                   </Col>
@@ -2535,27 +2668,30 @@ const BoxReceiptManagement: FC = () => {
                 <Row gutter={16}>
                   <Col span={8}>
                     <Form.Item
-                      label="Total Number of Coupons"
+                      label={receiveType === 'BOX' ? 'Total Number of Coupons' : 
+                             receiveType === 'BOOK' ? 'Coupons in Book' : 
+                             'Total Pages/Coupons'}
                       name="totalCoupons"
-                      tooltip="Automatically calculated: Books × Coupons per Book"
+                      tooltip={receiveType === 'BOX' ? 'Automatically calculated: Books × Coupons per Book' : 
+                              receiveType === 'BOOK' ? 'Total coupons in this single book' : 
+                              'Total pages/coupons being received'}
                     >
                       <InputNumber
-                        disabled
-                        style={{ width: '100%', backgroundColor: '#f0f0f0' }}
-                        formatter={(value) => `${(value || 0).toLocaleString()} coupons`}
-                        addonBefore={<BarcodeOutlined />}
+                        style={{ width: '100%' }}
+                        formatter={(value) => `${(value || 0).toLocaleString()} ${receiveType === 'PAGE' ? 'pages' : 'coupons'}`}
+                        addonBefore={receiveType === 'PAGE' ? '📄' : <BarcodeOutlined />}
                       />
                     </Form.Item>
                   </Col>
                   <Col span={8}>
                     <Form.Item
-                      label="Last Coupon Number"
+                      label={receiveType === 'PAGE' ? 'Last Page/Coupon Number' : 'Last Coupon Number'}
                       name="lastCouponId"
-                      tooltip="Automatically calculated from first coupon + total coupons"
+                      tooltip={receiveType === 'PAGE' ? 'Automatically calculated from first page + total pages' : 'Automatically calculated from first coupon + total coupons'}
                     >
                       <Input
                         style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#f9f9f9' }}
-                        addonBefore={<BarcodeOutlined />}
+                        addonBefore={receiveType === 'PAGE' ? '📄' : <BarcodeOutlined />}
                         placeholder="Auto-calculated"
                       />
                     </Form.Item>
@@ -2564,11 +2700,12 @@ const BoxReceiptManagement: FC = () => {
                     <Form.Item
                       label="Total Litres"
                       name="totalLitres"
-                      tooltip="Automatically calculated: Total Coupons × Coupon Amount"
+                      tooltip={receiveType === 'BOX' ? 'Automatically calculated: Total Coupons × Coupon Amount' : 
+                              receiveType === 'BOOK' ? 'Total litres in this book' : 
+                              'Total litres in these pages/coupons'}
                     >
                       <InputNumber
-                        disabled
-                        style={{ width: '100%', backgroundColor: '#f0f0f0' }}
+                        style={{ width: '100%' }}
                         formatter={(value) => `${(value || 0).toLocaleString()} L`}
                         addonBefore={<CarOutlined />}
                       />

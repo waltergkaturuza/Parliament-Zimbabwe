@@ -34,6 +34,7 @@ import {
   Statistic,
   Timeline,
   TimePicker,
+  Radio,
 } from 'antd';
 import {
   SendOutlined,
@@ -136,6 +137,17 @@ const BookDispatchManagement: FC = () => {
   const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
   const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
   const [nextDispatchNumber, setNextDispatchNumber] = useState('');
+  // Dispatch type: full book vs page level
+  const [dispatchType, setDispatchType] = useState<'BOOK' | 'PAGE'>('BOOK');
+  // For PAGE dispatch, how many coupons per selected book
+  const [partialCoupons, setPartialCoupons] = useState<Record<string, number>>({});
+  
+  // Handle dispatchType changes to clear selections and reset state
+  useEffect(() => {
+    setSelectedBooks([]);
+    setPartialCoupons({});
+    setBookDetailConfirmations({});
+  }, [dispatchType]);
   
   // New state for book details functionality
   const [selectedBookForDetails, setSelectedBookForDetails] = useState<AvailableBook | null>(null);
@@ -235,6 +247,26 @@ const BookDispatchManagement: FC = () => {
     // Reset confirmations when selected books change
     setBookDetailConfirmations({});
   }, [selectedBooks]);
+
+  // Maintain per-book partial coupon defaults in PAGE mode
+  useEffect(() => {
+    if (dispatchType !== 'PAGE') return;
+    setPartialCoupons(prev => {
+      const next: Record<string, number> = { ...prev };
+      // Ensure defaults for selected
+      selectedBooks.forEach(key => {
+        if (!next[key]) {
+          const book = availableBooks.find(b => b.key === key);
+          next[key] = Math.min(book?.numberOfCoupons || 10, 10);
+        }
+      });
+      // Remove for deselected
+      Object.keys(next).forEach(key => {
+        if (!selectedBooks.includes(key)) delete next[key];
+      });
+      return next;
+    });
+  }, [dispatchType, selectedBooks, availableBooks]);
 
   // Helper function to reset form and state when modal closes
   const handleModalClose = () => {
@@ -546,6 +578,21 @@ const BookDispatchManagement: FC = () => {
     };
   };
 
+  // Normalize backend status to our strict union type
+  const mapBackendStatus = (status: unknown): BookDispatch['status'] => {
+    const s = String(status || '').toUpperCase();
+    switch (s) {
+      case 'PENDING':
+      case 'DISPATCHED':
+      case 'RECEIVED':
+      case 'CONFIRMED':
+      case 'CANCELLED':
+        return s as BookDispatch['status'];
+      default:
+        return 'PENDING';
+    }
+  };
+
   const downloadDispatchPDF = (dispatch: BookDispatch) => {
     if (!dispatch) return;
     
@@ -598,9 +645,7 @@ const BookDispatchManagement: FC = () => {
           totalBooks: dispatch.book_count || 0,
           totalCoupons: (dispatch.book_count || 0) * 10,
           totalValue: (dispatch.book_count || 0) * 10 * 37.95,
-          status: dispatch.status === 'PENDING' ? 'PENDING' : 
-                  dispatch.status === 'DISPATCHED' ? 'DISPATCHED' :
-                  dispatch.status === 'RECEIVED' ? 'RECEIVED' : 'PENDING',
+          status: mapBackendStatus(dispatch.status),
           receivedDate: dispatch.received_date ? new Date(dispatch.received_date).toISOString().split('T')[0] : undefined,
           notes: dispatch.notes || '',
           trackingNumber: `TRK-${new Date().getFullYear()}-${String(dispatch.id).padStart(6, '0')}`,
@@ -708,6 +753,8 @@ const BookDispatchManagement: FC = () => {
     setCurrentStep(0);
     form.resetFields();
     setSelectedBooks([]);
+  setDispatchType('BOOK');
+  setPartialCoupons({});
     generateNextDispatchNumber();
     
     // Auto-fill dispatched by with current user's name
@@ -731,8 +778,16 @@ const BookDispatchManagement: FC = () => {
       );
 
       const totalBooks = selectedBookDetails.length;
-      const totalCoupons = selectedBookDetails.reduce((sum, book) => sum + book.numberOfCoupons, 0);
-      const totalValue = selectedBookDetails.reduce((sum, book) => sum + book.value, 0);
+      const totalCoupons = dispatchType === 'PAGE'
+        ? selectedBookDetails.reduce((sum, book) => sum + Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons), 0)
+        : selectedBookDetails.reduce((sum, book) => sum + book.numberOfCoupons, 0);
+      const totalValue = dispatchType === 'PAGE'
+        ? selectedBookDetails.reduce((sum, book) => {
+            const count = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
+            const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
+            return sum + count * unit;
+          }, 0)
+        : selectedBookDetails.reduce((sum, book) => sum + book.value, 0);
 
       const newDispatch: BookDispatch = {
         id: Date.now().toString(),
@@ -742,18 +797,39 @@ const BookDispatchManagement: FC = () => {
         dispatchedBy: user ? `${user.name || user.username}` : values.dispatchedBy || 'Administrator',
         dispatchedDate: values.dispatchedDate?.format('YYYY-MM-DD') || new Date().toISOString().split('T')[0],
         dispatchedTime: values.dispatchedTime?.format('HH:mm') || new Date().toTimeString().slice(0, 5),
-        books: selectedBookDetails.map(book => ({
-          id: book.key,
-          bookId: book.bookId,
-          boxId: book.boxId,
-          fuelType: book.fuelType,
-          couponAmount: book.couponAmount,
-          firstCouponId: book.firstCouponId,
-          lastCouponId: book.lastCouponId,
-          numberOfCoupons: book.numberOfCoupons,
-          value: book.value,
-          pricePerLitre: book.pricePerLitre,
-        })),
+        books: selectedBookDetails.map(book => {
+          if (dispatchType === 'PAGE') {
+            const count = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
+            const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
+            // derive last coupon based on count for preview/report
+            const serials = generateCouponSerials(book.firstCouponId, Math.max(count, 1));
+            const last = serials.length > 0 ? serials[serials.length - 1] : book.firstCouponId;
+            return {
+              id: book.key,
+              bookId: book.bookId,
+              boxId: book.boxId,
+              fuelType: book.fuelType,
+              couponAmount: book.couponAmount,
+              firstCouponId: book.firstCouponId,
+              lastCouponId: last,
+              numberOfCoupons: count,
+              value: count * unit,
+              pricePerLitre: book.pricePerLitre,
+            };
+          }
+          return {
+            id: book.key,
+            bookId: book.bookId,
+            boxId: book.boxId,
+            fuelType: book.fuelType,
+            couponAmount: book.couponAmount,
+            firstCouponId: book.firstCouponId,
+            lastCouponId: book.lastCouponId,
+            numberOfCoupons: book.numberOfCoupons,
+            value: book.value,
+            pricePerLitre: book.pricePerLitre,
+          };
+        }),
         totalBooks,
         totalCoupons,
         totalValue,
@@ -762,7 +838,9 @@ const BookDispatchManagement: FC = () => {
         vehicleNumber: values.vehicleNumber,
         driverName: values.driverName,
         driverPhone: values.driverPhone,
-        notes: values.notes,
+        notes: dispatchType === 'PAGE'
+          ? `${values.notes || ''}\n[PAGE_DISPATCH] Per-book coupon counts: ${JSON.stringify(selectedBookDetails.map(b => ({ bookId: b.bookId, coupons: Math.min(partialCoupons[b.key] || 0, b.numberOfCoupons) })))}\n(Temporary until backend page-dispatch endpoint)`
+          : values.notes,
         trackingNumber: `TRK-${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}${Date.now().toString().slice(-4)}`,
       };
 
@@ -814,7 +892,7 @@ const BookDispatchManagement: FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: BookDispatch['status']) => {
     switch (status) {
       case 'PENDING': return 'orange';
       case 'DISPATCHED': return 'blue';
@@ -1132,8 +1210,8 @@ const BookDispatchManagement: FC = () => {
       <Modal
         title={
           <Space>
-            <SendOutlined />
-            New Book Dispatch
+            {dispatchType === 'BOOK' ? <SendOutlined /> : <span>📄</span>}
+            {dispatchType === 'BOOK' ? 'New Book Dispatch' : 'New Page Dispatch'}
           </Space>
         }
         open={isModalVisible}
@@ -1144,8 +1222,14 @@ const BookDispatchManagement: FC = () => {
       >
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Sub Center" icon={<EnvironmentOutlined />} />
-          <Step title="Select Books" icon={<BookOutlined />} />
-          <Step title="Books Details" icon={<FileTextOutlined />} />
+          <Step 
+            title={dispatchType === 'PAGE' ? 'Select Source Books' : 'Select Books'} 
+            icon={dispatchType === 'PAGE' ? <span>📚</span> : <BookOutlined />} 
+          />
+          <Step 
+            title={dispatchType === 'PAGE' ? 'Pages Details' : 'Books Details'} 
+            icon={dispatchType === 'PAGE' ? <span>📄</span> : <FileTextOutlined />} 
+          />
           <Step title="Confirmation" icon={<CheckOutlined />} />
         </Steps>
 
@@ -1155,10 +1239,27 @@ const BookDispatchManagement: FC = () => {
         >
           {currentStep === 0 && (
             <>
+              <Card size="small" style={{ marginBottom: 12, backgroundColor: dispatchType === 'PAGE' ? '#fff7e6' : '#f6ffed', border: dispatchType === 'PAGE' ? '1px solid #ffd591' : '1px solid #b7eb8f' }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Text strong style={{ color: dispatchType === 'PAGE' ? '#fa8c16' : '#52c41a' }}>
+                    {dispatchType === 'PAGE' ? '📄 Dispatch Type - Page Mode' : '📚 Dispatch Type - Book Mode'}
+                  </Text>
+                  <Radio.Group value={dispatchType} onChange={(e) => setDispatchType(e.target.value)} optionType="button">
+                    <Radio.Button value="BOOK">📚 Full Book</Radio.Button>
+                    <Radio.Button value="PAGE">📄 Coupon Pages</Radio.Button>
+                  </Radio.Group>
+                  {dispatchType === 'PAGE' && (
+                    <Alert type="warning" showIcon message="Page-level dispatch (beta)" description="Select source books, then specify number of coupons to dispatch from each. The details will be saved in notes until a dedicated endpoint is added." />
+                  )}
+                  {dispatchType === 'BOOK' && (
+                    <Alert type="info" showIcon message="Book-level dispatch" description="Select complete books to dispatch to the sub-center. All coupons in each book will be transferred." />
+                  )}
+                </Space>
+              </Card>
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
-                    label="Dispatch ID"
+                    label={dispatchType === 'PAGE' ? 'Page Dispatch ID' : 'Book Dispatch ID'}
                     name="dispatchId"
                     initialValue={nextDispatchNumber}
                   >
@@ -1171,7 +1272,7 @@ const BookDispatchManagement: FC = () => {
                     name="dispatchedBy"
                     rules={[{ required: true, message: 'Please enter dispatcher name' }]}
                   >
-                    <Input placeholder="Enter dispatcher name" />
+                    <Input placeholder={`Enter ${dispatchType.toLowerCase()} dispatcher name`} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -1200,11 +1301,11 @@ const BookDispatchManagement: FC = () => {
               </Row>
 
               <Form.Item
-                label="Sub Center"
+                label={dispatchType === 'PAGE' ? 'Destination Sub Center (for pages)' : 'Destination Sub Center (for books)'}
                 name="subCenterId"
                 rules={[{ required: true, message: 'Please select sub center' }]}
               >
-                <Select placeholder="Select destination sub center">
+                <Select placeholder={`Select destination sub center for ${dispatchType.toLowerCase()} dispatch`}>
                   {subCenters.map(sc => (
                     <Option key={sc.id} value={sc.id}>
                       <Space direction="vertical" size={0}>
@@ -1223,7 +1324,7 @@ const BookDispatchManagement: FC = () => {
                   type="primary"
                   onClick={() => setCurrentStep(1)}
                 >
-                  Next: Select Books
+                  {dispatchType === 'PAGE' ? 'Next: Select Source Books' : 'Next: Select Books'}
                 </Button>
               </div>
             </>
@@ -1232,8 +1333,8 @@ const BookDispatchManagement: FC = () => {
           {currentStep === 1 && (
             <>
               <Alert
-                message="Select Books for Dispatch"
-                description="Choose the verified books to dispatch to the selected sub-center."
+        message={dispatchType === 'PAGE' ? 'Select Source Books for Page Dispatch' : 'Select Books for Dispatch'}
+        description={dispatchType === 'PAGE' ? 'Choose the verified books to dispatch from. You will enter coupon counts in the next step.' : 'Choose the verified books to dispatch to the selected sub-center.'}
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
@@ -1264,7 +1365,7 @@ const BookDispatchManagement: FC = () => {
                         title="Total Coupons"
                         value={availableBooks
                           .filter(book => selectedBooks.includes(book.key))
-                          .reduce((sum, book) => sum + book.numberOfCoupons, 0)
+                          .reduce((sum, book) => sum + (dispatchType === 'PAGE' ? Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons) : book.numberOfCoupons), 0)
                         }
                       />
                     </Col>
@@ -1273,7 +1374,14 @@ const BookDispatchManagement: FC = () => {
                         title="Total Value"
                         value={availableBooks
                           .filter(book => selectedBooks.includes(book.key))
-                          .reduce((sum, book) => sum + book.value, 0)
+                          .reduce((sum, book) => {
+                            if (dispatchType === 'PAGE') {
+                              const cnt = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
+                              const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
+                              return sum + cnt * unit;
+                            }
+                            return sum + book.value;
+                          }, 0)
                         }
                         formatter={(value) => `ZWG ${value?.toLocaleString()}`}
                       />
@@ -1292,18 +1400,18 @@ const BookDispatchManagement: FC = () => {
                     onClick={() => setCurrentStep(2)}
                     disabled={selectedBooks.length === 0}
                   >
-                    Next: Books Details
+                    {dispatchType === 'PAGE' ? 'Next: Pages Details' : 'Next: Books Details'}
                   </Button>
                 </Space>
               </div>
             </>
           )}
 
-          {currentStep === 2 && (
+      {currentStep === 2 && (
             <>
               <Alert
-                message="Review Books Details"
-                description="Review each book's serial number range and confirm the details before proceeding to dispatch."
+        message={dispatchType === 'PAGE' ? 'Specify Page/Coupon Details' : 'Review Books Details'}
+        description={dispatchType === 'PAGE' ? 'For each selected book, enter number of coupons to dispatch. Last coupon will be derived for reporting.' : "Review each book's serial number range and confirm the details before proceeding to dispatch."}
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
@@ -1338,14 +1446,31 @@ const BookDispatchManagement: FC = () => {
                     key: 'couponAmount',
                     render: (amount) => `${amount}L`,
                   },
-                  {
-                    title: 'Total Coupons',
-                    dataIndex: 'numberOfCoupons',
-                    key: 'numberOfCoupons',
-                    render: (count) => (
-                      <Badge count={count} showZero color="blue" />
-                    ),
-                  },
+                  dispatchType === 'PAGE'
+                    ? {
+                        title: 'Coupons (Selected / Total)',
+                        key: 'selectedCoupons',
+                        render: (_: any, record: any) => (
+                          <Space>
+                            <InputNumber
+                              min={1}
+                              max={record.numberOfCoupons}
+                              value={Math.min(partialCoupons[record.key] || 1, record.numberOfCoupons)}
+                              onChange={(val) => setPartialCoupons(pc => ({ ...pc, [record.key]: Number(val || 1) }))}
+                              size="small"
+                            />
+                            <Text type="secondary">/ {record.numberOfCoupons}</Text>
+                          </Space>
+                        ),
+                      }
+                    : {
+                        title: 'Total Coupons',
+                        dataIndex: 'numberOfCoupons',
+                        key: 'numberOfCoupons',
+                        render: (count: number) => (
+                          <Badge count={count} showZero color="blue" />
+                        ),
+                      },
                   {
                     title: 'Serial Range',
                     key: 'serialRange',
@@ -1355,7 +1480,11 @@ const BookDispatchManagement: FC = () => {
                           <strong>First:</strong> {record.firstCouponId}
                         </Text>
                         <Text style={{ fontSize: '12px' }}>
-                          <strong>Last:</strong> {record.lastCouponId}
+                          <strong>Last:</strong> {dispatchType === 'PAGE' ? (() => {
+                            const cnt = Math.min(partialCoupons[record.key] || 1, record.numberOfCoupons);
+                            const serials = generateCouponSerials(record.firstCouponId, Math.max(cnt, 1));
+                            return serials.length > 0 ? serials[serials.length - 1] : record.lastCouponId;
+                          })() : record.lastCouponId}
                         </Text>
                       </Space>
                     ),
@@ -1364,9 +1493,14 @@ const BookDispatchManagement: FC = () => {
                     title: 'Value',
                     dataIndex: 'value',
                     key: 'value',
-                    render: (value) => (
-                      <Text strong>ZWG {value.toLocaleString()}</Text>
-                    ),
+                    render: (value: number, record: any) => {
+                      if (dispatchType === 'PAGE') {
+                        const cnt = Math.min(partialCoupons[record.key] || 0, record.numberOfCoupons);
+                        const unit = (record.value / Math.max(record.numberOfCoupons, 1)) || 0;
+                        return <Text strong>ZWG {(cnt * unit).toLocaleString()}</Text>;
+                      }
+                      return <Text strong>ZWG {value.toLocaleString()}</Text>;
+                    },
                   },
                   {
                     title: 'Actions',
@@ -1411,7 +1545,7 @@ const BookDispatchManagement: FC = () => {
                       title="Total Coupons"
                       value={availableBooks
                         .filter(book => selectedBooks.includes(book.key))
-                        .reduce((sum, book) => sum + book.numberOfCoupons, 0)
+                        .reduce((sum, book) => sum + (dispatchType === 'PAGE' ? Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons) : book.numberOfCoupons), 0)
                       }
                     />
                   </Col>
@@ -1420,7 +1554,14 @@ const BookDispatchManagement: FC = () => {
                       title="Total Value"
                       value={availableBooks
                         .filter(book => selectedBooks.includes(book.key))
-                        .reduce((sum, book) => sum + book.value, 0)
+                        .reduce((sum, book) => {
+                          if (dispatchType === 'PAGE') {
+                            const cnt = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
+                            const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
+                            return sum + cnt * unit;
+                          }
+                          return sum + book.value;
+                        }, 0)
                       }
                       formatter={(value) => `ZWG ${value?.toLocaleString()}`}
                     />
@@ -1476,15 +1617,20 @@ const BookDispatchManagement: FC = () => {
                 <Descriptions.Item label="Total Coupons">
                   {availableBooks
                     .filter(book => selectedBooks.includes(book.key))
-                    .reduce((sum, book) => sum + book.numberOfCoupons, 0)
+                    .reduce((sum, book) => sum + (dispatchType === 'PAGE' ? Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons) : book.numberOfCoupons), 0)
                   }
                 </Descriptions.Item>
                 <Descriptions.Item label="Total Value">
                   ZWG {availableBooks
                     .filter(book => selectedBooks.includes(book.key))
-                    .reduce((sum, book) => sum + book.value, 0)
-                    .toLocaleString()
-                  }
+                    .reduce((sum, book) => {
+                      if (dispatchType === 'PAGE') {
+                        const cnt = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
+                        const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
+                        return sum + cnt * unit;
+                      }
+                      return sum + book.value;
+                    }, 0).toLocaleString()}
                 </Descriptions.Item>
                 <Descriptions.Item label="Dispatcher">{form.getFieldValue('dispatchedBy')}</Descriptions.Item>
               </Descriptions>
@@ -1497,12 +1643,8 @@ const BookDispatchManagement: FC = () => {
                   <Button onClick={handleModalClose}>
                     Cancel
                   </Button>
-                  <Button
-                    type="primary"
-                    loading={loading}
-                    onClick={handleSubmit}
-                  >
-                    Confirm Dispatch
+                  <Button type="primary" loading={loading} onClick={handleSubmit}>
+                    Confirm {dispatchType === 'PAGE' ? 'Page' : 'Book'} Dispatch
                   </Button>
                 </Space>
               </div>

@@ -295,8 +295,8 @@ const BeneficiaryFormsPage: React.FC = () => {
                     rules={[{ required: true, message: 'Constituency is required' }]}
                   >
                     <Select placeholder="Select constituency" showSearch>
-                      {constituencies.map((const, index) => (
-                        <Option key={index} value={index + 1}>{const}</Option>
+                      {constituencies.map((cName, index) => (
+                        <Option key={index} value={index + 1}>{cName}</Option>
                       ))}
                     </Select>
                   </Form.Item>
