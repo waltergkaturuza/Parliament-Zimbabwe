@@ -1337,6 +1337,172 @@ class BookViewSet(viewsets.ModelViewSet):
             'validation_timestamp': timezone.now()
         })
 
+    @action(detail=False, methods=['post'])
+    def receive_book(self, request):
+        """
+        Receive a single book (range of coupons) without a full box context.
+        - Creates a minimal Box when not provided (box_code optional)
+        - Validates sequence and prevents duplicate coupon numbers
+        """
+        from .serializers import BookAdhocReceiptSerializer, BookSerializer
+        from .models import Box, Book, BookPage, Coupon, SubCenter
+
+        ser = BookAdhocReceiptSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        prefix = data['__prefix']; start = data['__start']; end = data['__end']; num_len = data['__num_len']
+
+        # Duplicate check across coupons table
+        first_serial = f"{prefix}{start:0{num_len}d}"; last_serial = f"{prefix}{end:0{num_len}d}"
+        dup_exists = Coupon.objects.filter(coupon_number__gte=first_serial, coupon_number__lte=last_serial).exists()
+        if dup_exists:
+            return Response({'error': 'One or more coupons in the provided range already exist'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            # Ensure a box exists or create a minimal one
+            assigned_to = None
+            if data.get('assigned_to'):
+                try:
+                    assigned_to = SubCenter.objects.get(id=data['assigned_to'])
+                except SubCenter.DoesNotExist:
+                    return Response({'error': 'Assigned sub-center not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+            box = None
+            box_code = data.get('box_code')
+            if box_code:
+                box = Box.objects.filter(box_code=box_code).first()
+            if not box:
+                # Create minimal box covering exactly this book's range
+                total_coupons = end - start + 1
+                box = Box.objects.create(
+                    box_code=box_code or None,
+                    fuel_type=data['fuel_type'],
+                    denomination=data['denomination'],
+                    first_coupon_number=first_serial,
+                    last_coupon_number=last_serial,
+                    number_of_books=1,
+                    coupons_per_book=total_coupons,
+                    total_coupons_calculated=total_coupons,
+                    total_litres=Decimal(str(total_coupons * data['denomination'])),
+                    assigned_to=assigned_to,
+                    received_by=request.user,
+                    is_received=True,
+                    notes=data.get('notes')
+                )
+
+            # Create the book under the box
+            book = Book.objects.create(
+                box=box,
+                book_number='Book 01',
+                first_coupon_number=first_serial,
+                last_coupon_number=last_serial,
+                initial_coupon_count=end - start + 1
+            )
+
+            # Create pages and coupons
+            number_range = range(start, end + 1)
+            pages_to_create = []
+            coupons_to_create = []
+            for idx, n in enumerate(number_range, start=1):
+                serial = f"{prefix}{n:0{num_len}d}"
+                page = BookPage(book=book, page_number=idx, first_coupon_number=serial, last_coupon_number=serial, coupons_per_page=1)
+                pages_to_create.append(page)
+            BookPage.objects.bulk_create(pages_to_create)
+
+            # Fetch created pages ordered and create coupons
+            pages = list(book.pages.all().order_by('page_number'))
+            for idx, page in enumerate(pages):
+                serial = f"{prefix}{(start + idx):0{num_len}d}"
+                coupons_to_create.append(Coupon(book=book, page=page, coupon_number=serial, litres=box.denomination, status='AVAILABLE'))
+            Coupon.objects.bulk_create(coupons_to_create)
+
+        return Response({
+            'message': 'Book received successfully',
+            'box': {'id': box.id, 'box_code': box.box_code},
+            'book': BookSerializer(book).data,
+            'created_coupons': len(coupons_to_create)
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def receive_pages(self, request):
+        """
+        Receive a contiguous set of pages (a subset range), mapped to a new Book under a minimal Box if needed.
+        Preserves sequence and prevents duplicates.
+        """
+        from .serializers import PageAdhocReceiptSerializer, BookSerializer
+        from .models import Box, Book, BookPage, Coupon, SubCenter
+
+        ser = PageAdhocReceiptSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        prefix = data['__prefix']; start = data['__start']; end = data['__end']; num_len = data['__num_len']
+        first_serial = f"{prefix}{start:0{num_len}d}"; last_serial = f"{prefix}{end:0{num_len}d}"
+
+        # Duplicate check
+        if Coupon.objects.filter(coupon_number__gte=first_serial, coupon_number__lte=last_serial).exists():
+            return Response({'error': 'One or more coupons in the provided range already exist'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            assigned_to = None
+            if data.get('assigned_to'):
+                try:
+                    assigned_to = SubCenter.objects.get(id=data['assigned_to'])
+                except SubCenter.DoesNotExist:
+                    return Response({'error': 'Assigned sub-center not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Minimal box
+            box = None
+            if data.get('box_code'):
+                box = Box.objects.filter(box_code=data['box_code']).first()
+            if not box:
+                total = end - start + 1
+                box = Box.objects.create(
+                    box_code=data.get('box_code') or None,
+                    fuel_type=data['fuel_type'],
+                    denomination=data['denomination'],
+                    first_coupon_number=first_serial,
+                    last_coupon_number=last_serial,
+                    number_of_books=1,
+                    coupons_per_book=total,
+                    total_coupons_calculated=total,
+                    total_litres=Decimal(str(total * data['denomination'])),
+                    assigned_to=assigned_to,
+                    received_by=request.user,
+                    is_received=True,
+                    notes=data.get('notes')
+                )
+
+            # Represent pages as a small book
+            book = Book.objects.create(
+                box=box,
+                book_number='Book 01',
+                first_coupon_number=first_serial,
+                last_coupon_number=last_serial,
+                initial_coupon_count=end - start + 1
+            )
+
+            pages_to_create = []
+            coupons_to_create = []
+            for idx, n in enumerate(range(start, end + 1), start=1):
+                serial = f"{prefix}{n:0{num_len}d}"
+                page = BookPage(book=book, page_number=idx, first_coupon_number=serial, last_coupon_number=serial, coupons_per_page=1)
+                pages_to_create.append(page)
+            BookPage.objects.bulk_create(pages_to_create)
+            pages = list(book.pages.all().order_by('page_number'))
+            for idx, page in enumerate(pages):
+                serial = f"{prefix}{(start + idx):0{num_len}d}"
+                coupons_to_create.append(Coupon(book=book, page=page, coupon_number=serial, litres=box.denomination, status='AVAILABLE'))
+            Coupon.objects.bulk_create(coupons_to_create)
+
+        return Response({
+            'message': 'Pages received successfully',
+            'box': {'id': box.id, 'box_code': box.box_code},
+            'book': BookSerializer(book).data,
+            'created_coupons': len(coupons_to_create)
+        }, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def available_for_dispatch(self, request):
         """
