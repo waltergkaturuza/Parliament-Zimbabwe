@@ -1,6 +1,7 @@
 // src/pages/main-center/components/InventoryOverview.tsx
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Row,
@@ -27,6 +28,7 @@ import {
   FilterOutlined,
   DownloadOutlined,
   EyeOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import apiClient from '../../../api/index';
@@ -50,17 +52,32 @@ interface InventoryItem {
   litresUsed: number;
   litresRemaining: number;
   monetaryValue: number;
+  monetaryValueUSD: number;
   status: 'FULL' | 'PARTIAL' | 'EMPTY' | 'LOW_STOCK';
   lastUpdated: string;
   location: string;
 }
 
 const InventoryOverview: FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [searchText, setSearchText] = useState('');
   const [filterFuelType, setFilterFuelType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  // Action handlers
+  const handleViewDetails = (record: InventoryItem) => {
+    console.log('Viewing details for box:', record.boxId);
+    // TODO: Navigate to box details page or open modal
+    alert(`Viewing details for Box ${record.boxId}\n\nTotal Books: ${record.totalBooks}\nBooks Remaining: ${record.booksRemaining}\nTotal Coupons: ${record.totalCoupons.toLocaleString()}\nCoupons Remaining: ${record.couponsRemaining.toLocaleString()}\nValue (ZWG): ${record.monetaryValue.toLocaleString()}\nValue (USD): $${record.monetaryValueUSD.toLocaleString()}\nLocation: ${record.location}`);
+  };
+
+  const handleDispatchBooks = (record: InventoryItem) => {
+    console.log('Dispatching books from box:', record.boxId);
+    // Navigate to the book dispatch page with the box ID as a query parameter
+    navigate(`/main-center/book-dispatch?boxId=${record.id}&boxCode=${record.boxId}`);
+  };
 
   // Export function
   const handleExportInventory = () => {
@@ -114,27 +131,29 @@ const InventoryOverview: FC = () => {
       if (Array.isArray(boxes)) {
         // Map backend data to frontend format
         const mappedInventory = boxes.map((box: any) => {
-          const totalBooks = box.books?.length || 0;
-          const booksDispatched = 0; // Calculate from actual dispatches
-          const booksRemaining = totalBooks - booksDispatched;
-          const totalCoupons = totalBooks * 10; // Estimate 10 coupons per book
-          const couponsUsed = 0; // Calculate from actual usage
-          const couponsRemaining = totalCoupons - couponsUsed;
-          const totalLitres = box.total_litres || 0;
-          const litresUsed = 0; // Calculate from actual usage
-          const litresRemaining = totalLitres - litresUsed;
+          // Use backend calculated values if available, otherwise calculate locally
+          const totalBooks = box.number_of_books || 0;
+          const booksDispatched = box.books_dispatched || box.booksDispatched || 0;
+          const booksRemaining = box.booksRemaining !== undefined ? box.booksRemaining : (totalBooks - booksDispatched);
+          const couponsPerBook = box.coupons_per_book || 100;
+          const totalCoupons = box.total_coupons_calculated || box.totalCoupons || (totalBooks * couponsPerBook);
+          const couponsUsed = box.coupons_used || box.couponsUsed || 0;
+          const couponsRemaining = box.couponsRemaining !== undefined ? box.couponsRemaining : (totalCoupons - couponsUsed);
+          const totalLitres = parseFloat(box.total_litres || 0);
+          const litresUsed = parseFloat(box.litres_used || box.litresUsed || 0);
+          const litresRemaining = box.litresRemaining !== undefined ? parseFloat(box.litresRemaining) : (totalLitres - litresUsed);
           
           // Determine status based on remaining resources
           let status: 'FULL' | 'PARTIAL' | 'EMPTY' | 'LOW_STOCK' = 'FULL';
           if (booksRemaining === 0) status = 'EMPTY';
-          else if (booksRemaining < 5) status = 'LOW_STOCK';
+          else if (booksRemaining < 3) status = 'LOW_STOCK';
           else if (booksRemaining < totalBooks) status = 'PARTIAL';
           
-          return {
+          const mappedItem = {
             id: String(box.id),
             boxId: box.box_code || `FCB-${String(box.id).padStart(4, '0')}`,
-            fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
-            couponAmount: 20 as const, // Default coupon amount
+            fuelType: (box.fuel_type || 'DIESEL') as 'PETROL' | 'DIESEL',
+            couponAmount: (box.denomination || 20) as 5 | 20,
             totalBooks,
             booksDispatched,
             booksRemaining,
@@ -144,11 +163,14 @@ const InventoryOverview: FC = () => {
             totalLitres,
             litresUsed,
             litresRemaining,
-            monetaryValue: totalLitres * 37.95, // Calculate based on current fuel price
+            monetaryValue: parseFloat(box.monetaryValue || box.total_value_zwg || 0) || (totalLitres * 37.95),
+            monetaryValueUSD: parseFloat(box.total_value_usd || 0) || (totalLitres * 1.40),
             status,
-            lastUpdated: box.received_at || new Date().toISOString(),
-            location: 'Main Warehouse', // Default location
+            lastUpdated: box.received_at || box.modified || new Date().toISOString(),
+            location: box.location || 'Main Warehouse',
           };
+          
+          return mappedItem;
         });
         
         setInventoryData(mappedInventory);
@@ -156,8 +178,12 @@ const InventoryOverview: FC = () => {
         console.warn('No inventory data received from API');
         setInventoryData([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading inventory data:', error);
+      // If it's an auth error, show a different message
+      if (error.response?.status === 401) {
+        console.log('Authentication required for inventory data');
+      }
       setInventoryData([]);
     } finally {
       setLoading(false);
@@ -195,9 +221,9 @@ const InventoryOverview: FC = () => {
             {record.booksRemaining}/{record.totalBooks}
           </Text>
           <Progress
-            percent={(record.booksRemaining / record.totalBooks) * 100}
+            percent={record.totalBooks > 0 ? (record.booksRemaining / record.totalBooks) * 100 : 0}
             size="small"
-            status={record.booksRemaining < 5 ? 'exception' : 'active'}
+            status={record.booksRemaining < 3 ? 'exception' : 'active'}
             showInfo={false}
           />
         </div>
@@ -213,7 +239,7 @@ const InventoryOverview: FC = () => {
             {record.couponsRemaining.toLocaleString()}/{record.totalCoupons.toLocaleString()}
           </Text>
           <Progress
-            percent={(record.couponsRemaining / record.totalCoupons) * 100}
+            percent={record.totalCoupons > 0 ? (record.couponsRemaining / record.totalCoupons) * 100 : 0}
             size="small"
             status={record.couponsRemaining < 50 ? 'exception' : 'active'}
             showInfo={false}
@@ -234,11 +260,20 @@ const InventoryOverview: FC = () => {
     },
     {
       title: 'Value (ZWG)',
-      key: 'value',
+      key: 'valueZWG',
       width: 120,
       render: (_, record) => {
         const remainingValue = (record.litresRemaining / record.totalLitres) * record.monetaryValue;
-        return <Text>{remainingValue.toLocaleString()}</Text>;
+        return <Text>{remainingValue.toLocaleString()} ZWG</Text>;
+      },
+    },
+    {
+      title: 'Value (USD)',
+      key: 'valueUSD',
+      width: 120,
+      render: (_, record) => {
+        const remainingValueUSD = (record.litresRemaining / record.totalLitres) * record.monetaryValueUSD;
+        return <Text>${remainingValueUSD.toLocaleString()}</Text>;
       },
     },
     {
@@ -266,11 +301,26 @@ const InventoryOverview: FC = () => {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 100,
+      width: 120,
       render: (_, record) => (
         <Space>
           <Tooltip title="View Details">
-            <Button type="link" icon={<EyeOutlined />} size="small" />
+            <Button 
+              type="link" 
+              icon={<EyeOutlined />} 
+              size="small"
+              onClick={() => handleViewDetails(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Dispatch Books">
+            <Button 
+              type="link" 
+              icon={<SendOutlined />} 
+              size="small"
+              disabled={record.booksRemaining === 0}
+              onClick={() => handleDispatchBooks(record)}
+              style={{ color: record.booksRemaining === 0 ? '#d9d9d9' : '#1890ff' }}
+            />
           </Tooltip>
         </Space>
       ),
@@ -292,7 +342,7 @@ const InventoryOverview: FC = () => {
   const booksRemaining = inventoryData.reduce((sum, item) => sum + item.booksRemaining, 0);
   const totalLitres = inventoryData.reduce((sum, item) => sum + item.totalLitres, 0);
   const litresRemaining = inventoryData.reduce((sum, item) => sum + item.litresRemaining, 0);
-  const lowStockBoxes = inventoryData.filter(item => item.status === 'LOW_STOCK' || item.booksRemaining < 5).length;
+  const lowStockBoxes = inventoryData.filter(item => item.status === 'LOW_STOCK' || item.booksRemaining < 3).length;
 
   if (loading) {
     return (
@@ -343,7 +393,7 @@ const InventoryOverview: FC = () => {
               valueStyle={{ color: '#52c41a' }}
             />
             <Progress 
-              percent={(booksRemaining / totalBooks) * 100} 
+              percent={totalBooks > 0 ? (booksRemaining / totalBooks) * 100 : 0} 
               size="small" 
               showInfo={false}
               style={{ marginTop: 8 }}
@@ -360,7 +410,7 @@ const InventoryOverview: FC = () => {
               valueStyle={{ color: '#722ed1' }}
             />
             <Progress 
-              percent={(litresRemaining / totalLitres) * 100} 
+              percent={totalLitres > 0 ? (litresRemaining / totalLitres) * 100 : 0} 
               size="small" 
               showInfo={false}
               style={{ marginTop: 8 }}
@@ -408,7 +458,7 @@ const InventoryOverview: FC = () => {
                 <Card size="small" style={{ textAlign: 'center' }}>
                   <Title level={4}>Total Value</Title>
                   <Statistic 
-                    value={inventoryData.reduce((sum, item) => sum + (item.litresRemaining / item.totalLitres) * item.monetaryValue, 0)}
+                    value={inventoryData.reduce((sum, item) => sum + (item.totalLitres > 0 ? (item.litresRemaining / item.totalLitres) * item.monetaryValue : 0), 0)}
                     formatter={(value) => `ZWG ${value?.toLocaleString()}`}
                     valueStyle={{ color: '#52c41a' }}
                   />

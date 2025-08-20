@@ -785,11 +785,38 @@ class BoxSerializer(serializers.ModelSerializer):
     # QR Code and other metadata
     qrCodeData = serializers.CharField(source='qr_code_data', required=False, allow_blank=True)
     damageReport = serializers.CharField(source='damage_report', required=False, allow_blank=True)
+    
+    # Inventory tracking fields
+    booksDispatched = serializers.IntegerField(source='books_dispatched', required=False)
+    couponsUsed = serializers.IntegerField(source='coupons_used', required=False)
+    litresUsed = serializers.DecimalField(source='litres_used', max_digits=10, decimal_places=2, required=False)
+    
+    # Calculated property fields (read-only)
+    booksRemaining = serializers.SerializerMethodField(read_only=True)
+    couponsRemaining = serializers.SerializerMethodField(read_only=True)
+    litresRemaining = serializers.SerializerMethodField(read_only=True)
+    monetaryValue = serializers.SerializerMethodField(read_only=True)
 
     coupon_range = serializers.SerializerMethodField()
 
     def get_coupon_range(self, obj):
         return f"{obj.first_coupon_number} {obj.last_coupon_number}"
+    
+    def get_booksRemaining(self, obj):
+        """Calculate books remaining"""
+        return max(0, obj.number_of_books - (obj.books_dispatched or 0))
+    
+    def get_couponsRemaining(self, obj):
+        """Calculate coupons remaining"""
+        return max(0, obj.total_coupons_calculated - (obj.coupons_used or 0))
+    
+    def get_litresRemaining(self, obj):
+        """Calculate litres remaining"""
+        return max(0, float(obj.total_litres or 0) - float(obj.litres_used or 0))
+    
+    def get_monetaryValue(self, obj):
+        """Return monetary value (alias for total_value_zwg)"""
+        return obj.total_value_zwg or 0
 
     def get_receivedBy(self, obj):
         """Safely return the full name of the receiver or empty string."""
@@ -857,8 +884,14 @@ class BoxSerializer(serializers.ModelSerializer):
             # Financial Information (ZWG) - Legacy
             'fuelPricePerLitre', 'monetary_value_usd',
             
+            # Inventory Tracking Fields
+            'books_dispatched', 'coupons_used', 'litres_used', 'location',
+            'booksDispatched', 'couponsUsed', 'litresUsed',
+            'booksRemaining', 'couponsRemaining', 'litresRemaining', 'monetaryValue',
+            
             # Status and Workflow
             'status', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
+            'verification_checks', 'signed_off_by', 'sign_off_date', 'sign_off_notes',
             
             # Notes and Documentation
             'notes', 'signature', 'received_by_signature', 'receivedBySignature',
@@ -875,7 +908,8 @@ class BoxSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'assigned_to_details', 'received_by_details', 'created', 'modified',
-            'totalCoupons', 'totalValueUSD', 'totalValueZWG', 'receivedBy', 'current_user_full_name'
+            'totalCoupons', 'totalValueUSD', 'totalValueZWG', 'receivedBy', 'current_user_full_name',
+            'booksRemaining', 'couponsRemaining', 'litresRemaining', 'monetaryValue'
         ]
         extra_kwargs = {
             'first_coupon_number': {'required': False},
@@ -1158,6 +1192,7 @@ class BookSerializer(serializers.ModelSerializer):
             'initial_coupon_count', 'coupon_count', 'available_coupons', 
             'allocated_coupons', 'used_coupons',
             'is_verified', 'verified_by', 'verified_by_name', 'verified_at', 'verification_notes',
+            'verification_checks',
             'generated_by', 'generated_by_name', 'generated_at',
             'box_details', 'box_code', 'created', 'modified',
             # Frontend compatibility fields

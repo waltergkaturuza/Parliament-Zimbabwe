@@ -1,6 +1,7 @@
 // src/pages/main-center/components/InventoryManagement.tsx
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Table,
@@ -148,6 +149,7 @@ interface FuelRequirement {
 }
 
 const InventoryManagement: FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [boxInventory, setBoxInventory] = useState<BoxInventory[]>([]);
@@ -193,83 +195,56 @@ const InventoryManagement: FC = () => {
       const boxResponse = await apiClient.get('/boxes/');
       const boxData = boxResponse.data.results || boxResponse.data || [];
 
-      // Load books data for each box
-      const boxInventoryPromises = boxData.map(async (box: any) => {
-        try {
-          // Get books for this box
-          const booksResponse = await apiClient.get(`/books/?box_id=${box.id}`);
-          const books = booksResponse.data.results || booksResponse.data || [];
+      console.log('Loaded boxes data:', boxData);
 
-          // Calculate statistics
-          const totalBooks = books.length;
-          const booksDispatched = books.filter((book: any) => book.status === 'DISPATCHED').length;
-          const booksAvailable = totalBooks - booksDispatched;
-          
-          // Estimate coupons (typically 10-20 per book depending on fuel type)
-          const couponsPerBook = box.fuel_type === 'PETROL' ? 20 : 10;
-          const totalCoupons = totalBooks * couponsPerBook;
-          const couponsDispatched = booksDispatched * couponsPerBook;
-          const couponsAvailable = totalCoupons - couponsDispatched;
+      // Transform box data to inventory format using actual Box model fields
+      const inventoryData = boxData.map((box: any) => {
+        // Use the actual Box model fields we added
+        const totalBooks = box.number_of_books || 0;
+        const booksDispatched = box.books_dispatched || 0;
+        const booksAvailable = totalBooks - booksDispatched;
+        
+        const totalCoupons = box.total_coupons_calculated || 0;
+        const couponsUsed = box.coupons_used || 0;
+        const couponsAvailable = totalCoupons - couponsUsed;
+        
+        const totalLitres = parseFloat(box.total_litres || 0);
+        const litresUsed = parseFloat(box.litres_used || 0);
+        const litresRemaining = totalLitres - litresUsed;
+        
+        // Use the monetary values from the Box model
+        const totalValue = parseFloat(box.total_value_zwg || 0);
+        const valueUsed = totalLitres > 0 ? (litresUsed / totalLitres) * totalValue : 0;
+        const valueRemaining = totalValue - valueUsed;
 
-          // Calculate values (using current fuel prices)
-          const pricePerLitre = box.fuel_type === 'PETROL' ? 37.95 : 36.00;
-          const litresPerCoupon = box.fuel_type === 'PETROL' ? 20 : 5;
-          const totalValue = totalCoupons * litresPerCoupon * pricePerLitre;
-          const valueDispatched = couponsDispatched * litresPerCoupon * pricePerLitre;
-          const valueRemaining = totalValue - valueDispatched;
+        // Determine status based on books remaining
+        let status: 'FULL' | 'PARTIAL' | 'EMPTY' | 'RESERVED' = 'FULL';
+        if (booksAvailable === 0) status = 'EMPTY';
+        else if (booksAvailable < totalBooks * 0.3) status = 'PARTIAL';
 
-          // Determine status
-          let status: 'FULL' | 'PARTIAL' | 'EMPTY' | 'RESERVED' = 'FULL';
-          if (booksAvailable === 0) status = 'EMPTY';
-          else if (booksAvailable < totalBooks * 0.3) status = 'PARTIAL';
-
-          return {
-            id: String(box.id),
-            boxId: `BOX${String(box.id).padStart(3, '0')}`,
-            boxCode: box.box_code || `FCB-2024-${String(box.id).padStart(4, '0')}`,
-            receivedDate: box.received_at ? dayjs(box.received_at).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-            totalBooks,
-            booksAvailable,
-            booksDispatched,
-            fuelType: (box.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
-            couponAmount: (box.fuel_type === 'PETROL' ? 20 : 5) as 5 | 20,
-            totalCoupons,
-            couponsAvailable,
-            couponsDispatched,
-            totalValue,
-            valueDispatched,
-            valueRemaining,
-            status,
-            location: box.storage_location || 'Main Warehouse',
-            books: [], // We'll load individual books when needed
-          };
-        } catch (error) {
-          console.error(`Error loading books for box ${box.id}:`, error);
-          // Return basic box info even if books fail to load
-          return {
-            id: String(box.id),
-            boxId: `BOX${String(box.id).padStart(3, '0')}`,
-            boxCode: box.box_code || `FCB-2024-${String(box.id).padStart(4, '0')}`,
-            receivedDate: box.received_at ? dayjs(box.received_at).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-            totalBooks: 0,
-            booksAvailable: 0,
-            booksDispatched: 0,
-            fuelType: (box.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
-            couponAmount: (box.fuel_type === 'PETROL' ? 20 : 5) as 5 | 20,
-            totalCoupons: 0,
-            couponsAvailable: 0,
-            couponsDispatched: 0,
-            totalValue: 0,
-            valueDispatched: 0,
-            valueRemaining: 0,
-            status: 'EMPTY' as const,
-            location: box.storage_location || 'Main Warehouse',
-            books: [],
-          };
-        }
+        return {
+          id: String(box.id),
+          boxId: box.box_code || `FCB-${String(box.id).padStart(4, '0')}`,
+          boxCode: box.box_code || `FCB-${String(box.id).padStart(4, '0')}`,
+          receivedDate: box.received_at ? dayjs(box.received_at).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+          totalBooks,
+          booksAvailable,
+          booksDispatched,
+          fuelType: (box.fuel_type || 'DIESEL') as 'PETROL' | 'DIESEL',
+          couponAmount: (box.denomination || 20) as 5 | 20,
+          totalCoupons,
+          couponsAvailable,
+          couponsDispatched: couponsUsed, // Map coupons_used to couponsDispatched
+          totalValue,
+          valueDispatched: valueUsed,
+          valueRemaining,
+          status,
+          location: box.location || 'Main Warehouse',
+          books: [], // Books will be loaded separately if needed
+        };
       });
 
-      const inventoryData = await Promise.all(boxInventoryPromises);
+      console.log('Mapped inventory data:', inventoryData);
       setBoxInventory(inventoryData);
       calculateStats(inventoryData);
     } catch (error) {
@@ -473,7 +448,7 @@ const InventoryManagement: FC = () => {
             Available: <strong>{record.booksAvailable}</strong> / {record.totalBooks}
           </Text>
           <Progress 
-            percent={(record.booksAvailable / record.totalBooks) * 100} 
+            percent={record.totalBooks > 0 ? (record.booksAvailable / record.totalBooks) * 100 : 0} 
             size="small"
             status={record.booksAvailable === 0 ? 'exception' : 'normal'}
           />
@@ -489,7 +464,7 @@ const InventoryManagement: FC = () => {
             Available: <strong>{record.couponsAvailable}</strong> / {record.totalCoupons}
           </Text>
           <Progress 
-            percent={(record.couponsAvailable / record.totalCoupons) * 100} 
+            percent={record.totalCoupons > 0 ? (record.couponsAvailable / record.totalCoupons) * 100 : 0} 
             size="small"
             status={record.couponsAvailable === 0 ? 'exception' : 'normal'}
           />
@@ -532,6 +507,17 @@ const InventoryManagement: FC = () => {
             }}
           >
             View Details
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            icon={<SendOutlined />}
+            disabled={record.booksAvailable === 0}
+            onClick={() => {
+              navigate(`/main-center/book-dispatch?boxId=${record.id}&boxCode=${record.boxCode}`);
+            }}
+          >
+            Dispatch
           </Button>
         </Space>
       ),

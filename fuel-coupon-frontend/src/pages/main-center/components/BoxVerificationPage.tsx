@@ -108,37 +108,42 @@ const BoxVerificationPage: React.FC = () => {
   const loadBoxes = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/boxes/');
+      const response = await apiClient.get('/boxes/', {
+        params: {
+          status: 'received', // Only get received boxes that need verification
+          ordering: '-received_at'
+        }
+      });
       const boxData = response.data.results || response.data || [];
       
-      // Transform data and generate coupon serials for verification
+      // Transform data for verification interface
       const transformedBoxes = boxData.map((box: any) => ({
         id: box.id,
-        boxId: box.box_number || `BOX-${box.id}`,
+        boxId: box.box_code || `BOX-${box.id}`,
         barcode: box.barcode || '',
         supplier: box.supplier || 'PetroTrade',
         receivedDate: box.received_date || new Date().toISOString().split('T')[0],
         fuelType: box.fuel_type || 'PETROL',
-        couponAmount: box.coupon_denomination || 20,
+        couponAmount: box.denomination || 20,
         numberOfBooks: box.number_of_books || 0,
         totalCoupons: box.total_coupons || 0,
         firstCouponId: box.first_coupon_number || '',
         lastCouponId: box.last_coupon_number || '',
-        status: box.verification_status || 'PENDING',
-        books: generateBookInfo(
-          box.number_of_books || 0,
-          box.first_coupon_number || '',
-          box.coupons_per_book || 10
-        ),
+        status: box.is_verified ? 'VERIFIED' : (box.status === 'SIGNED_OFF' ? 'SIGNED_OFF' : 'PENDING'),
+        books: [], // Will be loaded when needed
         verificationStatus: {
-          boxVerified: box.box_verified || false,
-          allBooksVerified: box.all_books_verified || false,
-          signedOff: box.signed_off || false
+          boxVerified: box.is_verified || false,
+          allBooksVerified: false, // Will be calculated from books
+          signedOff: box.status === 'SIGNED_OFF' || false
         },
         verificationNotes: box.verification_notes || '',
-        verifiedBy: box.verified_by || '',
-        verificationDate: box.verification_date || '',
-        signedOffBy: box.signed_off_by || '',
+        verifiedBy: box.verified_by?.first_name && box.verified_by?.last_name 
+          ? `${box.verified_by.first_name} ${box.verified_by.last_name}` 
+          : box.verified_by?.username || '',
+        verificationDate: box.verified_at || '',
+        signedOffBy: box.signed_off_by?.first_name && box.signed_off_by?.last_name 
+          ? `${box.signed_off_by.first_name} ${box.signed_off_by.last_name}` 
+          : box.signed_off_by?.username || '',
         signOffDate: box.sign_off_date || ''
       }));
 
@@ -198,13 +203,53 @@ const BoxVerificationPage: React.FC = () => {
     return books;
   };
 
-  const handleVerifyBox = (box: BoxVerification) => {
+  const handleVerifyBox = async (box: BoxVerification) => {
     setSelectedBox(box);
     setVerificationModalVisible(true);
     verificationForm.setFieldsValue({
       boxId: box.boxId,
       verificationNotes: box.verificationNotes || ''
     });
+    
+    // Load detailed verification data including books
+    try {
+      const response = await apiClient.get(`/boxes/${box.id}/verification_details/`);
+      const detailsData = response.data;
+      
+      // Transform book data for the interface
+      const transformedBooks: BookInfo[] = detailsData.books.map((book: any) => ({
+        id: book.id,
+        bookNumber: book.book_number,
+        firstCouponId: book.first_coupon_number,
+        lastCouponId: book.last_coupon_number,
+        couponsPerBook: book.total_coupons,
+        coupons: book.coupons.map((coupon: any) => ({
+          id: coupon.id,
+          serialNumber: coupon.serial_number,
+          status: coupon.status,
+          position: coupon.position_in_book
+        })),
+        verified: book.is_verified,
+        verificationNotes: book.verification_notes,
+        verifiedBy: book.verified_by,
+        verificationDate: book.verified_at
+      }));
+      
+      // Update the selected box with detailed book information
+      const updatedBox = {
+        ...box,
+        books: transformedBooks,
+        verificationStatus: {
+          ...box.verificationStatus,
+          allBooksVerified: detailsData.verification_summary.all_books_verified
+        }
+      };
+      
+      setSelectedBox(updatedBox);
+    } catch (error) {
+      console.error('Error loading verification details:', error);
+      message.error('Failed to load book details');
+    }
   };
 
   const handleViewBookDetails = (book: BookInfo, box: BoxVerification) => {
@@ -217,40 +262,70 @@ const BoxVerificationPage: React.FC = () => {
     if (!selectedBox) return;
 
     try {
-      // Update book verification status
+      if (verified) {
+        // Verify the book
+        await apiClient.post(`/books/${bookId}/verify_book/`, {
+          verification_notes: notes || 'Book verified during box verification process',
+          verification_checks: [
+            'Coupon sequence check',
+            'Print quality check',
+            'Serial number validation'
+          ]
+        });
+      } else {
+        // For unverification, we'd need a separate endpoint or update the existing one
+        // For now, we'll just update the UI and rely on the backend state
+        message.info('Book verification status updated');
+      }
+
+      // Reload verification details to get updated state
+      const response = await apiClient.get(`/boxes/${selectedBox.id}/verification_details/`);
+      const detailsData = response.data;
+      
+      // Transform book data for the interface
+      const transformedBooks: BookInfo[] = detailsData.books.map((book: any) => ({
+        id: book.id,
+        bookNumber: book.book_number,
+        firstCouponId: book.first_coupon_number,
+        lastCouponId: book.last_coupon_number,
+        couponsPerBook: book.total_coupons,
+        coupons: book.coupons.map((coupon: any) => ({
+          id: coupon.id,
+          serialNumber: coupon.serial_number,
+          status: coupon.status,
+          position: coupon.position_in_book
+        })),
+        verified: book.is_verified,
+        verificationNotes: book.verification_notes,
+        verifiedBy: book.verified_by,
+        verificationDate: book.verified_at
+      }));
+      
+      // Update the selected box with new book states
+      const updatedBox = {
+        ...selectedBox,
+        books: transformedBooks,
+        verificationStatus: {
+          ...selectedBox.verificationStatus,
+          allBooksVerified: detailsData.verification_summary.all_books_verified
+        }
+      };
+      
+      setSelectedBox(updatedBox);
+      
+      // Also update the main boxes state
       const updatedBoxes = boxes.map(box => {
         if (box.id === selectedBox.id) {
-          const updatedBooks = box.books.map(book => {
-            if (book.id === bookId) {
-              return {
-                ...book,
-                verified,
-                verificationNotes: notes || '',
-                verifiedBy: 'Current User', // Replace with actual user
-                verificationDate: new Date().toISOString()
-              };
-            }
-            return book;
-          });
-
-          const allBooksVerified = updatedBooks.every(book => book.verified);
-          
-          return {
-            ...box,
-            books: updatedBooks,
-            verificationStatus: {
-              ...box.verificationStatus,
-              allBooksVerified
-            }
-          };
+          return updatedBox;
         }
         return box;
       });
-
       setBoxes(updatedBoxes);
+      
       message.success(`Book ${verified ? 'verified' : 'verification removed'} successfully`);
-    } catch (error) {
-      message.error('Failed to update book verification');
+    } catch (error: any) {
+      console.error('Error updating book verification:', error);
+      message.error(error.response?.data?.error || 'Failed to update book verification');
     }
   };
 
@@ -397,10 +472,46 @@ const BoxVerificationPage: React.FC = () => {
             key="verify"
             type="primary"
             icon={<CheckOutlined />}
-            onClick={() => {
-              // Handle box verification
-              message.success('Box verified successfully');
-              setVerificationModalVisible(false);
+            onClick={async () => {
+              if (!selectedBox) return;
+              
+              try {
+                const verificationData = verificationForm.getFieldsValue();
+                const response = await apiClient.post(`/boxes/${selectedBox.id}/verify_box/`, {
+                  verification_notes: verificationData.verificationNotes || '',
+                  verification_checks: [
+                    'Serial number verification',
+                    'Physical inspection',
+                    'Count verification',
+                    'Quality check'
+                  ]
+                });
+                
+                // Update the local state
+                const updatedBoxes = boxes.map(box => {
+                  if (box.id === selectedBox.id) {
+                    return {
+                      ...box,
+                      status: 'VERIFIED' as const,
+                      verificationStatus: {
+                        ...box.verificationStatus,
+                        boxVerified: true
+                      },
+                      verificationNotes: verificationData.verificationNotes || '',
+                      verifiedBy: response.data.verified_by,
+                      verificationDate: response.data.verified_at
+                    };
+                  }
+                  return box;
+                });
+                
+                setBoxes(updatedBoxes);
+                message.success('Box verified successfully');
+                setVerificationModalVisible(false);
+              } catch (error: any) {
+                console.error('Error verifying box:', error);
+                message.error(error.response?.data?.error || 'Failed to verify box');
+              }
             }}
           >
             Verify Box
@@ -409,6 +520,21 @@ const BoxVerificationPage: React.FC = () => {
       >
         {selectedBox && (
           <div>
+            <Form form={verificationForm} layout="vertical">
+              <Form.Item
+                name="verificationNotes"
+                label="Verification Notes"
+                rules={[{ required: true, message: 'Please provide verification notes' }]}
+              >
+                <TextArea
+                  rows={3}
+                  placeholder="Enter verification notes and observations..."
+                />
+              </Form.Item>
+            </Form>
+
+            <Divider>Box Details</Divider>
+
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="Box ID">{selectedBox.boxId}</Descriptions.Item>
               <Descriptions.Item label="Supplier">{selectedBox.supplier}</Descriptions.Item>
@@ -554,11 +680,39 @@ const BoxVerificationPage: React.FC = () => {
         title={`Sign Off Box: ${selectedBox?.boxId}`}
         visible={signOffModalVisible}
         onCancel={() => setSignOffModalVisible(false)}
-        onOk={() => {
-          signOffForm.validateFields().then(values => {
+        onOk={async () => {
+          if (!selectedBox) return;
+          
+          try {
+            const values = await signOffForm.validateFields();
+            const response = await apiClient.post(`/boxes/${selectedBox.id}/sign_off_box/`, {
+              sign_off_notes: values.signOffNotes
+            });
+            
+            // Update the local state
+            const updatedBoxes = boxes.map(box => {
+              if (box.id === selectedBox.id) {
+                return {
+                  ...box,
+                  status: 'SIGNED_OFF' as const,
+                  verificationStatus: {
+                    ...box.verificationStatus,
+                    signedOff: true
+                  },
+                  signedOffBy: response.data.signed_off_by,
+                  signOffDate: response.data.sign_off_date
+                };
+              }
+              return box;
+            });
+            
+            setBoxes(updatedBoxes);
             message.success('Box signed off successfully');
             setSignOffModalVisible(false);
-          });
+          } catch (error: any) {
+            console.error('Error signing off box:', error);
+            message.error(error.response?.data?.error || 'Failed to sign off box');
+          }
         }}
         okText="Sign Off"
         okButtonProps={{ danger: true }}

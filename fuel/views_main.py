@@ -1171,6 +1171,142 @@ class BoxViewSet(viewsets.ModelViewSet):
             'dispatches': dispatch_data
         })
 
+    @action(detail=True, methods=['post'])
+    def verify_box(self, request, pk=None):
+        """
+        Verify a box - mark as verified with verification notes
+        """
+        box = self.get_object()
+        
+        verification_notes = request.data.get('verification_notes', '')
+        verification_checks = request.data.get('verification_checks', [])
+        
+        try:
+            # Update box verification status
+            box.verify_box(request.user, verification_notes)
+            
+            # Store verification checks if provided
+            if verification_checks:
+                box.verification_checks = verification_checks
+                box.save()
+            
+            return Response({
+                'message': 'Box verified successfully',
+                'box': BoxSerializer(box).data,
+                'verified_by': request.user.get_full_name(),
+                'verified_at': box.verified_at,
+                'verification_notes': box.verification_notes
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to verify box: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def sign_off_box(self, request, pk=None):
+        """
+        Sign off on a verified box - final step in verification process
+        """
+        box = self.get_object()
+        
+        if not box.is_verified:
+            return Response({
+                'error': 'Box must be verified before sign-off'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        sign_off_notes = request.data.get('sign_off_notes', '')
+        
+        try:
+            # Update box sign-off status
+            box.status = 'SIGNED_OFF'
+            box.signed_off_by = request.user
+            box.sign_off_date = timezone.now()
+            if sign_off_notes:
+                box.sign_off_notes = sign_off_notes
+            box.save()
+            
+            return Response({
+                'message': 'Box signed off successfully',
+                'box': BoxSerializer(box).data,
+                'signed_off_by': request.user.get_full_name(),
+                'sign_off_date': box.sign_off_date,
+                'sign_off_notes': box.sign_off_notes
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to sign off box: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def verification_details(self, request, pk=None):
+        """
+        Get detailed verification information for a box including all books and coupons
+        """
+        box = self.get_object()
+        
+        # Get all books for this box
+        books = box.books.all()
+        book_verification_data = []
+        
+        for book in books:
+            coupons = book.coupons.all()
+            coupon_data = []
+            
+            for coupon in coupons:
+                coupon_data.append({
+                    'id': coupon.id,
+                    'serial_number': coupon.serial_number,
+                    'status': coupon.status,
+                    'is_used': coupon.is_used,
+                    'used_at': coupon.used_at,
+                    'position': coupon.position_in_book
+                })
+            
+            book_verification_data.append({
+                'id': book.id,
+                'book_number': book.book_number,
+                'first_coupon_number': book.first_coupon_number,
+                'last_coupon_number': book.last_coupon_number,
+                'total_coupons': book.total_coupons,
+                'is_verified': book.is_verified,
+                'verified_by': book.verified_by.get_full_name() if book.verified_by else None,
+                'verified_at': book.verified_at,
+                'verification_notes': book.verification_notes,
+                'coupons': coupon_data
+            })
+        
+        return Response({
+            'box': {
+                'id': box.id,
+                'box_code': box.box_code,
+                'fuel_type': box.fuel_type,
+                'denomination': box.denomination,
+                'number_of_books': box.number_of_books,
+                'total_coupons': box.total_coupons,
+                'first_coupon_number': box.first_coupon_number,
+                'last_coupon_number': box.last_coupon_number,
+                'status': box.status,
+                'is_verified': box.is_verified,
+                'verified_by': box.verified_by.get_full_name() if box.verified_by else None,
+                'verified_at': box.verified_at,
+                'verification_notes': box.verification_notes,
+                'verification_checks': getattr(box, 'verification_checks', []),
+                'signed_off_by': box.signed_off_by.get_full_name() if getattr(box, 'signed_off_by', None) else None,
+                'sign_off_date': getattr(box, 'sign_off_date', None),
+                'sign_off_notes': getattr(box, 'sign_off_notes', '')
+            },
+            'books': book_verification_data,
+            'verification_summary': {
+                'total_books': len(book_verification_data),
+                'verified_books': len([b for b in book_verification_data if b['is_verified']]),
+                'all_books_verified': all(b['is_verified'] for b in book_verification_data),
+                'box_verified': box.is_verified,
+                'ready_for_sign_off': box.is_verified and all(b['is_verified'] for b in book_verification_data)
+            }
+        })
+
 
 class BookViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Book management with sequential allocation"""
@@ -1627,6 +1763,111 @@ class BookViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': f'Failed to load dispatch options: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'])
+    def verify_book(self, request, pk=None):
+        """
+        Verify a specific book - mark as verified with verification notes
+        """
+        book = self.get_object()
+        
+        verification_notes = request.data.get('verification_notes', '')
+        verification_checks = request.data.get('verification_checks', [])
+        
+        try:
+            # Update book verification status
+            book.is_verified = True
+            book.verified_by = request.user
+            book.verified_at = timezone.now()
+            book.verification_notes = verification_notes
+            
+            if verification_checks:
+                book.verification_checks = verification_checks
+            
+            book.save()
+            
+            return Response({
+                'message': 'Book verified successfully',
+                'book': BookSerializer(book).data,
+                'verified_by': request.user.get_full_name(),
+                'verified_at': book.verified_at,
+                'verification_notes': book.verification_notes
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to verify book: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def coupon_details(self, request, pk=None):
+        """
+        Get detailed coupon information for verification
+        """
+        book = self.get_object()
+        
+        coupons = book.coupons.all().order_by('position_in_book')
+        coupon_data = []
+        
+        for coupon in coupons:
+            coupon_data.append({
+                'id': coupon.id,
+                'serial_number': coupon.serial_number,
+                'status': coupon.status,
+                'position_in_book': coupon.position_in_book,
+                'is_used': coupon.is_used,
+                'used_at': coupon.used_at,
+                'used_by': coupon.used_by.get_full_name() if coupon.used_by else None,
+                'verification_code': getattr(coupon, 'verification_code', ''),
+                'barcode': getattr(coupon, 'barcode', ''),
+                'qr_code': getattr(coupon, 'qr_code', '')
+            })
+        
+        return Response({
+            'book': {
+                'id': book.id,
+                'book_number': book.book_number,
+                'first_coupon_number': book.first_coupon_number,
+                'last_coupon_number': book.last_coupon_number,
+                'total_coupons': book.total_coupons,
+                'is_verified': book.is_verified,
+                'verified_by': book.verified_by.get_full_name() if book.verified_by else None,
+                'verified_at': book.verified_at,
+                'verification_notes': book.verification_notes
+            },
+            'coupons': coupon_data,
+            'verification_summary': {
+                'total_coupons': len(coupon_data),
+                'used_coupons': len([c for c in coupon_data if c['is_used']]),
+                'available_coupons': len([c for c in coupon_data if not c['is_used']]),
+                'sequential_check': self._check_sequential_integrity(coupon_data),
+                'status_breakdown': self._get_coupon_status_breakdown(coupon_data)
+            }
+        })
+    
+    def _check_sequential_integrity(self, coupon_data):
+        """Check if coupons are in proper sequential order"""
+        if not coupon_data:
+            return {'valid': True, 'message': 'No coupons to check'}
+        
+        expected_position = 1
+        for coupon in sorted(coupon_data, key=lambda x: x['position_in_book']):
+            if coupon['position_in_book'] != expected_position:
+                return {
+                    'valid': False, 
+                    'message': f'Gap found: expected position {expected_position}, found {coupon["position_in_book"]}'
+                }
+            expected_position += 1
+        
+        return {'valid': True, 'message': f'All {len(coupon_data)} coupons in sequential order'}
+    
+    def _get_coupon_status_breakdown(self, coupon_data):
+        """Get breakdown of coupon statuses"""
+        status_counts = {}
+        for coupon in coupon_data:
+            status = coupon['status']
+            status_counts[status] = status_counts.get(status, 0) + 1
+        return status_counts
 
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):

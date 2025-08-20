@@ -750,6 +750,11 @@ class Box(ArchivableModel):
         null=True,
         help_text="Notes from verification process"
     )
+    verification_checks = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Verification checklist items completed"
+    )
     verified_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -762,6 +767,26 @@ class Box(ArchivableModel):
         on_delete=models.SET_NULL,
         related_name='verified_boxes',
         help_text="User who verified this box"
+    )
+    
+    # Sign-off Fields for Final Approval
+    signed_off_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='signed_off_boxes',
+        help_text="User who signed off on this box"
+    )
+    sign_off_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this box was signed off"
+    )
+    sign_off_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notes from sign-off process"
     )
     
     # Missing Frontend Fields - Added for Complete Harmonization
@@ -814,6 +839,56 @@ class Box(ArchivableModel):
         blank=True,
         help_text="Time when box was received (extracted from received_at)"
     )
+    
+    # Inventory Tracking Fields (for frontend compatibility)
+    books_dispatched = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Number of books that have been dispatched from this box"
+    )
+    coupons_used = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Number of coupons that have been used from this box"
+    )
+    litres_used = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Total litres worth of coupons that have been used"
+    )
+    location = models.CharField(
+        max_length=200,
+        default='Main Warehouse',
+        help_text="Current physical location of this box"
+    )
+    
+    # Calculated properties (for API compatibility)
+    @property
+    def monetary_value(self):
+        """Alias for total_value_zwg for frontend compatibility"""
+        return self.total_value_zwg
+    
+    @property
+    def total_coupons(self):
+        """Alias for total_coupons_calculated for frontend compatibility"""
+        return self.total_coupons_calculated
+    
+    @property
+    def books_remaining(self):
+        """Calculate books remaining"""
+        return max(0, self.number_of_books - self.books_dispatched)
+    
+    @property
+    def coupons_remaining(self):
+        """Calculate coupons remaining"""
+        return max(0, self.total_coupons_calculated - self.coupons_used)
+    
+    @property
+    def litres_remaining(self):
+        """Calculate litres remaining"""
+        return max(0, float(self.total_litres) - float(self.litres_used))
 
     class Meta:
         verbose_name = "Coupon Box"
@@ -1386,6 +1461,11 @@ class Book(ArchivableModel):
         blank=True,
         null=True,
         help_text="Notes from the verification process"
+    )
+    verification_checks = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Verification checklist items completed for this book"
     )
 
     class Meta:
