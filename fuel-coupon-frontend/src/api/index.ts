@@ -60,32 +60,56 @@ apiClient.interceptors.response.use(
       console.log('401 error detected, attempting token refresh...');
       
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          console.warn('No refresh token available, redirecting to login');
-          window.location.href = '/login';
+        const refreshTokenValue = localStorage.getItem('refresh_token');
+        if (!refreshTokenValue) {
+          console.warn('No refresh token available, cannot refresh');
+          // Clear any stale tokens and return 401 instead of redirecting
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
           return Promise.reject(error);
         }
 
-        // Try to refresh the token using the same apiClient and the /auth/refresh/ endpoint under /api/v1
-        const refreshResponse = await apiClient.post('/auth/refresh/', {
-          refresh: refreshToken,
+        // Prevent infinite recursion: don't try to refresh if this IS the refresh endpoint
+        if (originalRequest.url?.includes('/auth/refresh/')) {
+          console.warn('Refresh token itself failed, clearing tokens');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          return Promise.reject(error);
+        }
+
+        // Try to refresh the token using a new axios instance to avoid interceptor recursion
+        const refreshResponse = await fetch(`${apiClient.defaults.baseURL}/auth/refresh/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh: refreshTokenValue }),
         });
         
-        const newAccessToken = refreshResponse.data.access;
-        localStorage.setItem('access_token', newAccessToken);
+        if (!refreshResponse.ok) {
+          throw new Error(`Refresh failed: ${refreshResponse.status}`);
+        }
         
-        // Update authorization header for the failed request
-        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+        const refreshData = await refreshResponse.json();
+        const newAccessToken = refreshData.access;
         
-        console.log('Token refreshed successfully, retrying original request...');
-        return apiClient(originalRequest);
+        if (newAccessToken) {
+          localStorage.setItem('access_token', newAccessToken);
+          
+          // Update authorization header for the failed request
+          originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+          
+          console.log('Token refreshed successfully, retrying original request...');
+          return apiClient(originalRequest);
+        } else {
+          throw new Error('No access token in refresh response');
+        }
         
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        // Don't redirect automatically, let the app handle it
         return Promise.reject(error);
       }
     }
