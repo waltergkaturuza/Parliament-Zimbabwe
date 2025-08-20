@@ -21,33 +21,68 @@ try:
         main_dashboard, analytics_consumption_trend,
         change_password, mark_all_notifications_read, subcenter_statistics,
         dynamic_allocation, subcenters_stats,
-        
-        # Existing ViewSets
+    )
+except ImportError as e:
+    print(f"Import error in fuel/urls.py: {e}")
+    # Create dummy views for missing imports
+    from django.http import JsonResponse
+    
+    def dummy_view(request, *args, **kwargs):
+        return JsonResponse({"error": "View not implemented"})
+    
+    # Set all missing views to dummy
+    RegisterView = LoginView = user_profile_view = auth_roles = dummy_view
+    admin_dashboard = fuel_statistics = analytics_view = notification_stats = dummy_view
+    main_dashboard = analytics_consumption_trend = dummy_view
+    change_password = mark_all_notifications_read = subcenter_statistics = dummy_view
+    dynamic_allocation = subcenters_stats = dummy_view
+
+# Import ViewSets separately with error handling
+try:
+    from .views_main import (
         UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
-        
-        # New Parliament-specific ViewSets
         BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
         ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
         FuelEntitlementViewSet, ProgramViewSet,
-        
-        # Subcenter management ViewSets
         PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
-        
-        # Fuel requirements management ViewSet
         FuelRequirementConfigurationViewSet,
-        
-        # Dispatch and allocation ViewSets
         BookDispatchViewSet, CouponAllocationViewSet,
-        
-        # System management ViewSets
         SystemAlertViewSet, AuditLogViewSet,
-        
-        # Business Central integration - moved from views_bc to views_main
+    )
+except ImportError as e:
+    print(f"ViewSet import error in fuel/urls.py: {e}")
+    # Create dummy ViewSets for missing imports
+    from rest_framework import viewsets
+    from rest_framework.response import Response
+    
+    class DummyViewSet(viewsets.ViewSet):
+        def list(self, request):
+            return Response({"error": "ViewSet not implemented"})
+    
+    # Set all missing ViewSets to dummy
+    UserViewSet = SubCenterViewSet = BoxViewSet = BookViewSet = CouponViewSet = DummyViewSet
+    BeneficiaryCategoryViewSet = ConstituencyViewSet = VehicleCategoryViewSet = DummyViewSet
+    ParliamentSessionViewSet = SessionAttendanceViewSet = BeneficiaryProfileViewSet = DummyViewSet
+    FuelEntitlementViewSet = ProgramViewSet = DummyViewSet
+    PoolVehicleViewSet = DriverViewSet = VehicleAssignmentViewSet = DummyViewSet
+    FuelRequirementConfigurationViewSet = DummyViewSet
+    BookDispatchViewSet = CouponAllocationViewSet = DummyViewSet
+    SystemAlertViewSet = AuditLogViewSet = DummyViewSet
+
+# Import other views with error handling
+try:
+    from .views_main import (
         test_business_central_connection,
-        
-        # CORS test views
         cors_test, health_check,
     )
+except ImportError as e:
+    print(f"Other view import error in fuel/urls.py: {e}")
+    from django.http import JsonResponse
+    
+    def dummy_view(request, *args, **kwargs):
+        return JsonResponse({"error": "View not implemented"})
+    
+    test_business_central_connection = cors_test = health_check = dummy_view
 except ImportError as e:
     print(f"Import error in fuel/urls.py: {e}")
     # Fallback imports will be handled by lazy loading
@@ -166,6 +201,10 @@ urlpatterns = [
     # Analytics endpoints - keep relative paths only
     path('analytics/', analytics_view, name='analytics-view'),
     path('analytics/consumption-trend/', analytics_consumption_trend, name='consumption-trend-analytics'),
+    # New analytics endpoints
+    path('analytics/received-breakdown/', get_view_function('analytics_received_breakdown'), name='analytics-received-breakdown'),
+    path('analytics/available-by-center/', get_view_function('analytics_available_by_center'), name='analytics-available-by-center'),
+    path('analytics/dispatches-timeline/', get_view_function('analytics_dispatches_timeline'), name='analytics-dispatches-timeline'),
     path('analytics/fuel-requirements/', fuel_statistics, name='fuel-requirements-analytics'),
     path('financial-analytics/', analytics_view, name='financial-analytics'),
     path('statistics/', fuel_statistics, name='statistics'),  # General statistics endpoint

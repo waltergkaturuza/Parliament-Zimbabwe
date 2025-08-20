@@ -104,6 +104,10 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     total_books = serializers.ReadOnlyField()
     total_value_usd = serializers.ReadOnlyField()
     
+    # Optional linkages for analytics
+    program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), required=False, allow_null=True)
+    session = serializers.PrimaryKeyRelatedField(queryset=ParliamentSession.objects.all(), required=False, allow_null=True)
+    
     # Enhanced fields for intelligent dispatch
     dispatch_id = serializers.SerializerMethodField()
     subcenter_name = serializers.CharField(source='to_center.name', read_only=True)
@@ -148,7 +152,8 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             'dispatched_by', 'received_by', 'books', 'total_books',
             'dispatch_date', 'dispatched_date', 'dispatched_time',
             'received_date', 'received_time', 'status', 'notes',
-            
+            # Linkages
+            'program', 'session',
             # Enhanced fields
             'generation_mode', 'transport_method', 'vehicle_number',
             'driver_name', 'driver_phone', 'courier_service', 'tracking_number',
@@ -827,7 +832,7 @@ class BoxSerializer(serializers.ModelSerializer):
             'fuelPricePerLitre', 'monetary_value_usd',
             
             # Status and Workflow
-            'status', 'is_received', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
+            'status', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
             
             # Notes and Documentation
             'notes', 'signature', 'received_by_signature', 'receivedBySignature',
@@ -1160,12 +1165,7 @@ class CouponSerializer(serializers.ModelSerializer):
     allocated_to_details = SimpleUserSerializer(source='allocated_to', read_only=True, allow_null=True)
 
     # Map frontend field names to backend field names
-    serialNumber = serializers.CharField(source='serial_number', required=False, allow_blank=True)
-    fuelType = serializers.CharField(source='fuel_type', read_only=True)
-    
-    # Handle alternative field names for comprehensive compatibility
-    couponNumber = serializers.CharField(source='coupon_number', required=False, allow_blank=True)
-    issuedDate = serializers.DateTimeField(source='created', read_only=True)
+    serialNumber = serializers.CharField
     expiryDate = serializers.DateField(source='expiry_date', read_only=True)
     usedDate = serializers.DateTimeField(source='used_date', read_only=True)
 
@@ -1861,13 +1861,13 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         """Get last activity timestamp"""
         if obj.user and obj.user.last_activity:
             return obj.user.last_activity.isoformat()
-        return None
+        return ""
     
     def get_lastLogin(self, obj):
         """Get last login timestamp"""
         if obj.user and obj.user.last_activity:
             return obj.user.last_activity.isoformat()
-        return None
+        return ""
 
     def get_total_allocated_this_month(self, obj):
         from datetime import datetime
@@ -2489,7 +2489,7 @@ class HarmonizedBeneficiaryProfileSerializer(serializers.ModelSerializer):
     
     # Basic identity fields (direct mapping)
     id = serializers.ReadOnlyField()
-    parliamentaryId = serializers.CharField(source='parliamentary_id', read_only=True)
+    parliamentaryId = serializers.CharField(source='employee_id', read_only=True)
     
     # Computed user fields for frontend compatibility
     name = serializers.SerializerMethodField()

@@ -11,11 +11,67 @@ from pathlib import Path
 # Re-define BASE_DIR for this local settings file
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Local development secret key
+SECRET_KEY = 'django-insecure-local-dev-key-1*p133x5+uzwh8&axhdhi41jq=%&p(9)pzmoyob$(a01)rcs&z'
+
 # Ensure ROOT_URLCONF is set
 ROOT_URLCONF = 'config.urls'
 
 # Override for local development
 DEBUG = True
+
+# Explicitly define INSTALLED_APPS for local development
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'django_extensions',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'drf_spectacular',
+    'corsheaders',
+    'model_utils',
+
+    'fuel.apps.FuelConfig',   # Your app
+    'dynamics_integration.apps.DynamicsIntegrationConfig',  # Dynamics 365 Integration
+]
+
+# Set the custom user model
+AUTH_USER_MODEL = 'fuel.User'
+
+# Middleware configuration
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enable CSRF protection
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# Templates configuration
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
 
 # Local development hosts
 ALLOWED_HOSTS = [
@@ -32,6 +88,17 @@ DATABASES = {
     }
 }
 
+# Static files settings
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'fuel-coupon-frontend' / 'dist' / 'assets',  # Only if you want Django to serve built React assets
+]
+
+# Media files settings  
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Email settings for local development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = 'localhost'
@@ -46,7 +113,7 @@ EMAIL_SUBJECT_PREFIX = '[Parliament Fuel System - Local] '
 # CORS settings for local development
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # React Vite dev server
-    "http://localhost:5174",  # Alternative Vite port
+    "http://localhost:5174",  # Alternative Vite port (current)
     "http://localhost:5175",
     "http://localhost:5176",
     "http://127.0.0.1:5173",
@@ -144,6 +211,16 @@ LOGGING = {
             'propagate': False,
         },
         'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'rest_framework': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'rest_framework_simplejwt': {
             'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': False,

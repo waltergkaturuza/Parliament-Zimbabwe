@@ -362,9 +362,9 @@ class ProgramAdmin(admin.ModelAdmin):
 class FuelDataAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'total_fuel_allocated', 'total_fuel_used', 'available_fuel', 'last_refuel_date')
     list_filter = ('timestamp',)
-    search_fields = ('daily_usage_trend',)
+    search_fields = ('timestamp',)
     date_hierarchy = 'timestamp'
-    readonly_fields = ('timestamp', 'created', 'modified') # Added created and modified
+    readonly_fields = ('timestamp', 'created', 'modified')
 
 
 # FuelTransaction Admin (Added)

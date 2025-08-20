@@ -62,37 +62,70 @@ export const getDashboardData = async (): Promise<DashboardData> => {
     const response = await api.get('/statistics/');
     
     // Transform the backend response to match frontend expectations
-    const backendData = response.data;
+  const backendData = response.data || {};
+  const hasSummary = !!backendData.summary;
+  const summary = hasSummary ? backendData.summary : backendData;
+  const recent = hasSummary ? (backendData.recent_activity || {}) : {};
+  const trend = hasSummary ? (backendData.consumption_trend || []) : (backendData.monthly_coupon_usage || backendData.monthly_trends || []);
+  const bySubcenter = (hasSummary ? backendData.usage_by_subcenter : backendData.subcenters_chart_data) || [];
     
     // Create the expected structure with real data from backend
+    // Assumption: average litres per available coupon = 20L (until backend provides a precise value)
+    const AVG_LITRES_PER_COUPON = 20;
+
+  const totalCoupons = Number(summary.total_coupons || backendData.total_coupons || 0);
+  const availableCoupons = Number(summary.available_coupons || backendData.available_coupons || 0);
+  const allocatedCoupons = Number(summary.allocated_coupons || backendData.allocated_coupons || 0);
+  const usedCoupons = Number(summary.used_coupons || backendData.used_coupons || 0);
+  const totalFuelConsumed = Number((recent.total_litres_consumed ?? backendData.total_fuel_used) || 0);
+  const availableFuelLitres = Number(backendData.available_fuel ?? 0);
+
     const dashboardData: DashboardData = {
       coupon_stats: {
-        total_coupons: backendData.total_coupons || 0,
-        total_fuel_volume_available: backendData.available_fuel || 0,
-        total_fuel_volume_consumed: backendData.total_fuel_used || 0,
-        total_coupons_available: backendData.available_coupons || 0,
-        total_coupons_allocated: backendData.allocated_coupons || 0,
-        total_coupons_used: backendData.used_coupons || 0,
-        total_coupons_expired: backendData.expired_coupons || 0,
-        total_coupons_damaged: backendData.damaged_coupons || 0,
+        total_coupons: totalCoupons,
+        total_fuel_volume_available: availableFuelLitres > 0
+          ? availableFuelLitres
+          : availableCoupons * AVG_LITRES_PER_COUPON,
+        total_fuel_volume_consumed: totalFuelConsumed,
+        total_coupons_available: availableCoupons,
+        total_coupons_allocated: allocatedCoupons,
+        total_coupons_used: usedCoupons,
+        total_coupons_expired: Number(summary.total_coupons_expired || 0),
+        total_coupons_damaged: Number(summary.total_coupons_damaged || 0),
         low_coupon_stock_alert: null
       },
-      // Transform status distribution for charts
-      coupon_status_chart: backendData.status_distribution || [],
-      // Transform monthly usage for fuel consumption chart
-      fuel_consumed_per_day_chart: (backendData.monthly_coupon_usage || []).map((item: any) => ({
-        date: item.month || item.date,
-        total_litres: item.usage_count || 0
+
+      // Build a simple status distribution for charts
+      coupon_status_chart: Array.isArray(backendData.status_distribution)
+        ? backendData.status_distribution.map((it: any) => ({
+            status: (it.status || '').toUpperCase(),
+            count: Number(it.count || 0),
+          }))
+        : [
+            { status: 'AVAILABLE', count: availableCoupons },
+            { status: 'ALLOCATED', count: allocatedCoupons },
+            { status: 'USED', count: usedCoupons },
+          ],
+
+      // Map backend daily consumption trend to expected shape
+      fuel_consumed_per_day_chart: (trend || []).map((item: any) => ({
+        date: item.date || item.month || item.day || '',
+        total_litres: item.litres || item.total_litres || item.usage_count || item.daily_litres || 0,
       })),
-      // Transform status distribution for subcenter allocation chart
-      coupons_per_subcenter_chart: backendData.subcenters_chart_data || [],
-      // Include other data from backend
-      total_users: backendData.total_users || 0,
-      total_subcenters: backendData.sub_center_count || 0,
-      total_programs: 0, // Will need to add this to backend
-      total_fuel_transactions: 0, // Will need to add this to backend
+
+      // Map subcenter usage to expected chart items
+      coupons_per_subcenter_chart: (bySubcenter || []).map((item: any) => ({
+        name: item.subcenter_name || item.name,
+        count: item.coupons_used || item.count || 0,
+      })),
+
+      // Include other totals if/when available; keep safe defaults
+  total_users: Number(backendData.total_users || 0),
+  total_subcenters: Number(backendData.total_subcenters || backendData.sub_center_count || bySubcenter.length || 0),
+  total_programs: Number(backendData.total_programs || 0),
+  total_fuel_transactions: Number((recent.total_transactions ?? backendData.total_fuel_transactions) || 0),
       
-      // Add chart data placeholders (to be enhanced)
+      // Placeholders for charts not yet supplied by backend
       attendance_per_program_chart: [],
       coupons_per_book_chart: [],
       handovers_per_recipient_chart: [],
@@ -101,7 +134,7 @@ export const getDashboardData = async (): Promise<DashboardData> => {
       coupons_per_program_chart: [],
       coupons_created_per_day_chart: [],
       coupons_distributed_per_day_chart: [],
-      coupons_per_allocated_user_chart: []
+      coupons_per_allocated_user_chart: [],
     };
 
     return dashboardData;

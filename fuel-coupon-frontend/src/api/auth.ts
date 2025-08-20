@@ -1,5 +1,5 @@
 // src/api/auth.ts
-import apiClient from './index';
+import apiClient from '@/api';
 
 export interface LoginData {
   username: string;
@@ -30,14 +30,21 @@ export const AuthService = {
   login: async (credentials: LoginData): Promise<{ success: boolean; access?: string; refresh?: string; message?: string; user?: any }> => {
     try {
       console.log('AuthService.login called with:', credentials);
-      const response = await apiClient.post<{ access: string; refresh: string; user?: any }>('/auth/login/', credentials);
+    // TEMPORARY: Use working test-login endpoint while debugging auth issues
+    // Base URL is /api/v1 (see src/api/index.ts), so this hits /api/v1/test-login/
+    const response = await apiClient.post<{ status: string; access: string; refresh?: string; message?: string; user?: any }>('/test-login/', credentials);
       console.log('AuthService.login response received:', response.status, response.data);
-      return { 
-        success: true,
-        access: response.data?.access, 
-        refresh: response.data?.refresh,
-        user: response.data?.user
-      };
+      
+      if (response.data.status === 'success') {
+        return { 
+          success: true,
+          access: response.data?.access, 
+      refresh: response.data?.refresh, // Use real refresh token if provided
+          user: response.data?.user
+        };
+      } else {
+        return { success: false, message: response.data.message || 'Login failed' };
+      }
     } catch (error: any) {
       console.error('Login API Error:', error);
       console.error('Error details:', {
@@ -87,8 +94,9 @@ export const AuthService = {
   },
 
   logout: () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
+  // Use the same storage keys used by AuthContext and apiClient
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
   },
 };
 

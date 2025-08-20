@@ -12,13 +12,41 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5174,
     proxy: {
-      '/api/v1': { // � Proxy API to Django in dev to avoid CORS
-        target: 'http://localhost:8000',
+      '/api/v1': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
         ws: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq: any, req: any, res: any) => {
+            try {
+              // Forward all headers, but specifically ensure Authorization is preserved
+              const auth = req.headers['authorization'] || req.headers['Authorization'];
+              if (auth) {
+                proxyReq.setHeader('Authorization', auth);
+                console.log('[VITE PROXY] Forwarding Authorization header:', auth.substring(0, 20) + '...');
+              } else {
+                console.log('[VITE PROXY] No Authorization header found in request');
+              }
+              
+              // Also forward other important headers
+              const contentType = req.headers['content-type'] || req.headers['Content-Type'];
+              if (contentType) {
+                proxyReq.setHeader('Content-Type', contentType);
+              }
+              
+              // Forward origin for CORS
+              const origin = req.headers['origin'] || req.headers['Origin'];
+              if (origin) {
+                proxyReq.setHeader('Origin', origin);
+              }
+            } catch (err) {
+              console.log('[VITE PROXY] Error handling headers:', err);
+            }
+          });
+        },
       },
     },
   },

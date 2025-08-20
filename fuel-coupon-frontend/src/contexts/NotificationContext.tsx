@@ -36,6 +36,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   });
 
   const refreshStats = async () => {
+    // Skip polling when user is not authenticated or userId is missing
+    const token = localStorage.getItem('access_token');
+    if (!token || !userId) {
+      // Keep stats at zero while unauthenticated
+      return;
+    }
+
     try {
       const response = await apiClient.get('/notifications/stats/', {
         params: {
@@ -43,7 +50,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           recipient_id: userId
         }
       });
-      
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching notification stats:', error);
@@ -124,7 +130,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       try {
         ws = new WebSocket(wsUrl);
         
-        ws.onmessage = (event) => {
+        if (ws) {
+          const socket = ws;
+          socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
             if (data.type === 'notification') {
@@ -142,23 +150,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           }
         };
 
-        ws.onopen = () => {
-          console.log('WebSocket connected for notifications');
-        };
+          socket.onopen = () => {
+            console.log('WebSocket connected for notifications');
+          };
 
-        ws.onclose = (event) => {
-          console.log('WebSocket disconnected:', event.code, event.reason);
-        };
+          socket.onclose = (event) => {
+            console.log('WebSocket disconnected:', event.code, event.reason);
+          };
 
-        ws.onerror = (error) => {
-          console.warn('WebSocket connection failed, falling back to polling:', error);
-        };
+          socket.onerror = (error) => {
+            console.warn('WebSocket connection failed, falling back to polling:', error);
+          };
 
-        return () => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.close();
-          }
-        };
+          return () => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.close();
+            }
+          };
+        }
       } catch (err) {
         console.warn('WebSocket not available, using polling only:', err);
         return;

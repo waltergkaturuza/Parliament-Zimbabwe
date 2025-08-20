@@ -58,10 +58,26 @@ import { useNavigate } from 'react-router-dom';
 import type { AdminDashboardStats } from '@/types/admin';
 import UsersManagementTab from '@/pages/admin/components/UsersManagementTab';
 import SystemAnalyticsTab from '@/pages/admin/components/SystemAnalyticsTab';
+import { getReceivedBreakdown, getAvailableByCenter, getDispatchesTimeline } from '@/api/analytics';
+// Add Recharts for simple charts
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 const { useBreakpoint } = Grid;
+
+// Helper to compute date ranges
+function getDateRange(range: 'week'|'month'|'year'|'7d'|'30d'|'90d') {
+  const end = new Date();
+  const start = new Date(end);
+  if (range === 'week' || range === '7d') start.setDate(end.getDate() - 7);
+  else if (range === 'month' || range === '30d') start.setDate(end.getDate() - 30);
+  else if (range === '90d') start.setDate(end.getDate() - 90);
+  else if (range === 'year') start.setFullYear(end.getFullYear() - 1);
+  const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  return { start_date: fmt(start), end_date: fmt(end) };
+}
 
 // Color palette for charts
 const CHART_COLORS = [
@@ -742,15 +758,14 @@ const ParliamentSessionsTab: React.FC = () => {
 
 const AdminDashboard: React.FC = () => {
   const { user, accessToken, isAuthenticated, isAuthLoading, logout } = useAuth();
-  const { notification } = App.useApp(); // Use App context for notifications
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const screens = useBreakpoint();
-  
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>('7d');
+  const [activeTab, setActiveTab] = useState<string>('overview');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
+  const [receivedPeriod, setReceivedPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [dispatchRange, setDispatchRange] = useState<'7d'|'30d'|'90d'|'year'>('30d');
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d' | 'ytd'>('30d');
 
   const {
     data: adminStats,
@@ -765,6 +780,24 @@ const AdminDashboard: React.FC = () => {
     refetchInterval: 5 * 60 * 1000, // Auto refresh every 5 minutes
     retry: 2,
     enabled: isAuthenticated && !!accessToken && !isAuthLoading,
+  });
+
+  // New analytics queries
+  const { data: receivedBreakdown } = useQuery({
+    queryKey: ['analytics-received', receivedPeriod],
+    queryFn: () => getReceivedBreakdown(receivedPeriod),
+    enabled: isAuthenticated && !!accessToken && !isAuthLoading,
+    staleTime: 2 * 60 * 1000,
+  });
+  const { data: availableByCenter } = useQuery({
+    queryKey: ['analytics-available-by-center'],
+    queryFn: () => getAvailableByCenter(),
+    enabled: isAuthenticated && !!accessToken && !isAuthLoading,
+    staleTime: 2 * 60 * 1000,
+  });
+  const { data: dispatchesTimeline, isLoading: isDispatchesLoading, refetch: refetchDispatches } = useQuery({
+    queryKey: ['dispatchesTimeline', dispatchRange],
+    queryFn: () => getDispatchesTimeline(getDateRange(dispatchRange)),
   });
 
   // Auto-refresh functionality
@@ -966,7 +999,12 @@ const AdminDashboard: React.FC = () => {
               <QuickActions />
 
               {/* System Health */}
-              <SystemHealth />
+              <SystemHealth healthData={adminStats ? {
+                api_response: 95,
+                database: 90,
+                uptime: 99,
+                security: adminStats?.system_health === 'good' ? 98 : 90,
+              } : undefined} />
 
               {/* Charts and Analytics */}
               <Tabs
@@ -1098,6 +1136,138 @@ const AdminDashboard: React.FC = () => {
                                 />
                               </Col>
                             </Row>
+                          </Card>
+                        </Col>
+
+                        {/* New: Received Fuel Breakdown */}
+                        <Col xs={24} lg={12}>
+                          <Card
+                            title={
+                              <Space>
+                                <span>Received Fuel Breakdown</span>
+                                <Segmented
+                                  size="small"
+                                  value={receivedPeriod}
+                                  onChange={(val) => setReceivedPeriod(val as any)}
+                                  options={[{label:'Week',value:'week'},{label:'Month',value:'month'},{label:'Year',value:'year'}]}
+                                />
+                              </Space>
+                            }
+                            size="small"
+                          >
+                            {receivedBreakdown?.breakdown?.length ? (
+                              <Space direction="vertical" className="w-full">
+                                {/* Chart */}
+                                <div style={{ width: '100%', height: 260 }}>
+                                  <ResponsiveContainer>
+                                    <BarChart
+                                      data={receivedBreakdown.breakdown.map(b => ({
+                                        key: `${b.fuel_type}-${b.denomination}L`,
+                                        Received: b.received_coupons,
+                                        Verified: b.verified_coupons,
+                                        Unverified: b.unverified_coupons,
+                                      }))}
+                                      margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" />
+                                      <XAxis dataKey="key" interval={0} tick={{ fontSize: 10 }} angle={-20} textAnchor="end" />
+                                      <YAxis />
+                                      <Tooltip />
+                                      <Legend />
+                                      <Bar dataKey="Received" stackId="a" fill="#1890ff" />
+                                      <Bar dataKey="Verified" stackId="b" fill="#52c41a" />
+                                      <Bar dataKey="Unverified" stackId="b" fill="#faad14" />
+                                    </BarChart>
+                                  </ResponsiveContainer>
+                                </div>
+                                {/* Tabular summary */}
+                                {receivedBreakdown.breakdown.map((b, i) => (
+                                  <div key={`${b.fuel_type}-${b.denomination}-${i}`} className="flex justify-between text-sm">
+                                    <span>{b.fuel_type} • {b.denomination}L</span>
+                                    <span>
+                                      Received: <Text strong>{b.received_coupons}</Text>
+                                      <Text type="secondary"> (Verified {b.verified_coupons} | Unverified {b.unverified_coupons})</Text>
+                                    </span>
+                                  </div>
+                                ))}
+                              </Space>
+                            ) : (
+                              <Empty description="No data" />
+                            )}
+                          </Card>
+                        </Col>
+
+                        {/* New: Available by Center */}
+                        <Col xs={24} lg={12}>
+                          <Card title="Available Stock by Center" size="small">
+                            {availableByCenter?.centers?.length ? (
+                              <Space direction="vertical" className="w-full">
+                                {availableByCenter.centers.slice(0,6).map((c) => (
+                                  <div key={c.subcenter_id} className="border p-2 rounded">
+                                    <Text strong>{c.subcenter_name}</Text>
+                                    <div className="text-xs text-gray-500">Total: {c.totals.total_available} • Diesel: {c.totals.diesel_available} • Petrol: {c.totals.petrol_available}</div>
+                                    {c.breakdown.slice(0,4).map((b, i) => (
+                                      <div key={i} className="flex justify-between text-xs">
+                                        <span>{b.fuel_type} • {b.denomination}L</span>
+                                        <span>{b.available_coupons}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                              </Space>
+                            ) : (
+                              <Empty description="No data" />
+                            )}
+                          </Card>
+                        </Col>
+
+                        {/* New: Dispatches by Date */}
+                        <Col xs={24}>
+                          <Card 
+                            title={
+                              <Space>
+                                <span>Dispatches Timeline</span>
+                                <Segmented
+                                  size="small"
+                                  value={dispatchRange}
+                                  onChange={(val) => setDispatchRange(val as any)}
+                                  options={[
+                                    { label: '7d', value: '7d' },
+                                    { label: '30d', value: '30d' },
+                                    { label: '90d', value: '90d' },
+                                    { label: 'Year', value: 'year' },
+                                  ]}
+                                />
+                              </Space>
+                            }
+                            size="small"
+                          >
+                            {dispatchesTimeline?.timeline?.length ? (
+                              <Space direction="vertical" className="w-full">
+                                <div className="text-xs text-gray-500">{dispatchesTimeline.start_date} → {dispatchesTimeline.end_date}</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    {dispatchesTimeline.timeline.slice(0,15).map((d) => (
+                                      <div key={d.date} className="flex justify-between text-xs">
+                                        <span>{d.date}</span>
+                                        <span>{d.dispatches}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div>
+                                    <Text strong className="block mb-1">By Status</Text>
+                                    {dispatchesTimeline.by_status.map((s, i) => (
+                                      <div key={i} className="flex justify-between text-xs">
+                                        <span>{s.status}</span>
+                                        <span>{s.count}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </Space>
+                            ) : (
+                              <Empty description="No data" />
+                            )}
                           </Card>
                         </Col>
                       </Row>

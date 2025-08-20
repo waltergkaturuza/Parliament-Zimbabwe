@@ -1,13 +1,14 @@
 // src/api/index.ts
 import axios from 'axios';
 
-// Prefer Vite dev proxy during local development to avoid CORS issues.
-// In production, use VITE_API_BASE_URL if provided.
+// Use Vite proxy in development, direct connection in production
 const API_BASE_URL = (() => {
   const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
   if (fromEnv) return fromEnv;
-  // Use proxy path in dev, otherwise default to backend path.
-  return import.meta.env.DEV ? '/api/v1' : 'http://localhost:8000/api/v1';
+  // TEMPORARY: Use test-login endpoint while debugging auth issues
+  // In development, use proxy path so Vite dev server forwards requests
+  // In production, this would be the actual backend URL
+  return '/api/v1';
 })();
 
 // Create axios instance
@@ -25,12 +26,16 @@ apiClient.interceptors.request.use(
     console.log('API Request interceptor:', config.method?.toUpperCase(), config.url);
     // IMPORTANT: Use 'access_token' for consistency with your AuthContext and login logic
     const token = localStorage.getItem('access_token');
+    if (!token) {
+      console.log('No access token found in localStorage - request will be unauthenticated');
+    }
     if (token && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
-      console.log('Added Authorization header');
+      console.log('Added Authorization header with token length', token.length);
     }
-    // Always allow credentials for CORS
-    config.withCredentials = true;
+  // Don't send cookies by default for API requests during token auth
+  // (some proxies or dev servers may strip Authorization when withCredentials=true)
+  config.withCredentials = false;
     return config;
   },
   (error) => {
@@ -121,6 +126,7 @@ export default apiClient;
 
 // 🔁 Export API services for clean imports elsewhere
 export * from './dashboard';    // Dashboard API functions (getDashboardData, etc)
+export * from './analytics';    // Analytics endpoints (received breakdown, available by center, dispatches timeline)
 export * from './users';        // User management API
 export * from './subcenters';   // Sub-center management API  
 export * from './programs';     // Program management API

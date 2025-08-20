@@ -6,8 +6,8 @@ from django.db.models import Count, Sum, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
 from .models import (
-    User, SubCenter, CouponDistribution, FuelTransaction, 
-    SystemAlert, AuditLog, ParliamentSession, BookDispatch, Coupon
+    User, SubCenter, FuelTransaction, 
+    SystemAlert, AuditLog, ParliamentSession, Coupon
 )
 
 @api_view(['GET'])
@@ -26,8 +26,8 @@ def home_stats(request):
         # Sub-centers count
         sub_centers = SubCenter.objects.filter(is_active=True).count()
         
-        # Distributed coupons count
-        distributed_coupons = CouponDistribution.objects.count()
+        # Distributed coupons count (using Coupon as placeholder)
+        distributed_coupons = Coupon.objects.count()
         
         # Success rate calculation (approved transactions vs total)
         total_transactions = FuelTransaction.objects.count()
@@ -230,17 +230,17 @@ def quick_insights(request):
         trend_percentage = 0
         
         try:
-            # Monthly distribution trend
+            # Monthly distribution trend (using Coupon as placeholder)
             current_month = timezone.now().replace(day=1)
-            current_month_distributions = CouponDistribution.objects.filter(
-                distribution_date__gte=current_month
+            current_month_distributions = Coupon.objects.filter(
+                created__gte=current_month
             ).count()  # Use count instead of sum to avoid field issues
         except Exception:
             current_month_distributions = 0
         
         try:
-            # Recent book dispatches - using count to avoid date field issues
-            recent_dispatches = BookDispatch.objects.all().count()
+            # Recent book dispatches - placeholder count
+            recent_dispatches = 0  # BookDispatch model doesn't exist yet
         except Exception:
             recent_dispatches = 0
         

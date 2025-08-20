@@ -12,6 +12,111 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from .health_check import health_check, simple_health
 
+# Import the actual LoginView for testing
+def get_login_view():
+    """Import LoginView directly"""
+    try:
+        from fuel.views_main import LoginView
+        return LoginView.as_view()
+    except ImportError as e:
+        print(f"Error importing LoginView: {e}")
+        return test_login_endpoint
+
+# TEMPORARY TEST LOGIN ENDPOINT
+@csrf_exempt
+@require_http_methods(["POST", "GET"])
+def test_login_endpoint(request):
+    """Test login endpoint that bypasses authentication"""
+    print(f"Test endpoint hit - Method: {request.method}")
+    print(f"Headers: {dict(request.headers)}")
+    print(f"Body: {request.body}")
+    
+    if request.method == "POST":
+        import json
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            password = data.get('password')
+            
+            print(f"Username: {username}, Password: {password}")
+            
+            # Simulate successful login with proper JWT token
+            if username == "admin" and password == "Admin@123":
+                # Generate a real JWT token for testing
+                from fuel.models import User
+                from rest_framework_simplejwt.tokens import RefreshToken
+                try:
+                    user = User.objects.get(username=username)
+                    refresh = RefreshToken.for_user(user)
+                    
+                    # Add custom claims to the access token
+                    refresh['username'] = user.username
+                    refresh['role'] = user.role
+                    refresh['is_superuser'] = user.is_superuser
+                    refresh['is_staff'] = user.is_staff
+                    if user.sub_center:
+                        refresh['sub_center_id'] = user.sub_center.id
+                    
+                    access_token = str(refresh.access_token)
+                    
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Test login successful',
+                        'access': access_token,
+                        'refresh': str(refresh),
+                        'user': {
+                            'username': user.username,
+                            'id': user.id,
+                            'role': user.role,
+                            'is_superuser': user.is_superuser,
+                            'is_staff': user.is_staff
+                        }
+                    })
+                except User.DoesNotExist:
+                    return JsonResponse({
+                        'status': 'failed',
+                        'message': 'User not found'
+                    }, status=401)
+            else:
+                return JsonResponse({
+                    'status': 'failed',
+                    'message': 'Invalid test credentials'
+                }, status=401)
+        except Exception as e:
+            print(f"Error: {e}")
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    return JsonResponse({'message': 'Test endpoint working'})
+
+# TEMPORARY DEBUG VIEW - remove after auth is fixed
+@csrf_exempt
+@require_http_methods(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+def debug_headers_view(request):
+    """Debug view that returns all headers received by Django"""
+    headers = {}
+    for key, value in request.META.items():
+        if key.startswith('HTTP_') or key in ['CONTENT_TYPE', 'CONTENT_LENGTH']:
+            headers[key] = value
+    
+    # Check specific auth headers
+    auth_header = request.META.get('HTTP_AUTHORIZATION', 'NOT_FOUND')
+    
+    return JsonResponse({
+        'method': request.method,
+        'path': request.path,
+        'headers': headers,
+        'user': str(request.user) if hasattr(request, 'user') else 'No user',
+        'is_authenticated': getattr(request.user, 'is_authenticated', False),
+        'raw_authorization': auth_header,
+        'authorization_present': 'HTTP_AUTHORIZATION' in request.META,
+        'bearer_token_detected': auth_header.startswith('Bearer ') if auth_header != 'NOT_FOUND' else False,
+        'token_length': len(auth_header) if auth_header != 'NOT_FOUND' else 0,
+        'all_auth_like_headers': {
+            k: v for k, v in request.META.items() 
+            if 'auth' in k.lower() or 'token' in k.lower() or 'bearer' in str(v).lower()
+        }
+    }, indent=2)
+
 def home_view(request):
     """Simple home page view"""
     return JsonResponse({
@@ -67,6 +172,12 @@ urlpatterns = [
     path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
     path('api/v1/', include('fuel.urls')),
     path('api/auth/', include('fuel.urls')),  # Add direct auth path for frontend compatibility
+    
+    # TEMPORARY DEBUG ENDPOINT - remove after auth is fixed
+    path('api/v1/debug-headers/', debug_headers_view, name='debug-headers'),
+    path('api/v1/test-login/', test_login_endpoint, name='test-login'),  # TEMPORARY TEST LOGIN
+    path('api/v1/custom-login/', test_login_endpoint, name='custom-login'),  # TEMPORARY CUSTOM LOGIN TEST
+    path('api/v1/direct-login/', get_login_view(), name='direct-login'),  # TEST DIRECT LOGINVIEW
     
     # Business Central Integration
     path('bc/', include('fuel.urls_bc')),

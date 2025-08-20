@@ -106,7 +106,8 @@ class RegisterView(generics.CreateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
-    permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for login endpoint
+    permission_classes = [AllowAny]  # Allow unauthenticated access
     # If you defined CustomTokenObtainPairSerializer, you might use it here
     # serializer_class = CustomTokenObtainPairSerializer
 
@@ -2109,7 +2110,7 @@ class ProgramViewSet(viewsets.ModelViewSet):
         program = self.get_object()
         
         # Check permissions
-        if not (request.user.role in ['MAIN_CENTER', 'SUB_CENTER'] or 
+        if not (request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'SUPERUSER'] or 
                 request.user == program.organizer):
             return Response(
                 {'error': 'You do not have permission to approve fuel allocations'}, 
@@ -4213,9 +4214,13 @@ def admin_dashboard(request):
         )
     
     try:
+        from django.db.models import Sum
         # Get basic statistics
         total_users = UserModel.objects.count()
         active_users = UserModel.objects.filter(is_approved=True, is_active=True).count()
+        # Users active today (logged in within last 24 hours)
+        start_of_day = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        active_today = UserModel.objects.filter(last_login__gte=start_of_day).count()
         pending_approvals = UserModel.objects.filter(is_approved=False, is_active=True).count()
         
         # Fuel-related statistics
@@ -4249,6 +4254,43 @@ def admin_dashboard(request):
         # System alerts
         active_alerts = SystemAlert.objects.filter(status='ACTIVE').count()
         
+        # Fuel volumes
+        total_fuel_volume_consumed = FuelTransaction.objects.aggregate(
+            total=Sum('litres_consumed')
+        )['total'] or 0
+        total_fuel_volume_available = Coupon.objects.filter(status='AVAILABLE').aggregate(
+            total=Sum('litres')
+        )['total'] or 0
+
+        # Recently allocated coupons
+        recent_allocations_qs = Coupon.objects.filter(
+            allocated_date__isnull=False
+        ).select_related('allocated_to').order_by('-allocated_date')[:10]
+        recently_allocated_coupons = [
+            {
+                'id': c.id,
+                'status': c.status,
+                'allocated_to': {
+                    'username': c.allocated_to.username if c.allocated_to else None
+                },
+                'allocated_date': c.allocated_date.isoformat() if c.allocated_date else None,
+            }
+            for c in recent_allocations_qs
+        ]
+
+        # Recent activity summary (simple, extensible)
+        recent_tx_qs = FuelTransaction.objects.order_by('-timestamp')[:5]
+        recent_activity = [
+            {
+                'id': tx.id,
+                'action': 'FUEL_USED',
+                'user': tx.beneficiary.username if tx.beneficiary else 'system',
+                'timestamp': tx.timestamp.isoformat(),
+                'details': f"{tx.litres_consumed}L consumed",
+            }
+            for tx in recent_tx_qs
+        ]
+
         return Response({
             'users': {
                 'total': total_users,
@@ -4276,7 +4318,13 @@ def admin_dashboard(request):
             'system': {
                 'active_alerts': active_alerts,
                 'last_updated': timezone.now().isoformat()
-            }
+            },
+            # Top-level convenience fields expected by frontend
+            'active_today': active_today,
+            'total_fuel_volume_consumed': total_fuel_volume_consumed,
+            'total_fuel_volume_available': total_fuel_volume_available,
+            'recently_allocated_coupons': recently_allocated_coupons,
+            'recent_activity': recent_activity,
         })
         
     except Exception as e:
@@ -5414,6 +5462,203 @@ def analytics_view(request):
                 'end_date': request.query_params.get('end_date', 'N/A'),
             }
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_received_breakdown(request):
+    """
+    Received fuel breakdown by fuel type and denomination (litres),
+    comparing verified vs unverified counts within a period.
+
+    Query params:
+    - period: 'week' | 'month' | 'year' (default: 'month')
+    """
+    try:
+        now = timezone.now()
+        period = (request.query_params.get('period') or 'month').lower()
+        if period == 'week':
+            start = now - timedelta(days=7)
+        elif period == 'year':
+            start = now - timedelta(days=365)
+        else:
+            start = now - timedelta(days=30)
+
+        boxes_qs = Box.objects.all()
+        # Prefer received_at; fallback to created for legacy
+        try:
+            boxes_qs = boxes_qs.filter(received_at__gte=start)
+        except Exception:
+            try:
+                boxes_qs = boxes_qs.filter(created__gte=start)
+            except Exception:
+                pass
+
+        results = {}
+        for box in boxes_qs:
+            fuel_type = getattr(box, 'fuel_type', 'UNKNOWN') or 'UNKNOWN'
+            denom = int(getattr(box, 'denomination', 0) or 0)
+            total_coupons = int(getattr(box, 'total_coupons_calculated', 0) or 0)
+            status_val = getattr(box, 'status', '') or ''
+            verified_at = getattr(box, 'verified_at', None)
+            is_verified = (status_val == 'VERIFIED') or bool(verified_at)
+
+            key = (fuel_type, denom)
+            if key not in results:
+                results[key] = {
+                    'fuel_type': fuel_type,
+                    'denomination': denom,
+                    'received_coupons': 0,
+                    'verified_coupons': 0,
+                    'unverified_coupons': 0,
+                }
+
+            results[key]['received_coupons'] += total_coupons
+            if is_verified:
+                results[key]['verified_coupons'] += total_coupons
+            else:
+                results[key]['unverified_coupons'] += total_coupons
+
+        breakdown = sorted(results.values(), key=lambda x: (x['fuel_type'], x['denomination']))
+        return Response({
+            'period': period,
+            'start_date': start.date().isoformat(),
+            'end_date': now.date().isoformat(),
+            'breakdown': breakdown,
+        })
+    except Exception as e:
+        return Response({'error': f'Failed to retrieve received breakdown: {str(e)}'}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_available_by_center(request):
+    """
+    For each active subcenter, count AVAILABLE coupons grouped by fuel type and denomination.
+    """
+    try:
+        centers = SubCenter.objects.filter(is_active=True)
+        data = []
+        for sc in centers:
+            coupons_qs = Coupon.objects.filter(
+                book__box__assigned_to=sc,
+                status='AVAILABLE'
+            ).select_related('book__box')
+
+            agg = {}
+            for c in coupons_qs:
+                fuel_type = 'UNKNOWN'
+                try:
+                    if c.book and c.book.box:
+                        fuel_type = getattr(c.book.box, 'fuel_type', 'UNKNOWN') or 'UNKNOWN'
+                except Exception:
+                    pass
+                denom = int(getattr(c, 'litres', 0) or 0)
+                key = (fuel_type, denom)
+                agg[key] = agg.get(key, 0) + 1
+
+            breakdown = [
+                {'fuel_type': ft, 'denomination': denom, 'available_coupons': count}
+                for (ft, denom), count in sorted(agg.items(), key=lambda x: (x[0][0], x[0][1]))
+            ]
+
+            totals = {
+                'total_available': sum(item['available_coupons'] for item in breakdown),
+                'diesel_available': sum(item['available_coupons'] for item in breakdown if item['fuel_type'] == 'DIESEL'),
+                'petrol_available': sum(item['available_coupons'] for item in breakdown if item['fuel_type'] == 'PETROL'),
+            }
+
+            data.append({
+                'subcenter_id': sc.id,
+                'subcenter_name': sc.name,
+                'breakdown': breakdown,
+                'totals': totals,
+            })
+
+        return Response({'centers': data, 'count': len(data), 'generated_at': timezone.now().isoformat()})
+    except Exception as e:
+        return Response({'error': f'Failed to retrieve available by center: {str(e)}'}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_dispatches_timeline(request):
+    """
+    Dispatch counts grouped by day within a date range.
+    Query params: start_date=YYYY-MM-DD, end_date=YYYY-MM-DD
+    """
+    try:
+        start_str = request.query_params.get('start_date')
+        end_str = request.query_params.get('end_date')
+        today = timezone.now().date()
+        if end_str:
+            end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end_date = today
+        if start_str:
+            start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start_date = end_date - timedelta(days=30)
+
+        qs = BookDispatch.objects.filter(dispatch_date__date__range=[start_date, end_date])
+
+        # Optional filters for program and session (if columns exist)
+        program_id = request.query_params.get('program_id')
+        session_id = request.query_params.get('session_id')
+        if program_id:
+            try:
+                qs = qs.filter(program_id=program_id)
+            except Exception:
+                pass
+        if session_id:
+            try:
+                qs = qs.filter(session_id=session_id)
+            except Exception:
+                pass
+        daily = (
+            qs.annotate(day=TruncDate('dispatch_date'))
+              .values('day')
+              .annotate(count=Count('id'))
+              .order_by('day')
+        )
+        timeline = [
+            {'date': item['day'].strftime('%Y-%m-%d') if item['day'] else '', 'dispatches': item['count']}
+            for item in daily
+        ]
+        by_status = list(qs.values('status').annotate(count=Count('id')).order_by('status'))
+        by_center_raw = list(qs.values('to_center__name').annotate(count=Count('id')).order_by('-count'))
+        by_center = [{'name': i['to_center__name'] or 'Unknown', 'count': i['count']} for i in by_center_raw]
+
+        # Optional aggregations by program and session if fields exist
+        try:
+            by_program_raw = list(qs.values('program__id', 'program__title').annotate(count=Count('id')).order_by('-count'))
+            by_program = [
+                {'id': i['program__id'], 'title': i['program__title'] or 'Unassigned', 'count': i['count']}
+                for i in by_program_raw if i['program__id'] is not None or i['count'] > 0
+            ]
+        except Exception:
+            by_program = []
+
+        try:
+            by_session_raw = list(qs.values('session__id', 'session__title').annotate(count=Count('id')).order_by('-count'))
+            by_session = [
+                {'id': i['session__id'], 'title': i['session__title'] or 'Unassigned', 'count': i['count']}
+                for i in by_session_raw if i['session__id'] is not None or i['count'] > 0
+            ]
+        except Exception:
+            by_session = []
+
+        return Response({
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat(),
+            'timeline': timeline,
+            'by_status': by_status,
+            'by_center': by_center,
+            'by_program': by_program,
+            'by_session': by_session
+        })
+    except Exception as e:
+        return Response({'error': f'Failed to retrieve dispatches timeline: {str(e)}'}, status=500)
 
 
 class SessionAttendanceViewSet(viewsets.ModelViewSet):

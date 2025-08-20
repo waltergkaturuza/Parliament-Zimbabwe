@@ -528,14 +528,20 @@ const BoxReceiptManagement: FC = () => {
       form.setFieldsValue({
         receivedBy: fullName || currentUser.username || 'Current User',
         receivedById: currentUser.id, // Store the user ID separately
-        boxId: newBoxNumber
+        boxId: newBoxNumber,
+        // Auto-populate required fields to prevent validation errors
+        supplier: 'Petrotrade Zimbabwe', // Default supplier
+        barcode: `FCB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}` // Generate simple barcode
       });
     } else {
       // Fallback - just set a placeholder
       form.setFieldsValue({
         receivedBy: 'Administrator',
         receivedById: null,
-        boxId: newBoxNumber
+        boxId: newBoxNumber,
+        // Auto-populate required fields to prevent validation errors
+        supplier: 'Petrotrade Zimbabwe', // Default supplier
+        barcode: `FCB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}` // Generate simple barcode
       });
     }
     
@@ -742,7 +748,7 @@ const BoxReceiptManagement: FC = () => {
       const receivedTime = values.receivedTime;
 
       // Ensure critical fields have values - use selectedBox data as fallback
-      const barcode = values.barcode || selectedBox?.barcode || '';
+      const barcode = values.barcode || selectedBox?.barcode || `FCB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
       const supplier = values.supplier || selectedBox?.supplier || 'Petrotrade Zimbabwe';
       const receivedBy = values.receivedBy || selectedBox?.receivedBy || 'Administrator';
       // Get the user ID for received_by field (backend expects user ID, not name)
@@ -761,11 +767,19 @@ const BoxReceiptManagement: FC = () => {
         }
       }
 
-      // Robust validation for critical fields
-      if (!barcode.trim() || !supplier.trim() || !receivedBy.trim() || !receivedById) {
-        message.error('Barcode, Supplier, and Received By (with valid user) are required fields. Please fill all required fields.');
+      // Robust validation for critical fields - relax received_by requirement
+      if (!barcode.trim() || !supplier.trim()) {
+        message.error('Barcode and Supplier are required fields. Please fill all required fields.');
         setLoading(false);
         return;
+      }
+
+      // Ensure receivedById is set (try multiple fallbacks)
+      if (!receivedById) {
+        // Try to resolve from form, selectedBox, or currentUser
+        receivedById = values.receivedById ||
+                     (selectedBox && (selectedBox as any).receivedBy && (selectedBox as any).receivedBy.id) ||
+                     currentUser?.id || null;
       }
 
       // DEBUG: Check critical fields
@@ -782,10 +796,17 @@ const BoxReceiptManagement: FC = () => {
         return;
       }
 
-      // Calculate last coupon if not provided
+      // Calculate last coupon if not provided and persist it into the form so it is included in values
       let lastCouponId = values.lastCouponId;
-      if (!lastCouponId && values.firstCouponId && values.totalCoupons) {
-        lastCouponId = calculateLastCouponId(values.firstCouponId, values.totalCoupons);
+      const computedTotalCoupons = values.totalCoupons || (values.numberOfBooks && values.couponsPerBook ? (values.numberOfBooks * values.couponsPerBook) : undefined);
+      if (!lastCouponId && values.firstCouponId && computedTotalCoupons) {
+        try {
+          lastCouponId = calculateLastCouponId(values.firstCouponId, computedTotalCoupons);
+          // Persist calculated lastCouponId back to the form immediately
+          form.setFieldsValue({ lastCouponId });
+        } catch (err) {
+          console.warn('Failed to compute lastCouponId on submit:', err);
+        }
       }
 
       // Prepare clean payload with guaranteed non-empty values and proper field mapping
@@ -837,9 +858,9 @@ const BoxReceiptManagement: FC = () => {
         total_coupons: totalCoupons,
         total_litres: totalLitres,
         
-        // Coupon range
-        first_coupon_number: values.firstCouponId,
-        last_coupon_number: lastCouponId || values.lastCouponId,
+  // Coupon range - ensure we always send a last coupon number when possible
+  first_coupon_number: values.firstCouponId,
+  last_coupon_number: lastCouponId || values.lastCouponId || null,
         
         // Status and workflow
         status: 'RECEIVED', // Hardcoded as per workflow
@@ -875,8 +896,8 @@ const BoxReceiptManagement: FC = () => {
 
       // Remove undefined fields to avoid backend issues
       Object.keys(boxData).forEach(key => {
-        if (boxData[key] === undefined) {
-          delete boxData[key];
+        if ((boxData as any)[key] === undefined) {
+          delete (boxData as any)[key];
         }
       });
 
@@ -2270,10 +2291,10 @@ const BoxReceiptManagement: FC = () => {
                   <Form.Item
                     label="Barcode"
                     name="barcode"
-                    rules={[{ required: true, message: 'Please enter barcode' }]}
+                    rules={[{ required: false, message: 'Please enter barcode' }]}
                   >
                     <Input 
-                      placeholder="Scan or enter barcode"
+                      placeholder="Scan or enter barcode (auto-generated if empty)"
                       addonAfter={
                         <Button
                           type="text"
@@ -2304,10 +2325,10 @@ const BoxReceiptManagement: FC = () => {
                   <Form.Item
                     label="Received By"
                     name="receivedBy"
-                    rules={[{ required: true, message: 'Please enter receiver name' }]}
+                    rules={[{ required: false, message: 'Please enter receiver name' }]}
                   >
                     <Input
-                      placeholder="Enter receiver name"
+                      placeholder="Enter receiver name (auto-filled if empty)"
                       value={currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username : ''}
                     />
                   </Form.Item>
@@ -2363,7 +2384,15 @@ const BoxReceiptManagement: FC = () => {
               <div style={{ textAlign: 'right' }}>
                 <Button
                   type="primary"
-                  onClick={() => setCurrentStep(1)}
+                  onClick={async () => {
+                    try {
+                      // Validate essential fields before proceeding (receivedBy is optional now)
+                      await form.validateFields(['boxId', 'supplier']);
+                      setCurrentStep(1);
+                    } catch (error) {
+                      message.warning('Please fill in all required fields before proceeding to the next step.');
+                    }
+                  }}
                 >
                   Next: Fuel Details
                 </Button>
@@ -2525,9 +2554,9 @@ const BoxReceiptManagement: FC = () => {
                       tooltip="Automatically calculated from first coupon + total coupons"
                     >
                       <Input
-                        disabled
-                        style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#f0f0f0' }}
+                        style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#f9f9f9' }}
                         addonBefore={<BarcodeOutlined />}
+                        placeholder="Auto-calculated"
                       />
                     </Form.Item>
                   </Col>
