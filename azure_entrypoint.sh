@@ -14,13 +14,27 @@ APP_DIR=${APP_DIR:-${APP_PATH:-${ORYX_APP_PATH:-/home/site/wwwroot}}}
 export APP_DIR
 
 echo "[entrypoint] Booting container…"
+echo "[entrypoint] Working directory: $(pwd)"
+echo "[entrypoint] APP_DIR: ${APP_DIR}"
+echo "[entrypoint] User: $(whoami)"
+echo "[entrypoint] Python version: $(python --version 2>&1 || echo 'Python not found')"
 
 # Default to production settings on Azure
 export DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.production}
 export PORT=${PORT:-8000}
 
 # Ensure we run from the app root
-cd "$APP_DIR" 2>/dev/null || cd "$(dirname "$0")" 2>/dev/null || true
+# Change to the app directory
+echo "[entrypoint] Changing to APP_DIR: ${APP_DIR}"
+cd "${APP_DIR}" || {
+  echo "[entrypoint][ERROR] Failed to change to APP_DIR: ${APP_DIR}"
+  ls -la /home/site/wwwroot/ || echo "[entrypoint][ERROR] Cannot list /home/site/wwwroot"
+  ls -la /tmp/ || echo "[entrypoint][ERROR] Cannot list /tmp"
+  exit 1
+}
+
+echo "[entrypoint] Current directory contents:"
+ls -la
 
 # Make sure the application directory is on PYTHONPATH for module imports like `config` to work
 export PYTHONPATH="${APP_DIR}:${PYTHONPATH:-}"
