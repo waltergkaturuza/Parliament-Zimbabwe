@@ -30,7 +30,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   WarningOutlined,
-  ShieldOutlined,
+  SafetyOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -277,7 +277,7 @@ const TransactionAudit: FC = () => {
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <Title level={2} style={{ fontFamily: 'Rockwell, serif', fontSize: '18px', margin: 0 }}>
-          <ShieldOutlined /> Transaction Audit
+          <SafetyOutlined /> Transaction Audit
         </Title>
         <p style={{ color: '#666', margin: '8px 0 0 0', fontSize: '16px' }}>
           Monitor and analyze all system transactions for security and compliance

@@ -24,6 +24,11 @@ import {
   Badge,
   Statistic,
   Tabs,
+  Checkbox,
+  Tooltip,
+  Popconfirm,
+  Drawer,
+  Collapse
 } from 'antd';
 import {
   BarcodeOutlined,
@@ -40,6 +45,14 @@ import {
   SendOutlined,
   AlertOutlined,
   FolderOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ReloadOutlined,
+  BookOutlined,
+  FilePdfOutlined,
+  SettingOutlined,
+  CloseOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -47,6 +60,7 @@ import dayjs from 'dayjs';
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TabPane } = Tabs;
+const { Panel } = Collapse;
 
 interface BoxReceipt {
   // Core identification - harmonized with backend
@@ -260,6 +274,18 @@ const CouponVerification: FC = () => {
   const [selectedGenerationBox, setSelectedGenerationBox] = useState<BoxReceipt | null>(null);
   const [generationLoading, setGenerationLoading] = useState(false);
   
+  // New state for enhanced verification
+  const [wideVerificationVisible, setWideVerificationVisible] = useState(false);
+  const [selectedVerificationBox, setSelectedVerificationBox] = useState<BoxReceipt | null>(null);
+  const [booksVerificationStatus, setBooksVerificationStatus] = useState<{[key: string]: boolean}>({});
+  const [selectAllChecked, setSelectAllChecked] = useState(false);
+  const [autoCompleteLoading, setAutoCompleteLoading] = useState(false);
+  
+  // State for coupon book viewer
+  const [couponBookViewerVisible, setCouponBookViewerVisible] = useState(false);
+  const [selectedBookForViewing, setSelectedBookForViewing] = useState<any>(null);
+  const [currentBookPage, setCurrentBookPage] = useState(1);
+  
   // Calculation modes configuration
   const calculationModes: SmartCalculationMode[] = [
     {
@@ -290,10 +316,36 @@ const CouponVerification: FC = () => {
     fetchBoxesForGeneration();
   }, []);
 
+  // Force refresh function to get latest data from backend
+  const forceRefresh = async () => {
+    setLoading(true);
+    setGenerationLoading(true);
+    message.info('🔄 Refreshing data from server...');
+    
+    try {
+      await Promise.all([
+        fetchBoxReceipts(),
+        fetchBoxesForGeneration()
+      ]);
+      message.success('✅ Data refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      message.error('Failed to refresh data from server');
+    } finally {
+      setLoading(false);
+      setGenerationLoading(false);
+    }
+  };
+
   const fetchBoxReceipts = async () => {
     setLoading(true);
+    // Clear existing data to ensure fresh fetch
+    setBoxReceipts([]);
+    
     try {
-      const response = await apiClient.get('/boxes/');
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await apiClient.get(`/boxes/?t=${timestamp}`);
       const data = response.data;
       console.log('API /boxes/ response:', data);
       
@@ -321,7 +373,7 @@ const CouponVerification: FC = () => {
             couponAmount: box.coupon_amount,
             numberOfBooks: box.number_of_books ?? (box.books?.length),
             couponsPerBook: box.coupons_per_book,
-            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            totalCoupons: box.totalCoupons ?? box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
             totalLitres: box.total_litres,
             firstCouponId,
             lastCouponId,
@@ -356,8 +408,13 @@ const CouponVerification: FC = () => {
   // Fetch boxes for coupon generation
   const fetchBoxesForGeneration = async () => {
     setGenerationLoading(true);
+    // Clear existing data to ensure fresh fetch
+    setGenerationBoxes([]);
+    
     try {
-      const response = await apiClient.get('/boxes/', {
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await apiClient.get(`/boxes/?t=${timestamp}`, {
         params: {
           status: 'received', // Only get received boxes that need coupon generation
           ordering: '-received_at'
@@ -389,7 +446,7 @@ const CouponVerification: FC = () => {
             couponAmount: box.coupon_amount,
             numberOfBooks: box.number_of_books ?? (box.books?.length),
             couponsPerBook: box.coupons_per_book,
-            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            totalCoupons: box.totalCoupons ?? box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
             totalLitres: box.total_litres,
             firstCouponId,
             lastCouponId,
@@ -411,6 +468,105 @@ const CouponVerification: FC = () => {
     } finally {
       setGenerationLoading(false);
     }
+  };
+
+  // Auto-complete missing data function
+  const autoCompleteMissingData = async (box: BoxReceipt) => {
+    setAutoCompleteLoading(true);
+    try {
+      // Use the coupon ranges preview endpoint to calculate missing details
+      const response = await apiClient.get(`/boxes/${box.id}/coupon_ranges_preview/`);
+      const previewData = response.data;
+      
+      if (previewData.valid) {
+        // Save the auto-completed data to the backend
+        const updateData = {
+          last_coupon_number: previewData.box_summary.last_coupon,
+          number_of_books: previewData.box_summary.total_books,
+          total_coupons: previewData.box_summary.total_coupons
+        };
+        
+        // Update the box in the backend
+        const updateResponse = await apiClient.patch(`/boxes/${box.id}/`, updateData);
+        
+        if (updateResponse.status === 200) {
+          message.success(`✅ Auto-completed and saved missing details for Box ${box.boxId}`);
+          
+          // Force refresh the data from server to ensure we have the latest state
+          await forceRefresh();
+        } else {
+          message.error('Failed to save auto-completed data to server');
+        }
+      } else {
+        message.error(`Cannot auto-complete: ${previewData.error}`);
+      }
+    } catch (error: any) {
+      console.error('Error auto-completing data:', error);
+      message.error(error.response?.data?.error || 'Failed to auto-complete and save missing data');
+    } finally {
+      setAutoCompleteLoading(false);
+    }
+  };
+
+  // Handle edit box (for boxes with missing data)
+  const handleEditBox = (box: BoxReceipt) => {
+    Modal.confirm({
+      title: `📝 Edit Box ${box.boxId}`,
+      content: (
+        <div>
+          <p>This box has incomplete data. You can:</p>
+          <ul>
+            <li><strong>Auto-complete:</strong> Calculate missing details automatically</li>
+            <li><strong>Manual edit:</strong> Enter the missing information manually</li>
+            <li><strong>Delete:</strong> Remove this box if it's invalid</li>
+          </ul>
+          <p>What would you like to do?</p>
+        </div>
+      ),
+      onOk: () => autoCompleteMissingData(box),
+      okText: 'Auto-complete',
+      cancelText: 'Manual Edit',
+      onCancel: () => {
+        // Open manual edit modal
+        message.info('Manual edit functionality - redirect to box creation form');
+      }
+    });
+  };
+
+  // Handle delete box
+  const handleDeleteBox = async (box: BoxReceipt) => {
+    Modal.confirm({
+      title: `🗑️ Delete Box ${box.boxId}?`,
+      content: (
+        <div>
+          <Alert
+            message="Permanent Deletion"
+            description="This action cannot be undone. The box and all its data will be permanently removed."
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <p><strong>Box ID:</strong> {box.boxId}</p>
+          <p><strong>Status:</strong> {box.status}</p>
+          <p><strong>Reason:</strong> Incomplete or invalid data</p>
+        </div>
+      ),
+      onOk: async () => {
+        try {
+          await apiClient.delete(`/boxes/${box.id}/`);
+          message.success(`Box ${box.boxId} deleted successfully`);
+          // Refresh data
+          await fetchBoxReceipts();
+          await fetchBoxesForGeneration();
+        } catch (error: any) {
+          console.error('Error deleting box:', error);
+          message.error(error.response?.data?.error || 'Failed to delete box');
+        }
+      },
+      okText: 'Delete Permanently',
+      okType: 'danger',
+      cancelText: 'Cancel'
+    });
   };
 
   // Generate coupons from selected box data
@@ -968,6 +1124,228 @@ const CouponVerification: FC = () => {
     generateVerificationReport();
   };
 
+  // Enhanced verification functions
+  const handleWideVerification = async (box: BoxReceipt) => {
+    setSelectedVerificationBox(box);
+    setWideVerificationVisible(true);
+    
+    // Initialize verification status
+    const initialStatus: {[key: string]: boolean} = {};
+    for (let i = 1; i <= box.numberOfBooks; i++) {
+      initialStatus[`book-${i}`] = false;
+    }
+    setBooksVerificationStatus(initialStatus);
+    setSelectAllChecked(false);
+    
+    // Load detailed verification data
+    try {
+      const response = await apiClient.get(`/boxes/${box.id}/verification_details/`);
+      const detailsData = response.data;
+      
+      // Update verification status from backend
+      if (detailsData.books) {
+        const backendStatus: {[key: string]: boolean} = {};
+        detailsData.books.forEach((book: any, index: number) => {
+          backendStatus[`book-${index + 1}`] = book.is_verified || false;
+        });
+        setBooksVerificationStatus(backendStatus);
+        
+        // Check if all books are verified
+        const allVerified = Object.values(backendStatus).every(Boolean);
+        setSelectAllChecked(allVerified);
+      }
+    } catch (error) {
+      console.error('Error loading verification details:', error);
+      message.error('Failed to load verification details');
+    }
+  };
+
+  // Handle select all verification
+  const handleSelectAllVerification = (checked: boolean) => {
+    setSelectAllChecked(checked);
+    
+    if (!selectedVerificationBox) return;
+    
+    const newStatus: {[key: string]: boolean} = {};
+    for (let i = 1; i <= selectedVerificationBox.numberOfBooks; i++) {
+      newStatus[`book-${i}`] = checked;
+    }
+    setBooksVerificationStatus(newStatus);
+  };
+
+  // Handle individual book verification
+  const handleIndividualBookVerification = async (bookIndex: number, verified: boolean) => {
+    if (!selectedVerificationBox) return;
+    
+    try {
+      const bookKey = `book-${bookIndex}`;
+      
+      // Update local state immediately for better UX
+      setBooksVerificationStatus(prev => ({
+        ...prev,
+        [bookKey]: verified
+      }));
+      
+      // Make API call to verify/unverify the book
+      if (verified) {
+        await apiClient.post(`/boxes/${selectedVerificationBox.id}/verify_book/${bookIndex}/`, {
+          verification_notes: `Book ${bookIndex} verified during wide verification process`,
+          verification_checks: [
+            'Coupon sequence check',
+            'Print quality check', 
+            'Serial number validation'
+          ]
+        });
+        message.success(`✅ Book ${bookIndex} verified`);
+      } else {
+        await apiClient.post(`/boxes/${selectedVerificationBox.id}/verify_book/${bookIndex}/`, {
+          verified: false,
+          verification_notes: `Book ${bookIndex} unverified during wide verification process`,
+          verification_checks: []
+        });
+        message.info(`Book ${bookIndex} unverified`);
+      }
+      
+      // Update select all status
+      // Re-fetch verification details to sync state with backend
+      try {
+        const detailsResp = await apiClient.get(`/boxes/${selectedVerificationBox.id}/verification_details/`);
+        const detailsData = detailsResp.data;
+        if (detailsData.books) {
+          const backendStatus: {[key: string]: boolean} = {};
+          detailsData.books.forEach((book: any, index: number) => {
+            backendStatus[`book-${index + 1}`] = book.is_verified || false;
+          });
+          setBooksVerificationStatus(backendStatus);
+          const allVerified = Object.values(backendStatus).every(Boolean);
+          setSelectAllChecked(allVerified);
+        }
+      } catch (e) {
+        // Fall back to local state update if refresh fails
+        const updatedStatus = {
+          ...booksVerificationStatus,
+          [bookKey]: verified
+        };
+        const allVerified = Object.values(updatedStatus).every(Boolean);
+        setSelectAllChecked(allVerified);
+      }
+      
+    } catch (error: any) {
+      console.error('Error updating book verification:', error);
+      message.error(error.response?.data?.error || 'Failed to update book verification');
+      
+      // Revert local state on error
+      setBooksVerificationStatus(prev => ({
+        ...prev,
+        [`book-${bookIndex}`]: !verified
+      }));
+    }
+  };
+
+  // Handle coupon book viewer
+  const handleViewCouponBook = async (box: BoxReceipt, bookIndex?: number) => {
+    setSelectedBookForViewing({ 
+      ...box, 
+      selectedBookIndex: bookIndex || 1,
+      totalPages: Math.ceil(box.couponsPerBook / 10) // 10 coupons per page
+    });
+    setCouponBookViewerVisible(true);
+    setCurrentBookPage(1);
+  };
+
+  // Generate PDF for coupon book
+  const generateCouponBookPDF = () => {
+    if (!selectedBookForViewing) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      message.error('Unable to open print window. Please check your browser settings.');
+      return;
+    }
+
+    const bookIndex = selectedBookForViewing.selectedBookIndex || 1;
+    const startCouponNumber = selectedBookForViewing.firstCouponId ? 
+      parseInt(selectedBookForViewing.firstCouponId.slice(-6)) + ((bookIndex - 1) * selectedBookForViewing.couponsPerBook) : 
+      0;
+
+    let couponsHtml = '';
+    for (let i = 0; i < selectedBookForViewing.couponsPerBook; i++) {
+      const couponNumber = startCouponNumber + i;
+      const prefix = selectedBookForViewing.firstCouponId ? selectedBookForViewing.firstCouponId.slice(0, -6) : 'FC';
+      const couponId = `${prefix}${couponNumber.toString().padStart(6, '0')}`;
+      
+      couponsHtml += `
+        <div class="coupon" style="
+          border: 2px solid #1890ff;
+          border-radius: 8px;
+          padding: 20px;
+          margin: 10px;
+          width: 300px;
+          height: 200px;
+          display: inline-block;
+          vertical-align: top;
+          position: relative;
+          background: linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 100%);
+        ">
+          <div style="text-align: center; border-bottom: 1px dashed #1890ff; padding-bottom: 10px; margin-bottom: 10px;">
+            <strong style="font-size: 16px; color: #1890ff;">PARLIAMENT OF ZIMBABWE</strong><br>
+            <span style="font-size: 12px; color: #666;">Fuel Coupon</span>
+          </div>
+          
+          <div style="font-size: 24px; font-weight: bold; text-align: center; margin: 15px 0; font-family: monospace;">
+            ${couponId}
+          </div>
+          
+          <div style="font-size: 14px; margin: 10px 0;">
+            <strong>Fuel Type:</strong> ${selectedBookForViewing.fuelType}<br>
+            <strong>Amount:</strong> ${selectedBookForViewing.couponAmount} Litres<br>
+            <strong>Book:</strong> ${bookIndex} / Coupon: ${i + 1}
+          </div>
+          
+          <div style="position: absolute; bottom: 10px; right: 10px; font-size: 10px; color: #999;">
+            ${new Date().toLocaleDateString()}
+          </div>
+        </div>
+      `;
+    }
+
+    const reportHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Coupon Book ${bookIndex} - ${selectedBookForViewing.boxId}</title>
+        <style>
+            @page { margin: 15mm; size: A4; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #1890ff; padding-bottom: 20px; }
+            .coupon { page-break-inside: avoid; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1 style="margin: 0; color: #1890ff;">PARLIAMENT OF ZIMBABWE</h1>
+            <h2 style="margin: 10px 0; color: #666;">Fuel Coupon Book ${bookIndex}</h2>
+            <p style="margin: 5px 0;"><strong>Box ID:</strong> ${selectedBookForViewing.boxId}</p>
+            <p style="margin: 5px 0;"><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div style="text-align: center;">
+          ${couponsHtml}
+        </div>
+    </body>
+    </html>
+    `;
+
+    printWindow.document.write(reportHtml);
+    printWindow.document.close();
+    
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    };
+  };
+
   // Handle print verification report
   const handlePrintVerificationReport = (box: BoxReceipt) => {
     setSelectedBoxForPrint(box);
@@ -1022,6 +1400,82 @@ const CouponVerification: FC = () => {
       ),
     },
     {
+      title: 'Coupon Range',
+      key: 'couponRange',
+      width: 200,
+      render: (_, record) => {
+        const hasIncompleteData = !record.firstCouponId || !record.lastCouponId || !record.numberOfBooks;
+        
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            {record.firstCouponId ? (
+              <Text style={{ fontSize: '11px', fontFamily: 'monospace' }}>
+                <strong>First:</strong> {record.firstCouponId}
+              </Text>
+            ) : (
+              <Text type="secondary" style={{ fontSize: '11px' }}>
+                <WarningOutlined style={{ color: '#faad14' }} /> First: Missing
+              </Text>
+            )}
+            
+            {record.lastCouponId ? (
+              <Text style={{ fontSize: '11px', fontFamily: 'monospace' }}>
+                <strong>Last:</strong> {record.lastCouponId}
+              </Text>
+            ) : (
+              <Text type="secondary" style={{ fontSize: '11px' }}>
+                <WarningOutlined style={{ color: '#faad14' }} /> Last: Missing
+              </Text>
+            )}
+            
+            {record.numberOfBooks ? (
+              <Text style={{ fontSize: '11px' }}>
+                <strong>Books:</strong> {record.numberOfBooks}
+              </Text>
+            ) : (
+              <Text type="secondary" style={{ fontSize: '11px' }}>
+                <WarningOutlined style={{ color: '#faad14' }} /> Books: Missing
+              </Text>
+            )}
+            
+            {hasIncompleteData && (
+              <Space size={4}>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  onClick={() => autoCompleteMissingData(record)}
+                  loading={autoCompleteLoading}
+                  style={{ 
+                    padding: '0 4px', 
+                    height: '20px',
+                    fontSize: '10px',
+                    color: '#1890ff'
+                  }}
+                >
+                  Auto-fill
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditBox(record)}
+                  style={{ 
+                    padding: '0 4px', 
+                    height: '20px',
+                    fontSize: '10px',
+                    color: '#52c41a'
+                  }}
+                >
+                  Edit
+                </Button>
+              </Space>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
@@ -1042,9 +1496,9 @@ const CouponVerification: FC = () => {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 200,
+      width: 280,
       render: (_, record) => (
-        <Space>
+        <Space wrap>
           <Button
             type="primary"
             size="small"
@@ -1070,6 +1524,15 @@ const CouponVerification: FC = () => {
             Generate Books
           </Button>
           <Button
+            type="default"
+            size="small"
+            icon={<SettingOutlined />}
+            onClick={() => handleWideVerification(record)}
+            style={{ borderColor: '#1890ff', color: '#1890ff' }}
+          >
+            Wide Verify
+          </Button>
+          <Button
             size="small"
             icon={<PrinterOutlined />}
             onClick={() => handlePrintVerificationReport(record)}
@@ -1091,6 +1554,14 @@ const CouponVerification: FC = () => {
         </Col>
         <Col>
           <Space>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={forceRefresh}
+              loading={loading}
+              title="Refresh data from server"
+            >
+              Refresh
+            </Button>
             <Button
               type="primary"
               icon={<BarcodeOutlined />}
@@ -1661,6 +2132,272 @@ const CouponVerification: FC = () => {
               <Text type="secondary">
                 The report will include the Parliament of Zimbabwe logo and professional formatting
               </Text>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Wide Verification Modal */}
+      <Modal
+        title={
+          <Space>
+            <SettingOutlined />
+            Wide Verification - {selectedVerificationBox?.boxId}
+          </Space>
+        }
+        open={wideVerificationVisible}
+        onCancel={() => setWideVerificationVisible(false)}
+        width="90%"
+        style={{ top: 20 }}
+        footer={[
+          <Button key="cancel" onClick={() => setWideVerificationVisible(false)}>
+            Close
+          </Button>,
+          <Button
+            key="view-coupons"
+            icon={<BookOutlined />}
+            onClick={() => selectedVerificationBox && handleViewCouponBook(selectedVerificationBox)}
+          >
+            View Coupon Book
+          </Button>,
+          <Button
+            key="verify-all"
+            type="primary"
+            icon={<CheckOutlined />}
+            onClick={() => handleSelectAllVerification(!selectAllChecked)}
+          >
+            {selectAllChecked ? 'Unselect All' : 'Verify All Books'}
+          </Button>,
+        ]}
+      >
+        {selectedVerificationBox && (
+          <div>
+            <Alert
+              message="Book-by-Book Verification"
+              description={`Verify each book individually for Box ${selectedVerificationBox.boxId}. Check each book thoroughly before marking as verified.`}
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col span={12}>
+                <Descriptions bordered column={1} size="small">
+                  <Descriptions.Item label="Box ID">{selectedVerificationBox.boxId}</Descriptions.Item>
+                  <Descriptions.Item label="Supplier">{selectedVerificationBox.supplier}</Descriptions.Item>
+                  <Descriptions.Item label="Total Books">{selectedVerificationBox.numberOfBooks}</Descriptions.Item>
+                  <Descriptions.Item label="Coupons per Book">{selectedVerificationBox.couponsPerBook}</Descriptions.Item>
+                </Descriptions>
+              </Col>
+              <Col span={12}>
+                <Card title="Verification Progress" size="small">
+                  <Statistic
+                    title="Books Verified"
+                    value={Object.values(booksVerificationStatus).filter(Boolean).length}
+                    suffix={`/ ${selectedVerificationBox.numberOfBooks}`}
+                    valueStyle={{ 
+                      color: Object.values(booksVerificationStatus).filter(Boolean).length === selectedVerificationBox.numberOfBooks ? '#52c41a' : '#faad14'
+                    }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Select All Checkbox */}
+            <div style={{ marginBottom: 16, textAlign: 'center' }}>
+              <Checkbox
+                checked={selectAllChecked}
+                onChange={(e) => handleSelectAllVerification(e.target.checked)}
+                style={{ fontSize: '16px', fontWeight: 'bold' }}
+              >
+                Select All Books for Verification
+              </Checkbox>
+            </div>
+
+            {/* Individual Book Verification */}
+            <Row gutter={[16, 16]}>
+              {Array.from({ length: selectedVerificationBox.numberOfBooks }, (_, index) => {
+                const bookIndex = index + 1;
+                const bookKey = `book-${bookIndex}`;
+                const isVerified = booksVerificationStatus[bookKey] || false;
+                
+                return (
+                  <Col key={bookIndex} xs={24} sm={12} md={8} lg={6}>
+                    <Card
+                      size="small"
+                      title={`Book ${bookIndex}`}
+                      extra={
+                        <Badge 
+                          status={isVerified ? "success" : "default"} 
+                          text={isVerified ? "Verified" : "Pending"}
+                        />
+                      }
+                      style={{
+                        borderColor: isVerified ? '#52c41a' : '#d9d9d9',
+                        backgroundColor: isVerified ? '#f6ffed' : '#ffffff'
+                      }}
+                    >
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        <Text strong>Book {bookIndex}</Text>
+                        <Text type="secondary">
+                          {selectedVerificationBox.couponsPerBook} coupons
+                        </Text>
+                        
+                        <Button
+                          type={isVerified ? "default" : "primary"}
+                          size="small"
+                          icon={isVerified ? <CloseOutlined /> : <CheckOutlined />}
+                          onClick={() => handleIndividualBookVerification(bookIndex, !isVerified)}
+                          style={{ width: '100%' }}
+                          danger={isVerified}
+                        >
+                          {isVerified ? 'Unverify' : 'Verify Book'}
+                        </Button>
+                        
+                        <Button
+                          size="small"
+                          icon={<BookOutlined />}
+                          onClick={() => handleViewCouponBook(selectedVerificationBox, bookIndex)}
+                          style={{ width: '100%' }}
+                        >
+                          View Coupons
+                        </Button>
+                      </Space>
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          </div>
+        )}
+      </Modal>
+
+      {/* Coupon Book Viewer Modal */}
+      <Modal
+        title={
+          <Space>
+            <BookOutlined />
+            Coupon Book Viewer - Book {selectedBookForViewing?.selectedBookIndex} of {selectedBookForViewing?.boxId}
+          </Space>
+        }
+        open={couponBookViewerVisible}
+        onCancel={() => setCouponBookViewerVisible(false)}
+        width="95%"
+        style={{ top: 20 }}
+        footer={[
+          <Button key="cancel" onClick={() => setCouponBookViewerVisible(false)}>
+            Close
+          </Button>,
+          <Button
+            key="print"
+            icon={<PrinterOutlined />}
+            onClick={generateCouponBookPDF}
+          >
+            Print Book
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<FilePdfOutlined />}
+            onClick={generateCouponBookPDF}
+          >
+            Download PDF
+          </Button>,
+        ]}
+      >
+        {selectedBookForViewing && (
+          <div>
+            <Alert
+              message="Coupon Book Preview"
+              description={`Preview of all coupons in Book ${selectedBookForViewing.selectedBookIndex}. You can print or download this book as PDF.`}
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            
+            <Descriptions bordered column={4} size="small" style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Box ID">{selectedBookForViewing.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Book Number">{selectedBookForViewing.selectedBookIndex}</Descriptions.Item>
+              <Descriptions.Item label="Coupons per Book">{selectedBookForViewing.couponsPerBook}</Descriptions.Item>
+              <Descriptions.Item label="Fuel Type">{selectedBookForViewing.fuelType}</Descriptions.Item>
+            </Descriptions>
+
+            {/* Coupon Preview Grid */}
+            <div style={{ 
+              maxHeight: '60vh', 
+              overflowY: 'auto',
+              border: '1px solid #d9d9d9',
+              borderRadius: '8px',
+              padding: '16px',
+              backgroundColor: '#fafafa'
+            }}>
+              <Row gutter={[16, 16]}>
+                {Array.from({ length: selectedBookForViewing.couponsPerBook }, (_, index) => {
+                  const couponIndex = index + 1;
+                  const bookIndex = selectedBookForViewing.selectedBookIndex || 1;
+                  const startCouponNumber = selectedBookForViewing.firstCouponId ? 
+                    parseInt(selectedBookForViewing.firstCouponId.slice(-6)) + ((bookIndex - 1) * selectedBookForViewing.couponsPerBook) : 
+                    0;
+                  const couponNumber = startCouponNumber + index;
+                  const prefix = selectedBookForViewing.firstCouponId ? selectedBookForViewing.firstCouponId.slice(0, -6) : 'FC';
+                  const couponId = `${prefix}${couponNumber.toString().padStart(6, '0')}`;
+                  
+                  return (
+                    <Col key={couponIndex} xs={24} sm={12} md={8} lg={6}>
+                      <Card
+                        size="small"
+                        style={{
+                          border: '2px solid #1890ff',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 100%)',
+                          textAlign: 'center'
+                        }}
+                      >
+                        <div style={{ borderBottom: '1px dashed #1890ff', paddingBottom: '8px', marginBottom: '8px' }}>
+                          <Text strong style={{ color: '#1890ff', fontSize: '12px' }}>
+                            PARLIAMENT OF ZIMBABWE
+                          </Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: '10px' }}>
+                            Fuel Coupon
+                          </Text>
+                        </div>
+                        
+                        <Text strong style={{ 
+                          fontSize: '16px', 
+                          fontFamily: 'monospace',
+                          color: '#1890ff'
+                        }}>
+                          {couponId}
+                        </Text>
+                        
+                        <div style={{ marginTop: '8px', fontSize: '11px' }}>
+                          <Text>
+                            <strong>Type:</strong> {selectedBookForViewing.fuelType}
+                          </Text>
+                          <br />
+                          <Text>
+                            <strong>Amount:</strong> {selectedBookForViewing.couponAmount}L
+                          </Text>
+                          <br />
+                          <Text type="secondary">
+                            Book {bookIndex} / Coupon {couponIndex}
+                          </Text>
+                        </div>
+                        
+                        <div style={{ 
+                          marginTop: '8px', 
+                          fontSize: '8px', 
+                          color: '#999',
+                          textAlign: 'right'
+                        }}>
+                          {new Date().toLocaleDateString()}
+                        </div>
+                      </Card>
+                    </Col>
+                  );
+                })}
+              </Row>
             </div>
           </div>
         )}

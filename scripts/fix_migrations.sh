@@ -2,6 +2,11 @@
 
 echo "Starting migration fix script..."
 
+# Resolve settings module: arg > env > production default
+SETTINGS_MODULE="${1:-${DJANGO_SETTINGS_MODULE:-config.settings.production}}"
+export DJANGO_SETTINGS_MODULE="$SETTINGS_MODULE"
+echo "Using DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE"
+
 # Activate the Python virtual environment
 source /tmp/*/antenv/bin/activate
 
@@ -82,21 +87,22 @@ def fix_migration_history():
 
         # Run Django management commands
         print("\nFaking merge migration...")
+        env = os.environ.copy()
         subprocess.run([
             "python", "manage.py", "migrate", "fuel", "10002_merge_20250811_1736", 
-            "--fake", "--settings=config.settings.production"
-        ], check=True)
+            "--fake"
+        ], check=True, env=env)
 
         print("\nFaking dependent migration...")
         subprocess.run([
             "python", "manage.py", "migrate", "fuel", "0023_fix_coupon_distribution_and_session_attendance", 
-            "--fake", "--settings=config.settings.production"
-        ], check=True)
+            "--fake"
+        ], check=True, env=env)
 
         print("\nRunning all migrations...")
         subprocess.run([
-            "python", "manage.py", "migrate", "--settings=config.settings.production"
-        ], check=True)
+            "python", "manage.py", "migrate"
+        ], check=True, env=env)
 
         print("\nMigration history fix completed successfully!")
         return True

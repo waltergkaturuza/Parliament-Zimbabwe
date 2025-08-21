@@ -19,6 +19,7 @@ SEARCH_PATHS=(
     "$(pwd)"
     "/home/site/wwwroot"
     "/opt/startup"
+    "/tmp/8*"
 )
 
 echo "[$(date)] Searching for azure_entrypoint.sh..."
@@ -32,9 +33,22 @@ for search_path in "${SEARCH_PATHS[@]}"; do
     fi
 done
 
+# Additional search in /tmp directories for Oryx extractions
+if [ -z "$ENTRYPOINT_SCRIPT" ]; then
+    echo "[$(date)] Searching in /tmp/8* directories..."
+    for dir in /tmp/8*; do
+        if [ -d "$dir" ] && [ -f "$dir/azure_entrypoint.sh" ]; then
+            ENTRYPOINT_SCRIPT="$dir/azure_entrypoint.sh"
+            echo "[$(date)] ✓ Found azure_entrypoint.sh in extracted dir: $ENTRYPOINT_SCRIPT"
+            break
+        fi
+    done
+fi
+
 if [ -n "$ENTRYPOINT_SCRIPT" ]; then
     echo "[$(date)] Making script executable and launching..."
     chmod +x "$ENTRYPOINT_SCRIPT"
+    cd "$(dirname "$ENTRYPOINT_SCRIPT")"
     exec bash "$ENTRYPOINT_SCRIPT"
 else
     echo "[$(date)] FATAL: azure_entrypoint.sh not found in any location"
