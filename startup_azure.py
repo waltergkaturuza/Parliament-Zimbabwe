@@ -46,7 +46,12 @@ def main():
     # Run migrations and collect static files in production
     if django_settings == 'config.settings.production':
         logger.info("Running migrations...")
-        run_command("python manage.py migrate --noinput", ignore_errors=True)
+        # First try to show migration status
+        run_command("python manage.py showmigrations", ignore_errors=True)
+        
+        # Run migrations without ignoring errors to catch issues
+        logger.info("Applying migrations...")
+        run_command("python manage.py migrate --noinput")
         
         logger.info("Collecting static files...")
         run_command("python manage.py collectstatic --noinput --clear", ignore_errors=True)

@@ -68,6 +68,8 @@ else:
         '169.254.131.10', # Azure middleware proxy IP (from error logs)
         '169.254.131.10:8181', # Azure middleware proxy with port (from error logs)
         '169.254.131.7:8181',  # Azure middleware with port (from error logs)
+        '169.254.129.3',  # Additional Azure internal IP from logs
+        '169.254.129.3:8000',  # Additional Azure internal IP with port
         'localhost',      # Azure middleware proxy
         '127.0.0.1',
     ]
