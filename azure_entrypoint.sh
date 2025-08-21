@@ -48,7 +48,23 @@ if [ "${MIGRATE_ON_STARTUP:-true}" = "true" ]; then
 fi
 
 # Server selection
-SERVER_KIND=${SERVER_KIND:-gunicorn} # gunicorn | daphne | gunicorn-asgi
+# If SERVER_KIND is not set, auto-detect installed servers (prefer daphne for ASGI)
+if [ -z "${SERVER_KIND:-}" ]; then
+  if command -v daphne >/dev/null 2>&1; then
+    SERVER_KIND="daphne"
+  elif command -v gunicorn >/dev/null 2>&1; then
+    SERVER_KIND="gunicorn"
+  elif python - <<'PY'
+import importlib.util
+exit(0 if importlib.util.find_spec('uvicorn') else 1)
+PY
+  then
+    SERVER_KIND="gunicorn-asgi"
+  else
+    SERVER_KIND="fallback"
+  fi
+fi
+echo "[entrypoint] Selected SERVER_KIND=${SERVER_KIND}"
 
 case "$SERVER_KIND" in
   daphne)
@@ -83,5 +99,12 @@ case "$SERVER_KIND" in
       --workers ${WORKERS} \
       --threads ${THREADS} \
       --timeout ${TIMEOUT}
+    ;;
+  fallback)
+    # Last-resort fallback to keep the container alive for SSH/Kudu debugging
+    # Not recommended for production traffic.
+    echo "[entrypoint][WARN] No supported HTTP server found (daphne/gunicorn/uvicorn). Falling back to Django runserver."
+    echo "[entrypoint][WARN] Set SERVER_KIND=daphne (preferred) or add gunicorn to requirements and restart."
+    exec python manage.py runserver 0.0.0.0:${PORT} --noreload
     ;;
 esac
