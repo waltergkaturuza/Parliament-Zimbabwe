@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "name": "parliament-fuel-system",
+  "builds": [
+    {
+      "src": "fuel_coupon_system/wsgi.py",
+      "use": "@vercel/python",
+      "config": { 
+        "maxLambdaSize": "15mb", 
+        "runtime": "python3.11" 
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/staticfiles/$1"
+    },
+    {
+      "src": "/media/(.*)",
+      "dest": "/media/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "fuel_coupon_system/wsgi.py"
+    }
+  ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "config.settings.vercel",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "functions": {
+    "fuel_coupon_system/wsgi.py": {
+      "runtime": "python3.11"
+    }
+  }
+}
