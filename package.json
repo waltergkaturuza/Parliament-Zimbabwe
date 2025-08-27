@@ -1,0 +1,10 @@
+{
+  "name": "parliament-fuel-system-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Please use ROOT_DIRECTORY=backend for Django API deployment'",
+    "start": "echo 'Please use ROOT_DIRECTORY=backend for Django API deployment'"
+  },
+  "description": "Root package.json - Use ROOT_DIRECTORY=backend for Django deployment"
+}
