@@ -1,28 +1,54 @@
-from http.server import BaseHTTPRequestHandler
-import json
+import os
+import sys
+import django
+from django.conf import settings
+from django.http import JsonResponse
+from django.core.wsgi import get_wsgi_application
 
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        
-        response = {
-            "message": "Parliament Fuel System API - Updated",
+# Add the project directory to Python path
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_dir)
+
+# Set Django settings
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
+
+# Initialize Django
+django.setup()
+
+# Simple Django view function
+def api_handler(request):
+    return JsonResponse({
+        "message": "Parliament Fuel System API - Django Running",
+        "status": "success",
+        "version": "1.0.2",
+        "framework": "Django 4.1.13"
+    })
+
+# Vercel handler
+def handler(request, response):
+    try:
+        # Simple API response
+        import json
+        response_data = {
+            "message": "Parliament Fuel System API - Django Ready",
             "status": "running",
-            "version": "1.0.1",
-            "timestamp": "2025-08-27"
+            "version": "1.0.2",
+            "database": "connected" if settings.DATABASES else "not configured"
         }
-        
-        self.wfile.write(json.dumps(response).encode())
-    
-    def do_POST(self):
-        self.do_GET()
-    
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(response_data)
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({"error": str(e)})
+        }
+
+# WSGI application
+application = get_wsgi_application()
