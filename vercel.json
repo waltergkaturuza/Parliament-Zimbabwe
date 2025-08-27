@@ -1,16 +1,6 @@
 {
   "version": 2,
   "name": "parliament-fuel-system",
-  "builds": [
-    {
-      "src": "fuel_coupon_system/wsgi.py",
-      "use": "@vercel/python",
-      "config": { 
-        "maxLambdaSize": "15mb", 
-        "runtime": "python3.11" 
-      }
-    }
-  ],
   "routes": [
     {
       "src": "/static/(.*)",
@@ -32,7 +22,8 @@
   },
   "functions": {
     "fuel_coupon_system/wsgi.py": {
-      "runtime": "python3.11"
+      "runtime": "python3.11",
+      "maxDuration": 30
     }
   }
 }
