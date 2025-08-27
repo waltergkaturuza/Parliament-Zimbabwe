@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Allocation - Parliament of Zimbabwe</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
+        .header { background-color: #1a472a; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .details { background-color: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .coupon-list { list-style: none; padding: 0; }
+        .coupon-item { background-color: #f0f8ff; padding: 10px; margin: 5px 0; border-left: 4px solid #1a472a; }
+        .total { background-color: #e8f5e8; padding: 15px; text-align: center; font-weight: bold; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Parliament of Zimbabwe</h1>
+        <h2>Fuel Coupon Management System</h2>
+    </div>
+    
+    <div class="content">
+        <h3>Fuel Allocation Notification</h3>
+        
+        <p>Dear {{ beneficiary.get_full_name }},</p>
+        
+        <p>You have been allocated fuel coupons as detailed below:</p>
+        
+        <div class="details">
+            <h4>Allocation Details:</h4>
+            <ul class="coupon-list">
+                {% for coupon in coupons %}
+                <li class="coupon-item">
+                    <strong>Coupon:</strong> {{ coupon.coupon_number }}<br>
+                    <strong>Serial:</strong> {{ coupon.serial_number }}<br>
+                    <strong>Amount:</strong> {{ coupon.litres }}L<br>
+                    <strong>Status:</strong> {{ coupon.get_status_display }}<br>
+                    <strong>Expires:</strong> {{ coupon.expiry_date|date:"Y-m-d" }}
+                </li>
+                {% endfor %}
+            </ul>
+            
+            <div class="total">
+                <h4>Total Allocated: {{ total_litres }}L</h4>
+            </div>
+            
+            <p><strong>Allocation Date:</strong> {{ timestamp|date:"Y-m-d H:i" }}</p>
+        </div>
+        
+        <h4>Important Notes:</h4>
+        <ul>
+            <li>Please use your fuel coupons before they expire</li>
+            <li>Present valid identification when using coupons</li>
+            <li>Coupons are non-transferable and for official use only</li>
+            <li>Report any issues with coupons immediately</li>
+        </ul>
+        
+        <p>If you have any questions about your fuel allocation, please contact your Sub-Center Officer.</p>
+    </div>
+    
+    <div class="footer">
+        <p>This is an automated notification from the Parliament of Zimbabwe Fuel Coupon Management System.</p>
+        <p>Generated on {{ timestamp|date:"Y-m-d H:i:s" }}</p>
+    </div>
+</body>
+</html>

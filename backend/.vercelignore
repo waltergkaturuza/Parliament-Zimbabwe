@@ -1,0 +1,9 @@
+# Backend-only .vercelignore
+__pycache__/
+*.pyc
+.env*
+.git/
+*.log
+migrations/
+!migrations/__init__.py
+*.sqlite3
