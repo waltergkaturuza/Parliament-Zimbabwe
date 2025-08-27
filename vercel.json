@@ -2,8 +2,18 @@
   "version": 2,
   "builds": [
     {
-      "src": "fuel_coupon_system/wsgi.py",
-      "use": "@vercel/python"
+      "src": "config/wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb"
+      }
+    },
+    {
+      "src": "build.sh",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "staticfiles"
+      }
     }
   ],
   "routes": [
@@ -17,7 +27,10 @@
     },
     {
       "src": "/(.*)",
-      "dest": "fuel_coupon_system/wsgi.py"
+      "dest": "config/wsgi.py"
     }
-  ]
+  ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "config.settings.vercel"
+  }
 }
