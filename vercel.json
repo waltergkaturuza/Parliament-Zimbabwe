@@ -11,5 +11,8 @@
       "src": "/(.*)",
       "dest": "api/simple.py"
     }
-  ]
+  ],
+  "installCommand": "",
+  "buildCommand": "",
+  "framework": null
 }
