@@ -1,0 +1,60 @@
+# Vercel ignore file - exclude unnecessary files to reduce function size
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation and logs
+*.log
+*.md
+docs/
+documentation/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Media uploads (should be served separately)
+media/
+
+# Development dependencies
+requirements.txt  # Use requirements-vercel.txt instead
+
+# Azure deployment files
+azure_*.py
+azure_*.sh
+azure_*.bat
+AZURE_*.md
+*.zip
+
+# Large packages that aren't needed for core functionality
+# (These should be in main requirements.txt but not requirements-vercel.txt)

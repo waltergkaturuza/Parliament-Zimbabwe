@@ -3,9 +3,9 @@
 
 echo "🚀 Starting Django build for Vercel..."
 
-# Install Python dependencies
+# Install Python dependencies (minimal for Vercel)
 echo "📦 Installing dependencies..."
-pip install -r requirements.txt
+pip install -r requirements-vercel.txt
 
 # Set Django settings
 export DJANGO_SETTINGS_MODULE=config.settings.vercel
