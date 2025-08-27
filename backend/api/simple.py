@@ -18,9 +18,10 @@ class handler(BaseHTTPRequestHandler):
         """Enhanced Vercel serverless function with comprehensive Django testing"""
         
         try:
-            # Initialize Django
+            # Initialize Django (only if not already configured)
             import django
-            django.setup()
+            if not django.apps.apps.ready:
+                django.setup()
             
             from django.conf import settings
             from django.db import connection

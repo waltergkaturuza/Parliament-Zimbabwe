@@ -17,9 +17,10 @@ if project_root not in sys.path:
 # Set Django settings
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
 
-# Initialize Django
+# Initialize Django (only if not already configured)
 import django
-django.setup()
+if not django.apps.apps.ready:
+    django.setup()
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
