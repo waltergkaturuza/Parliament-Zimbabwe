@@ -1,4 +1,4 @@
-# Vercel Production Settings for Parliament Fuel System
+# Minimal Vercel Production Settings for Parliament Fuel System
 import os
 import dj_database_url
 from .base import *
@@ -6,7 +6,7 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-print("[VERCEL SETTINGS] Using config/settings/vercel.py")
+print("[VERCEL SETTINGS] Using minimal config/settings/vercel.py")
 
 # Vercel environment
 VERCEL = True
@@ -16,7 +16,6 @@ VERCEL_URL = os.environ.get('VERCEL_URL', '')
 ALLOWED_HOSTS = [
     '.vercel.app',
     'parliament-fuel-system.vercel.app',
-    'zw-parliament-fuel-system.vercel.app',
     VERCEL_URL,
     'localhost',
     '127.0.0.1',
@@ -44,36 +43,35 @@ if DATABASES['default'].get('ENGINE') == 'django.db.backends.postgresql':
     }
 
 print(f"[VERCEL] Database engine: {DATABASES['default'].get('ENGINE')}")
-print(f"[VERCEL] Database name: {DATABASES['default'].get('NAME')}")
 
 # Secret key from environment
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is required")
 
-# Static files configuration for Vercel with WhiteNoise
+# Static files - simple configuration
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Use WhiteNoise for static files in production
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Add WhiteNoise to middleware (if not already in base)
-MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+# Basic CORS settings
+CORS_ALLOWED_ORIGINS = [
+    'https://parliament-fuel-system.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173',
 ]
 
-# Media files configuration
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Add Vercel URL if available
+if VERCEL_URL:
+    CORS_ALLOWED_ORIGINS.append(f'https://{VERCEL_URL}')
+
+CORS_ALLOW_CREDENTIALS = True
+
+# CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+
+# Basic security settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # CORS settings for Vercel deployment
 CORS_ALLOWED_ORIGINS = [

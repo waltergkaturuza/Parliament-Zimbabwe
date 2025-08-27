@@ -1,60 +1,101 @@
-# Vercel ignore file - exclude unnecessary files to reduce function size
+# Vercel ignore file - exclude ALL unnecessary files to minimize function size
 
 # Python cache and bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg
+*.egg-info/
 
 # Virtual environments
 .venv/
 venv/
 env/
 ENV/
+.conda/
 
 # Development files
-.env
-.env.local
-.env.development
-.env.test
+.env*
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
 
 # IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
+*.sublime-*
 
 # Git
 .git/
 .gitignore
+.gitattributes
 
-# Documentation and logs
-*.log
+# Documentation and non-essential files
 *.md
+*.txt
+*.log
+*.zip
 docs/
 documentation/
+screenshots/
+images/
+static/images/
+static/img/
 
 # Test files
 tests/
 test_*.py
 *_test.py
+*_tests.py
+conftest.py
+pytest.ini
+tox.ini
+.coverage
+htmlcov/
 
-# Media uploads (should be served separately)
+# Media uploads
 media/
 
 # Development dependencies
-requirements.txt  # Use requirements-vercel.txt instead
+requirements.txt
+requirements-dev.txt
+requirements-local.txt
 
-# Azure deployment files
-azure_*.py
-azure_*.sh
-azure_*.bat
-AZURE_*.md
-*.zip
+# Azure deployment files (not needed for Vercel)
+azure_*
+AZURE_*
+*.bat
+*.ps1
 
-# Large packages that aren't needed for core functionality
-# (These should be in main requirements.txt but not requirements-vercel.txt)
+# Large packages and apps not needed for basic API
+**/migrations/*.py
+!**/migrations/__init__.py
+!**/migrations/0001_initial.py
+
+# Frontend files (deploy separately)
+node_modules/
+package*.json
+*.js
+*.jsx
+*.ts
+*.tsx
+*.html
+*.css
+*.scss
+fuel-coupon-frontend/
+
+# Database files
+*.sqlite3
+*.db
+
+# Logs and temporary files
+logs/
+tmp/
+temp/
+*.tmp
+
+# Large Python packages commonly causing size issues
+**/site-packages/
+**/dist-packages/

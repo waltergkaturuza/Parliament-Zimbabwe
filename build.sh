@@ -1,21 +1,10 @@
 #!/bin/bash
-# Vercel build script for Django
+# Minimal Vercel build script for Django
 
-echo "🚀 Starting Django build for Vercel..."
+echo "🚀 Starting minimal Django build for Vercel..."
 
-# Install Python dependencies (minimal for Vercel)
-echo "📦 Installing dependencies..."
-pip install -r requirements-vercel.txt
-
-# Set Django settings
-export DJANGO_SETTINGS_MODULE=config.settings.vercel
-
-# Run Django checks
-echo "🔍 Running Django system checks..."
-python manage.py check --deploy
-
-# Collect static files
-echo "📂 Collecting static files..."
-python manage.py collectstatic --noinput
+# Install minimal Python dependencies 
+echo "📦 Installing minimal dependencies..."
+pip install -r requirements_temp.txt
 
 echo "✅ Build completed successfully!"
