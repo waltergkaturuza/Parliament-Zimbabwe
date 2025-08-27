@@ -9,9 +9,10 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         
         response = {
-            "message": "Parliament Fuel System API",
+            "message": "Parliament Fuel System API - Updated",
             "status": "running",
-            "version": "1.0.0"
+            "version": "1.0.1",
+            "timestamp": "2025-08-27"
         }
         
         self.wfile.write(json.dumps(response).encode())
