@@ -6,8 +6,11 @@
       "use": "@vercel/python@4.0.0",
       "config": {
         "excludeFiles": [
+          "fuel-coupon-frontend/**",
+          "node_modules/**",
+          "package.json",
+          "package-lock.json",
           "**/.git/**",
-          "**/node_modules/**",
           "**/__pycache__/**",
           "**/migrations/**",
           "**/static/**",
@@ -15,8 +18,7 @@
           "**/*.md",
           "**/*.txt",
           "**/*.log",
-          "**/tests/**",
-          "**/fuel-coupon-frontend/**"
+          "**/tests/**"
         ]
       }
     }
@@ -29,5 +31,7 @@
   ],
   "env": {
     "DJANGO_SETTINGS_MODULE": "config.settings.vercel"
-  }
+  },
+  "framework": null,
+  "installCommand": "pip install -r requirements.txt"
 }

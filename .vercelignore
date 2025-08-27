@@ -1,5 +1,11 @@
 # Vercel ignore file - exclude ALL unnecessary files to minimize function size
 
+# CRITICAL: Exclude frontend to prevent Node.js build detection
+fuel-coupon-frontend/
+package.json
+package-lock.json
+node_modules/
+
 # Python cache and bytecode
 __pycache__/
 *.py[cod]
@@ -59,9 +65,8 @@ htmlcov/
 media/
 
 # Development dependencies
-requirements.txt
-requirements-dev.txt
-requirements-local.txt
+requirements-*.txt
+!requirements.txt
 
 # Azure deployment files (not needed for Vercel)
 azure_*
@@ -73,18 +78,6 @@ AZURE_*
 **/migrations/*.py
 !**/migrations/__init__.py
 !**/migrations/0001_initial.py
-
-# Frontend files (deploy separately)
-node_modules/
-package*.json
-*.js
-*.jsx
-*.ts
-*.tsx
-*.html
-*.css
-*.scss
-fuel-coupon-frontend/
 
 # Database files
 *.sqlite3
@@ -99,3 +92,18 @@ temp/
 # Large Python packages commonly causing size issues
 **/site-packages/
 **/dist-packages/
+
+# Frontend related files (deploying backend only)
+*.js
+*.jsx
+*.ts
+*.tsx
+*.html
+*.css
+*.scss
+frontend/
+staticfiles/
+static/
+public/
+dist/
+build/
