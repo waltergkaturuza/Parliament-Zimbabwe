@@ -259,7 +259,7 @@ const BoxReceiptManagement: FC = () => {
             couponAmount: box.coupon_amount,
             numberOfBooks: box.number_of_books ?? (box.books?.length),
             couponsPerBook: box.coupons_per_book,
-            totalCoupons: box.totalCoupons ?? box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
             totalLitres: box.total_litres,
             firstCouponId,
             lastCouponId,
@@ -1202,7 +1202,7 @@ const BoxReceiptManagement: FC = () => {
             .summary { margin-bottom: 20px; }
           </style>
         </head>
-        <Form
+        <body>
           <div class="header">
             <h1>Parliament of Zimbabwe - Fuel Coupon System</h1>
             <h2>Box Receipt Report</h2>
@@ -1214,47 +1214,6 @@ const BoxReceiptManagement: FC = () => {
           </div>
           <table>
             <thead>
-          onValuesChange={(changed, all) => {
-            try {
-              const rt = receiveType;
-              const first = all.firstCouponId as string;
-              const perBook = Number(all.couponsPerBook || 0);
-              const nBooks = Number(all.numberOfBooks || 0);
-              const totalPages = Number(all.totalCoupons || 0);
-              const denom = Number(all.couponAmount || 0);
-
-              // Compute total coupons depending on mode
-              let computedTotal = totalPages;
-              if (rt === 'BOX') {
-                if (nBooks > 0 && perBook > 0) computedTotal = nBooks * perBook;
-              } else if (rt === 'BOOK') {
-                if (perBook > 0) computedTotal = perBook; // single book count
-              } else if (rt === 'PAGE') {
-                // already totalPages
-              }
-
-              const updates: any = {};
-              if (computedTotal && computedTotal !== all.totalCoupons) updates.totalCoupons = computedTotal;
-
-              // Derive last coupon if format valid
-              if (first && computedTotal > 0) {
-                try {
-                  const last = calculateLastCouponFromFirst(first, computedTotal);
-                  if (last && last !== all.lastCouponId) updates.lastCouponId = last;
-                } catch {}
-              }
-
-              // Total litres = total coupons * denomination
-              if (computedTotal > 0 && denom > 0) {
-                const litres = computedTotal * denom;
-                if (litres !== all.totalLitres) updates.totalLitres = litres;
-              }
-
-              if (Object.keys(updates).length) {
-                form.setFieldsValue(updates);
-              }
-            } catch {}
-          }}
               <tr>
                 <th>Box ID</th>
                 <th>Supplier</th>

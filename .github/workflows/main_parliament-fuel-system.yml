@@ -70,5 +70,4 @@ jobs:
       #   id: deploy-to-webapp
       #   with:
       #     app-name: 'parliament-fuel-system'
-          app-name: 'parliament-fuel-system'
           

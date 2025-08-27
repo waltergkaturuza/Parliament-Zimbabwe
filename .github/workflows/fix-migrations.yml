@@ -11,7 +11,6 @@ on:
         options:
           - production
           - staging
-          - local
 
 jobs:
   fix-migrations:
@@ -33,18 +32,6 @@ jobs:
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: .
 
-    - name: Set DJANGO_SETTINGS_MODULE (local)
-      if: ${{ github.event.inputs.environment == 'local' }}
-      run: echo "DJANGO_SETTINGS_MODULE=config.settings.local" >> $GITHUB_ENV
-
-    - name: Set DJANGO_SETTINGS_MODULE (staging)
-      if: ${{ github.event.inputs.environment == 'staging' }}
-      run: echo "DJANGO_SETTINGS_MODULE=config.settings.production_stable" >> $GITHUB_ENV
-
-    - name: Set DJANGO_SETTINGS_MODULE (production)
-      if: ${{ github.event.inputs.environment == 'production' }}
-      run: echo "DJANGO_SETTINGS_MODULE=config.settings.production" >> $GITHUB_ENV
-
     - name: Run Migration Fix Script
       uses: azure/webapps-container-deploy@v1
       with:
@@ -53,4 +40,4 @@ jobs:
         command: |
           cd /home/site/wwwroot
           chmod +x scripts/fix_migrations.sh
-          ./scripts/fix_migrations.sh "${{ env.DJANGO_SETTINGS_MODULE }}"
+          ./scripts/fix_migrations.sh

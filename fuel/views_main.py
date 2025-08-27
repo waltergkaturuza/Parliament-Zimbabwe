@@ -823,46 +823,9 @@ class BoxViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), BoxWritePermission()]
     
     def list(self, request, *args, **kwargs):
-        """List all boxes with optional filters and proper error handling"""
+        """List all boxes with proper error handling"""
         try:
-            queryset = self.filter_queryset(self.get_queryset())
-
-            # Optional status filter (accepts case-insensitive, including synonyms)
-            status_param = request.query_params.get('status')
-            if status_param:
-                status_value = str(status_param).upper()
-                # Map possible synonyms to our choices
-                synonyms = {
-                    'RECEIVED': 'RECEIVED',
-                    'received': 'RECEIVED',
-                    'PENDING': 'PENDING',
-                    'pending': 'PENDING',
-                    'VERIFIED': 'VERIFIED',
-                    'verified': 'VERIFIED',
-                    'DISPATCHED': 'DISPATCHED',
-                    'dispatched': 'DISPATCHED',
-                    'DAMAGED': 'DAMAGED',
-                    'damaged': 'DAMAGED',
-                    'ARCHIVED': 'ARCHIVED',
-                    'archived': 'ARCHIVED',
-                }
-                mapped = synonyms.get(status_param, status_value)
-                queryset = queryset.filter(status=mapped)
-
-            # Optional ordering support (safe fields only)
-            ordering = request.query_params.get('ordering')
-            if ordering:
-                allowed = {'received_at', '-received_at', 'created', '-created', 'modified', '-modified'}
-                if ordering in allowed:
-                    queryset = queryset.order_by(ordering)
-
-            page = self.paginate_queryset(queryset)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
+            return super().list(request, *args, **kwargs)
         except Exception as e:
             return Response(
                 {'error': f'Failed to retrieve boxes: {str(e)}'}, 
@@ -1289,88 +1252,6 @@ class BoxViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': f'Failed to sign off box: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=True, methods=['post'], url_path='verify_book/(?P<book_index>[^/.]+)')
-    def verify_book(self, request, pk=None, book_index=None):
-        """
-        Verify or unverify an individual book within a box.
-        If request.data contains { verified: false }, the book will be marked unverified.
-        """
-        box = self.get_object()
-        
-        try:
-            book_index = int(book_index)
-            verification_notes = request.data.get('verification_notes', '')
-            verification_checks = request.data.get('verification_checks', [])
-            verified_flag = request.data.get('verified', True)
-            
-            # Find the book by index (assuming books are ordered)
-            books = box.books.all().order_by('book_number')
-            if book_index > len(books) or book_index < 1:
-                return Response({
-                    'error': f'Book index {book_index} not found. Box has {len(books)} books.'
-                }, status=status.HTTP_404_NOT_FOUND)
-            
-            book = books[book_index - 1]  # Convert to 0-based index
-            
-            if verified_flag in [False, 'false', 'False', 0, '0']:
-                # Unverify
-                book.is_verified = False
-                book.verified_by = None
-                book.verified_at = None
-                if verification_notes:
-                    book.verification_notes = verification_notes
-                # Optionally clear checks when un-verifying
-                if isinstance(verification_checks, list) and verification_checks:
-                    book.verification_checks = verification_checks
-                book.save()
-                action_msg = f'Unverified book {book_index} of box {box.box_code}'
-                message_text = f'Book {book_index} unverified successfully'
-            else:
-                # Verify
-                book.is_verified = True
-                book.verified_by = request.user
-                book.verified_at = timezone.now()
-                book.verification_notes = verification_notes
-                if isinstance(verification_checks, list):
-                    book.verification_checks = verification_checks
-                book.save()
-                action_msg = f'Verified book {book_index} of box {box.box_code}'
-                message_text = f'Book {book_index} verified successfully'
-            
-            # Create audit log
-            AuditLog.objects.create(
-                user=request.user,
-                action=action_msg,
-                content_type=ContentType.objects.get_for_model(Book),
-                object_id=book.id,
-                changes={
-                    'book_verified': bool(book.is_verified),
-                    'verification_notes': verification_notes,
-                    'verification_checks': verification_checks
-                }
-            )
-            
-            return Response({
-                'message': message_text,
-                'book': {
-                    'id': book.id,
-                    'book_number': book.book_number,
-                    'is_verified': book.is_verified,
-                    'verified_by': request.user.get_full_name(),
-                    'verified_at': book.verified_at,
-                    'verification_notes': book.verification_notes
-                }
-            }, status=status.HTTP_200_OK)
-            
-        except ValueError:
-            return Response({
-                'error': 'Invalid book index. Must be a number.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({
-                'error': f'Failed to verify book: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
     def verification_details(self, request, pk=None):
@@ -1439,76 +1320,6 @@ class BoxViewSet(viewsets.ModelViewSet):
                 'ready_for_sign_off': box.is_verified and all(b['is_verified'] for b in book_verification_data)
             }
         })
-
-    def update(self, request, *args, **kwargs):
-        """
-        Update box with auto-completed data
-        """
-        try:
-            partial = kwargs.pop('partial', False)
-            instance = self.get_object()
-            
-            # Get the data from request
-            data = request.data.copy()
-            
-            # Handle auto-completed fields specifically
-            if 'last_coupon_number' in data:
-                instance.last_coupon_number = data['last_coupon_number']
-            
-            if 'number_of_books' in data:
-                instance.number_of_books = data['number_of_books']
-            
-            if 'total_coupons' in data:
-                instance.total_coupons_calculated = data['total_coupons']
-                
-            # Update total_litres if provided or calculate it
-            if 'total_litres' in data:
-                instance.total_litres = data['total_litres']
-            elif 'total_coupons' in data and instance.denomination:
-                # Calculate total litres from total coupons * denomination
-                instance.total_litres = data['total_coupons'] * instance.denomination
-                
-            # Update coupon_range if both first and last are available (this is handled by serializer)
-            # No need to manually set coupon_range field
-            
-            # Save the instance
-            instance.save()
-            
-            # Log the update
-            try:
-                AuditLog.objects.create(
-                    user=request.user,
-                    action=f'Updated box {instance.box_code} with auto-completed data',
-                    content_type=ContentType.objects.get_for_model(Box),
-                    object_id=instance.id,
-                    changes={
-                        'last_coupon_number': instance.last_coupon_number,
-                        'number_of_books': instance.number_of_books,
-                        'total_coupons_calculated': instance.total_coupons_calculated,
-                        'total_litres': str(instance.total_litres)
-                    }
-                )
-            except Exception as audit_error:
-                # Don't fail the whole request if audit logging fails
-                logging.warning(f"Failed to create audit log: {audit_error}")
-            
-            # Serialize and return the updated instance
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logging.error(f"Failed to update box {instance.id if 'instance' in locals() else 'unknown'}: {str(e)}")
-            return Response(
-                {'error': f'Failed to update box: {str(e)}'}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    def partial_update(self, request, *args, **kwargs):
-        """
-        Partial update for box data
-        """
-        kwargs['partial'] = True
-        return self.update(request, *args, **kwargs)
 
 
 class BookViewSet(viewsets.ModelViewSet):

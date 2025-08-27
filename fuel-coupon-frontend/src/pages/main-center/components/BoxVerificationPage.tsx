@@ -33,9 +33,7 @@ import {
   BookOutlined,
   BarcodeOutlined,
   SignatureOutlined,
-  AuditOutlined,
-  SyncOutlined,
-  ReloadOutlined
+  AuditOutlined
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -76,7 +74,6 @@ interface BoxVerification {
   couponAmount: 5 | 20 | 50;
   numberOfBooks: number;
   totalCoupons: number;
-  totalFuel?: number; // Total fuel amount in litres
   firstCouponId: string;
   lastCouponId: string;
   status: 'PENDING' | 'VERIFIED' | 'SIGNED_OFF';
@@ -103,7 +100,6 @@ const BoxVerificationPage: React.FC = () => {
   const [signOffModalVisible, setSignOffModalVisible] = useState(false);
   const [verificationForm] = Form.useForm();
   const [signOffForm] = Form.useForm();
-  const [refreshingDetails, setRefreshingDetails] = useState(false);
 
   useEffect(() => {
     loadBoxes();
@@ -157,43 +153,6 @@ const BoxVerificationPage: React.FC = () => {
       message.error('Failed to load box data');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // New function to refresh and calculate missing details
-  const refreshBoxDetails = async (boxId: string) => {
-    setRefreshingDetails(true);
-    try {
-      // Call the coupon ranges preview endpoint to get calculated details
-      const response = await apiClient.get(`/boxes/${boxId}/coupon_ranges_preview/`);
-      const previewData = response.data;
-      
-      if (previewData.valid) {
-        // Update the box with calculated details
-        setBoxes(prevBoxes => 
-          prevBoxes.map(box => {
-            if (box.id === boxId) {
-              return {
-                ...box,
-                totalCoupons: previewData.box_summary.total_coupons,
-                lastCouponId: previewData.box_summary.last_coupon,
-                numberOfBooks: previewData.box_summary.total_books,
-                // Calculate total fuel amount
-                totalFuel: previewData.box_summary.total_coupons * box.couponAmount
-              };
-            }
-            return box;
-          })
-        );
-        message.success('Box details refreshed successfully');
-      } else {
-        message.error(`Cannot calculate details: ${previewData.error}`);
-      }
-    } catch (error: any) {
-      console.error('Error refreshing box details:', error);
-      message.error(error.response?.data?.error || 'Failed to refresh box details');
-    } finally {
-      setRefreshingDetails(false);
     }
   };
 
@@ -409,18 +368,7 @@ const BoxVerificationPage: React.FC = () => {
         <div>
           <div><Text code>{record.firstCouponId}</Text></div>
           <div style={{ fontSize: '12px', color: '#666' }}>to</div>
-          <div>
-            {record.lastCouponId ? (
-              <Text code>{record.lastCouponId}</Text>
-            ) : (
-              <Text type="secondary" italic>Not calculated</Text>
-            )}
-          </div>
-          {record.totalFuel && (
-            <div style={{ fontSize: '11px', color: '#52c41a', marginTop: '2px' }}>
-              {record.totalFuel.toLocaleString()}L total
-            </div>
-          )}
+          <div><Text code>{record.lastCouponId}</Text></div>
         </div>
       )
     },
@@ -443,18 +391,7 @@ const BoxVerificationPage: React.FC = () => {
       dataIndex: 'totalCoupons',
       key: 'totalCoupons',
       width: 100,
-      render: (text, record) => (
-        <div>
-          <div>{text > 0 ? text.toLocaleString() : <Text type="secondary">Not calculated</Text>}</div>
-          {!record.lastCouponId && record.firstCouponId && record.numberOfBooks > 0 && (
-            <Tooltip title="Missing details detected. Click refresh to calculate.">
-              <Text type="warning" style={{ fontSize: '10px' }}>
-                ⚠ Incomplete
-              </Text>
-            </Tooltip>
-          )}
-        </div>
-      )
+      render: (text) => text.toLocaleString()
     },
     {
       title: 'Verification Status',
@@ -477,36 +414,22 @@ const BoxVerificationPage: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      width: 250,
+      width: 200,
       render: (record) => (
-        <Space size="small" direction="vertical">
-          <Space size="small">
-            <Tooltip title="Refresh and calculate missing details">
-              <Button
-                icon={<ReloadOutlined />}
-                size="small"
-                loading={refreshingDetails}
-                onClick={() => refreshBoxDetails(record.id)}
-                disabled={!record.firstCouponId || !record.numberOfBooks}
-              >
-                Refresh
-              </Button>
-            </Tooltip>
-            <Button
-              icon={<EyeOutlined />}
-              size="small"
-              onClick={() => handleVerifyBox(record)}
-            >
-              Verify
-            </Button>
-          </Space>
+        <Space size="small">
+          <Button
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => handleVerifyBox(record)}
+          >
+            Verify
+          </Button>
           <Button
             icon={<SignatureOutlined />}
             size="small"
             type="primary"
             disabled={!record.verificationStatus.boxVerified || !record.verificationStatus.allBooksVerified}
             onClick={() => handleSignOff(record)}
-            style={{ width: '100%' }}
           >
             Sign Off
           </Button>
@@ -518,31 +441,12 @@ const BoxVerificationPage: React.FC = () => {
   return (
     <div>
       <Card>
-        <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-          <Col>
-            <Title level={4}>Box & Coupon Verification</Title>
-            <Text type="secondary">
-              Verify each box and its books, then confirm and sign off on the coupon serials
-            </Text>
-          </Col>
-          <Col>
-            <Space>
-              <Button
-                icon={<SyncOutlined />}
-                onClick={loadBoxes}
-                loading={loading}
-              >
-                Refresh All
-              </Button>
-              <Button
-                type="primary"
-                onClick={() => message.info('Bulk operations available')}
-              >
-                Bulk Actions
-              </Button>
-            </Space>
-          </Col>
-        </Row>
+        <div style={{ marginBottom: 16 }}>
+          <Title level={4}>Box & Coupon Verification</Title>
+          <Text type="secondary">
+            Verify each box and its books, then confirm and sign off on the coupon serials
+          </Text>
+        </div>
 
         <Table
           columns={columns}

@@ -1024,41 +1024,45 @@ class Box(ArchivableModel):
                 self._generate_sequential_books()
 
     def _generate_sequential_books(self):
-        """Generate book records with sequential coupon numbering (AA000AA###### pattern)"""
+        """Generate book records with sequential coupon numbering"""
         if not self.first_coupon_number or not self.last_coupon_number:
             return
-
-        # Parse prefix and numeric tail (captures all before final digits)
-        m = re.match(r'^(.*?)(\d+)$', self.first_coupon_number)
-        if not m:
+            
+        first_num = self._extract_coupon_number(self.first_coupon_number)
+        if not first_num:
             return
-        prefix_all = m.group(1)
-        first_tail = int(m.group(2))
-        number_length = len(m.group(2))
-
+            
+        # Extract prefix from coupon number (e.g., "PU06GH")
+        prefix_match = re.match(r'^(PU\d{2}[A-Z]{2})', self.first_coupon_number)
+        if not prefix_match:
+            return
+            
+        prefix = prefix_match.group(1)
         coupons_per_book = self.coupons_per_book
-
+        
         for book_num in range(1, self.number_of_books + 1):
-            start_tail = first_tail + (book_num - 1) * coupons_per_book
-            end_tail = start_tail + coupons_per_book - 1
-
+            start_coupon = first_num + (book_num - 1) * coupons_per_book
+            end_coupon = start_coupon + coupons_per_book - 1
+            
             book_number = f"Book {book_num}"
             book_code = f"{self.box_code}-BOOK-{book_number}"
-
+            
             # Check if book already exists with this code
             existing_book = Book.objects.filter(book_code=book_code).first()
             if existing_book:
-                existing_book.first_coupon_number = f"{prefix_all}{start_tail:0{number_length}d}"
-                existing_book.last_coupon_number = f"{prefix_all}{end_tail:0{number_length}d}"
+                # Update existing book instead of creating new one
+                existing_book.first_coupon_number = f"{prefix}{start_coupon:06d}"
+                existing_book.last_coupon_number = f"{prefix}{end_coupon:06d}"
                 existing_book.initial_coupon_count = coupons_per_book
                 existing_book.save()
             else:
+                # Create new book
                 Book.objects.create(
                     box=self,
                     book_number=book_number,
                     book_code=book_code,
-                    first_coupon_number=f"{prefix_all}{start_tail:0{number_length}d}",
-                    last_coupon_number=f"{prefix_all}{end_tail:0{number_length}d}",
+                    first_coupon_number=f"{prefix}{start_coupon:06d}",
+                    last_coupon_number=f"{prefix}{end_coupon:06d}",
                     initial_coupon_count=coupons_per_book
                 )
 
@@ -1191,17 +1195,17 @@ class Box(ArchivableModel):
         self.books.all().delete()
         
         try:
-            # Parse prefix and numeric tails generically
-            first_m = re.match(r'^(.*?)(\d+)$', self.first_coupon_number)
-            last_m = re.match(r'^(.*?)(\d+)$', self.last_coupon_number)
-
-            if not first_m or not last_m:
+            # Extract prefix and numeric parts
+            first_match = re.search(r'(\D*)(\d+)$', self.first_coupon_number)
+            last_match = re.search(r'(\D*)(\d+)$', self.last_coupon_number)
+            
+            if not first_match or not last_match:
                 raise ValueError("Invalid coupon number format")
-
-            prefix_all = first_m.group(1)
-            first_num = int(first_m.group(2))
-            last_num = int(last_m.group(2))
-            number_length = len(first_m.group(2))
+            
+            prefix = first_match.group(1)
+            first_num = int(first_match.group(2))
+            last_num = int(last_match.group(2))
+            number_length = len(first_match.group(2))
             
             total_coupons = last_num - first_num + 1
             expected_coupons = self.number_of_books * self.coupons_per_book
@@ -1222,8 +1226,8 @@ class Box(ArchivableModel):
                 book = Book.objects.create(
                     box=self,
                     book_number=f"Book {book_number:02d}",
-                    first_coupon_number=f"{prefix_all}{book_first:0{number_length}d}",
-                    last_coupon_number=f"{prefix_all}{book_last:0{number_length}d}",
+                    first_coupon_number=f"{prefix}{book_first:0{number_length}d}",
+                    last_coupon_number=f"{prefix}{book_last:0{number_length}d}",
                     initial_coupon_count=self.coupons_per_book
                 )
                 
@@ -1234,7 +1238,7 @@ class Box(ArchivableModel):
                 for page_idx in range(self.coupons_per_book):
                     page_number = page_idx + 1
                     coupon_num = book_first + page_idx
-                    coupon_number = f"{prefix_all}{coupon_num:0{number_length}d}"
+                    coupon_number = f"{prefix}{coupon_num:0{number_length}d}"
                     
                     # Create page
                     page = BookPage(
@@ -1253,7 +1257,7 @@ class Box(ArchivableModel):
                 pages = book.pages.all().order_by('page_number')
                 for idx, page in enumerate(pages):
                     coupon_num = book_first + idx
-                    coupon_number = f"{prefix_all}{coupon_num:0{number_length}d}"
+                    coupon_number = f"{prefix}{coupon_num:0{number_length}d}"
                     
                     coupon = Coupon(
                         book=book,
@@ -1318,12 +1322,15 @@ class Box(ArchivableModel):
             return []
         
         try:
-            m = re.match(r'^(.*?)(\d+)$', self.first_coupon_number or '')
-            if not m:
+            first_match = re.search(r'(\D*)(\d+)$', self.first_coupon_number)
+            last_match = re.search(r'(\D*)(\d+)$', self.last_coupon_number)
+            
+            if not first_match or not last_match:
                 return []
-            prefix_all = m.group(1)
-            first_num = int(m.group(2))
-            number_length = len(m.group(2))
+            
+            prefix = first_match.group(1)
+            first_num = int(first_match.group(2))
+            number_length = len(first_match.group(2))
             
             book_ranges = []
             current_num = first_num
@@ -1336,8 +1343,8 @@ class Box(ArchivableModel):
                 book_ranges.append({
                     'book_number': book_number,
                     'book_name': f"Book {book_number:02d}",
-                    'first_coupon': f"{prefix_all}{book_first:0{number_length}d}",
-                    'last_coupon': f"{prefix_all}{book_last:0{number_length}d}",
+                    'first_coupon': f"{prefix}{book_first:0{number_length}d}",
+                    'last_coupon': f"{prefix}{book_last:0{number_length}d}",
                     'coupon_count': self.coupons_per_book,
                     'litres_total': self.coupons_per_book * self.denomination
                 })

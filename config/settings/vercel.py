@@ -61,8 +61,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # CORS settings for Vercel deployment
 CORS_ALLOWED_ORIGINS = [
+    # Backend domains
     'https://parliament-fuel-system.vercel.app',
     'https://zw-parliament-fuel-system.vercel.app',
+    # Frontend domains
+    'https://parliament-fuel-frontend.vercel.app',
+    'https://zw-parliament-fuel-frontend.vercel.app',
+    # Development
+    'http://localhost:3000',
+    'http://localhost:5173',  # Vite default port
 ]
 
 # Add Vercel URL if available

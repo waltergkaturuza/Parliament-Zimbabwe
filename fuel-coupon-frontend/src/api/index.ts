@@ -1,14 +1,25 @@
 // src/api/index.ts
 import axios from 'axios';
 
-// Use Vite proxy in development, direct connection in production
+// API Base URL configuration for Vercel deployment
 const API_BASE_URL = (() => {
+  // Production: Use environment variable for backend URL
   const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-  // TEMPORARY: Use test-login endpoint while debugging auth issues
-  // In development, use proxy path so Vite dev server forwards requests
-  // In production, this would be the actual backend URL
-  return '/api/v1';
+  if (fromEnv) {
+    console.log('🔗 Using API URL from environment:', fromEnv);
+    return fromEnv;
+  }
+  
+  // Development: Use Vite proxy or fallback
+  if (import.meta.env.DEV) {
+    console.log('🔧 Development mode: Using proxy /api/v1');
+    return '/api/v1';
+  }
+  
+  // Fallback for production if env var not set
+  const fallbackUrl = 'https://parliament-fuel-system.vercel.app/api/v1';
+  console.log('⚠️ Fallback API URL:', fallbackUrl);
+  return fallbackUrl;
 })();
 
 // Create axios instance
@@ -60,56 +71,32 @@ apiClient.interceptors.response.use(
       console.log('401 error detected, attempting token refresh...');
       
       try {
-        const refreshTokenValue = localStorage.getItem('refresh_token');
-        if (!refreshTokenValue) {
-          console.warn('No refresh token available, cannot refresh');
-          // Clear any stale tokens and return 401 instead of redirecting
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          console.warn('No refresh token available, redirecting to login');
+          window.location.href = '/login';
           return Promise.reject(error);
         }
 
-        // Prevent infinite recursion: don't try to refresh if this IS the refresh endpoint
-        if (originalRequest.url?.includes('/auth/refresh/')) {
-          console.warn('Refresh token itself failed, clearing tokens');
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          return Promise.reject(error);
-        }
-
-        // Try to refresh the token using a new axios instance to avoid interceptor recursion
-        const refreshResponse = await fetch(`${apiClient.defaults.baseURL}/auth/refresh/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refresh: refreshTokenValue }),
+        // Try to refresh the token using the same apiClient and the /auth/refresh/ endpoint under /api/v1
+        const refreshResponse = await apiClient.post('/auth/refresh/', {
+          refresh: refreshToken,
         });
         
-        if (!refreshResponse.ok) {
-          throw new Error(`Refresh failed: ${refreshResponse.status}`);
-        }
+        const newAccessToken = refreshResponse.data.access;
+        localStorage.setItem('access_token', newAccessToken);
         
-        const refreshData = await refreshResponse.json();
-        const newAccessToken = refreshData.access;
+        // Update authorization header for the failed request
+        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
         
-        if (newAccessToken) {
-          localStorage.setItem('access_token', newAccessToken);
-          
-          // Update authorization header for the failed request
-          originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-          
-          console.log('Token refreshed successfully, retrying original request...');
-          return apiClient(originalRequest);
-        } else {
-          throw new Error('No access token in refresh response');
-        }
+        console.log('Token refreshed successfully, retrying original request...');
+        return apiClient(originalRequest);
         
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        // Don't redirect automatically, let the app handle it
+        window.location.href = '/login';
         return Promise.reject(error);
       }
     }
