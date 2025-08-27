@@ -1,1 +1,1 @@
-# No dependencies needed for basic test
+Django==4.1.13
