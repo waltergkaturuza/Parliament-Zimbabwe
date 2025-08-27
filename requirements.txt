@@ -1,8 +1,1 @@
-Django==4.1.13
-psycopg2-binary==2.9.5
-django-cors-headers==3.14.0
-dj-database-url==2.0.0
-djangorestframework==3.14.0
-whitenoise==6.4.0
-gunicorn==20.1.0
-python-decouple==3.8
+# No dependencies needed for basic test
