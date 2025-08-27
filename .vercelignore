@@ -1,0 +1,5 @@
+# Minimal ignore to prevent Node.js detection
+fuel-coupon-frontend/
+package.json
+package-lock.json
+node_modules/
