@@ -1,14 +1,16 @@
+# DISABLED - Azure workflow temporarily disabled for Vercel deployment
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 # More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
 
-name: Build and deploy Python app to Azure Web App - parliament-fuel-system
+name: DISABLED - Build and deploy Python app to Azure Web App - parliament-fuel-system
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  # DISABLED: Commenting out triggers to prevent Azure deployment
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch: # Keep manual trigger only
 
 jobs:
   build:
@@ -55,16 +57,18 @@ jobs:
         with:
           name: python-app
       
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0ABCA55D526B4F3BADDB1F23399FF55B }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9ABAC26548F845E8BB1C8FA507EA948F }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_17A327A51BBB47188AF15416F504FAFA }}
+      # DISABLED: Azure login and deployment steps
+      # - name: Login to Azure
+      #   uses: azure/login@v2
+      #   with:
+      #     client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0ABCA55D526B4F3BADDB1F23399FF55B }}
+      #     tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9ABAC26548F845E8BB1C8FA507EA948F }}
+      #     subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_17A327A51BBB47188AF15416F504FAFA }}
 
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
-        with:
+      # - name: 'Deploy to Azure Web App'
+      #   uses: azure/webapps-deploy@v3
+      #   id: deploy-to-webapp
+      #   with:
+      #     app-name: 'parliament-fuel-system'
           app-name: 'parliament-fuel-system'
           
