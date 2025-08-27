@@ -20,8 +20,9 @@ def api_handler(request):
     return JsonResponse({
         "message": "Parliament Fuel System API - Django Running",
         "status": "success",
-        "version": "1.0.2",
-        "framework": "Django 4.1.13"
+        "version": "1.0.3",
+        "framework": "Django 4.1.13",
+        "timestamp": "2025-08-27 17:30"
     })
 
 # Vercel handler
@@ -32,8 +33,9 @@ def handler(request, response):
         response_data = {
             "message": "Parliament Fuel System API - Django Ready",
             "status": "running",
-            "version": "1.0.2",
-            "database": "connected" if settings.DATABASES else "not configured"
+            "version": "1.0.3",
+            "database": "connected" if settings.DATABASES else "not configured",
+            "packages": ["Django", "DRF", "WhiteNoise", "Gunicorn"]
         }
         return {
             'statusCode': 200,
