@@ -1,10 +1,17 @@
 # Vercel ignore file - exclude ALL unnecessary files to minimize function size
 
-# CRITICAL: Exclude frontend to prevent Node.js build detection
+# CRITICAL: Exclude frontend and Node.js files to prevent detection
 fuel-coupon-frontend/
 package.json
 package-lock.json
 node_modules/
+*.js
+*.jsx
+*.ts
+*.tsx
+*.html
+*.css
+*.scss
 
 # Python cache and bytecode
 __pycache__/

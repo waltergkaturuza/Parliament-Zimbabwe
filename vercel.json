@@ -17,5 +17,13 @@
   ],
   "env": {
     "DJANGO_SETTINGS_MODULE": "config.settings.vercel"
-  }
+  },
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "installCommand": "",
+  "buildCommand": "",
+  "framework": null
 }
