@@ -17,10 +17,21 @@ try:
     
     # Initialize Django
     django.setup()
-    django_status = "Django loaded successfully"
+    
+    # Test database connection
+    try:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        db_status = "Database connected"
+    except Exception as db_e:
+        db_status = f"Database error: {str(db_e)}"
+    
+    django_status = "Django + Database loaded successfully"
     
 except Exception as e:
     django_status = f"Django error: {str(e)}"
+    db_status = "Database not tested"
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -30,11 +41,12 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         
         response = {
-            "message": "Parliament Fuel System - Django Test",
+            "message": "Parliament Fuel System - Django + Database Test",
             "status": "working",
             "platform": "vercel",
             "django_status": django_status,
-            "version": "1.1.0"
+            "database_status": db_status,
+            "version": "1.2.0"
         }
         
         self.wfile.write(json.dumps(response).encode())
