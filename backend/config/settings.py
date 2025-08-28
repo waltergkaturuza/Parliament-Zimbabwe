@@ -76,6 +76,7 @@ AUTH_USER_MODEL = 'fuel.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
+    'backend.config.force_cors_middleware.ForceCorsMiddleware',  # Constrained, short-term CORS echo for /api/ on onrender.com
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -138,12 +139,10 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.onrender\.com$",
 ]
 
-# TEMPORARY DEBUG: allow all origins to ensure Access-Control-Allow-Origin is present
-# Set to False after verification
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Additional CORS settings for proper preflight handling
-CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
+# Ensure credentials are allowed when specific origins are set
 CORS_ALLOW_CREDENTIALS = True
 CORS_REPLACE_HTTPS_REFERER = True  # Important for Azure deployments
 CORS_PREFLIGHT_MAX_AGE = 86400
@@ -183,8 +182,8 @@ CORS_EXPOSE_HEADERS = [
 ]
 
 # Ensure CORS headers are always added
-CORS_ALLOWED_ORIGINS_ALL = True  # Temporarily for debugging
-CORS_ALLOW_ALL_ORIGINS = True    # Temporarily enable all origins for debugging
+CORS_ALLOWED_ORIGINS_ALL = False
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Debug CORS configuration
 print(f"DEBUG: CORS_ALLOWED_ORIGINS = {CORS_ALLOWED_ORIGINS}")

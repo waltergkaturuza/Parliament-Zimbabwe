@@ -1,29 +1,55 @@
-# Temporary middleware to force CORS headers for debugging
-# Remove once proper CORS behavior is confirmed
+"""Constrained Force CORS middleware for short-term debugging only.
+
+This middleware echoes the Origin header back in the response, but only when:
+- The request path starts with /api/
+- The Origin matches an onrender.com subdomain (safety scoping)
+
+Replace with proper django-cors-headers configuration and remove this file
+once CORS is confirmed working in production. Keep this file minimal and
+conservative to reduce risk.
+"""
+
+import re
+from typing import Callable
+
+ONRENDER_REGEX = re.compile(r"^https://.*\\.onrender\\.com$")
+
 
 class ForceCorsMiddleware:
-    """Set Access-Control-Allow-Origin and related headers on every response
-    when an Origin header is present. This is a short-term workaround to ensure
-    browser requests receive the expected CORS headers while we diagnose root cause.
-    """
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
-        origin = request.headers.get('Origin') or request.META.get('HTTP_ORIGIN')
-        if origin:
+
+        origin = None
+        # Prefer modern header accessor when available
+        try:
+            origin = request.headers.get('Origin')
+        except Exception:
+            origin = request.META.get('HTTP_ORIGIN')
+
+        path = request.path or ''
+
+        if origin and path.startswith('/api/') and ONRENDER_REGEX.match(origin):
             # Echo the origin to support credentials
             response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Credentials'] = 'true'
-            # Ensure the Vary header includes Origin
+
+            # Ensure Vary header includes Origin
             vary = response.get('Vary')
             if vary:
-                if 'Origin' not in [h.strip() for h in vary.split(',')]:
-                    response['Vary'] = f"{vary}, Origin"
+                parts = [h.strip() for h in vary.split(',')]
+                if 'Origin' not in parts:
+                    parts.append('Origin')
+                    response['Vary'] = ', '.join(parts)
             else:
                 response['Vary'] = 'Origin'
-            # Allow common methods and headers used by the frontend
-            response.setdefault('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE')
-            response.setdefault('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-CSRFToken, X-Requested-With')
+
+            # Ensure common methods and headers are present for preflight responses
+            if not response.get('Access-Control-Allow-Methods'):
+                response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, PATCH, DELETE'
+            if not response.get('Access-Control-Allow-Headers'):
+                response['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-CSRFToken, X-Requested-With'
+
         return response
