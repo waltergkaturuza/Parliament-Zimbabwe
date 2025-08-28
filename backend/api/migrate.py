@@ -34,6 +34,9 @@ class handler(BaseHTTPRequestHandler):
                 
                 # Mock psycopg2 module for Django compatibility
                 class Psycopg2Compat:
+                    # Version info
+                    __version__ = "2.9.6"  # Mock version for compatibility
+                    
                     @staticmethod
                     def connect(*args, **kwargs):
                         return psycopg.connect(*args, **kwargs)
@@ -53,14 +56,14 @@ class handler(BaseHTTPRequestHandler):
                     threadsafety = 2
                     paramstyle = "pyformat"
                     
-                        # Extensions module for Django compatibility
-                        class extensions:
-                            # Use numeric values for isolation levels (psycopg 3 compatible)
-                            ISOLATION_LEVEL_AUTOCOMMIT = 0
-                            ISOLATION_LEVEL_READ_COMMITTED = 2
-                            ISOLATION_LEVEL_SERIALIZABLE = 4
-                            ISOLATION_LEVEL_REPEATABLE_READ = 3
-                            ISOLATION_LEVEL_READ_UNCOMMITTED = 1
+                    # Extensions module for Django compatibility
+                    class extensions:
+                        # Use numeric values for isolation levels (psycopg 3 compatible)
+                        ISOLATION_LEVEL_AUTOCOMMIT = 0
+                        ISOLATION_LEVEL_READ_COMMITTED = 2
+                        ISOLATION_LEVEL_SERIALIZABLE = 4
+                        ISOLATION_LEVEL_REPEATABLE_READ = 3
+                        ISOLATION_LEVEL_READ_UNCOMMITTED = 1
                         
                         class cursor:
                             pass

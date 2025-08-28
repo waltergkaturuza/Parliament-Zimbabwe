@@ -24,6 +24,9 @@ class handler(BaseHTTPRequestHandler):
                 
                 # Mock psycopg2 module for Django compatibility
                 class Psycopg2Compat:
+                    # Version info
+                    __version__ = "2.9.6"  # Mock version for compatibility
+                    
                     @staticmethod
                     def connect(*args, **kwargs):
                         return psycopg.connect(*args, **kwargs)
