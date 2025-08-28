@@ -74,11 +74,31 @@ class handler(BaseHTTPRequestHandler):
                         @staticmethod
                         def DictCursor(*args, **kwargs):
                             return psycopg.extras.DictCursor(*args, **kwargs)
+                    
+                    # Errorcodes module for Django compatibility
+                    class errorcodes:
+                        # Common PostgreSQL error codes that Django might use
+                        UNIQUE_VIOLATION = '23505'
+                        FOREIGN_KEY_VIOLATION = '23503'
+                        CHECK_VIOLATION = '23514'
+                        NOT_NULL_VIOLATION = '23502'
+                        EXCLUSION_VIOLATION = '23P01'
+                        INVALID_TEXT_REPRESENTATION = '22P02'
+                        NUMERIC_VALUE_OUT_OF_RANGE = '22003'
+                        DIVISION_BY_ZERO = '22012'
+                        DATETIME_FIELD_OVERFLOW = '22008'
+                        INVALID_DATETIME_FORMAT = '22007'
+                        CONNECTION_EXCEPTION = '08000'
+                        CONNECTION_DOES_NOT_EXIST = '08003'
+                        CONNECTION_FAILURE = '08006'
+                        SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION = '08001'
+                        SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION = '08004'
                 
                 psycopg2_compat = Psycopg2Compat()
                 sys.modules['psycopg2'] = psycopg2_compat
                 sys.modules['psycopg2.extensions'] = psycopg2_compat.extensions()
                 sys.modules['psycopg2.extras'] = psycopg2_compat.extras()
+                sys.modules['psycopg2.errorcodes'] = psycopg2_compat.errorcodes()
             
             # Initialize Django (only if not already configured)
             import django
