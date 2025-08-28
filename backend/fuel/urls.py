@@ -193,6 +193,9 @@ urlpatterns = [
     # Authentication
     path('auth/register/', lazy_class_view('RegisterView'), name='register'),
     path('auth/login/', lazy_class_view('LoginView'), name='login'),
+    # Short aliases so frontend using /api + /auth/... works (no double-auth prefix)
+    path('login/', lazy_class_view('LoginView'), name='login-short'),
+    path('register/', lazy_class_view('RegisterView'), name='register-short'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     path('auth/user/', lazy_view('user_profile_view'), name='current-user'),  # Add user profile endpoint
     path('auth/roles/', lazy_view('auth_roles'), name='auth-roles'),  # Available user roles
