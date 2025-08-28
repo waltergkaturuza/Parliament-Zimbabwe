@@ -21,7 +21,16 @@ class handler(BaseHTTPRequestHandler):
             # Initialize Django (only if not already configured)
             import django
             from django.conf import settings
-            
+
+            # Pre-shim psycopg2.__version__ before Django setup to satisfy backend import
+            try:
+                import psycopg2  # noqa: F401
+                if not hasattr(psycopg2, "__version__"):
+                    setattr(psycopg2, "__version__", "2.x-compat")
+            except Exception:
+                # If psycopg2 isn't installed yet, allow setup to fail gracefully later
+                pass
+
             # Check if settings are configured first
             if not settings.configured:
                 # Only initialize if settings are not configured
