@@ -105,6 +105,17 @@ CSRF_TRUSTED_ORIGINS = [
     "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
 ]
 
+# Allow additional CSRF trusted origins via environment variable (comma-separated)
+# Default to include the Render frontend origin so Render-hosted frontend passes Origin checks
+ADDITIONAL_CSRF_TRUSTED_ORIGINS = os.getenv('ADDITIONAL_CSRF_TRUSTED_ORIGINS', 'https://parliament-zimbabwe-fuel.onrender.com').split(',')
+ADDITIONAL_CSRF_TRUSTED_ORIGINS = [o.strip() for o in ADDITIONAL_CSRF_TRUSTED_ORIGINS if o.strip()]
+
+for origin in ADDITIONAL_CSRF_TRUSTED_ORIGINS:
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
+print(f"DEBUG: CSRF_TRUSTED_ORIGINS = {CSRF_TRUSTED_ORIGINS}")
+
 # CORS settings - Support environment variable override
 CORS_ALLOWED_ORIGINS_BASE = [
     "http://localhost:5173",  # React Vite dev server
