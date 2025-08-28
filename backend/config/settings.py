@@ -123,6 +123,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
     # Add alternative backend URLs that might be referenced
     "https://parliament-fuel-system.azurewebsites.net",  # Alternative backend URL
+    # Render Frontend URLs
+    "https://parliament-zimbabwe-fuel.onrender.com",  # Render frontend deployment
 ]
 
 # Additional CORS settings for proper preflight handling
