@@ -35,8 +35,17 @@ def cors_bypass_login(request):
         
         if user is not None:
             print(f"DEBUG: User authenticated successfully: {user.username}, Role: {user.role}")
-            # Generate JWT tokens
+            # Generate JWT tokens with custom claims
             refresh = RefreshToken.for_user(user)
+            
+            # Add custom claims to the refresh token
+            refresh['username'] = user.username
+            refresh['role'] = user.role
+            refresh['user_id'] = user.id
+            refresh['is_superuser'] = user.is_superuser
+            if hasattr(user, 'sub_center') and user.sub_center:
+                refresh['sub_center_id'] = user.sub_center.id
+            
             access_token = str(refresh.access_token)
             refresh_token = str(refresh)
             
