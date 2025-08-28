@@ -17,8 +17,18 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'model_utils',
+    'django_filters',
+    'django_extensions',
+    'crispy_forms',
+    'crispy_bootstrap5',
+    'import_export',
+    'storages',
+    'django_celery_beat',
+    'drf_spectacular',
     'fuel',
     'utils',
+    'api',
 ]
 
 MIDDLEWARE = [
