@@ -52,8 +52,8 @@ const DashboardRedirect = () => {
     
     // Role-based redirect routing
     const routeMap: { [role: string]: string } = {
-      SUPERUSER: '/dashboard/admin',
-      ADMIN: '/dashboard/admin', 
+      SUPERUSER: '/dashboard/inventory-overview', // Give SUPERUSER access to main center operations
+      ADMIN: '/dashboard/inventory-overview', // Give ADMIN access to main center operations  
       MAIN_CENTER: '/dashboard/inventory-overview',
       SUB_CENTER: '/dashboard/sub-center',
       AUDITOR: '/dashboard/audit',
