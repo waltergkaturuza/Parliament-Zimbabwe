@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode production",
+    "build": "NODE_ENV=production vite build --mode production",
     "build:with-types": "tsc && vite build --mode production",
     "preview": "vite preview",
-    "build:analyze": "vite build --mode production --build-analyze"
+    "build:analyze": "vite build --mode production --build-analyze",
+    "build:render": "npm ci && NODE_ENV=production vite build --mode production"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",

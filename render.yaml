@@ -1,0 +1,49 @@
+services:
+  # Backend service (already deployed and working)
+  - name: parliament-zimbabwe-backend
+    type: web
+    runtime: python
+    plan: starter
+    rootDir: backend
+    buildCommand: ./build.sh
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 4 --timeout 120
+    env:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.render
+      
+  # Frontend service
+  - name: parliament-zimbabwe-frontend
+    type: web
+    runtime: static
+    plan: starter
+    rootDir: fuel-coupon-frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    headers:
+      - path: /*
+        headers:
+          - key: X-Frame-Options
+            value: DENY
+          - key: X-Content-Type-Options
+            value: nosniff
+          - key: X-XSS-Protection
+            value: 1; mode=block
+          - key: Cache-Control
+            value: public, max-age=31536000, immutable
+      - path: /index.html
+        headers:
+          - key: Cache-Control
+            value: no-cache, no-store, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    env:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_API_BASE_URL
+        value: https://parliament-zimbabwe.onrender.com
+      - key: VITE_API_URL
+        value: https://parliament-zimbabwe.onrender.com/api
