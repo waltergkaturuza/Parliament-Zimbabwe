@@ -167,6 +167,15 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 package_status['reportlab'] = f"❌ ReportLab error: {str(e)}"
             
+            # Shim psycopg2.__version__ if missing to avoid Django backend check failures
+            try:
+                import psycopg2  # noqa: F401
+                if not hasattr(psycopg2, "__version__"):
+                    # Some shims don't expose __version__; provide a dummy value
+                    setattr(psycopg2, "__version__", "2.x-compat")
+            except Exception:
+                pass
+
             # Test database connectivity
             db_status = "❌ Database not tested"
             try:
