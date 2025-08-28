@@ -51,6 +51,17 @@ class handler(BaseHTTPRequestHandler):
                     DataError = psycopg.DataError
                     NotSupportedError = psycopg.NotSupportedError
                     
+                    # PostgreSQL data types compatibility
+                    try:
+                        Inet = psycopg.types.net.Inet
+                    except (AttributeError, ImportError):
+                        # Fallback if psycopg doesn't have Inet
+                        class Inet:
+                            def __init__(self, addr):
+                                self.addr = addr
+                            def __str__(self):
+                                return str(self.addr)
+                    
                     # Add required attributes
                     apilevel = "2.0"
                     threadsafety = 2
