@@ -28,115 +28,49 @@ xlsxwriter==3.1.2
 reportlab==4.0.4
 setuptools==68.0.0
 
-# Heavy Libraries - Data Science & Analytics
-pandas==2.1.4
-numpy==1.24.4
-scipy==1.11.4
-matplotlib==3.8.2
-seaborn==0.13.0
-plotly==5.17.0
-scikit-learn==1.3.2
-statsmodels==0.14.1
-
-# Machine Learning & AI
-tensorflow==2.15.0
-torch==2.1.2
-torchvision==0.16.2
-transformers==4.36.2
-huggingface-hub==0.19.4
-
-# Advanced Data Processing
-pydantic==2.5.2
-fastapi==0.104.1
-uvicorn==0.24.0
-sqlalchemy==2.0.23
-alembic==1.13.1
-
-# Image & File Processing
-opencv-python==4.8.1.78
-pytesseract==0.3.10
-pdf2image==1.16.3
-pypdf2==3.0.1
-python-magic==0.4.27
-
-# Web Scraping & API Tools
+# Core Data Science (lighter versions for faster builds)
+pandas==1.5.3
+numpy==1.24.3
+matplotlib==3.7.2
+plotly==5.15.0
 requests==2.31.0
+
+# Document Processing
+pypdf2==3.0.1
+python-docx==0.8.11
+
+# Web & API Tools  
 beautifulsoup4==4.12.2
-scrapy==2.11.0
-selenium==4.15.2
-httpx==0.25.2
+httpx==0.24.1
 
 # Async & Performance
-asyncio-mqtt==0.16.1
-aiohttp==3.9.1
-aiofiles==23.2.1
-uvloop==0.19.0
+aiohttp==3.8.5
+aiofiles==23.1.0
 
 # Testing & Development
-pytest==7.4.3
-pytest-django==4.7.0
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-factory-boy==3.3.0
-faker==20.1.0
+pytest==7.4.0
+pytest-django==4.5.2
+faker==19.3.0
 
 # Monitoring & Logging
-sentry-sdk==1.38.0
-structlog==23.2.0
-python-json-logger==2.0.7
-prometheus-client==0.19.0
+sentry-sdk==1.32.0
+structlog==23.1.0
 
 # Security & Authentication
-cryptography==41.0.8
+cryptography==41.0.4
 pyjwt==2.8.0
-python-jose==3.3.0
 passlib==1.7.4
-bcrypt==4.1.2
 
-# Task Queue & Background Jobs
+# Task Queue
 rq==1.15.1
-django-rq==2.8.1
-dramatiq==1.14.0
-
-# Caching & Session Management
-django-redis==5.4.0
-memcached==1.59
-python-memcached==1.62
+django-rq==2.7.0
 
 # Email & Communication
 sendgrid==6.10.0
-twilio==8.11.0
-django-anymail==10.2
-
-# Geographic & Location
-geodjango==0.1.1
-geopy==2.4.1
-folium==0.15.0
-
-# Financial & Business
-stripe==7.8.0
-paypal-checkout-serversdk==1.0.1
-yfinance==0.2.28
-
-# Document Generation
-weasyprint==60.2
-xhtml2pdf==0.2.11
-docx==0.2.4
-python-docx==1.1.0
-
-# Internationalization
-django-modeltranslation==0.18.11
-babel==2.14.0
-python-gettext==5.0
 
 # API Documentation
-drf-spectacular==0.27.0
-django-rest-swagger==2.2.0
-redoc==2.1.0
+drf-spectacular==0.26.4
 
 # Development Tools
-django-debug-toolbar==4.2.0
-django-silk==5.0.4
-ipython==8.18.1
-jupyter==1.0.0
-notebook==7.0.6
+django-debug-toolbar==4.1.0
+ipython==8.14.0

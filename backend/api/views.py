@@ -58,7 +58,7 @@ def health_check(request):
         except Exception as e:
             package_status['psycopg2'] = f"❌ psycopg2 error: {str(e)}"
         
-        # Data Science Libraries
+        # Data Science Libraries (lighter but powerful)
         try:
             import pandas as pd
             package_status['pandas'] = f"✅ Pandas {pd.__version__}"
@@ -72,74 +72,55 @@ def health_check(request):
             package_status['numpy'] = f"❌ NumPy error: {str(e)}"
         
         try:
-            import scipy
-            package_status['scipy'] = f"✅ SciPy {scipy.__version__}"
-        except Exception as e:
-            package_status['scipy'] = f"❌ SciPy error: {str(e)}"
-        
-        try:
             import matplotlib
             package_status['matplotlib'] = f"✅ Matplotlib {matplotlib.__version__}"
         except Exception as e:
             package_status['matplotlib'] = f"❌ Matplotlib error: {str(e)}"
         
         try:
-            import sklearn
-            package_status['scikit_learn'] = f"✅ Scikit-learn {sklearn.__version__}"
+            import plotly
+            package_status['plotly'] = f"✅ Plotly {plotly.__version__}"
         except Exception as e:
-            package_status['scikit_learn'] = f"❌ Scikit-learn error: {str(e)}"
-        
-        # Machine Learning Libraries
-        try:
-            import tensorflow as tf
-            package_status['tensorflow'] = f"✅ TensorFlow {tf.__version__}"
-        except Exception as e:
-            package_status['tensorflow'] = f"❌ TensorFlow error: {str(e)}"
-        
-        try:
-            import torch
-            package_status['pytorch'] = f"✅ PyTorch {torch.__version__}"
-        except Exception as e:
-            package_status['pytorch'] = f"❌ PyTorch error: {str(e)}"
-        
-        try:
-            import transformers
-            package_status['transformers'] = f"✅ Transformers {transformers.__version__}"
-        except Exception as e:
-            package_status['transformers'] = f"❌ Transformers error: {str(e)}"
+            package_status['plotly'] = f"❌ Plotly error: {str(e)}"
         
         # Web & API Libraries
-        try:
-            import fastapi
-            package_status['fastapi'] = f"✅ FastAPI {fastapi.__version__}"
-        except Exception as e:
-            package_status['fastapi'] = f"❌ FastAPI error: {str(e)}"
-        
         try:
             import requests
             package_status['requests'] = f"✅ Requests {requests.__version__}"
         except Exception as e:
             package_status['requests'] = f"❌ Requests error: {str(e)}"
         
-        # Image Processing
         try:
-            import cv2
-            package_status['opencv'] = f"✅ OpenCV {cv2.__version__}"
+            import httpx
+            package_status['httpx'] = f"✅ HTTPX {httpx.__version__}"
         except Exception as e:
-            package_status['opencv'] = f"❌ OpenCV error: {str(e)}"
+            package_status['httpx'] = f"❌ HTTPX error: {str(e)}"
         
+        try:
+            import aiohttp
+            package_status['aiohttp'] = f"✅ aiohttp {aiohttp.__version__}"
+        except Exception as e:
+            package_status['aiohttp'] = f"❌ aiohttp error: {str(e)}"
+        
+        # Document Processing
         try:
             import reportlab
             package_status['reportlab'] = f"✅ ReportLab {reportlab.Version}"
         except Exception as e:
             package_status['reportlab'] = f"❌ ReportLab error: {str(e)}"
         
+        try:
+            import openpyxl
+            package_status['openpyxl'] = f"✅ OpenPyXL {openpyxl.__version__}"
+        except Exception as e:
+            package_status['openpyxl'] = f"❌ OpenPyXL error: {str(e)}"
+        
         # Count successful packages
         successful_packages = len([status for status in package_status.values() if status.startswith('✅')])
         total_packages = len(package_status)
         
         response_data = {
-            'message': 'Parliament Fuel System - Heavy-Duty Django API on Render',
+            'message': 'Parliament Fuel System - Optimized Django API on Render',
             'status': 'production_ready',
             'platform': 'render',
             'timestamp': timezone.now().isoformat(),
@@ -152,39 +133,35 @@ def health_check(request):
                 'allowed_hosts': settings.ALLOWED_HOSTS,
                 'database_engine': settings.DATABASES['default']['ENGINE'],
             },
-            'version': '3.0.0-heavy',
+            'version': '3.1.0-optimized',
             'features': [
                 'Django REST Framework',
                 'JWT Authentication',
                 'PostgreSQL Database',
-                'Data Science Suite (Pandas, NumPy, SciPy)',
-                'Machine Learning (TensorFlow, PyTorch, Scikit-learn)',
-                'Computer Vision (OpenCV)',
-                'Natural Language Processing (Transformers)',
-                'Advanced Analytics & Visualization',
-                'PDF & Document Generation',
-                'Image Processing & OCR',
-                'Web Scraping & API Tools',
-                'Async Processing',
+                'Data Science Suite (Pandas, NumPy, Matplotlib)',
+                'Visualization (Plotly)',
+                'Document Processing (PDF, Excel, Word)',
+                'Advanced HTTP Clients (Requests, HTTPX, aiohttp)',
                 'Background Jobs & Celery',
                 'Redis Caching',
                 'AWS S3 Storage',
-                'Email & SMS Integration',
-                'Geographic Processing',
-                'Financial APIs (Stripe, PayPal)',
-                'Monitoring & Logging',
+                'Email Integration',
+                'API Documentation',
                 'Testing & Development Tools',
                 'Production Monitoring',
+                'Async Processing',
+                'Security & Authentication',
             ],
             'capabilities': {
-                'data_science': 'Pandas, NumPy, SciPy, Matplotlib, Seaborn, Plotly',
-                'machine_learning': 'TensorFlow, PyTorch, Scikit-learn, Transformers',
-                'web_apis': 'FastAPI, Requests, aiohttp, httpx',
-                'document_processing': 'ReportLab, WeasyPrint, python-docx, PDF2Image',
-                'image_processing': 'OpenCV, Pillow, Tesseract OCR',
-                'async_processing': 'Celery, RQ, asyncio, uvloop',
-                'monitoring': 'Sentry, Prometheus, Structlog',
-                'development': 'Jupyter, IPython, Debug Toolbar, pytest',
+                'data_analysis': 'Pandas, NumPy for data manipulation and analysis',
+                'visualization': 'Matplotlib, Plotly for charts and interactive plots',
+                'web_apis': 'Requests, HTTPX, aiohttp for API integration',
+                'document_processing': 'ReportLab, OpenPyXL, python-docx for documents',
+                'async_processing': 'Celery, RQ, aiohttp for background tasks',
+                'monitoring': 'Sentry, Structlog for production monitoring',
+                'development': 'IPython, pytest, Debug Toolbar for development',
+                'build_time': 'Optimized for fast builds (~5-8 minutes)',
+                'reliability': 'Stable dependency versions, tested compatibility',
             }
         }
         
