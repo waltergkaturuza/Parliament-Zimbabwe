@@ -20,11 +20,18 @@ class handler(BaseHTTPRequestHandler):
         try:
             # Initialize Django (only if not already configured)
             import django
-            if not django.apps.apps.ready:
-                django.setup()
-            
             from django.conf import settings
-            from django.db import connection
+            
+            # Check if settings are configured first
+            if not settings.configured:
+                # Only initialize if settings are not configured
+                try:
+                    django.setup()
+                except Exception as django_error:
+                    # If Django setup fails, continue with basic package testing
+                    pass
+            
+            # Skip importing database-dependent modules initially
             from django.utils import timezone
             
             # Test all installed packages
@@ -40,7 +47,9 @@ class handler(BaseHTTPRequestHandler):
             # Database adapter
             try:
                 import psycopg2
-                package_status['psycopg2'] = f"✅ psycopg2 {psycopg2.__version__}"
+                # Handle cases where __version__ might not be available
+                version = getattr(psycopg2, '__version__', 'unknown')
+                package_status['psycopg2'] = f"✅ psycopg2 {version}"
             except Exception as e:
                 package_status['psycopg2'] = f"❌ psycopg2 error: {str(e)}"
             
@@ -161,13 +170,18 @@ class handler(BaseHTTPRequestHandler):
             # Test database connectivity
             db_status = "❌ Database not tested"
             try:
-                with connection.cursor() as cursor:
-                    cursor.execute("SELECT version()")
-                    result = cursor.fetchone()
-                    if result:
-                        db_status = f"✅ Database connected: {result[0][:50]}..."
-                    else:
-                        db_status = "❌ Database query returned no results"
+                # Only test database if Django setup was successful
+                if settings.configured:
+                    from django.db import connection
+                    with connection.cursor() as cursor:
+                        cursor.execute("SELECT version()")
+                        result = cursor.fetchone()
+                        if result:
+                            db_status = f"✅ Database connected: {result[0][:50]}..."
+                        else:
+                            db_status = "❌ Database query returned no results"
+                else:
+                    db_status = "❌ Database not tested - Django not configured"
             except Exception as e:
                 db_status = f"❌ Database error: {str(e)}"
             
