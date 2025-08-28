@@ -1,7 +1,7 @@
 // src/api/index.ts
 import axios from 'axios';
 
-// API Base URL configuration for Vercel deployment
+// API Base URL configuration for Render deployment
 const API_BASE_URL = (() => {
   // Production: Use environment variable for backend URL
   const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
@@ -12,13 +12,13 @@ const API_BASE_URL = (() => {
   
   // Development: Use Vite proxy or fallback
   if (import.meta.env.DEV) {
-    console.log('🔧 Development mode: Using proxy /api/v1');
-    return '/api/v1';
+    console.log('🔧 Development mode: Using proxy /api');
+    return '/api';
   }
   
-  // Fallback for production if env var not set
-  const fallbackUrl = 'https://parliament-fuel-system.vercel.app/api/v1';
-  console.log('⚠️ Fallback API URL:', fallbackUrl);
+  // Fallback for production: Use Render backend
+  const fallbackUrl = 'https://parliament-zimbabwe.onrender.com/api';
+  console.log('⚠️ Using Render backend URL:', fallbackUrl);
   return fallbackUrl;
 })();
 
