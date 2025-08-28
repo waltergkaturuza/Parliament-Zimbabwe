@@ -50,7 +50,22 @@ class handler(BaseHTTPRequestHandler):
                     threadsafety = 2
                     paramstyle = "pyformat"
                     
-                sys.modules['psycopg2'] = Psycopg2Compat()
+                    # Extensions module for Django compatibility
+                    class extensions:
+                        ISOLATION_LEVEL_AUTOCOMMIT = psycopg.IsolationLevel.AUTOCOMMIT
+                        ISOLATION_LEVEL_READ_COMMITTED = psycopg.IsolationLevel.READ_COMMITTED
+                        ISOLATION_LEVEL_SERIALIZABLE = psycopg.IsolationLevel.SERIALIZABLE
+                        ISOLATION_LEVEL_REPEATABLE_READ = psycopg.IsolationLevel.REPEATABLE_READ
+                        
+                        class cursor:
+                            pass
+                        
+                        class connection:
+                            pass
+                
+                psycopg2_compat = Psycopg2Compat()
+                sys.modules['psycopg2'] = psycopg2_compat
+                sys.modules['psycopg2.extensions'] = psycopg2_compat.extensions()
             
             # Initialize Django only if not already configured
             import django
