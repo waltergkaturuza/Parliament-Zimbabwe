@@ -11,9 +11,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-1*p133x5+uzwh8&axhdhi41jq=%&p(9)pzmoyob$(a01)rcs&z')
 
-# Force DEBUG mode to True for local development
-DEBUG = True
-print(f"DEBUG: Forced DEBUG to True for local development")
+# DEBUG mode - environment-driven for production safety
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes', 'on')
+
+# Print debug status for visibility
+if DEBUG:
+    print("DEBUG: Development mode enabled")
+else:
+    print("DEBUG: Production mode enabled")
 
 # Azure-specific hostname configuration
 AZURE_HOSTNAME = os.environ.get('AZURE_HOSTNAME', 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net')
@@ -37,6 +42,9 @@ ALLOWED_HOSTS = [
     # New Azure internal IPs from deployment logs
     '169.254.131.9',  # From deployment error logs
     '169.254.131.10', # From deployment error logs
+    # Render hosts
+    '.onrender.com',  # All Render subdomains
+    'parliament-zimbabwe.onrender.com',  # Render backend
 ]
 
 # For local development, allow all hosts if DEBUG is True
@@ -395,4 +403,24 @@ EMAIL_SUBJECT_PREFIX = '[Parliament Fuel System] '
 # For development, you can use console backend to see emails in console
 if DEBUG and not os.getenv('EMAIL_HOST_PASSWORD'):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Production Security Settings (only applied when DEBUG=False)
+if not DEBUG:
+    # HTTPS settings
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # Security headers
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    
+    # HSTS settings (optional, can be enabled later)
+    # SECURE_HSTS_SECONDS = 31536000
+    # SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # SECURE_HSTS_PRELOAD = True
+    
+    print("DEBUG: Production security settings enabled")
 
