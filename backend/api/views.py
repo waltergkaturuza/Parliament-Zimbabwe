@@ -58,10 +58,11 @@ def health_check(request):
         except Exception as e:
             package_status['psycopg2'] = f"❌ psycopg2 error: {str(e)}"
         
-        # Data Science Libraries (lighter but powerful)
+        # Data Science Libraries (temporarily reduced for Python 3.12 compatibility)
         try:
-            import pandas as pd
-            package_status['pandas'] = f"✅ Pandas {pd.__version__}"
+            # import pandas as pd
+            # package_status['pandas'] = f"✅ Pandas {pd.__version__}"
+            package_status['pandas'] = "⚠️ Pandas temporarily disabled for Python 3.12 compatibility"
         except Exception as e:
             package_status['pandas'] = f"❌ Pandas error: {str(e)}"
         
@@ -97,8 +98,9 @@ def health_check(request):
             package_status['httpx'] = f"❌ HTTPX error: {str(e)}"
         
         try:
-            import aiohttp
-            package_status['aiohttp'] = f"✅ aiohttp {aiohttp.__version__}"
+            # import aiohttp
+            # package_status['aiohttp'] = f"✅ aiohttp {aiohttp.__version__}"
+            package_status['aiohttp'] = "⚠️ aiohttp temporarily disabled for Python 3.12 compatibility"
         except Exception as e:
             package_status['aiohttp'] = f"❌ aiohttp error: {str(e)}"
         

@@ -18,7 +18,7 @@ pip install --no-cache-dir django-model-utils==4.3.1
 # Install data science packages (Python 3.12 compatible versions)
 echo "Installing data science packages..."
 pip install --no-cache-dir "numpy>=1.26.0,<2.0"
-pip install --no-cache-dir "pandas>=2.0.0,<3.0"
+# pip install --no-cache-dir "pandas>=2.0.0,<3.0"  # Temporarily disabled
 pip install --no-cache-dir "matplotlib>=3.8.0,<4.0"
 
 # Install remaining packages

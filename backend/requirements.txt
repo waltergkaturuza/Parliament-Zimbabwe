@@ -11,7 +11,7 @@ channels==4.0.0
 channels-redis==4.1.0
 django-filter==23.1
 django-extensions==3.2.1
-pillow==10.0.0
+# pillow==10.0.0  # Temporarily disabled - compilation issues with Python 3.12
 redis==4.5.4
 celery==5.2.7
 django-celery-beat==2.5.0
@@ -29,7 +29,7 @@ reportlab==4.0.4
 setuptools==69.5.1
 
 # Core Data Science (Python 3.12 compatible versions)
-pandas==2.0.3
+# pandas==2.0.3  # Temporarily disabled - compilation issues with Python 3.12
 numpy==1.26.4
 matplotlib==3.8.4
 plotly==5.17.0
@@ -44,7 +44,7 @@ beautifulsoup4==4.12.2
 httpx==0.24.1
 
 # Async & Performance
-aiohttp==3.8.5
+# aiohttp==3.8.5  # Temporarily disabled - compilation issues with Python 3.12
 aiofiles==23.1.0
 
 # Testing & Development
