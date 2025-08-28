@@ -52,10 +52,16 @@ class handler(BaseHTTPRequestHandler):
                     
                     # Extensions module for Django compatibility
                     class extensions:
-                        ISOLATION_LEVEL_AUTOCOMMIT = psycopg.IsolationLevel.AUTOCOMMIT
-                        ISOLATION_LEVEL_READ_COMMITTED = psycopg.IsolationLevel.READ_COMMITTED
-                        ISOLATION_LEVEL_SERIALIZABLE = psycopg.IsolationLevel.SERIALIZABLE
-                        ISOLATION_LEVEL_REPEATABLE_READ = psycopg.IsolationLevel.REPEATABLE_READ
+                        # Use numeric values for isolation levels (psycopg 3 compatible)
+                        ISOLATION_LEVEL_AUTOCOMMIT = 0
+                        ISOLATION_LEVEL_READ_COMMITTED = 2
+                        ISOLATION_LEVEL_SERIALIZABLE = 4
+                        ISOLATION_LEVEL_REPEATABLE_READ = 3
+                        ISOLATION_LEVEL_READ_UNCOMMITTED = 1
+                        
+                        # Transaction status constants
+                        STATUS_READY = 1
+                        STATUS_BEGIN = 2
                         
                         class cursor:
                             pass
