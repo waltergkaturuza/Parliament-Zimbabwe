@@ -26,21 +26,25 @@ ALLOWED_HOSTS = [host for host in ALLOWED_HOSTS if host]
 
 print(f"[VERCEL] ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
-# Database - Supabase PostgreSQL
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
+# Database - Supabase PostgreSQL with psycopg3
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://postgres.ofwxvaxnqbcergdsyzkj:74XTPTBFCaVipMaZ@aws-1-us-east-1.pooler.supabase.com:6543/postgres')
 
-# Ensure SSL is required for Supabase
-if DATABASES['default'].get('ENGINE') == 'django.db.backends.postgresql':
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': 'require',
-        'connect_timeout': 10,
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres',
+        'USER': 'postgres.ofwxvaxnqbcergdsyzkj',
+        'PASSWORD': '74XTPTBFCaVipMaZ',
+        'HOST': 'aws-1-us-east-1.pooler.supabase.com',
+        'PORT': '6543',
+        'OPTIONS': {
+            'sslmode': 'require',
+            'connect_timeout': 10,
+        },
+        'CONN_MAX_AGE': 600,
+        'CONN_HEALTH_CHECKS': True,
     }
+}
 
 print(f"[VERCEL] Database engine: {DATABASES['default'].get('ENGINE')}")
 
