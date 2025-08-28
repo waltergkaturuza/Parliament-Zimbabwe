@@ -12,7 +12,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-1*p133x5+uzwh8&axhdhi41jq=%&p(9)pzmoyob$(a01)rcs&z')
 
 # DEBUG mode - environment-driven for production safety
-DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes', 'on')
+# Default to True for local development, False for production
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes', 'on')
 
 # Print debug status for visibility
 if DEBUG:
@@ -68,7 +69,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'django_extensions',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -77,7 +77,6 @@ INSTALLED_APPS = [
     'model_utils',
 
     'fuel.apps.FuelConfig',   # Your app
-    'dynamics_integration.apps.DynamicsIntegrationConfig',  # Dynamics 365 Integration
 ]
 
 AUTH_USER_MODEL = 'fuel.User'
@@ -162,7 +161,6 @@ CORS_ALLOW_ALL_ORIGINS = False
 # Additional CORS settings for proper preflight handling
 # Ensure credentials are allowed when specific origins are set
 CORS_ALLOW_CREDENTIALS = True
-CORS_REPLACE_HTTPS_REFERER = True  # Important for Azure deployments
 CORS_PREFLIGHT_MAX_AGE = 86400
 
 # More permissive CORS headers for Render deployment
@@ -267,7 +265,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
-    BASE_DIR / 'fuel-coupon-frontend' / 'dist' / 'assets',  # Only if you want Django to serve built React assets
+    # BASE_DIR / 'fuel-coupon-frontend' / 'dist' / 'assets',  # Only if you want Django to serve built React assets
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -365,28 +363,7 @@ LOGGING = {
         'level': 'ERROR',
         'propagate': False,
     },
-    'dynamics_integration': {
-        'handlers': ['console'],
-        'level': 'INFO',
-        'propagate': False,
-    },
 }
-
-# Microsoft Dynamics 365 Business Central Integration Settings
-# Parliament of Zimbabwe - Actual Credentials
-DYNAMICS_BC_URL = os.getenv('DYNAMICS_BC_URL', 'https://api.businesscentral.dynamics.com/v2.0/086c4475-d0ef-4d2b-871c-4e078a083db5/Production/ODataV4/')
-DYNAMICS_TENANT_ID = os.getenv('DYNAMICS_TENANT_ID', '086c4475-d0ef-4d2b-871c-4e078a083db5')
-DYNAMICS_CLIENT_ID = os.getenv('DYNAMICS_CLIENT_ID', 'c26c60eb-f154-40eb-b02e-f3997e083316')
-DYNAMICS_CLIENT_SECRET = os.getenv('DYNAMICS_CLIENT_SECRET', 'us18Q~TnKoQ5hYlKNtIAweLGoTdqX7kSdvFTIcI1')
-
-# Authentication settings
-DYNAMICS_AUTH_SCOPE = 'https://api.businesscentral.dynamics.com/.default'
-DYNAMICS_AUTH_URL = f'https://login.microsoftonline.com/{DYNAMICS_TENANT_ID}/oauth2/v2.0/token'
-
-# Sync settings
-DYNAMICS_SYNC_ENABLED = os.getenv('DYNAMICS_SYNC_ENABLED', 'True').lower() == 'true'
-DYNAMICS_BATCH_SIZE = int(os.getenv('DYNAMICS_BATCH_SIZE', '100'))
-DYNAMICS_RETRY_ATTEMPTS = int(os.getenv('DYNAMICS_RETRY_ATTEMPTS', '3'))
 
 # Email Settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
