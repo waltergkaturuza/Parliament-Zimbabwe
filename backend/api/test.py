@@ -14,20 +14,37 @@ class handler(BaseHTTPRequestHandler):
             # Set Django settings
             os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
             
-            # Fix pkg_resources issue
+            # Fix psycopg2 compatibility issue
             try:
-                import pkg_resources
+                import psycopg2
             except ImportError:
-                # Mock pkg_resources for compatibility
+                # Create psycopg2 compatibility using psycopg
+                import psycopg
                 import sys
-                class MockPkgResources:
+                
+                # Mock psycopg2 module for Django compatibility
+                class Psycopg2Compat:
                     @staticmethod
-                    def get_distribution(name):
-                        class MockDistribution:
-                            version = "unknown"
-                        return MockDistribution()
-                sys.modules['pkg_resources'] = MockPkgResources()
-
+                    def connect(*args, **kwargs):
+                        return psycopg.connect(*args, **kwargs)
+                    
+                    Error = psycopg.Error
+                    DatabaseError = psycopg.DatabaseError
+                    IntegrityError = psycopg.IntegrityError
+                    OperationalError = psycopg.OperationalError
+                    ProgrammingError = psycopg.ProgrammingError
+                    InterfaceError = psycopg.InterfaceError
+                    InternalError = psycopg.InternalError
+                    DataError = psycopg.DataError
+                    NotSupportedError = psycopg.NotSupportedError
+                    
+                    # Add required attributes
+                    apilevel = "2.0"
+                    threadsafety = 2
+                    paramstyle = "pyformat"
+                    
+                sys.modules['psycopg2'] = Psycopg2Compat()
+            
             # Initialize Django (only if not already configured)
             import django
             from django.conf import settings
