@@ -36,6 +36,7 @@ def cors_bypass_login(request):
                 refresh_token = str(refresh)
                 
                 response_data = {
+                    'status': 'success',  # Add status field for frontend compatibility
                     'access': access_token,
                     'refresh': refresh_token,
                     'user': {
