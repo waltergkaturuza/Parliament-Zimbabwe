@@ -32,14 +32,14 @@ export const AuthService = {
       console.log('AuthService.login called with:', credentials);
     // Use the correct Django auth endpoint
     // Base URL already includes /api, so this hits /api/auth/login/
-    const response = await apiClient.post<{ status: string; access: string; refresh?: string; message?: string; user?: any }>('/auth/login/', credentials);
+    const response = await apiClient.post<{ success: boolean; access_token: string; refresh_token?: string; message?: string; user?: any }>('/auth/login/', credentials);
       console.log('AuthService.login response received:', response.status, response.data);
       
-      if (response.data.status === 'success') {
+      if (response.data.success === true) {
         return { 
           success: true,
-          access: response.data?.access, 
-      refresh: response.data?.refresh, // Use real refresh token if provided
+          access: response.data?.access_token, 
+          refresh: response.data?.refresh_token, // Use real refresh token if provided
           user: response.data?.user
         };
       } else {
