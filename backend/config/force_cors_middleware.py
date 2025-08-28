@@ -13,6 +13,7 @@ import re
 from typing import Callable
 
 ONRENDER_REGEX = re.compile(r"^https://.*\\.onrender\\.com$")
+LOCALHOST_REGEX = re.compile(r"^https?://(?:localhost|127\.0\.0\.1):\d+$")
 
 
 class ForceCorsMiddleware:
@@ -20,8 +21,7 @@ class ForceCorsMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
-
+        # Extract origin early so we can influence request processing (CSRF)
         origin = None
         # Prefer modern header accessor when available
         try:
@@ -30,9 +30,26 @@ class ForceCorsMiddleware:
             origin = request.META.get('HTTP_ORIGIN')
 
         path = request.path or ''
+        # If this is a login POST from the onrender.com frontend OR localhost, disable CSRF enforcement
+        try:
+            if (
+                origin and
+                (path.startswith('/api/v1/auth/login') or path.startswith('/auth/login') or path.startswith('/api/auth/login')) and
+                request.method.upper() == 'POST' and
+                (ONRENDER_REGEX.match(origin) or LOCALHOST_REGEX.match(origin))
+            ):
+                # This sets a Django internals flag to skip CSRF checks for this request
+                # It's narrowly scoped to login POSTs from the configured frontend domain.
+                request._dont_enforce_csrf_checks = True
+        except Exception:
+            # Be defensive - don't fail request processing if we can't set flag
+            pass
 
-        if origin and path.startswith('/api/') and ONRENDER_REGEX.match(origin):
+        response = self.get_response(request)
+
+        if origin and path.startswith('/api/') and (ONRENDER_REGEX.match(origin) or LOCALHOST_REGEX.match(origin)):
             # Echo the origin to support credentials
+            response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Credentials'] = 'true'
 

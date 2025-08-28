@@ -38,8 +38,16 @@ INSTALLED_APPS = [
     'model_utils',
 
     'fuel.apps.FuelConfig',   # Your app
-    'dynamics_integration.apps.DynamicsIntegrationConfig',  # Dynamics 365 Integration
 ]
+
+# dynamics_integration is optional for local development. Only add it if importable.
+try:
+    import importlib
+    importlib.import_module('dynamics_integration')
+    INSTALLED_APPS.append('dynamics_integration.apps.DynamicsIntegrationConfig')
+except Exception:
+    # Skip adding the app locally if it's not available to avoid startup failures
+    pass
 
 # Set the custom user model
 AUTH_USER_MODEL = 'fuel.User'
@@ -47,6 +55,7 @@ AUTH_USER_MODEL = 'fuel.User'
 # Middleware configuration
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
+    'config.force_cors_middleware.ForceCorsMiddleware',  # Temporary debugging middleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
