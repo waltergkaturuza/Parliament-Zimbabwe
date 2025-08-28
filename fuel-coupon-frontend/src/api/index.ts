@@ -63,45 +63,8 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     console.error('API Response Error:', error);
-    const originalRequest = error.config;
     
-    // Handle 401 errors with token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      console.log('401 error detected, attempting token refresh...');
-      
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          console.warn('No refresh token available, redirecting to login');
-          window.location.href = '/login';
-          return Promise.reject(error);
-        }
-
-        // Try to refresh the token using the same apiClient and the /auth/refresh/ endpoint under /api/v1
-        const refreshResponse = await apiClient.post('/auth/refresh/', {
-          refresh: refreshToken,
-        });
-        
-        const newAccessToken = refreshResponse.data.access;
-        localStorage.setItem('access_token', newAccessToken);
-        
-        // Update authorization header for the failed request
-        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-        
-        console.log('Token refreshed successfully, retrying original request...');
-        return apiClient(originalRequest);
-        
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-    }
-    
-    // Handle errors: log them but let other error handling take place
+    // Handle errors: log them but let AuthContext handle 401s to avoid conflicts
     if (error.response) {
       console.error('Error response:', error.response.status, error.response.data);
       
@@ -110,6 +73,7 @@ apiClient.interceptors.response.use(
       } else if (error.response.status >= 500) {
         console.error('Server error:', error.response.status, error.response.data);
       }
+      // Don't handle 401 here - let AuthContext interceptor handle it to avoid conflicts
     } else if (error.request) {
       // Network or CORS error
       console.error('API Error (no response):', error);

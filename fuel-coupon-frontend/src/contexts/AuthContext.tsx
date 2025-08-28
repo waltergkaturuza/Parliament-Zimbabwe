@@ -99,8 +99,21 @@ import apiClient from '@/api';
           return undefined;
         }
   
-        const response = await axios.post('/api/token/refresh/', { refresh: refreshToken });
-        const newAccessToken = response.data.access;        // Store the new access token, keep the existing refresh token
+        // Use fetch instead of axios to avoid interceptor loops
+        const response = await fetch('/api/v1/auth/refresh/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh: refreshToken }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const newAccessToken = data.access;        // Store the new access token, keep the existing refresh token
         localStorage.setItem('access_token', newAccessToken);
         setAccessToken(newAccessToken);
   
@@ -250,7 +263,7 @@ import apiClient from '@/api';
   
     // Axios interceptor to retry on 401
     useEffect(() => {
-       console.log('Setting up Axios interceptor.');
+       console.log('Setting up apiClient interceptor.');
       const interceptor = axios.interceptors.response.use(
         response => response,
         async error => {
@@ -265,11 +278,11 @@ import apiClient from '@/api';
               const newAccessToken = await refreshToken(); // Attempt to refresh the token
               if (newAccessToken) {
                 // Update default headers for future requests
-                axios.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
+                
                 // Update header for the original failed request
                 originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
                 console.log('Retrying original request with new token.');
-                return axios(originalRequest); // Retry the original request
+                                return apiClient(originalRequest); // Retry the original request
               } else {
                    console.error('Refresh token failed from interceptor, forcing logout.');
                    // If refresh fails, navigate to login page
@@ -291,8 +304,8 @@ import apiClient from '@/api';
       );
   
       return () => {
-          console.log('Ejecting Axios interceptor.');
-          axios.interceptors.response.eject(interceptor); // Clean up the interceptor
+          console.log('Ejecting apiClient interceptor.');
+          apiClient.interceptors.response.eject(interceptor); // Clean up the interceptor
       };
     }, [refreshToken, logout]); // Dependencies: refreshToken and logout are used inside the interceptor
       const login = useCallback(
