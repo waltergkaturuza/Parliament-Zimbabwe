@@ -171,6 +171,8 @@ urlpatterns = [
     path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),  # Include API URLs
+    # Also include fuel app URLs under /api/ as a fallback so frontend using /api/* works
+    path('api/', include('fuel.urls')),
     path('api/v1/', include('fuel.urls')),
     path('api/auth/', include('fuel.urls')),  # Add direct auth path for frontend compatibility
     
