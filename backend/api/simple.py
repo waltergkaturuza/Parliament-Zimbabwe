@@ -53,6 +53,18 @@ class handler(BaseHTTPRequestHandler):
                     threadsafety = 2
                     paramstyle = "pyformat"
                     
+                    # PostgreSQL specific data types
+                    class Inet:
+                        """Mock Inet class for PostgreSQL network address types"""
+                        def __init__(self, value):
+                            self.value = str(value)
+                        
+                        def __str__(self):
+                            return self.value
+                        
+                        def __repr__(self):
+                            return f"Inet('{self.value}')"
+                    
                     # Extensions module for Django compatibility
                     class extensions:
                         # Use numeric values for isolation levels (psycopg 3 compatible)
