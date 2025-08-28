@@ -159,6 +159,7 @@ class LoginView(APIView):
 
             print(f"Login successful for user: {user.username}")
             response = Response({
+                'status': 'success',  # Add status field for frontend compatibility
                 'refresh': refresh_token_string,
                 'access': access_token,
                 'user': SimpleUserSerializer(user).data, # Include user details in login response
@@ -167,8 +168,12 @@ class LoginView(APIView):
             return response
         else:
             print(f"Authentication failed for username: {username}")
-            # Use a consistent error response format
-            response = Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            # Use a consistent error response format that matches frontend expectations
+            response = Response({
+                'status': 'error',
+                'message': 'Invalid credentials',
+                'detail': 'Invalid credentials'
+            }, status=status.HTTP_401_UNAUTHORIZED)
             
             return response
 
