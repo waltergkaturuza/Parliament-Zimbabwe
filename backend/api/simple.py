@@ -18,14 +18,23 @@ class handler(BaseHTTPRequestHandler):
         """Enhanced Vercel serverless function with comprehensive Django testing"""
         
         try:
-            # Initialize Django (only if not already configured)
-            import django
-            from django.apps import apps
+            # Add project root to Python path  
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+
+            # Set Django settings
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
             
-            if not apps.ready:
+            # Initialize Django only if not already configured
+            import django
+            from django.conf import settings
+            
+            if not settings.configured:
                 django.setup()
             
-            from django.conf import settings
+            # Import Django modules after setup
+            from django.apps import apps
             from django.db import connection
             from django.utils import timezone
             
@@ -74,16 +83,9 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 package_status['jwt'] = f"❌ JWT error: {str(e)}"
             
-            # Channels (WebSockets)
+            # Django Filter
             try:
-                import channels
-                package_status['channels'] = f"✅ Channels {channels.__version__}"
-            except Exception as e:
-                package_status['channels'] = f"❌ Channels error: {str(e)}"
-            
-            # New packages
-            try:
-                import django_filters
+                import django_filter
                 package_status['django_filter'] = "✅ django-filter loaded"
             except Exception as e:
                 package_status['django_filter'] = f"❌ django-filter error: {str(e)}"
@@ -95,34 +97,10 @@ class handler(BaseHTTPRequestHandler):
                 package_status['django_extensions'] = f"❌ django-extensions error: {str(e)}"
             
             try:
-                import PIL
-                package_status['pillow'] = f"✅ Pillow {PIL.__version__}"
-            except Exception as e:
-                package_status['pillow'] = f"❌ Pillow error: {str(e)}"
-            
-            try:
                 import redis
                 package_status['redis'] = f"✅ Redis {redis.__version__}"
             except Exception as e:
                 package_status['redis'] = f"❌ Redis error: {str(e)}"
-            
-            try:
-                import celery
-                package_status['celery'] = f"✅ Celery {celery.__version__}"
-            except Exception as e:
-                package_status['celery'] = f"❌ Celery error: {str(e)}"
-            
-            try:
-                import storages
-                package_status['storages'] = "✅ django-storages loaded"
-            except Exception as e:
-                package_status['storages'] = f"❌ django-storages error: {str(e)}"
-            
-            try:
-                import boto3
-                package_status['boto3'] = f"✅ boto3 {boto3.__version__}"
-            except Exception as e:
-                package_status['boto3'] = f"❌ boto3 error: {str(e)}"
             
             try:
                 import import_export
@@ -142,23 +120,19 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 package_status['gunicorn'] = f"❌ Gunicorn error: {str(e)}"
             
+            # Test custom fuel app
             try:
-                import openpyxl
-                package_status['openpyxl'] = f"✅ openpyxl {openpyxl.__version__}"
+                from fuel.models import Vehicle, FuelAllocation, FuelTransaction
+                package_status['fuel_app'] = "✅ Fuel app models loaded"
             except Exception as e:
-                package_status['openpyxl'] = f"❌ openpyxl error: {str(e)}"
+                package_status['fuel_app'] = f"❌ Fuel app error: {str(e)}"
             
+            # Test custom auth app  
             try:
-                import xlsxwriter
-                package_status['xlsxwriter'] = f"✅ xlsxwriter {xlsxwriter.__version__}"
+                from auth.models import User, UserProfile
+                package_status['auth_app'] = "✅ Auth app models loaded"
             except Exception as e:
-                package_status['xlsxwriter'] = f"❌ xlsxwriter error: {str(e)}"
-            
-            try:
-                import reportlab
-                package_status['reportlab'] = f"✅ ReportLab {reportlab.Version}"
-            except Exception as e:
-                package_status['reportlab'] = f"❌ ReportLab error: {str(e)}"
+                package_status['auth_app'] = f"❌ Auth app error: {str(e)}"
             
             # Test database connectivity
             db_status = "❌ Database not tested"

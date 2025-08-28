@@ -30,12 +30,12 @@ class handler(BaseHTTPRequestHandler):
 
             # Initialize Django (only if not already configured)
             import django
-            from django.apps import apps
+            from django.conf import settings
             
-            if not apps.ready:
+            if not settings.configured:
                 django.setup()
             
-            from django.conf import settings
+            from django.apps import apps
             from django.db import connection
             from django.utils import timezone
             

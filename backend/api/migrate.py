@@ -14,16 +14,6 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Set Django settings
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
-
-# Initialize Django (only if not already configured)
-import django
-from django.apps import apps
-
-if not apps.ready:
-    django.setup()
-
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """
@@ -31,6 +21,16 @@ class handler(BaseHTTPRequestHandler):
         GET /api/migrate.py - Run migrations and return status
         """
         try:
+            # Set Django settings
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
+
+            # Initialize Django (only if not already configured)
+            import django
+            from django.conf import settings
+            
+            if not settings.configured:
+                django.setup()
+            
             # Capture management command output
             output = StringIO()
             
