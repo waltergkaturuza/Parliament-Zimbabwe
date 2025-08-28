@@ -5579,6 +5579,10 @@ def fuel_statistics(request):
     """
     Fuel statistics endpoint for dashboard and fuel pricing
     """
+    from django.db.models import Count, Sum
+    from django.db.models.functions import TruncMonth
+    from datetime import timedelta
+    
     try:
         # Check if this is a request for dashboard statistics
         if request.path.endswith('/statistics/'):
@@ -5629,9 +5633,9 @@ def fuel_statistics(request):
                 for item in monthly_usage
             ]
             
-            # SubCenter allocation data
+            # SubCenter allocation data - fix relationship
             subcenter_allocation = (SubCenter.objects
-                                  .annotate(coupon_count=Count('coupon_allocations'))
+                                  .annotate(coupon_count=Count('boxes__books__coupons'))
                                   .values('name', 'coupon_count')
                                   .order_by('-coupon_count'))
             
