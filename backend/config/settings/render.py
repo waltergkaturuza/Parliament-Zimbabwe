@@ -65,15 +65,25 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # CORS settings for Render deployment
 CORS_ALLOWED_ORIGINS = [
+    # Current frontend on Render
+    'https://parliament-zimbabwe-fuel.onrender.com',
     # Backend domains
+    'https://parliament-zimbabwe.onrender.com',
     'https://parliament-fuel-backend.onrender.com',
-    # Frontend domains (update when you deploy frontend)
+    # Frontend domains (other deployments)
     'https://parliament-fuel-frontend.onrender.com',
     'https://parliament-fuel-frontend.netlify.app',
     'https://parliament-fuel-frontend.vercel.app',
     # Development
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+]
+
+# Regex patterns for onrender.com subdomains
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.onrender\.com$",
 ]
 
 # Add Render hostname if available
