@@ -57,10 +57,25 @@ class handler(BaseHTTPRequestHandler):
                         
                         class connection:
                             pass
+                    
+                    # Extras module for Django compatibility
+                    class extras:
+                        @staticmethod
+                        def RealDictCursor(*args, **kwargs):
+                            return psycopg.extras.RealDictCursor(*args, **kwargs)
+                        
+                        @staticmethod
+                        def NamedTupleCursor(*args, **kwargs):
+                            return psycopg.extras.NamedTupleCursor(*args, **kwargs)
+                        
+                        @staticmethod
+                        def DictCursor(*args, **kwargs):
+                            return psycopg.extras.DictCursor(*args, **kwargs)
                 
                 psycopg2_compat = Psycopg2Compat()
                 sys.modules['psycopg2'] = psycopg2_compat
                 sys.modules['psycopg2.extensions'] = psycopg2_compat.extensions()
+                sys.modules['psycopg2.extras'] = psycopg2_compat.extras()
             
             # Initialize Django (only if not already configured)
             import django
