@@ -138,6 +138,10 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.onrender\.com$",
 ]
 
+# TEMPORARY DEBUG: allow all origins to ensure Access-Control-Allow-Origin is present
+# Set to False after verification
+CORS_ALLOW_ALL_ORIGINS = True
+
 # Additional CORS settings for proper preflight handling
 CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
 CORS_ALLOW_CREDENTIALS = True
