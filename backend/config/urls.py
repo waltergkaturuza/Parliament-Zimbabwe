@@ -11,6 +11,7 @@ from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
 from .health_check import health_check, simple_health
+from api.views import health_check as api_health_check
 
 # Import the actual LoginView for testing
 def get_login_view():
@@ -164,12 +165,12 @@ def get_jwt_token_verify_view():
     return TokenVerifyView.as_view()
 
 urlpatterns = [
-    path('', home_view, name='home'),  # Add root URL
+    path('', api_health_check, name='home'),  # Health check at root for Render
     path('health/', health_check, name='health-check'),  # Health check endpoint
     path('health/simple/', simple_health, name='simple-health'),  # Simple health check
     path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
-    path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
+    path('api/', include('api.urls')),  # Include API URLs
     path('api/v1/', include('fuel.urls')),
     path('api/auth/', include('fuel.urls')),  # Add direct auth path for frontend compatibility
     
