@@ -30,9 +30,9 @@ export const AuthService = {
   login: async (credentials: LoginData): Promise<{ success: boolean; access?: string; refresh?: string; message?: string; user?: any }> => {
     try {
       console.log('AuthService.login called with:', credentials);
-    // TEMPORARY: Use working test-login endpoint while debugging auth issues
-    // Base URL is /api/v1 (see src/api/index.ts), so this hits /api/v1/test-login/
-    const response = await apiClient.post<{ status: string; access: string; refresh?: string; message?: string; user?: any }>('/test-login/', credentials);
+    // Use the correct Django auth endpoint
+    // Base URL already includes /api, so this hits /api/auth/login/
+    const response = await apiClient.post<{ status: string; access: string; refresh?: string; message?: string; user?: any }>('/auth/login/', credentials);
       console.log('AuthService.login response received:', response.status, response.data);
       
       if (response.data.status === 'success') {
