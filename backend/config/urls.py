@@ -195,5 +195,9 @@ urlpatterns = [
     #     name='program-summary'),  # TODO: Commented out - no ProgramViewSet
 ]
 
+# Serve static files (both in development and production with WhiteNoise)
 if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+else:
+    # In production, WhiteNoise will handle static files, but we ensure the URL pattern exists
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
