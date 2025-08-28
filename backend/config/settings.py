@@ -76,7 +76,6 @@ AUTH_USER_MODEL = 'fuel.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
-    'config.force_cors_middleware.ForceCorsMiddleware',  # Temporary debug middleware to force CORS headers
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -133,6 +132,11 @@ ADDITIONAL_CORS_ORIGINS = os.getenv('ADDITIONAL_CORS_ORIGINS', '').split(',')
 ADDITIONAL_CORS_ORIGINS = [origin.strip() for origin in ADDITIONAL_CORS_ORIGINS if origin.strip()]
 
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_BASE + ADDITIONAL_CORS_ORIGINS
+
+# Allow Render subdomains (safe, constrained regex) in addition to explicit origins
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https:\/\/.*\.onrender\.com$",
+]
 
 # Additional CORS settings for proper preflight handling
 CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials

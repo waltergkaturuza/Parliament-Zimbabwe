@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS and Login Test</title>
+</head>
+<body>
+    <h1>Direct API Test</h1>
+    <div id="result"></div>
+    
+    <script>
+        async function testCORS() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                // Test CORS endpoint first
+                const corsResponse = await fetch('https://parliament-zimbabwe.onrender.com/api/cors-test/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const corsData = await corsResponse.text();
+                resultDiv.innerHTML += `<h3>CORS Test:</h3><pre>${corsData}</pre>`;
+                
+                // Test login endpoint
+                const loginResponse = await fetch('https://parliament-zimbabwe.onrender.com/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'Parliament2024!'
+                    })
+                });
+                
+                const loginData = await loginResponse.text();
+                resultDiv.innerHTML += `<h3>Login Test (Status: ${loginResponse.status}):</h3><pre>${loginData}</pre>`;
+                
+            } catch (error) {
+                resultDiv.innerHTML += `<h3>Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+        
+        // Run test on page load
+        testCORS();
+    </script>
+</body>
+</html>
