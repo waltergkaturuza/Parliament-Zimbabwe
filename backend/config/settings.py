@@ -138,6 +138,8 @@ CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
 CORS_ALLOW_CREDENTIALS = True
 CORS_REPLACE_HTTPS_REFERER = True  # Important for Azure deployments
 CORS_PREFLIGHT_MAX_AGE = 86400
+
+# More permissive CORS headers for Render deployment
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',
     'content-type',
@@ -148,20 +150,32 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'accept-language',
     'access-control-request-headers',
     'access-control-request-method',
+    'cache-control',
+    'pragma',
+    'user-agent',
 ]
+
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
+    'HEAD',
     'OPTIONS',
     'PATCH',
     'POST',
     'PUT',
 ]
+
 CORS_EXPOSE_HEADERS = [
     'authorization',
     'content-type',
     'x-csrftoken',
+    'access-control-allow-origin',
+    'access-control-allow-credentials',
 ]
+
+# Ensure CORS headers are always added
+CORS_ALLOWED_ORIGINS_ALL = True  # Temporarily for debugging
+CORS_ALLOW_ALL_ORIGINS = True    # Temporarily enable all origins for debugging
 
 # Debug CORS configuration
 print(f"DEBUG: CORS_ALLOWED_ORIGINS = {CORS_ALLOWED_ORIGINS}")

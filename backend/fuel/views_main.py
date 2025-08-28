@@ -105,6 +105,10 @@ class RegisterView(generics.CreateAPIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     authentication_classes = []  # Disable authentication for login endpoint
     permission_classes = [AllowAny]  # Allow unauthenticated access
