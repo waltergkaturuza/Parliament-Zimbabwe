@@ -5,8 +5,8 @@ set -o errexit  # exit on error
 
 echo "Starting optimized build process..."
 
-# Upgrade pip and setuptools first
-pip install --upgrade pip setuptools wheel
+# Upgrade pip and setuptools first (Python 3.12 compatible)
+pip install --upgrade pip "setuptools>=69.0.0" wheel
 
 # Install core dependencies first
 echo "Installing Django and core packages..."
@@ -15,11 +15,11 @@ pip install --no-cache-dir psycopg2-binary==2.9.7
 pip install --no-cache-dir djangorestframework==3.14.0
 pip install --no-cache-dir django-model-utils==4.3.1
 
-# Install data science packages (lighter versions)
+# Install data science packages (Python 3.12 compatible versions)
 echo "Installing data science packages..."
-pip install --no-cache-dir numpy==1.24.3
-pip install --no-cache-dir pandas==1.5.3
-pip install --no-cache-dir matplotlib==3.7.2
+pip install --no-cache-dir "numpy>=1.26.0,<2.0"
+pip install --no-cache-dir "pandas>=2.0.0,<3.0"
+pip install --no-cache-dir "matplotlib>=3.8.0,<4.0"
 
 # Install remaining packages
 echo "Installing remaining packages..."
