@@ -19,7 +19,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
 
 # Initialize Django (only if not already configured)
 import django
-if not django.apps.apps.ready:
+from django.apps import apps
+
+if not apps.ready:
     django.setup()
 
 class handler(BaseHTTPRequestHandler):
