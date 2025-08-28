@@ -84,7 +84,6 @@ AUTH_USER_MODEL = 'fuel.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS must be first for proper handling
-    'config.force_cors_middleware.ForceCorsMiddleware',  # Constrained, short-term CORS echo for /api/ on onrender.com
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
