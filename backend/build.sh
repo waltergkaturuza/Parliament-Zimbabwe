@@ -34,6 +34,9 @@ python manage.py makemigrations --noinput
 echo "Running database migrations..."
 python manage.py migrate
 
+echo "Creating admin superuser..."
+python manage.py create_admin
+
 echo "Build completed successfully!"
 
 # Show key installed packages

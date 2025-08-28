@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
+import os
 
 User = get_user_model()
 
@@ -7,9 +8,9 @@ class Command(BaseCommand):
     help = 'Create a superuser with predefined credentials'
 
     def handle(self, *args, **options):
-        username = 'admin'
-        email = 'admin@parliament.gov.za'
-        password = 'Parliament2024!'
+        username = os.getenv('DJANGO_SUPERUSER_USERNAME', 'admin')
+        email = os.getenv('DJANGO_SUPERUSER_EMAIL', 'admin@parliament.gov.zw')
+        password = os.getenv('DJANGO_SUPERUSER_PASSWORD', 'Parliament2024!')
         
         if User.objects.filter(username=username).exists():
             self.stdout.write(
@@ -25,4 +26,10 @@ class Command(BaseCommand):
         
         self.stdout.write(
             self.style.SUCCESS(f'Superuser "{username}" created successfully!')
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f'Email: {email}')
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f'Password: {password}')
         )
