@@ -122,6 +122,14 @@ class handler(BaseHTTPRequestHandler):
                 sys.modules['psycopg2.extensions'] = psycopg2_compat.extensions()
                 sys.modules['psycopg2.extras'] = psycopg2_compat.extras()
                 sys.modules['psycopg2.errorcodes'] = psycopg2_compat.errorcodes()
+                
+                # Also add Inet to the main module namespace
+                import types
+                psycopg2_module = types.ModuleType('psycopg2')
+                for attr in dir(psycopg2_compat):
+                    if not attr.startswith('_'):
+                        setattr(psycopg2_module, attr, getattr(psycopg2_compat, attr))
+                sys.modules['psycopg2'] = psycopg2_module
             
             # Initialize Django (only if not already configured)
             import django
