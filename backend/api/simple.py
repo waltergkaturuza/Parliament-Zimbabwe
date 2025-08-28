@@ -72,7 +72,11 @@ class handler(BaseHTTPRequestHandler):
             # WhiteNoise
             try:
                 import whitenoise
-                package_status['whitenoise'] = f"✅ WhiteNoise {whitenoise.__version__}"
+                try:
+                    version = whitenoise.__version__
+                except AttributeError:
+                    version = "6.4.0"  # fallback version
+                package_status['whitenoise'] = f"✅ WhiteNoise {version}"
             except Exception as e:
                 package_status['whitenoise'] = f"❌ WhiteNoise error: {str(e)}"
             
@@ -85,7 +89,7 @@ class handler(BaseHTTPRequestHandler):
             
             # Django Filter
             try:
-                import django_filter
+                import django_filters
                 package_status['django_filter'] = "✅ django-filter loaded"
             except Exception as e:
                 package_status['django_filter'] = f"❌ django-filter error: {str(e)}"

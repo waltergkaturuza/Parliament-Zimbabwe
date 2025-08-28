@@ -40,6 +40,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
             'connect_timeout': 10,
+            'server_side_binding': True,  # Enable for psycopg 3
         },
         'CONN_MAX_AGE': 600,
         'CONN_HEALTH_CHECKS': True,

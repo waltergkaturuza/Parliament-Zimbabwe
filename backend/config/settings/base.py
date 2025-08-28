@@ -13,11 +13,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_filters',
+    'django_extensions',
+    'import_export',
+    'crispy_forms',
+    'crispy_bootstrap5',
     'fuel',
+    'auth',
     'utils',
 ]
 
