@@ -26,7 +26,7 @@ ALLOWED_HOSTS = [host for host in ALLOWED_HOSTS if host]
 
 print(f"[VERCEL] ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
-# Database - Supabase PostgreSQL with psycopg3
+# Database - Supabase PostgreSQL with psycopg2
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://postgres.ofwxvaxnqbcergdsyzkj:74XTPTBFCaVipMaZ@aws-1-us-east-1.pooler.supabase.com:6543/postgres')
 
 DATABASES = {
@@ -40,7 +40,6 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
             'connect_timeout': 10,
-            'server_side_binding': True,  # Enable for psycopg 3
         },
         'CONN_MAX_AGE': 600,
         'CONN_HEALTH_CHECKS': True,
@@ -48,6 +47,7 @@ DATABASES = {
 }
 
 print(f"[VERCEL] Database engine: {DATABASES['default'].get('ENGINE')}")
+print(f"[VERCEL] Database host: {DATABASES['default'].get('HOST')}")
 
 # Secret key from environment
 SECRET_KEY = os.environ.get('SECRET_KEY')

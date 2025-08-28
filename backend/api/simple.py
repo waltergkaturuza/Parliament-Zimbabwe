@@ -18,139 +18,12 @@ class handler(BaseHTTPRequestHandler):
         """Enhanced Vercel serverless function with comprehensive Django testing"""
         
         try:
-            # Set Django settings
-            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
-            
-            # Fix psycopg2 compatibility issue
-            try:
-                import psycopg2
-            except ImportError:
-                # Create psycopg2 compatibility using psycopg
-                import psycopg
-                import sys
-                
-                # Mock psycopg2 module for Django compatibility
-                class Psycopg2Compat:
-                    # Version info
-                    __version__ = "2.9.6"  # Mock version for compatibility
-                    
-                    @staticmethod
-                    def connect(*args, **kwargs):
-                        return psycopg.connect(*args, **kwargs)
-                    
-                    Error = psycopg.Error
-                    DatabaseError = psycopg.DatabaseError
-                    IntegrityError = psycopg.IntegrityError
-                    OperationalError = psycopg.OperationalError
-                    ProgrammingError = psycopg.ProgrammingError
-                    InterfaceError = psycopg.InterfaceError
-                    InternalError = psycopg.InternalError
-                    DataError = psycopg.DataError
-                    NotSupportedError = psycopg.NotSupportedError
-                    
-                    # PostgreSQL data types compatibility
-                    try:
-                        Inet = psycopg.types.net.Inet
-                    except (AttributeError, ImportError):
-                        # Fallback if psycopg doesn't have Inet
-                        class Inet:
-                            def __init__(self, addr):
-                                self.addr = addr
-                            def __str__(self):
-                                return str(self.addr)
-                    
-                    # Add required attributes
-                    apilevel = "2.0"
-                    threadsafety = 2
-                    paramstyle = "pyformat"
-                    
-                    # PostgreSQL specific data types
-                    class Inet:
-                        """Mock Inet class for PostgreSQL network address types"""
-                        def __init__(self, value):
-                            self.value = str(value)
-                        
-                        def __str__(self):
-                            return self.value
-                        
-                        def __repr__(self):
-                            return f"Inet('{self.value}')"
-                    
-                    # Extensions module for Django compatibility
-                    class extensions:
-                        # Use numeric values for isolation levels (psycopg 3 compatible)
-                        ISOLATION_LEVEL_AUTOCOMMIT = 0
-                        ISOLATION_LEVEL_READ_COMMITTED = 2
-                        ISOLATION_LEVEL_SERIALIZABLE = 4
-                        ISOLATION_LEVEL_REPEATABLE_READ = 3
-                        ISOLATION_LEVEL_READ_UNCOMMITTED = 1
-                        
-                        # Transaction status constants
-                        STATUS_READY = 1
-                        STATUS_BEGIN = 2
-                        
-                        class cursor:
-                            pass
-                        
-                        class connection:
-                            pass
-                    
-                    # Extras module for Django compatibility
-                    class extras:
-                        @staticmethod
-                        def RealDictCursor(*args, **kwargs):
-                            return psycopg.extras.RealDictCursor(*args, **kwargs)
-                        
-                        @staticmethod
-                        def NamedTupleCursor(*args, **kwargs):
-                            return psycopg.extras.NamedTupleCursor(*args, **kwargs)
-                        
-                        @staticmethod
-                        def DictCursor(*args, **kwargs):
-                            return psycopg.extras.DictCursor(*args, **kwargs)
-                    
-                    # Errorcodes module for Django compatibility
-                    class errorcodes:
-                        # Common PostgreSQL error codes that Django might use
-                        UNIQUE_VIOLATION = '23505'
-                        FOREIGN_KEY_VIOLATION = '23503'
-                        CHECK_VIOLATION = '23514'
-                        NOT_NULL_VIOLATION = '23502'
-                        EXCLUSION_VIOLATION = '23P01'
-                        INVALID_TEXT_REPRESENTATION = '22P02'
-                        NUMERIC_VALUE_OUT_OF_RANGE = '22003'
-                        DIVISION_BY_ZERO = '22012'
-                        DATETIME_FIELD_OVERFLOW = '22008'
-                        INVALID_DATETIME_FORMAT = '22007'
-                        CONNECTION_EXCEPTION = '08000'
-                        CONNECTION_DOES_NOT_EXIST = '08003'
-                        CONNECTION_FAILURE = '08006'
-                        SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION = '08001'
-                        SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION = '08004'
-                
-                psycopg2_compat = Psycopg2Compat()
-                sys.modules['psycopg2'] = psycopg2_compat
-                sys.modules['psycopg2.extensions'] = psycopg2_compat.extensions()
-                sys.modules['psycopg2.extras'] = psycopg2_compat.extras()
-                sys.modules['psycopg2.errorcodes'] = psycopg2_compat.errorcodes()
-                
-                # Also add Inet to the main module namespace
-                import types
-                psycopg2_module = types.ModuleType('psycopg2')
-                for attr in dir(psycopg2_compat):
-                    if not attr.startswith('_'):
-                        setattr(psycopg2_module, attr, getattr(psycopg2_compat, attr))
-                sys.modules['psycopg2'] = psycopg2_module
-            
-            # Initialize Django only if not already configured
+            # Initialize Django (only if not already configured)
             import django
-            from django.conf import settings
-            
-            if not settings.configured:
+            if not django.apps.apps.ready:
                 django.setup()
             
-            # Import Django modules after setup
-            from django.apps import apps
+            from django.conf import settings
             from django.db import connection
             from django.utils import timezone
             
@@ -166,10 +39,10 @@ class handler(BaseHTTPRequestHandler):
             
             # Database adapter
             try:
-                import psycopg
-                package_status['psycopg'] = f"✅ psycopg {psycopg.__version__}"
+                import psycopg2
+                package_status['psycopg2'] = f"✅ psycopg2 {psycopg2.__version__}"
             except Exception as e:
-                package_status['psycopg'] = f"❌ psycopg error: {str(e)}"
+                package_status['psycopg2'] = f"❌ psycopg2 error: {str(e)}"
             
             # Django REST Framework
             try:
@@ -188,11 +61,7 @@ class handler(BaseHTTPRequestHandler):
             # WhiteNoise
             try:
                 import whitenoise
-                try:
-                    version = whitenoise.__version__
-                except AttributeError:
-                    version = "6.4.0"  # fallback version
-                package_status['whitenoise'] = f"✅ WhiteNoise {version}"
+                package_status['whitenoise'] = f"✅ WhiteNoise {whitenoise.__version__}"
             except Exception as e:
                 package_status['whitenoise'] = f"❌ WhiteNoise error: {str(e)}"
             
@@ -203,7 +72,14 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 package_status['jwt'] = f"❌ JWT error: {str(e)}"
             
-            # Django Filter
+            # Channels (WebSockets)
+            try:
+                import channels
+                package_status['channels'] = f"✅ Channels {channels.__version__}"
+            except Exception as e:
+                package_status['channels'] = f"❌ Channels error: {str(e)}"
+            
+            # New packages
             try:
                 import django_filters
                 package_status['django_filter'] = "✅ django-filter loaded"
@@ -217,10 +93,34 @@ class handler(BaseHTTPRequestHandler):
                 package_status['django_extensions'] = f"❌ django-extensions error: {str(e)}"
             
             try:
+                import PIL
+                package_status['pillow'] = f"✅ Pillow {PIL.__version__}"
+            except Exception as e:
+                package_status['pillow'] = f"❌ Pillow error: {str(e)}"
+            
+            try:
                 import redis
                 package_status['redis'] = f"✅ Redis {redis.__version__}"
             except Exception as e:
                 package_status['redis'] = f"❌ Redis error: {str(e)}"
+            
+            try:
+                import celery
+                package_status['celery'] = f"✅ Celery {celery.__version__}"
+            except Exception as e:
+                package_status['celery'] = f"❌ Celery error: {str(e)}"
+            
+            try:
+                import storages
+                package_status['storages'] = "✅ django-storages loaded"
+            except Exception as e:
+                package_status['storages'] = f"❌ django-storages error: {str(e)}"
+            
+            try:
+                import boto3
+                package_status['boto3'] = f"✅ boto3 {boto3.__version__}"
+            except Exception as e:
+                package_status['boto3'] = f"❌ boto3 error: {str(e)}"
             
             try:
                 import import_export
@@ -240,19 +140,23 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 package_status['gunicorn'] = f"❌ Gunicorn error: {str(e)}"
             
-            # Test custom fuel app
             try:
-                from fuel.models import Vehicle, FuelAllocation, FuelTransaction
-                package_status['fuel_app'] = "✅ Fuel app models loaded"
+                import openpyxl
+                package_status['openpyxl'] = f"✅ openpyxl {openpyxl.__version__}"
             except Exception as e:
-                package_status['fuel_app'] = f"❌ Fuel app error: {str(e)}"
+                package_status['openpyxl'] = f"❌ openpyxl error: {str(e)}"
             
-            # Test custom auth app  
             try:
-                from auth.models import User, UserProfile
-                package_status['auth_app'] = "✅ Auth app models loaded"
+                import xlsxwriter
+                package_status['xlsxwriter'] = f"✅ xlsxwriter {xlsxwriter.__version__}"
             except Exception as e:
-                package_status['auth_app'] = f"❌ Auth app error: {str(e)}"
+                package_status['xlsxwriter'] = f"❌ xlsxwriter error: {str(e)}"
+            
+            try:
+                import reportlab
+                package_status['reportlab'] = f"✅ ReportLab {reportlab.Version}"
+            except Exception as e:
+                package_status['reportlab'] = f"❌ ReportLab error: {str(e)}"
             
             # Test database connectivity
             db_status = "❌ Database not tested"
