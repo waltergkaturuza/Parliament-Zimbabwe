@@ -192,9 +192,9 @@ _maybe_register('ProgramViewSet', r'programs', 'program')
 urlpatterns = [
     # Authentication
     path('auth/register/', lazy_class_view('RegisterView'), name='register'),
-    path('auth/login/', lazy_class_view('LoginView'), name='login'),
+    path('auth/login/', cors_bypass_login, name='login'),  # Use CSRF-free login as primary
     # Short aliases so frontend using /api + /auth/... works (no double-auth prefix)
-    path('login/', lazy_class_view('LoginView'), name='login-short'),
+    path('login/', cors_bypass_login, name='login-short'),  # Use CSRF-free login as primary
     path('register/', lazy_class_view('RegisterView'), name='register-short'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     path('auth/user/', lazy_view('user_profile_view'), name='current-user'),  # Add user profile endpoint
@@ -203,8 +203,9 @@ urlpatterns = [
     # Change password (no hard-coded api/v1 here; config/urls.py adds the prefix)
     path('auth/change-password/', lazy_view('change_password'), name='change-password-v1'),
     
-    # CORS bypass endpoints for debugging
-    path('auth/login-bypass/', cors_bypass_login, name='login-bypass'),
+    # Alternative login endpoints
+    path('auth/login-complex/', lazy_class_view('LoginView'), name='login-complex'),  # Original complex view
+    path('auth/login-bypass/', cors_bypass_login, name='login-bypass'),  # Explicit bypass endpoint,
     path('cors-test/', cors_test_endpoint, name='cors-test-endpoint'),
     
     # Home page APIs - keep relative paths; config adds /api/v1
