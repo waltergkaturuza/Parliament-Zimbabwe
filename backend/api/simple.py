@@ -18,11 +18,6 @@ class handler(BaseHTTPRequestHandler):
         """Enhanced Vercel serverless function with comprehensive Django testing"""
         
         try:
-            # Add project root to Python path  
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
-
             # Set Django settings
             os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.vercel')
             
