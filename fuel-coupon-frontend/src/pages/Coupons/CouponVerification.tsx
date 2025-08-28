@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import apiClient from '@/api/index';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Card,
   Table,
@@ -230,6 +231,8 @@ const getStatusIcon = (status: string) => {
 };
 
 const CouponVerification: FC = () => {
+  const { user } = useAuth(); // Get current user
+  
   // State for box data and selection
   const [boxReceipts, setBoxReceipts] = useState<BoxReceipt[]>([]);
   const [selectedBox, setSelectedBox] = useState<BoxReceipt | null>(null);
@@ -467,7 +470,7 @@ const CouponVerification: FC = () => {
         
         // Update the box status to verified
         await apiClient.patch(`/boxes/${box.id}/`, {
-          status: 'verified',
+          status: 'VERIFIED',
           verification_notes: `Coupons generated on ${new Date().toLocaleDateString()} with ${books.length} books.`,
           verified_at: new Date().toISOString()
         });
@@ -594,10 +597,10 @@ const CouponVerification: FC = () => {
       
       // Update box status to verified
       const response = await apiClient.patch(`/boxes/${box.id}/`, {
-        status: 'verified',
+        status: 'VERIFIED',
         verification_notes: `Verified on ${new Date().toLocaleDateString()} with ${calculatedBooks.length} books generated.`,
         verified_at: new Date().toISOString(),
-        verified_by: 'Current User' // This should be the actual user
+        verified_by: user?.id || null // Use current user ID
       });
 
       if (response.status === 200) {
@@ -648,7 +651,7 @@ const CouponVerification: FC = () => {
         try {
           setLoading(true);
           const response = await apiClient.patch(`/boxes/${box.id}/`, {
-            status: 'archived',
+            status: 'ARCHIVED',
             archived_at: new Date().toISOString(),
             archive_reason: 'Archived after verification completion'
           });
@@ -693,7 +696,7 @@ const CouponVerification: FC = () => {
         try {
           setLoading(true);
           const response = await apiClient.patch(`/boxes/${box.id}/`, {
-            status: 'dispatched',
+            status: 'DISPATCHED',
             dispatched_at: new Date().toISOString(),
             final_confirmation: true,
             confirmation_notes: `Final confirmation completed on ${new Date().toLocaleDateString()}`

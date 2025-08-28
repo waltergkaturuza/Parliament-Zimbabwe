@@ -4831,3 +4831,145 @@ class CouponHandover(TimeStampedModel):
     
     class Meta:
         db_table = 'fuel_couponhandover'
+
+
+class HarmonizedBeneficiaryProfile(TimeStampedModel):
+    """
+    Harmonized beneficiary profile that consolidates all beneficiary information
+    This model serves as a unified data structure for the dynamic allocation system
+    """
+    # User and Identity
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='harmonized_profile'
+    )
+    parliamentary_id = models.CharField(
+        max_length=50, 
+        unique=True,
+        help_text="Official parliamentary identification number"
+    )
+    employee_id = models.CharField(
+        max_length=50, 
+        unique=True, 
+        null=True, 
+        blank=True,
+        help_text="Employee ID for staff members"
+    )
+    
+    # Classification
+    category = models.ForeignKey(
+        BeneficiaryCategory,
+        on_delete=models.PROTECT,
+        related_name='harmonized_beneficiaries'
+    )
+    constituency = models.ForeignKey(
+        Constituency,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='harmonized_constituency_beneficiaries'
+    )
+    vehicle_category = models.ForeignKey(
+        VehicleCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='harmonized_vehicle_beneficiaries'
+    )
+    
+    # Professional Information
+    position = models.CharField(max_length=100, blank=True)
+    department = models.CharField(max_length=100, blank=True)
+    party_affiliation = models.CharField(max_length=100, blank=True)
+    
+    # Personal Information
+    date_of_birth = models.DateField(null=True, blank=True)
+    national_id = models.CharField(max_length=50, unique=True)
+    full_address = models.TextField(blank=True)
+    
+    # Contact Information
+    office_location = models.CharField(max_length=200, blank=True)
+    office_phone = models.CharField(max_length=20, blank=True)
+    mobile_phone = models.CharField(max_length=20, blank=True)
+    official_email = models.EmailField(blank=True)
+    personal_email = models.EmailField(blank=True)
+    
+    # Vehicle Information
+    vehicle_make = models.CharField(max_length=50, blank=True)
+    vehicle_model = models.CharField(max_length=50, blank=True)
+    vehicle_year = models.IntegerField(null=True, blank=True)
+    engine_size = models.CharField(max_length=20, blank=True)
+    vehicle_registration = models.CharField(max_length=20, blank=True)
+    fuel_type = models.CharField(
+        max_length=10,
+        choices=[('PETROL', 'Petrol'), ('DIESEL', 'Diesel')],
+        default='DIESEL'
+    )
+    
+    # Allocation Profile
+    base_allocation = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('200')
+    )
+    category_multiplier = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('1.0')
+    )
+    engine_multiplier = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('1.0')
+    )
+    monthly_entitlement_litres = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0
+    )
+    max_per_transaction = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('50')
+    )
+    
+    # Status and Activity
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('ACTIVE', 'Active'),
+            ('INACTIVE', 'Inactive'),
+            ('SUSPENDED', 'Suspended'),
+            ('PENDING_APPROVAL', 'Pending Approval'),
+        ],
+        default='ACTIVE'
+    )
+    is_active_beneficiary = models.BooleanField(default=True)
+    
+    # Usage Tracking
+    current_balance = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('0')
+    )
+    used_this_month = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('0')
+    )
+    last_month_usage = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('0')
+    )
+    year_to_date_usage = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('0')
+    )
+    total_usage_all_time = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('0')
+    )
+    
+    # Timestamps
+    last_allocation_date = models.DateTimeField(null=True, blank=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    join_date = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Harmonized Beneficiary Profile"
+        verbose_name_plural = "Harmonized Beneficiary Profiles"
+        ordering = ['user__username']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.category.name} (Harmonized)"
+    
+    def get_full_name(self):
+        return f"{self.user.first_name} {self.user.last_name}".strip()
+    
+    @property 
+    def name(self):
+        return self.get_full_name()

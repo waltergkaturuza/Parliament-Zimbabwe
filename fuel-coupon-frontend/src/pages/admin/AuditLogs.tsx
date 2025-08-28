@@ -19,7 +19,7 @@ interface AuditLog {
     first_name: string;
     last_name: string;
     role: string;
-  };
+  } | null;
   action: string;
   resource_type: string;
   resource_id: string;
@@ -71,7 +71,7 @@ const AuditLogs: FC = () => {
       setLoading(true);
       
       // Call real audit logs API
-      const response = await apiClient.get('/audit-logs/', {
+      const response = await apiClient.get('/v1/audit-logs/', {
         params: {
           page: currentPage,
           page_size: pageSize,
@@ -127,12 +127,12 @@ const AuditLogs: FC = () => {
     // Search filter
     if (searchText) {
       filtered = filtered.filter(log =>
-        log.user.username.toLowerCase().includes(searchText.toLowerCase()) ||
-        log.user.first_name.toLowerCase().includes(searchText.toLowerCase()) ||
-        log.user.last_name.toLowerCase().includes(searchText.toLowerCase()) ||
-        log.action.toLowerCase().includes(searchText.toLowerCase()) ||
-        log.resource_type.toLowerCase().includes(searchText.toLowerCase()) ||
-        log.details.toLowerCase().includes(searchText.toLowerCase())
+        (log.user?.username?.toLowerCase().includes(searchText.toLowerCase()) || false) ||
+        (log.user?.first_name?.toLowerCase().includes(searchText.toLowerCase()) || false) ||
+        (log.user?.last_name?.toLowerCase().includes(searchText.toLowerCase()) || false) ||
+        (log.action?.toLowerCase().includes(searchText.toLowerCase()) || false) ||
+        (log.resource_type?.toLowerCase().includes(searchText.toLowerCase()) || false) ||
+        (log.details?.toLowerCase().includes(searchText.toLowerCase()) || false)
       );
     }
 
@@ -153,7 +153,7 @@ const AuditLogs: FC = () => {
 
     // User filter
     if (selectedUser !== 'all') {
-      filtered = filtered.filter(log => log.user.id === selectedUser);
+      filtered = filtered.filter(log => log.user?.id === selectedUser);
     }
 
     // Date range filter
@@ -229,10 +229,10 @@ const AuditLogs: FC = () => {
       render: (_: any, record: AuditLog) => (
         <div>
           <div style={{ fontWeight: 'bold' }}>
-            {record.user.first_name} {record.user.last_name}
+            {record.user ? `${record.user.first_name} ${record.user.last_name}` : 'System'}
           </div>
           <div style={{ fontSize: '12px', color: '#666' }}>
-            @{record.user.username} ({record.user.role})
+            {record.user ? `@${record.user.username} (${record.user.role})` : 'System Action'}
           </div>
         </div>
       )
@@ -312,7 +312,7 @@ const AuditLogs: FC = () => {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <p>Loading audit logs...</p>
+        <div style={{ marginTop: 16 }}>Loading audit logs...</div>
       </div>
     );
   }
@@ -462,7 +462,10 @@ const AuditLogs: FC = () => {
               </Col>
               <Col span={12}>
                 <strong>User:</strong><br />
-                {selectedLog.user.first_name} {selectedLog.user.last_name} (@{selectedLog.user.username})
+                {selectedLog.user 
+                  ? `${selectedLog.user.first_name} ${selectedLog.user.last_name} (@${selectedLog.user.username})`
+                  : 'System'
+                }
               </Col>
               <Col span={12}>
                 <strong>Action:</strong><br />

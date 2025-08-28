@@ -55,7 +55,9 @@ def sync_user_to_bc(sender, instance, created, **kwargs):
     if not is_sync_enabled() or not created:
         return
     
-    # Only sync users with parliament roles
+    # Only sync users with parliament roles (check if attributes exist)
+    if not (hasattr(instance, 'is_parliament_member') and hasattr(instance, 'is_senate_member')):
+        return
     if not (instance.is_parliament_member or instance.is_senate_member):
         return
     
