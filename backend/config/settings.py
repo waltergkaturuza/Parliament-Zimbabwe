@@ -104,8 +104,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
 ]
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
+# CORS settings - Support environment variable override
+CORS_ALLOWED_ORIGINS_BASE = [
     "http://localhost:5173",  # React Vite dev server
     "http://localhost:5174",  # Alternative Vite port
     "http://localhost:5175",
@@ -126,6 +126,12 @@ CORS_ALLOWED_ORIGINS = [
     # Render Frontend URLs
     "https://parliament-zimbabwe-fuel.onrender.com",  # Render frontend deployment
 ]
+
+# Allow additional CORS origins from environment variable
+ADDITIONAL_CORS_ORIGINS = os.getenv('ADDITIONAL_CORS_ORIGINS', '').split(',')
+ADDITIONAL_CORS_ORIGINS = [origin.strip() for origin in ADDITIONAL_CORS_ORIGINS if origin.strip()]
+
+CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_BASE + ADDITIONAL_CORS_ORIGINS
 
 # Additional CORS settings for proper preflight handling
 CORS_ALLOW_ALL_ORIGINS = False  # MUST be False when allowing credentials
