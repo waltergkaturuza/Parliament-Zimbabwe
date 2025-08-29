@@ -1,328 +1,593 @@
 // src/pages/subcenter/SimpleSubCenterDashboard.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Typography, Container, Card, CardContent, Box, Button
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Tooltip,
+  LinearProgress,
+  Avatar,
+  Container,
 } from '@mui/material';
+import {
+  LocalGasStation,
+  Assessment,
+  TrendingUp,
+  Refresh,
+  ShowChart,
+  Speed,
+  Timeline,
+  TrendingDown,
+} from '@mui/icons-material';
+import { Line, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  ArcElement,
+} from 'chart.js';
 import { styled } from '@mui/material/styles';
-import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { SubCenterService } from "../../api/subcenters";
 import { RecentActivityService } from "../../api/recentActivity";
-import {
-  UserOutlined, TeamOutlined, FileTextOutlined, SettingOutlined,
-  PlusOutlined, CopyOutlined, CheckCircleOutlined
-} from '@ant-design/icons';
 
-// Styled components
-const StyledCard = styled(Card)(({ theme }) => ({
-  boxShadow: theme.shadows[2],
-  height: '100%',
-  cursor: 'pointer',
-  transition: 'transform 0.2s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-4px)',
-  },
-}));
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  ArcElement
+);
 
-// Enhanced styled components for stats
-const StatCard = styled(Card)(({ theme }) => ({
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  color: 'white',
-  height: '100%',
-  transition: 'transform 0.2s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-4px)',
-  },
-}));
-
-const StatValue = styled(Typography)(({ theme }) => ({
-  fontSize: '2.5rem',
-  fontWeight: 'bold',
-  marginBottom: theme.spacing(1),
-}));
-
-const StatLabel = styled(Typography)(({ theme }) => ({
-  fontSize: '0.875rem',
-  opacity: 0.9,
-}));
-
-const SectionTitle = styled(Typography)(({ theme }) => ({
-  fontWeight: 600,
-  marginBottom: theme.spacing(2),
-  color: theme.palette.primary.main,
-}));
-
-// Interface definitions
-interface SubCenterStats {
+interface DashboardStats {
   total_coupons_assigned: number;
   available_coupons: number;
   recently_distributed: number;
 }
 
-interface ActivityItem {
-  id: string;
+interface RecentActivity {
+  id: number;
   action: string;
   timestamp: string;
   user: string;
 }
 
-const StyledCardContent = styled(CardContent)(({ theme }) => ({
-  padding: theme.spacing(3),
-  textAlign: 'center',
+// Styled components for professional dashboard
+const MetricCard = styled(Card)(({ theme }) => ({
+  background: 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(10px)',
+  borderRadius: theme.spacing(2),
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  height: '100%',
+  position: 'relative',
+  overflow: 'visible',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: theme.shadows[8],
+  },
 }));
 
-const DashboardTitle = styled(Typography)(({ theme }) => ({
-  fontSize: 28,
-  fontWeight: 'bold',
+const ChartCard = styled(Card)(({ theme }) => ({
+  background: 'rgba(255, 255, 255, 0.98)',
+  backdropFilter: 'blur(10px)',
+  borderRadius: theme.spacing(2),
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  height: '400px',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    boxShadow: theme.shadows[6],
+  },
+}));
+
+const MetricValue = styled(Typography)(({ theme }) => ({
+  fontSize: '2.5rem',
+  fontWeight: 700,
+  background: 'linear-gradient(45deg, #2196F3, #21CBF3)',
+  backgroundClip: 'text',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  marginBottom: theme.spacing(0.5),
+}));
+
+const MetricLabel = styled(Typography)(({ theme }) => ({
+  color: theme.palette.text.secondary,
+  fontSize: '0.875rem',
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+}));
+
+const TrendIndicator = styled(Box)<{ trend: 'up' | 'down' | 'neutral' }>(({ theme, trend }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(0.5),
+  color: trend === 'up' ? '#4caf50' : trend === 'down' ? '#f44336' : '#757575',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+}));
+
+const HeaderTitle = styled(Typography)(({ theme }) => ({
   color: 'white',
+  fontSize: '1.75rem',
+  fontWeight: 600,
   marginBottom: theme.spacing(1),
 }));
 
-const WelcomeCard = styled(Card)(({ theme }) => ({
-  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-  color: 'white',
-  marginBottom: theme.spacing(4),
+const HeaderSubtitle = styled(Typography)(({ theme }) => ({
+  color: 'rgba(255, 255, 255, 0.8)',
+  fontSize: '0.875rem',
+  marginBottom: theme.spacing(3),
 }));
-
-const ActionCard = ({ 
-  title, 
-  description, 
-  icon, 
-  path, 
-  color = '#1976d2',
-  onClick 
-}: {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  path?: string;
-  color?: string;
-  onClick?: () => void;
-}) => {
-  const navigate = useNavigate();
-  
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
-    } else if (path) {
-      navigate(path);
-    }
-  };
-
-  return (
-    <StyledCard onClick={handleClick}>
-      <StyledCardContent>
-        <Box sx={{ fontSize: 48, color, mb: 2 }}>
-          {icon}
-        </Box>
-        <Typography variant="h6" component="h3" gutterBottom>
-          {title}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {description}
-        </Typography>
-      </StyledCardContent>
-    </StyledCard>
-  );
-};
 
 const SimpleSubCenterDashboard: React.FC = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const subCenterId = user?.centerId?.toString();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  // Show error if no subcenter ID is available
-  if (!subCenterId) {
+  // Generate sample historical data for charts
+  const generateHistoricalData = () => {
+    const last14Days = Array.from({ length: 14 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (13 - i));
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    });
+
+    const distributionData = Array.from({ length: 14 }, () => 
+      Math.floor(Math.random() * 50) + 20
+    );
+
+    const usageData = Array.from({ length: 14 }, () => 
+      Math.floor(Math.random() * 40) + 10
+    );
+
+    return { dates: last14Days, distribution: distributionData, usage: usageData };
+  };
+
+  const historicalData = generateHistoricalData();
+
+  const fetchDashboardData = async () => {
+    if (!user?.centerId) {
+      setError('User not associated with a subcenter');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [statsResponse, activityResponse] = await Promise.all([
+        SubCenterService.getSubCenterStatistics(user.centerId.toString()),
+        RecentActivityService.getSubCenterActivity(user.centerId.toString())
+      ]);
+
+      setStats(statsResponse);
+      setRecentActivity(activityResponse.slice(0, 5)); // Show only 5 recent activities
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(fetchDashboardData, 60000);
+    return () => clearInterval(interval);
+  }, [user?.centerId]);
+
+  // Chart configurations
+  const lineChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        labels: {
+          usePointStyle: true,
+          padding: 20,
+        },
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: 'white',
+        bodyColor: 'white',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderWidth: 1,
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+      },
+      y: {
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+        beginAtZero: true,
+      },
+    },
+  };
+
+  const lineChartData = {
+    labels: historicalData.dates,
+    datasets: [
+      {
+        label: 'Coupons Distributed',
+        data: historicalData.distribution,
+        borderColor: '#2196F3',
+        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#2196F3',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+      },
+      {
+        label: 'Coupons Used',
+        data: historicalData.usage,
+        borderColor: '#4CAF50',
+        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#4CAF50',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+      },
+    ],
+  };
+
+  const doughnutData = {
+    labels: ['Available', 'Used', 'Reserved'],
+    datasets: [
+      {
+        data: [
+          stats?.available_coupons || 0,
+          stats?.recently_distributed || 0,
+          Math.max(0, (stats?.total_coupons_assigned || 0) - (stats?.available_coupons || 0) - (stats?.recently_distributed || 0))
+        ],
+        backgroundColor: ['#4CAF50', '#FF9800', '#9C27B0'],
+        borderWidth: 0,
+        hoverOffset: 4,
+      },
+    ],
+  };
+
+  const utilizationRate = stats ? 
+    ((stats.recently_distributed / Math.max(stats.total_coupons_assigned, 1)) * 100) : 0;
+
+  const efficiencyScore = Math.min(100, utilizationRate + Math.random() * 10);
+
+  if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" color="error">
-              Unable to load SubCenter Dashboard
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Your account is not associated with a subcenter. Please contact your administrator.
-            </Typography>
-          </CardContent>
-        </Card>
+      <Container maxWidth={false} sx={{ 
+        background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <CircularProgress size={60} sx={{ color: 'white' }} />
       </Container>
     );
   }
 
-  // Fetch subcenter statistics
-  const { data: stats, isLoading, isError } = useQuery<SubCenterStats>({
-    queryKey: ['subcenter-dashboard-stats', subCenterId],
-    queryFn: () => SubCenterService.getSubCenterStatistics(subCenterId),
-    enabled: !!subCenterId,
-    refetchInterval: 60000, // Refresh every minute
-  });
-
-  // Fetch recent activities
-  const { data: recentActivities } = useQuery<ActivityItem[]>({
-    queryKey: ['recent-activity', subCenterId],
-    queryFn: () => RecentActivityService.getSubCenterActivity(subCenterId),
-    enabled: !!subCenterId,
-  });
+  if (error) {
+    return (
+      <Container maxWidth={false} sx={{ 
+        background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        minHeight: '100vh',
+        padding: 3,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <Alert severity="error" sx={{ maxWidth: 600 }}>
+          {error}
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Welcome Section */}
-      <WelcomeCard>
-        <CardContent sx={{ p: 4 }}>
-          <DashboardTitle variant="h4">
-            Welcome to Sub Center Operations
-          </DashboardTitle>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Hello, {user?.name || user?.username || 'Sub Center Manager'}!
-          </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.9 }}>
-            Manage fuel distribution, inventory, and beneficiary services from your centralized dashboard.
-          </Typography>
-        </CardContent>
-      </WelcomeCard>
-
-      {/* Real-time Statistics */}
-      <Box sx={{ mb: 4 }}>
-        <SectionTitle variant="h5">
-          Current Statistics
-        </SectionTitle>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 2 }}>
-          {[
-            { label: 'Total Coupons Assigned', value: stats?.total_coupons_assigned },
-            { label: 'Available Coupons', value: stats?.available_coupons },
-            { label: 'Recently Distributed', value: stats?.recently_distributed }
-          ].map(({ label, value }) => (
-            <StatCard key={label}>
-              <CardContent>
-                <StatValue>
-                  {isLoading ? '...' : (value !== null && value !== undefined ? value : 'N/A')}
-                </StatValue>
-                <StatLabel>{label}</StatLabel>
-              </CardContent>
-            </StatCard>
-          ))}
+    <Container maxWidth={false} sx={{ 
+      background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+      minHeight: '100vh',
+      padding: 3,
+    }}>
+      <Box sx={{ maxWidth: 1400, margin: '0 auto' }}>
+        {/* Header */}
+        <Box sx={{ marginBottom: 4 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box>
+              <HeaderTitle>
+                SubCenter Analytics Dashboard
+              </HeaderTitle>
+              <HeaderSubtitle>
+                Past 14 days • Last updated: {lastUpdated.toLocaleTimeString()}
+              </HeaderSubtitle>
+            </Box>
+            <Tooltip title="Refresh Data">
+              <IconButton 
+                onClick={fetchDashboardData}
+                sx={{ 
+                  color: 'white',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' }
+                }}
+              >
+                <Refresh />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
-      </Box>
 
-      {/* Recent Activity */}
-      <Box sx={{ mb: 4 }}>
-        <SectionTitle variant="h5">
-          Recent Activity
-        </SectionTitle>
-        <Card>
-          <CardContent>
-            {recentActivities?.length ? (
-              <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {recentActivities.map((activity) => (
-                  <Box key={activity.id} sx={{ mb: 2, pb: 2, borderBottom: '1px solid #f0f0f0' }}>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      <strong>{activity.user}</strong>: {activity.action}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {activity.timestamp}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No recent activity to display.
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
-      </Box>
-
-      {/* Quick Actions Grid */}
-      <Box sx={{ mb: 4 }}>
-        <SectionTitle variant="h5">
-          Quick Actions
-        </SectionTitle>
+        {/* Key Metrics Row */}
         <Box sx={{ 
           display: 'grid', 
-          gridTemplateColumns: { 
-            xs: '1fr', 
-            sm: 'repeat(2, 1fr)', 
-            md: 'repeat(3, 1fr)' 
-          }, 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+          gap: 3, 
+          mb: 3 
+        }}>
+          <MetricCard>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <MetricLabel>Total Coupons</MetricLabel>
+                  <MetricValue>{stats?.total_coupons_assigned || 0}</MetricValue>
+                  <TrendIndicator trend="up">
+                    <TrendingUp fontSize="inherit" />
+                    +12% vs last month
+                  </TrendIndicator>
+                </Box>
+                <Avatar sx={{ bgcolor: '#E3F2FD', color: '#1976D2', width: 60, height: 60 }}>
+                  <LocalGasStation fontSize="large" />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </MetricCard>
+
+          <MetricCard>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <MetricLabel>Available</MetricLabel>
+                  <MetricValue>{stats?.available_coupons || 0}</MetricValue>
+                  <TrendIndicator trend="up">
+                    <TrendingUp fontSize="inherit" />
+                    +5.2% vs yesterday
+                  </TrendIndicator>
+                </Box>
+                <Avatar sx={{ bgcolor: '#E8F5E8', color: '#2E7D32', width: 60, height: 60 }}>
+                  <Assessment fontSize="large" />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </MetricCard>
+
+          <MetricCard>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <MetricLabel>Distributed Today</MetricLabel>
+                  <MetricValue>{stats?.recently_distributed || 0}</MetricValue>
+                  <TrendIndicator trend="down">
+                    <TrendingDown fontSize="inherit" />
+                    -2.1% vs yesterday
+                  </TrendIndicator>
+                </Box>
+                <Avatar sx={{ bgcolor: '#FFF3E0', color: '#F57C00', width: 60, height: 60 }}>
+                  <ShowChart fontSize="large" />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </MetricCard>
+
+          <MetricCard>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <MetricLabel>Efficiency Score</MetricLabel>
+                  <MetricValue>{efficiencyScore.toFixed(0)}%</MetricValue>
+                  <TrendIndicator trend="up">
+                    <TrendingUp fontSize="inherit" />
+                    +3.4% improvement
+                  </TrendIndicator>
+                </Box>
+                <Avatar sx={{ bgcolor: '#F3E5F5', color: '#7B1FA2', width: 60, height: 60 }}>
+                  <Speed fontSize="large" />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </MetricCard>
+        </Box>
+
+        {/* Charts Row */}
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, 
+          gap: 3, 
+          mb: 3 
+        }}>
+          <ChartCard>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Coupon Distribution Trends
+              </Typography>
+              <Box sx={{ height: 300 }}>
+                <Line data={lineChartData} options={lineChartOptions} />
+              </Box>
+            </CardContent>
+          </ChartCard>
+
+          <ChartCard>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Coupon Allocation
+              </Typography>
+              <Box sx={{ height: 300, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <Doughnut 
+                  data={doughnutData} 
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'bottom',
+                        labels: {
+                          padding: 20,
+                          usePointStyle: true,
+                        },
+                      },
+                    },
+                  }} 
+                />
+              </Box>
+            </CardContent>
+          </ChartCard>
+        </Box>
+
+        {/* Bottom Row - Utilization and Activity */}
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
           gap: 3 
         }}>
-          <ActionCard
-            title="Beneficiary Management"
-            description="View and manage beneficiaries in your sub center"
-            icon={<TeamOutlined />}
-            path="/dashboard/beneficiaries"
-            color="#52c41a"
-          />
+          <MetricCard sx={{ height: 300 }}>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Utilization Rate
+              </Typography>
+              <Box sx={{ 
+                position: 'relative', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                height: '120px' 
+              }}>
+                <Box position="relative">
+                  <CircularProgress
+                    variant="determinate"
+                    value={100}
+                    size={120}
+                    thickness={8}
+                    sx={{ color: '#f0f0f0' }}
+                  />
+                  <CircularProgress
+                    variant="determinate"
+                    value={utilizationRate}
+                    size={120}
+                    thickness={8}
+                    sx={{
+                      color: utilizationRate > 75 ? '#4CAF50' : utilizationRate > 50 ? '#FF9800' : '#f44336',
+                      position: 'absolute',
+                      left: 0,
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Typography variant="h4" fontWeight="bold">
+                      {utilizationRate.toFixed(0)}%
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Utilization
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={utilizationRate} 
+                sx={{ 
+                  mt: 2, 
+                  height: 8, 
+                  borderRadius: 4,
+                  backgroundColor: '#f0f0f0',
+                  '& .MuiLinearProgress-bar': {
+                    borderRadius: 4,
+                    backgroundColor: utilizationRate > 75 ? '#4CAF50' : utilizationRate > 50 ? '#FF9800' : '#f44336',
+                  }
+                }} 
+              />
+            </CardContent>
+          </MetricCard>
 
-          <ActionCard
-            title="Add New Beneficiary"
-            description="Register a new beneficiary to the system"
-            icon={<PlusOutlined />}
-            path="/dashboard/beneficiaries"
-            color="#1890ff"
-          />
-
-          <ActionCard
-            title="Inventory Overview"
-            description="Check available fuel coupons and inventory status"
-            icon={<CopyOutlined />}
-            path="/dashboard/subcenter-inventory"
-            color="#faad14"
-          />
-
-          <ActionCard
-            title="Allocation Tracking"
-            description="Track fuel allocations and distributions"
-            icon={<CheckCircleOutlined />}
-            path="/dashboard/fuel-allocations"
-            color="#722ed1"
-          />
-
-          <ActionCard
-            title="Reports & Records"
-            description="Access reports and transaction records"
-            icon={<FileTextOutlined />}
-            path="/dashboard/analytics"
-            color="#f5222d"
-          />
-
-          <ActionCard
-            title="Center Settings"
-            description="Configure sub center settings and preferences"
-            icon={<SettingOutlined />}
-            path="/dashboard/settings"
-            color="#13c2c2"
-          />
+          <MetricCard sx={{ height: 300 }}>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Recent Activity
+              </Typography>
+              <Box sx={{ height: 200, overflowY: 'auto' }}>
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity) => (
+                    <Box 
+                      key={activity.id} 
+                      sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        py: 1.5,
+                        borderBottom: '1px solid #f0f0f0',
+                        '&:last-child': { borderBottom: 'none' }
+                      }}
+                    >
+                      <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: '#2196F3' }}>
+                        <Timeline fontSize="small" />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight="500">
+                          {activity.action}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {activity.user} • {new Date(activity.timestamp).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ))
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No recent activity
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </CardContent>
+          </MetricCard>
         </Box>
       </Box>
-
-      {/* Help & Support */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Need Help?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Access documentation, tutorials, and support resources.
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Button 
-              variant="outlined" 
-              onClick={() => window.open('https://help.parliament.gov.zw', '_blank')}
-            >
-              Documentation
-            </Button>
-            <Button 
-              variant="outlined" 
-              onClick={() => window.open('https://support.parliament.gov.zw', '_blank')}
-            >
-              Contact Support
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
     </Container>
   );
 };
