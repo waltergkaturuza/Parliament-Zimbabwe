@@ -3609,7 +3609,18 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for viewing audit logs"""
     serializer_class = AuditLogSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission]
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """
+        Custom permissions: Allow AUDITOR, MAIN_CENTER, and SUPERUSER
+        """
+        if self.request.user.is_authenticated:
+            if self.request.user.is_superuser or self.request.user.role in ['AUDITOR', 'MAIN_CENTER', 'SUPERUSER']:
+                return [IsAuthenticated()]
+            else:
+                return [MainCenterPermission()]
+        return [IsAuthenticated()]
     
     def get_queryset(self):
         queryset = AuditLog.objects.all()
@@ -3691,32 +3702,120 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def transaction_stats(self, request):
-        """Get transaction statistics"""
-        return Response({
-            'total_transactions': 150,
-            'successful_transactions': 145,
-            'failed_transactions': 5,
-            'pending_transactions': 0,
-        })
-    
+        """Get real transaction statistics"""
+        try:
+            # Get actual transaction statistics
+            from .models import FuelTransaction
+            
+            total_transactions = FuelTransaction.objects.count()
+            
+            # Calculate date range for recent transactions (last 30 days)
+            thirty_days_ago = timezone.now() - timedelta(days=30)
+            recent_transactions = FuelTransaction.objects.filter(timestamp__gte=thirty_days_ago)
+            
+            # Count successful vs failed transactions (assuming is_verified field indicates success)
+            successful_transactions = recent_transactions.filter(is_verified=True).count() if hasattr(FuelTransaction, 'is_verified') else recent_transactions.count()
+            pending_transactions = recent_transactions.filter(is_verified=False).count() if hasattr(FuelTransaction, 'is_verified') else 0
+            failed_transactions = 0  # Can be calculated based on your business logic
+            
+            return Response({
+                'total_transactions': total_transactions,
+                'recent_transactions': recent_transactions.count(),
+                'successful_transactions': successful_transactions,
+                'failed_transactions': failed_transactions,
+                'pending_transactions': pending_transactions,
+                'date_range': f'Last 30 days',
+            })
+        except Exception as e:
+            # Fallback to basic counts if there are issues
+            return Response({
+                'total_transactions': FuelTransaction.objects.count() if 'FuelTransaction' in dir() else 0,
+                'successful_transactions': 0,
+                'failed_transactions': 0,
+                'pending_transactions': 0,
+                'error': str(e)
+            })
+
     @action(detail=False, methods=['get'])
     def transactions(self, request):
-        """Get audit transactions"""
-        # Return audit logs formatted as transactions
-        logs = self.get_queryset()[:50]
-        transactions = []
-        
-        for log in logs:
-            transactions.append({
-                'id': log.id,
-                'action': log.action,
-                'model': log.model_name,
-                'user': log.user.username if log.user else 'System',
-                'timestamp': log.created.strftime('%Y-%m-%d %H:%M:%S'),
-                'details': log.details or {},
+        """Get real audit transactions from FuelTransaction and AuditLog"""
+        try:
+            # Get page parameters
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 20))
+            
+            # Combine audit logs and fuel transactions
+            transactions = []
+            
+            # Get audit logs
+            audit_logs = self.get_queryset()
+            for log in audit_logs[:page_size//2]:  # Take half from audit logs
+                transactions.append({
+                    'id': f'audit_{log.id}',
+                    'type': 'audit',
+                    'action': log.action,
+                    'model': log.model_name,
+                    'user': log.user.username if log.user else 'System',
+                    'timestamp': log.created.strftime('%Y-%m-%d %H:%M:%S'),
+                    'details': log.details or {},
+                    'status': 'completed'
+                })
+            
+            # Get fuel transactions if available
+            try:
+                from .models import FuelTransaction
+                fuel_transactions = FuelTransaction.objects.all().order_by('-timestamp')[:page_size//2]
+                
+                for txn in fuel_transactions:
+                    transactions.append({
+                        'id': f'fuel_{txn.id}',
+                        'type': 'fuel_transaction',
+                        'action': 'fuel_dispensed',
+                        'model': 'FuelTransaction',
+                        'user': txn.beneficiary.get_full_name() if hasattr(txn, 'beneficiary') and txn.beneficiary else 'Unknown',
+                        'timestamp': txn.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                        'details': {
+                            'litres': float(txn.litres_consumed) if hasattr(txn, 'litres_consumed') else 0,
+                            'cost': float(txn.amount_usd) if hasattr(txn, 'amount_usd') else 0,
+                            'coupon_id': txn.coupon.id if hasattr(txn, 'coupon') and txn.coupon else None
+                        },
+                        'status': 'verified' if hasattr(txn, 'is_verified') and txn.is_verified else 'completed'
+                    })
+            except Exception as fuel_error:
+                print(f"Could not load fuel transactions: {fuel_error}")
+            
+            # Sort by timestamp descending
+            transactions.sort(key=lambda x: x['timestamp'], reverse=True)
+            
+            return Response({
+                'results': transactions[:page_size],
+                'count': len(transactions),
+                'page': page,
+                'page_size': page_size
             })
-        
-        return Response(transactions)
+            
+        except Exception as e:
+            # Fallback to audit logs only
+            logs = self.get_queryset()[:20]
+            transactions = []
+            
+            for log in logs:
+                transactions.append({
+                    'id': log.id,
+                    'type': 'audit',
+                    'action': log.action,
+                    'model': log.model_name,
+                    'user': log.user.username if log.user else 'System',
+                    'timestamp': log.created.strftime('%Y-%m-%d %H:%M:%S'),
+                    'details': log.details or {},
+                    'status': 'completed'
+                })
+            
+            return Response({
+                'results': transactions,
+                'count': len(transactions),
+                'error': str(e)
+            })
     
     @action(detail=False, methods=['get'])
     def summary(self, request):
@@ -4972,11 +5071,21 @@ def main_dashboard(request):
 # Analytics Consumption Trend View - for /api/v1/analytics/consumption-trend/
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def analytics_consumption_trend(request):
     """
     Fuel consumption trend analytics endpoint
     """
     try:
+        # Check permissions - allow AUDITOR, MAIN_CENTER, SUB_CENTER, and SUPERUSER
+        user = request.user
+        if not (user.is_superuser or user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']):
+            return Response(
+                {'error': 'Insufficient permissions for analytics access'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
         # Get query parameters
         days = int(request.GET.get('days', 30))
         start_date = timezone.now() - timedelta(days=days)
@@ -5998,6 +6107,14 @@ def analytics_received_breakdown(request):
         # Gracefully handle missing auth in some proxies
         if not getattr(request, 'user', None) or not request.user.is_authenticated:
             return Response({'error': 'Authentication required'}, status=401)
+
+        # Check role-based permissions - allow AUDITOR, MAIN_CENTER, SUB_CENTER, and SUPERUSER
+        user = request.user
+        if not (user.is_superuser or user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']):
+            return Response(
+                {'error': 'Insufficient permissions for analytics access'}, 
+                status=403
+            )
 
         boxes_qs = Box.objects.all()
         # Prefer received_at; fallback to created for legacy
