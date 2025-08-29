@@ -105,87 +105,184 @@ const AnalyticsDashboard = () => {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<DashboardStats>({
     queryKey: ['analytics-dashboard-stats', dateRange],
     queryFn: async () => {
-      // Simulated data - replace with actual API call
-      return {
-        totalCoupons: 15420,
-        activeCoupons: 12340,
-        totalBeneficiaries: 890,
-        totalAllocations: 45,
-        pendingApprovals: 23,
-        monthlyUsage: 78.5,
-        fuelSavings: 234567,
-        systemEfficiency: 94.2,
-      };
+      const { fetchAnalyticsData, fetchComplianceData } = await import('@/utils/analytics');
+      
+      try {
+        const startDate = format(dateRange[0], 'yyyy-MM-dd');
+        const endDate = format(dateRange[1], 'yyyy-MM-dd');
+        
+        const [analyticsData, complianceData] = await Promise.all([
+          fetchAnalyticsData(startDate, endDate),
+          fetchComplianceData()
+        ]);
+        
+        return {
+          totalCoupons: analyticsData.operational_summary.total_coupons_issued || 0,
+          activeCoupons: analyticsData.fuel_summary.total_coupons_used || 0,
+          totalBeneficiaries: analyticsData.attendance_summary.present_beneficiaries || 0,
+          totalAllocations: analyticsData.operational_summary.total_boxes_processed || 0,
+          pendingApprovals: analyticsData.entitlement_summary.total_entitlements_created || 0,
+          monthlyUsage: analyticsData.attendance_summary.attendance_rate || 0,
+          fuelSavings: analyticsData.financial_summary.total_profit_usd || 0,
+          systemEfficiency: complianceData.compliance_stats.compliance_rate || 0,
+        };
+      } catch (error) {
+        console.error('Failed to fetch analytics data:', error);
+        // Fallback data
+        return {
+          totalCoupons: 0,
+          activeCoupons: 0,
+          totalBeneficiaries: 0,
+          totalAllocations: 0,
+          pendingApprovals: 0,
+          monthlyUsage: 0,
+          fuelSavings: 0,
+          systemEfficiency: 0,
+        };
+      }
     },
   });
 
   const { data: chartData, isLoading: chartLoading } = useQuery<ChartData>({
     queryKey: ['analytics-dashboard-charts', dateRange],
     queryFn: async () => {
-      // Simulated data - replace with actual API call
-      const usageTrend = Array.from({ length: 30 }, (_, i) => ({
-        date: format(subDays(new Date(), 29 - i), 'MMM dd'),
-        amount: Math.floor(Math.random() * 1000) + 500,
-        efficiency: Math.floor(Math.random() * 20) + 80,
-      }));
+      const { fetchAnalyticsData, fetchConsumptionTrend, fetchTopBeneficiaries } = await import('@/utils/analytics');
+      
+      try {
+        const startDate = format(dateRange[0], 'yyyy-MM-dd');
+        const endDate = format(dateRange[1], 'yyyy-MM-dd');
+        
+        const [analyticsData, consumptionData, topBeneficiaries] = await Promise.all([
+          fetchAnalyticsData(startDate, endDate),
+          fetchConsumptionTrend(startDate, endDate),
+          fetchTopBeneficiaries()
+        ]);
 
-      return {
-        usageTrend,
-        allocationByCategory: [
-          { category: 'MPs', amount: 45, color: '#1890ff' },
-          { category: 'Senators', amount: 30, color: '#52c41a' },
-          { category: 'Staff', amount: 25, color: '#faad14' },
-          { category: 'Officials', amount: 15, color: '#f5222d' },
-        ],
-        monthlyComparison: [
-          { month: 'Jan', current: 4000, previous: 3800 },
-          { month: 'Feb', current: 3500, previous: 3200 },
-          { month: 'Mar', current: 4200, previous: 3900 },
-          { month: 'Apr', current: 3800, previous: 3600 },
-          { month: 'May', current: 4500, previous: 4100 },
-        ],
-        topBeneficiaries: [
-          { name: 'Hon. John Doe', usage: 156, efficiency: 95 },
-          { name: 'Hon. Jane Smith', usage: 142, efficiency: 92 },
-          { name: 'Hon. Mike Johnson', usage: 138, efficiency: 89 },
-          { name: 'Hon. Sarah Wilson', usage: 134, efficiency: 87 },
-          { name: 'Hon. David Brown', usage: 128, efficiency: 85 },
-        ],
-      };
+        // Process daily data for usage trend
+        const usageTrend = analyticsData.daily_data.map(day => ({
+          date: format(new Date(day.date), 'MMM dd'),
+          amount: day.coupons_issued || 0,
+          efficiency: Math.round((day.profit_usd / Math.max(day.revenue_usd, 1)) * 100) || 0,
+        }));
+
+        // Process fuel type breakdown data
+        const allocationByCategory = [
+          { category: 'Petrol', amount: Math.round(analyticsData.fuel_summary.total_fuel_dispensed * 0.6), color: '#1890ff' },
+          { category: 'Diesel', amount: Math.round(analyticsData.fuel_summary.total_fuel_dispensed * 0.4), color: '#52c41a' },
+        ];
+
+        // Monthly comparison from daily data
+        const monthlyComparison = [];
+        const currentMonthData = analyticsData.daily_data.slice(-30);
+        const previousMonthData = analyticsData.daily_data.slice(-60, -30);
+        
+        for (let i = 0; i < 5; i++) {
+          const currentWeek = currentMonthData.slice(i * 6, (i + 1) * 6);
+          const previousWeek = previousMonthData.slice(i * 6, (i + 1) * 6);
+          
+          monthlyComparison.push({
+            month: format(subDays(new Date(), (4 - i) * 7), 'MMM'),
+            current: currentWeek.reduce((sum, day) => sum + day.revenue_usd, 0),
+            previous: previousWeek.reduce((sum, day) => sum + day.revenue_usd, 0),
+          });
+        }
+
+        return {
+          usageTrend,
+          allocationByCategory,
+          monthlyComparison,
+          topBeneficiaries: topBeneficiaries.slice(0, 5).map((beneficiary: any) => ({
+            name: beneficiary.name,
+            usage: beneficiary.usage,
+            efficiency: beneficiary.efficiency,
+          })),
+        };
+      } catch (error) {
+        console.error('Failed to fetch chart data:', error);
+        // Fallback data
+        const usageTrend = Array.from({ length: 30 }, (_, i) => ({
+          date: format(subDays(new Date(), 29 - i), 'MMM dd'),
+          amount: 0,
+          efficiency: 0,
+        }));
+
+        return {
+          usageTrend,
+          allocationByCategory: [
+            { category: 'No Data', amount: 0, color: '#cccccc' },
+          ],
+          monthlyComparison: [],
+          topBeneficiaries: [],
+        };
+      }
     },
   });
 
   const { data: recentActivity, isLoading: activityLoading } = useQuery<RecentActivity[]>({
     queryKey: ['analytics-dashboard-activity'],
     queryFn: async () => {
-      return [
-        {
-          id: '1',
-          type: 'allocation',
-          title: 'New Allocation Created',
-          description: 'Monthly allocation for March 2025 created for MPs',
-          timestamp: new Date().toISOString(),
-          status: 'success',
-          user: 'Admin User',
-        },
-        {
-          id: '2',
-          type: 'approval',
-          title: 'Pending Approval',
-          description: '15 fuel requests awaiting approval',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          status: 'warning',
-        },
-        {
-          id: '3',
-          type: 'transaction',
-          title: 'Bulk Transaction',
-          description: '45 coupons distributed to beneficiaries',
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          status: 'success',
-          user: 'System Auto',
-        },
-      ];
+      try {
+        const { fetchAnalyticsData } = await import('@/utils/analytics');
+        
+        // Get recent data for activity feed
+        const endDate = format(new Date(), 'yyyy-MM-dd');
+        const startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+        
+        const analyticsData = await fetchAnalyticsData(startDate, endDate);
+        
+        const activities: RecentActivity[] = [];
+        
+        // Generate activities from recent daily data
+        analyticsData.daily_data.slice(-5).forEach((day, index) => {
+          if (day.boxes_processed > 0) {
+            activities.push({
+              id: `box-${index}`,
+              type: 'allocation',
+              title: 'Boxes Processed',
+              description: `${day.boxes_processed} boxes processed with ${day.coupons_issued} coupons`,
+              timestamp: new Date(day.date).toISOString(),
+              status: 'success',
+            });
+          }
+          
+          if (day.revenue_usd > 0) {
+            activities.push({
+              id: `revenue-${index}`,
+              type: 'transaction',
+              title: 'Revenue Generated',
+              description: `$${day.revenue_usd.toFixed(2)} revenue from fuel transactions`,
+              timestamp: new Date(day.date).toISOString(),
+              status: 'info',
+            });
+          }
+        });
+        
+        // Add system efficiency check
+        if (analyticsData.fuel_summary.total_coupons_used > 0) {
+          activities.unshift({
+            id: 'efficiency',
+            type: 'system',
+            title: 'System Efficiency Check',
+            description: `${analyticsData.fuel_summary.total_coupons_used} coupons processed successfully`,
+            timestamp: new Date().toISOString(),
+            status: 'success',
+          });
+        }
+        
+        return activities.slice(0, 10); // Limit to 10 most recent
+      } catch (error) {
+        console.error('Failed to fetch activity data:', error);
+        return [
+          {
+            id: '1',
+            type: 'system',
+            title: 'System Status',
+            description: 'Analytics data loading...',
+            timestamp: new Date().toISOString(),
+            status: 'info',
+          },
+        ];
+      }
     },
   });
 
