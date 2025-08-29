@@ -497,7 +497,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         - Read access: All authenticated users
         - Write access: Main Center, Auditor roles only
         """
-        if self.action in ['list', 'retrieve', 'overview']:
+        if self.action in ['list', 'retrieve', 'overview', 'activities', 'statistics', 'recent_activity']:
             return [IsAuthenticated()]
         
         # Create a composite permission for write operations

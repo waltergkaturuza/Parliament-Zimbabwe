@@ -74,6 +74,7 @@ interface BoxVerification {
   couponAmount: 5 | 20 | 50;
   numberOfBooks: number;
   totalCoupons: number;
+  totalLitres: number;
   firstCouponId: string;
   lastCouponId: string;
   status: 'PENDING' | 'VERIFIED' | 'SIGNED_OFF';
@@ -126,7 +127,24 @@ const BoxVerificationPage: React.FC = () => {
         fuelType: box.fuel_type || 'PETROL',
         couponAmount: box.denomination || 20,
         numberOfBooks: box.number_of_books || 0,
-        totalCoupons: box.total_coupons || 0,
+        totalCoupons: (() => {
+          const fromApi = box.total_coupons;
+          const calculated = (box.number_of_books || 0) * (box.coupons_per_book || 0);
+          const result = fromApi && fromApi > 0 ? fromApi : calculated;
+          console.log(`Verification Box ${box.box_code} total coupons: API=${fromApi}, calculated=${calculated}, final=${result}`, {
+            number_of_books: box.number_of_books,
+            coupons_per_book: box.coupons_per_book
+          });
+          return result;
+        })(),
+        totalLitres: (() => {
+          const fromApi = box.total_litres;
+          const totalCoupons = (box.total_coupons && box.total_coupons > 0) ? box.total_coupons : (box.number_of_books || 0) * (box.coupons_per_book || 0);
+          const calculated = totalCoupons * (box.denomination || box.coupon_amount || 0);
+          const result = fromApi && fromApi > 0 ? fromApi : calculated;
+          console.log(`Verification Box ${box.box_code} total litres: API=${fromApi}, calculated=${calculated}, totalCoupons=${totalCoupons}, couponAmount=${box.denomination || box.coupon_amount}`);
+          return result;
+        })(),
         firstCouponId: box.first_coupon_number || '',
         lastCouponId: box.last_coupon_number || '',
         status: box.is_verified ? 'VERIFIED' : (box.status === 'SIGNED_OFF' ? 'SIGNED_OFF' : 'PENDING'),
@@ -394,6 +412,13 @@ const BoxVerificationPage: React.FC = () => {
       render: (text) => text.toLocaleString()
     },
     {
+      title: 'Total Litres',
+      dataIndex: 'totalLitres',
+      key: 'totalLitres',
+      width: 100,
+      render: (text) => `${text.toLocaleString()}L`
+    },
+    {
       title: 'Verification Status',
       key: 'verificationStatus',
       width: 150,
@@ -542,6 +567,7 @@ const BoxVerificationPage: React.FC = () => {
               <Descriptions.Item label="Coupon Amount">{selectedBox.couponAmount}L</Descriptions.Item>
               <Descriptions.Item label="Number of Books">{selectedBox.numberOfBooks}</Descriptions.Item>
               <Descriptions.Item label="Total Coupons">{selectedBox.totalCoupons}</Descriptions.Item>
+              <Descriptions.Item label="Total Litres">{selectedBox.totalLitres}L</Descriptions.Item>
               <Descriptions.Item label="First Coupon" span={2}>
                 <Text code>{selectedBox.firstCouponId}</Text>
               </Descriptions.Item>

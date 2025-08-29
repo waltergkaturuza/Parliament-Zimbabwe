@@ -257,21 +257,41 @@ const BoxReceiptManagement: FC = () => {
               : box.received_by?.username,
             fuelType: box.fuel_type,
             couponAmount: box.coupon_amount,
-            numberOfBooks: box.number_of_books ?? (box.books?.length),
+            numberOfBooks: box.number_of_books ?? (box.books?.length || 0),
             couponsPerBook: box.coupons_per_book,
-            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            totalCoupons: (() => {
+              const fromApi = box.total_coupons;
+              const calculated = (box.number_of_books || box.books?.length || 0) * (box.coupons_per_book || 0);
+              const result = fromApi ?? (calculated || 0);
+              console.log(`Box ${box.box_code} total coupons: API=${fromApi}, calculated=${calculated}, final=${result}`, {
+                number_of_books: box.number_of_books,
+                books_length: box.books?.length,
+                coupons_per_book: box.coupons_per_book
+              });
+              return result;
+            })(),
             totalLitres: box.total_litres,
             firstCouponId,
             lastCouponId,
             monetaryValueUSD: box.monetary_value_usd,
             fuelPricePerLitreUSD: box.fuel_price_per_litre_usd,
             exchangeRate: box.exchange_rate,
-            status: (box.status === 'received' ? 'RECEIVED' : 
-                    box.status === 'verified' ? 'VERIFIED' : 
-                    box.status === 'dispatched' ? 'DISPATCHED' : 
-                    box.status === 'damaged' ? 'DAMAGED' : 
-                    box.status === 'archived' ? 'ARCHIVED' : 
-                    'PENDING') as 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED',
+            status: (() => {
+              const apiStatus = box.status?.toLowerCase();
+              let mappedStatus;
+              
+              switch (apiStatus) {
+                case 'received': mappedStatus = 'RECEIVED'; break;
+                case 'verified': mappedStatus = 'VERIFIED'; break;
+                case 'dispatched': mappedStatus = 'DISPATCHED'; break;
+                case 'damaged': mappedStatus = 'DAMAGED'; break;
+                case 'archived': mappedStatus = 'ARCHIVED'; break;
+                default: mappedStatus = 'PENDING'; break;
+              }
+              
+              console.log(`Box ${box.box_code} status: API="${box.status}" -> UI="${mappedStatus}"`);
+              return mappedStatus;
+            })() as 'PENDING' | 'RECEIVED' | 'VERIFIED' | 'DISPATCHED' | 'DAMAGED' | 'ARCHIVED',
             verificationNotes: box.verification_notes,
             invoiceNumber: box.invoice_number,
             deliveryNote: box.delivery_note,
@@ -1255,6 +1275,32 @@ const BoxReceiptManagement: FC = () => {
     setIsPrintModalVisible(true);
   };
 
+  // Handle box verification
+  const handleVerifyBox = async (box: BoxReceipt) => {
+    try {
+      setLoading(true);
+      
+      // Update box status to VERIFIED
+      const response = await apiClient.patch(`/boxes/${box.id}/`, {
+        status: 'verified',
+        verification_notes: `Box verified on ${new Date().toISOString()}`,
+      });
+
+      if (response.status === 200) {
+        message.success(`Box ${box.boxId} has been verified successfully!`);
+        // Refresh the data to show updated status
+        await fetchBoxReceipts();
+      } else {
+        throw new Error('Failed to verify box');
+      }
+    } catch (error) {
+      console.error('Error verifying box:', error);
+      message.error('Failed to verify box. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Book verification handlers
   const handleBookVerificationChange = (bookNumber: number, checked: boolean) => {
     setVerifiedBooks(prev => {
@@ -1807,12 +1853,20 @@ const BoxReceiptManagement: FC = () => {
           
           {record.status === 'RECEIVED' && (
             <Tooltip title="Verify Box">
-              <Button
-                type="default"
-                size="small"
-                icon={<CheckOutlined />}
-                onClick={() => navigate('/dashboard/coupon-verification')}
-              />
+              <Popconfirm
+                title="Verify Box"
+                description="Are you sure you want to verify this box? This action will mark it as verified."
+                onConfirm={() => handleVerifyBox(record)}
+                okText="Yes, Verify"
+                cancelText="Cancel"
+              >
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<CheckOutlined />}
+                  loading={loading}
+                />
+              </Popconfirm>
             </Tooltip>
           )}
           
@@ -2149,14 +2203,22 @@ const BoxReceiptManagement: FC = () => {
                 extra={
                   <Space>
                     <Tag color="orange">Pending Verification</Tag>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<BarcodeOutlined />}
-                      onClick={() => navigate('/dashboard/coupon-verification')}
+                    <Popconfirm
+                      title="Verify Box"
+                      description="Are you sure you want to verify this box? This action will mark it as verified."
+                      onConfirm={() => handleVerifyBox(box)}
+                      okText="Yes, Verify"
+                      cancelText="Cancel"
                     >
-                      Verify & Generate Books
-                    </Button>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<BarcodeOutlined />}
+                        loading={loading}
+                      >
+                        Verify Box
+                      </Button>
+                    </Popconfirm>
                   </Space>
                 }
               >
