@@ -74,6 +74,7 @@ export default defineConfig({
       }
     }
   },
+  base: '/', // Use absolute paths for Render deployment
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
@@ -95,10 +96,9 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           antd: ['antd', '@ant-design/icons'],
-          charts: ['chart.js', 'recharts']
+          charts: ['chart.js', 'react-chartjs-2', 'recharts']
         }
       }
     }
-  },
-  base: './' // Use relative paths for deployment flexibility
-})// Rebuild: 2025-08-03-01-04-06
+  }
+})// Rebuild: 2025-08-29-production-fix

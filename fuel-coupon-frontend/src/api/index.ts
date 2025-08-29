@@ -16,8 +16,8 @@ const API_BASE_URL = (() => {
     return '/api/v1';
   }
   
-  // Fallback for production: Use Render backend
-  const fallbackUrl = 'https://parliament-zimbabwe.onrender.com/api/v1';
+  // Fallback for production: Use correct Render backend URL
+  const fallbackUrl = 'https://parliament-zimbabwe-fuel.onrender.com/api/v1';
   console.log('⚠️ Using Render backend URL:', fallbackUrl);
   return fallbackUrl;
 })();
