@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Page not found - loading app…</title>
+    <meta http-equiv="Cache-control" content="no-cache, no-store, must-revalidate" />
+    <script>
+      // 404 fallback: fetch the SPA index and render it in-place so client router can handle the path
+      // This preserves the current URL while loading the app for deep links.
+      (function() {
+        function fail() {
+          // Final fallback: redirect to root (loses path)
+          window.location.replace('/');
+        }
+
+        // Try to fetch the index.html and replace document content with it
+        fetch('/index.html', { cache: 'no-store' }).then(function(resp) {
+          if (!resp.ok) return fail();
+          return resp.text();
+        }).then(function(html) {
+          if (!html) return fail();
+          // Replace current document with index HTML so the SPA can boot and pick up the current path
+          document.open();
+          document.write(html);
+          document.close();
+        }).catch(function() {
+          // If fetch fails, redirect to root
+          fail();
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Loading application…</p>
+  </body>
+</html>
