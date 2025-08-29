@@ -541,7 +541,7 @@ const UnifiedLayout: React.FC = () => {
       icon: <LogoutOutlined />,
       onClick: () => {
         logout();
-        navigate('/login');
+        navigate('/');
         notification.success({
           message: 'Logged out successfully',
           description: 'You have been securely logged out of the system.',
@@ -609,7 +609,7 @@ const UnifiedLayout: React.FC = () => {
       collapsed={collapsed}
       onCollapse={setCollapsed}
       width={280}
-      collapsedWidth={60}
+      collapsedWidth={80}
       theme="light"
       style={{
         background: 'linear-gradient(135deg, #f6f9fc 0%, #ffffff 100%)',
@@ -791,10 +791,10 @@ const UnifiedLayout: React.FC = () => {
             return {
               key: item.key,
               icon: React.cloneElement(item.icon as React.ReactElement, {
-                style: { fontSize: '16px' }
+                className: 'sidebar-icon'
               }),
               label: (
-                <span style={{ fontSize: '14px', fontWeight: 500 }}>
+                <span>
                   {item.label}
                   {item.badge && (
                     <Badge 
@@ -812,9 +812,9 @@ const UnifiedLayout: React.FC = () => {
               children: item.children.map(child => ({
                 key: child.key,
                 icon: React.cloneElement(child.icon as React.ReactElement, {
-                  style: { fontSize: '14px', opacity: 0.8 }
+                  className: 'sidebar-icon-child'
                 }),
-                label: <span style={{ fontSize: '13px' }}>{child.label}</span>,
+                label: <span>{child.label}</span>,
               })),
             };
           }
@@ -822,19 +822,10 @@ const UnifiedLayout: React.FC = () => {
           return {
             key: item.key,
             icon: React.cloneElement(item.icon as React.ReactElement, {
-              style: { 
-                fontSize: '16px',
-                color: item.key === 'dashboard' ? '#1890ff' : undefined
-              }
+              className: 'sidebar-icon'
             }),
             label: (
-              <span 
-                style={{ 
-                  fontSize: '14px', 
-                  fontWeight: item.key === 'dashboard' ? 600 : 500,
-                  color: item.key === 'dashboard' ? '#1890ff' : undefined
-                }}
-              >
+              <span>
                 {item.label}
                 {item.badge && (
                   <Badge 
@@ -887,10 +878,10 @@ const UnifiedLayout: React.FC = () => {
           {/* Top Header */}
           <Header
             style={{
-              background: colorBgContainer,
+              background: '#1877F2', // Facebook blue
               padding: '0 16px',
-              borderBottom: '1px solid #f0f0f0',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              borderBottom: '1px solid #1565C0',
+              boxShadow: '0 2px 8px rgba(24,119,242,0.15)',
               height: 64,
               lineHeight: '64px',
             }}
@@ -908,11 +899,15 @@ const UnifiedLayout: React.FC = () => {
                       setMobileDrawerVisible(true);
                     }
                   }}
+                  style={{
+                    color: 'white',
+                    borderColor: 'transparent'
+                  }}
                 />
                 
                 <div className="flex items-center gap-3">
                   <div>
-                    <Text strong style={{ fontSize: '16px' }}>
+                    <Text strong style={{ fontSize: '16px', color: 'white' }}>
                       Fuel Coupon System
                     </Text>
                     {user?.role && (
@@ -931,7 +926,7 @@ const UnifiedLayout: React.FC = () => {
                            user?.role === 'BENEFICIARY' ? '🏛️ Parliament' : user?.role}
                         </Tag>
                         {user?.centerId && (
-                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                          <Text type="secondary" style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.7)' }}>
                             • {user.centerId}
                           </Text>
                         )}
@@ -954,7 +949,7 @@ const UnifiedLayout: React.FC = () => {
                   placement="bottomRight"
                   trigger={['click']}
                 >
-                  <Button type="text" className="flex items-center gap-2">
+                  <Button type="text" className="flex items-center gap-2" style={{ color: 'white' }}>
                     <Avatar size="small" icon={<UserOutlined />} />
                     {screens.sm && (
                       <span>{user?.name || 'User'}</span>

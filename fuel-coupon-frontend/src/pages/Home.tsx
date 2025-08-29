@@ -39,6 +39,8 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import ParliamentLogo from '@/components/ParliamentLogo';
+import LoginModal from '@/components/LoginModal';
+import RegisterModal from '@/components/RegisterModal';
 import { 
   homeApiService, 
   type HomeStats, 
@@ -52,6 +54,8 @@ const { Title, Paragraph, Text } = Typography;
 const Home = () => {
   const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
   
   // State for backend data
   const [stats, setStats] = useState<HomeStats | null>(null);
@@ -221,7 +225,7 @@ const Home = () => {
           <Button 
             type="default" 
             icon={<LoginOutlined />}
-            onClick={() => navigate('/login')}
+            onClick={() => setLoginModalOpen(true)}
             size="large"
           >
             Login
@@ -229,7 +233,7 @@ const Home = () => {
           <Button 
             type="primary" 
             icon={<UserAddOutlined />}
-            onClick={() => navigate('/register')}
+            onClick={() => setRegisterModalOpen(true)}
             size="large"
           >
             Register
@@ -275,7 +279,7 @@ const Home = () => {
                           type="primary" 
                           size="large" 
                           icon={<RocketOutlined />}
-                          onClick={() => navigate('/login')}
+                          onClick={() => setLoginModalOpen(true)}
                           className="px-8 py-6 h-auto"
                         >
                           Get Started
@@ -605,7 +609,7 @@ const Home = () => {
                   size="large"
                   ghost
                   icon={<UserAddOutlined />}
-                  onClick={() => navigate('/register')}
+                  onClick={() => setRegisterModalOpen(true)}
                   className="px-8 py-6 h-auto"
                 >
                   Create Account
@@ -614,7 +618,7 @@ const Home = () => {
                   size="large"
                   className="bg-white text-blue-600 border-white hover:bg-gray-100 px-8 py-6 h-auto"
                   icon={<ArrowRightOutlined />}
-                  onClick={() => navigate('/login')}
+                  onClick={() => setLoginModalOpen(true)}
                 >
                   Sign In Now
                 </Button>
@@ -674,6 +678,26 @@ const Home = () => {
           </Text>
         </div>
       </Footer>
+
+      {/* Login Modal */}
+      <LoginModal 
+        open={loginModalOpen} 
+        onClose={() => setLoginModalOpen(false)} 
+        onSwitchToRegister={() => {
+          setLoginModalOpen(false);
+          setRegisterModalOpen(true);
+        }}
+      />
+
+      {/* Register Modal */}
+      <RegisterModal 
+        open={registerModalOpen} 
+        onClose={() => setRegisterModalOpen(false)} 
+        onSwitchToLogin={() => {
+          setRegisterModalOpen(false);
+          setLoginModalOpen(true);
+        }}
+      />
     </Layout>
   );
 };

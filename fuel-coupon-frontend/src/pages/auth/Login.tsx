@@ -11,8 +11,6 @@ import {
   Space,
   Divider,
   Checkbox,
-  Row,
-  Col,
   Spin,
 } from 'antd';
 import {
@@ -107,86 +105,72 @@ const Login = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-6xl"
+          className="w-full max-w-4xl"
         >
-        <Row gutter={[32, 32]} align="middle" className="min-h-[600px]">
-          {/* Left Panel - Branding */}
-          <Col xs={24} lg={12} className="text-center lg:text-left">
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="space-y-8"
-            >
-              {/* Parliament Logo */}
-              <div className="flex justify-center lg:justify-start mb-8">
-                <img 
-                  src="/logo.webp" 
-                  alt="Parliament of Zimbabwe Logo" 
-                  style={{ 
-                    width: 'auto',
-                    height: '180px', // Make it bigger
-                    objectFit: 'contain', // Maintain natural oval/egg shape
-                    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))'
-                  }}
-                />
-              </div>
-              
-              <div className="flex items-center justify-center lg:justify-start gap-4 mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg">
-                  <CarOutlined className="text-white text-2xl" />
-                </div>
-                <div>
-                  <Title level={2} className="mb-0 text-gray-800">
-                    Parliament of Zimbabwe
-                  </Title>
-                  <Text type="secondary" className="text-base">
-                    Fuel Coupon Management System
-                  </Text>
-                </div>
-              </div>
+          {/* Single Column Large Card Layout */}
+          <Card className="shadow-2xl border-0 rounded-3xl overflow-hidden bg-white">
+            <div className="p-12">
+              {/* Header Section with Logo and Branding */}
+              <div className="text-center mb-12">
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="space-y-6"
+                >
+                  {/* Parliament Logo */}
+                  <div className="flex justify-center mb-8">
+                    <img 
+                      src="/logo.webp" 
+                      alt="Parliament of Zimbabwe Logo" 
+                      style={{ 
+                        width: 'auto',
+                        height: '160px',
+                        objectFit: 'contain',
+                        filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))'
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <Title level={1} className="mb-0 text-gray-800">
+                      Parliament of Zimbabwe
+                    </Title>
+                    <Title level={3} className="mb-2 text-blue-600 font-normal">
+                      Fuel Coupon Management System
+                    </Title>
+                    <Text className="text-lg text-gray-600">
+                      Secure access to Parliament of Zimbabwe's fuel distribution system.
+                    </Text>
+                  </div>
 
-              <div className="space-y-6">
-                <div className="text-center lg:text-left">
-                  <Title level={2} className="text-gray-800 mb-4">
-                    Fuel Coupon Management
-                  </Title>
-                  <Text className="text-lg text-gray-600">
-                    Secure access to Parliament of Zimbabwe's fuel distribution system.
-                  </Text>
-                </div>
-
-                <div className="mt-8 p-6 bg-white rounded-xl shadow-md border border-gray-100">
-                  <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center justify-center gap-6 mt-8 p-6 bg-gradient-to-r from-blue-50 to-gray-50 rounded-xl">
                     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <SafetyOutlined className="text-blue-600 text-xl" />
                     </div>
-                    <div>
+                    <div className="text-center">
                       <div className="font-semibold text-gray-800">Secure & Efficient</div>
                       <Text type="secondary" className="text-sm">
                         Advanced tracking and role-based access control
                       </Text>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </Col>
 
-          {/* Right Panel - Login Form */}
-          <Col xs={24} lg={12}>
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-            >
-              <Card className="shadow-2xl border-0 rounded-2xl overflow-hidden">
-                <div className="p-8">
+              {/* Login Form Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="max-w-md mx-auto"
+              >
+                <div className="bg-gradient-to-br from-gray-50 to-white p-8 rounded-2xl border border-gray-100 shadow-lg">
                   <div className="text-center mb-8">
-                    <Title level={3} className="mb-2">
+                    <Title level={3} className="mb-2 text-gray-800">
                       Sign In
                     </Title>
-                    <Text type="secondary">
+                    <Text type="secondary" className="text-base">
                       Enter your credentials to access your account
                     </Text>
                   </div>
@@ -228,7 +212,7 @@ const Login = () => {
                       <Input
                         prefix={<UserOutlined className="text-gray-400" />}
                         placeholder="Enter your username"
-                        className="rounded-lg"
+                        className="rounded-lg h-12"
                       />
                     </Form.Item>
 
@@ -246,7 +230,7 @@ const Login = () => {
                         iconRender={(visible: boolean) =>
                           visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
                         }
-                        className="rounded-lg"
+                        className="rounded-lg h-12"
                       />
                     </Form.Item>
 
@@ -267,7 +251,7 @@ const Login = () => {
                         htmlType="submit"
                         icon={<LoginOutlined />}
                         loading={loading}
-                        className="w-full h-12 rounded-lg font-semibold text-lg"
+                        className="w-full h-14 rounded-lg font-semibold text-lg"
                         style={{
                           background: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
                           border: 'none',
@@ -291,10 +275,9 @@ const Login = () => {
                     </Text>
                   </div>
                 </div>
-              </Card>
-            </motion.div>
-          </Col>
-        </Row>
+              </motion.div>
+            </div>
+          </Card>
         </motion.div>
       </div>
 
