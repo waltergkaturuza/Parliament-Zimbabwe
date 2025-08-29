@@ -99,8 +99,11 @@ import apiClient from '@/api';
           return undefined;
         }
   
-        // Use fetch instead of axios to avoid interceptor loops
-        const response = await fetch('/api/v1/auth/refresh/', {
+  // Use fetch instead of axios to avoid interceptor loops
+  // Call the backend directly using the configured API base so static host doesn't intercept
+  const backendBase = (import.meta.env.VITE_API_BASE_URL || '') || (window as any).__API_BASE__ || '';
+  const refreshUrl = backendBase ? `${backendBase.replace(/\/$/, '')}/auth/refresh/` : '/api/v1/auth/refresh/';
+  const response = await fetch(refreshUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

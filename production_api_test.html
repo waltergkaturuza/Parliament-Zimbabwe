@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Production API Test</h1>
+    <p>This tool tests the API connectivity for the Parliament Zimbabwe Fuel Coupon System</p>
+    
+    <div>
+        <button onclick="testBackendConnection()">Test Backend Connection</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testAPIs()">Test API Endpoints</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        const BACKEND_URL = 'https://parliament-zimbabwe.onrender.com/api/v1';
+        let authToken = null;
+        
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testBackendConnection() {
+            addResult('Testing backend connection...', 'info');
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/auth/login/`, {
+                    method: 'OPTIONS'
+                });
+                
+                if (response.status === 200 || response.status === 405) {
+                    addResult(`✅ Backend is responding (Status: ${response.status})`, 'success');
+                } else {
+                    addResult(`⚠️ Backend responded with status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Backend connection failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testLogin() {
+            addResult('Testing login...', 'info');
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'subcenter',
+                        password: 'subc@123'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access;
+                    addResult(`✅ Login successful for user: ${data.user.username}`, 'success');
+                    addResult(`📋 Sub Center ID: ${data.user.sub_center_id || 'Not set'}`, 'info');
+                } else {
+                    const errorData = await response.text();
+                    addResult(`❌ Login failed (${response.status}): ${errorData}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAPIs() {
+            if (!authToken) {
+                addResult('❌ Please login first to test APIs', 'error');
+                return;
+            }
+            
+            addResult('Testing API endpoints...', 'info');
+            
+            const endpoints = [
+                '/subcenters/',
+                '/boxes/',
+                '/books/',
+                '/coupons/'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        addResult(`✅ ${endpoint}: ${Array.isArray(data.results) ? data.results.length : 'OK'} items`, 'success');
+                    } else {
+                        addResult(`❌ ${endpoint}: Status ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    addResult(`❌ ${endpoint}: ${error.message}`, 'error');
+                }
+                
+                // Small delay between requests
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        // Auto-run connection test on page load
+        window.addEventListener('load', () => {
+            addResult('Production API Test Tool Loaded', 'info');
+            addResult(`Testing backend URL: ${BACKEND_URL}`, 'info');
+        });
+    </script>
+</body>
+</html>

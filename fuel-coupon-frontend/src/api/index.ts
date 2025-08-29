@@ -22,6 +22,9 @@ const API_BASE_URL = (() => {
   return fallbackUrl;
 })();
 
+// Export API base for use in other modules (AuthContext refresh must call backend directly)
+export const API_BASE = API_BASE_URL;
+
 // Create axios instance
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

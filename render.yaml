@@ -53,6 +53,9 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+      - type: rewrite
+        source: /404.html
+        destination: /404.html
     env:
       - key: NODE_ENV
         value: production
