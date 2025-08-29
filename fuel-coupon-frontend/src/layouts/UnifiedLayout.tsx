@@ -102,15 +102,29 @@ const UnifiedLayout: React.FC = () => {
   const getMenuItems = (): MenuItem[] => {
     const items: MenuItem[] = [];
 
-    // Main Dashboard Entry Point
-    items.push(
-      {
-        key: 'dashboard',
-        icon: <DashboardOutlined />,
-        label: 'Dashboard Overview',
-        path: '/dashboard',
-      }
-    );
+    // Main Dashboard Entry Point (exclude SUB_CENTER users who have their own dashboard)
+    if (!hasRole(['SUB_CENTER'])) {
+      items.push(
+        {
+          key: 'dashboard',
+          icon: <DashboardOutlined />,
+          label: 'Dashboard Overview',
+          path: '/dashboard',
+        }
+      );
+    }
+
+    // SUB_CENTER Dashboard Entry Point
+    if (hasRole(['SUB_CENTER'])) {
+      items.push(
+        {
+          key: 'subcenter-dashboard',
+          icon: <DashboardOutlined />,
+          label: 'Sub Center Dashboard',
+          path: '/dashboard/sub-center',
+        }
+      );
+    }
 
     // MAIN CENTER OPERATIONS
     if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER'])) {
@@ -174,7 +188,7 @@ const UnifiedLayout: React.FC = () => {
       );
     }
 
-    // SUB CENTER OPERATIONS
+    // SUB CENTER OPERATIONS (Simplified - only working features)
     if (hasRole(['SUB_CENTER', 'SUPERUSER', 'ADMIN']) || (user?.centerId && isSubCenter())) {
       items.push(
         { type: 'divider' } as MenuItem,
@@ -185,12 +199,13 @@ const UnifiedLayout: React.FC = () => {
           icon: <EnvironmentOutlined />,
           path: '',
         },
-        {
-          key: 'center-overview',
-          icon: <MonitorOutlined />,
-          label: 'Center Overview',
-          path: '/dashboard/center-overview',
-        },
+        // Commented out until endpoints are fixed
+        // {
+        //   key: 'center-overview',
+        //   icon: <MonitorOutlined />,
+        //   label: 'Center Overview',
+        //   path: '/dashboard/center-overview',
+        // },
         {
           key: 'handovers',
           icon: <SwapOutlined />,
@@ -204,18 +219,19 @@ const UnifiedLayout: React.FC = () => {
           label: 'Fuel Distribution',
           path: '/dashboard/fuel-distribution',
         },
-        {
-          key: 'local-inventory',
-          icon: <AppstoreOutlined />,
-          label: 'Local Inventory',
-          path: '/dashboard/local-inventory',
-        },
-        {
-          key: 'subcenter-inventory',
-          icon: <ContainerOutlined />,
-          label: 'Inventory Management',
-          path: '/dashboard/subcenter-inventory',
-        },
+        // Commented out until inventory endpoints are working
+        // {
+        //   key: 'local-inventory',
+        //   icon: <AppstoreOutlined />,
+        //   label: 'Local Inventory',
+        //   path: '/dashboard/local-inventory',
+        // },
+        // {
+        //   key: 'subcenter-inventory',
+        //   icon: <ContainerOutlined />,
+        //   label: 'Inventory Management',
+        //   path: '/dashboard/subcenter-inventory',
+        // },
         {
           key: 'parliament-operations',
           icon: <HomeOutlined />,
@@ -347,8 +363,8 @@ const UnifiedLayout: React.FC = () => {
       );
     }
 
-    // ANALYTICS & FINANCE
-    if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'AUDITOR'])) {
+    // ANALYTICS & FINANCE (Main Center, Admin, Auditor only - not for Sub Centers)
+    if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'AUDITOR'])) {
       items.push(
         { type: 'divider' } as MenuItem,
         {

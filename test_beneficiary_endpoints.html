@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Beneficiary Endpoints</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .endpoint { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .status { font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Beneficiary Dashboard API Endpoints Test</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="testEndpoints()">Test All Endpoints</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testEndpoints() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            statusDiv.innerHTML = '<p>Testing endpoints...</p>';
+            resultsDiv.innerHTML = '';
+            
+            const endpoints = [
+                { name: 'Dashboard', url: 'https://parliament-zimbabwe.onrender.com/api/v1/beneficiaries/me/dashboard/' },
+                { name: 'Profile', url: 'https://parliament-zimbabwe.onrender.com/api/v1/beneficiaries/me/profile/' },
+                { name: 'Allocations', url: 'https://parliament-zimbabwe.onrender.com/api/v1/beneficiaries/me/allocations/' },
+                { name: 'Attendance', url: 'https://parliament-zimbabwe.onrender.com/api/v1/beneficiaries/me/attendance/' },
+                { name: 'Upcoming Events', url: 'https://parliament-zimbabwe.onrender.com/api/v1/beneficiaries/me/upcoming-events/' },
+                { name: 'Stats', url: 'https://parliament-zimbabwe.onrender.com/api/v1/beneficiaries/me/stats/' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint.url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'endpoint';
+                    
+                    if (response.status === 401) {
+                        resultDiv.innerHTML = `
+                            <h3>${endpoint.name}</h3>
+                            <p class="status success">✅ Endpoint exists! (401 - Authentication required, which is expected)</p>
+                            <p>URL: ${endpoint.url}</p>
+                        `;
+                    } else if (response.status === 404) {
+                        resultDiv.innerHTML = `
+                            <h3>${endpoint.name}</h3>
+                            <p class="status error">❌ Endpoint not found (404)</p>
+                            <p>URL: ${endpoint.url}</p>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <h3>${endpoint.name}</h3>
+                            <p class="status success">✅ Endpoint responds! Status: ${response.status}</p>
+                            <p>URL: ${endpoint.url}</p>
+                        `;
+                    }
+                    
+                    resultsDiv.appendChild(resultDiv);
+                } catch (error) {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'endpoint';
+                    resultDiv.innerHTML = `
+                        <h3>${endpoint.name}</h3>
+                        <p class="status error">❌ Error: ${error.message}</p>
+                        <p>URL: ${endpoint.url}</p>
+                    `;
+                    resultsDiv.appendChild(resultDiv);
+                }
+            }
+            
+            statusDiv.innerHTML = '<p class="success">✅ Testing complete!</p>';
+        }
+    </script>
+</body>
+</html>

@@ -51,7 +51,7 @@ const CouponManagement = lazy(() => import('@/pages/fuel/CouponManagement'));
 const CouponVerification = lazy(() => import('@/pages/Coupons/CouponVerification'));
 const BeneficiaryManagement = lazy(() => import('@/pages/parliament/BeneficiaryManagement'));
 const ReportsAnalytics = lazy(() => import('@/pages/reports/ReportsAnalytics'));
-const SubCenterDashboardPage = lazy(() => import('@/pages/subcenter/SubCenterDashboard'));
+const SubCenterDashboardPage = lazy(() => import('@/pages/subcenter/SimpleSubCenterDashboard'));
 const SubCenterInventoryPage = lazy(() => import('@/pages/subcenter/SubCenterInventoryPage'));
 const BeneficiaryDashboardPage = lazy(() => import('@/pages/beneficiary/BeneficiaryDashboard'));
 const AdminDashboard = lazy(() => import('@/pages/dashboard/AdminDashboard'));

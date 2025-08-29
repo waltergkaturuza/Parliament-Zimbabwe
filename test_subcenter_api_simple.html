@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test SubCenter API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        pre { background-color: #f8f9fa; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>SubCenter Inventory API Test</h1>
+    
+    <div id="status">
+        <p>Click buttons to test the subcenter inventory API endpoints</p>
+    </div>
+    
+    <button onclick="testLogin()">1. Test Login</button>
+    <button onclick="testBoxes()">2. Test Boxes API</button>
+    <button onclick="testBooks()">3. Test Books API</button>
+    <button onclick="testBooksReceived()">4. Test Books Received</button>
+    <button onclick="testAllocations()">5. Test Allocations</button>
+    <button onclick="runAllTests()">Run All Tests</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let authToken = null;
+        
+        function addResult(title, success, data) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            results.appendChild(div);
+        }
+        
+        async function apiRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authToken && { 'Authorization': `Bearer ${authToken}` }),
+                        ...options.headers
+                    }
+                });
+                
+                const data = await response.json();
+                return { status: response.status, data, success: response.ok };
+            } catch (error) {
+                return { status: 0, data: { error: error.message }, success: false };
+            }
+        }
+        
+        async function testLogin() {
+            const result = await apiRequest(`${API_BASE}/api/auth/login/`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    username: 'sub_center_admin',
+                    password: 'subcenter123'
+                })
+            });
+            
+            if (result.success && (result.data.access || result.data.access_token)) {
+                authToken = result.data.access || result.data.access_token;
+                addResult('Login Test', true, { 
+                    message: 'Login successful', 
+                    token_received: true,
+                    user: result.data.user 
+                });
+            } else {
+                addResult('Login Test', false, result.data);
+            }
+            
+            return result.success;
+        }
+        
+        async function testBoxes() {
+            if (!authToken) {
+                addResult('Boxes Test', false, { error: 'No auth token. Please login first.' });
+                return false;
+            }
+            
+            const result = await apiRequest(`${API_BASE}/api/boxes/`);
+            addResult('Boxes API Test', result.success, {
+                status: result.status,
+                count: result.success ? result.data.length || result.data.count : undefined,
+                data: result.data
+            });
+            
+            return result.success;
+        }
+        
+        async function testBooks() {
+            if (!authToken) {
+                addResult('Books Test', false, { error: 'No auth token. Please login first.' });
+                return false;
+            }
+            
+            const result = await apiRequest(`${API_BASE}/api/books/`);
+            addResult('Books API Test', result.success, {
+                status: result.status,
+                count: result.success ? result.data.length || result.data.count : undefined,
+                data: result.data
+            });
+            
+            return result.success;
+        }
+        
+        async function testBooksReceived() {
+            if (!authToken) {
+                addResult('Books Received Test', false, { error: 'No auth token. Please login first.' });
+                return false;
+            }
+            
+            const result = await apiRequest(`${API_BASE}/api/books/received/`);
+            addResult('Books Received API Test', result.success, {
+                status: result.status,
+                count: result.success ? result.data.length || result.data.count : undefined,
+                data: result.data
+            });
+            
+            return result.success;
+        }
+        
+        async function testAllocations() {
+            if (!authToken) {
+                addResult('Allocations Test', false, { error: 'No auth token. Please login first.' });
+                return false;
+            }
+            
+            const result = await apiRequest(`${API_BASE}/api/allocations/`);
+            addResult('Allocations API Test', result.success, {
+                status: result.status,
+                count: result.success ? result.data.length || result.data.count : undefined,
+                data: result.data
+            });
+            
+            return result.success;
+        }
+        
+        async function runAllTests() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('status').innerHTML = '<p>Running all tests...</p>';
+            
+            const loginSuccess = await testLogin();
+            if (loginSuccess) {
+                await testBoxes();
+                await testBooks();
+                await testBooksReceived();
+                await testAllocations();
+            }
+            
+            document.getElementById('status').innerHTML = '<p>All tests completed!</p>';
+        }
+    </script>
+</body>
+</html>
