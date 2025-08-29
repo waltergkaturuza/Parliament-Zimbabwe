@@ -5736,9 +5736,9 @@ def analytics_view(request):
     Enhanced with better error handling and permission management.
     """
     try:
-        # Check user permissions - allow SUPERUSER, MAIN_CENTER, AUDITOR
+        # Check user permissions - allow SUPERUSER, MAIN_CENTER, SUB_CENTER, AUDITOR
         user = request.user
-        if not (user.is_superuser or user.role in ['MAIN_CENTER', 'AUDITOR', 'SUPERUSER']):
+        if not (user.is_superuser or user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']):
             return Response(
                 {'error': 'Insufficient permissions for analytics access'}, 
                 status=status.HTTP_403_FORBIDDEN

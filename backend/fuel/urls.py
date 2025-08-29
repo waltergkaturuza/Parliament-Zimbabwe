@@ -325,6 +325,8 @@ urlpatterns = [
     path('subcenters/stats/', lazy_view('subcenters_stats'), name='subcenters-stats'),  # Frontend stats endpoint
     # Individual subcenter statistics endpoint
     path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenter-detail-statistics'),
+    # Individual subcenter recent activity endpoint
+    path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenter-detail-recent-activity'),
     
     # Business Central Production Integration
     path('api/bc/webhook/', bc_webhook, name='bc-webhook'),
