@@ -39,7 +39,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     // Skip polling when user is not authenticated or userId is missing
     const token = localStorage.getItem('access_token');
     if (!token || !userId) {
-      // Keep stats at zero while unauthenticated
+      // Clear stats when unauthenticated
+      setStats({ total: 0, unread: 0, priority: 0 });
       return;
     }
 
@@ -50,15 +51,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           recipient_id: userId
         }
       });
-      setStats(response.data);
+      
+      // Ensure the response has the expected structure
+      const newStats = {
+        total: response.data.total || 0,
+        unread: response.data.unread || 0,
+        priority: response.data.priority || 0
+      };
+      
+      setStats(newStats);
     } catch (error) {
       console.error('Error fetching notification stats:', error);
-      // Safe fallback while backend endpoint deploys
-      // If 404, keep stats at zero to avoid UI crash
+      // Always set to zero when there's an error to prevent hardcoded values
+      setStats({ total: 0, unread: 0, priority: 0 });
+      
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const e: any = error;
       if (e?.response?.status === 404) {
-        setStats({ total: 0, unread: 0, priority: 0 });
+        // Endpoint not found - keep stats at zero
         return;
       }
     }

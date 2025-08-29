@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import './index.css';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { initializeClearCache } from './utils/clearNotificationCache';
 
 const defaultTheme = createTheme({
   palette: {
@@ -26,6 +27,9 @@ const defaultTheme = createTheme({
 });
 
 function App() {
+  // Initialize cache clearing (runs once per session)
+  initializeClearCache();
+  
   return (
     <ThemeProvider theme={defaultTheme}>
       <CssBaseline />

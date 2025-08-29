@@ -329,7 +329,10 @@ urlpatterns = [
     path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenter-detail-recent-activity'),
     # Subcenter quick actions endpoint
     path('subcenter/quick-actions/', lazy_viewset_action('SubCenterViewSet', {'post': 'quick_actions'}), name='subcenter-quick-actions'),
-    # Notifications endpoint
+    
+    # Notification endpoints - NEW
+    path('notifications/stats/', lazy_view('notification_stats'), name='notification-stats'),
+    path('notifications/mark-all-read/', lazy_view('mark_all_notifications_read'), name='mark-all-notifications-read'),
     path('notifications/send/', lazy_view('send_notification'), name='send-notification'),
     
     # Business Central Production Integration
