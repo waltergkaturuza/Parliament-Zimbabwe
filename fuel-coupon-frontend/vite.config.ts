@@ -12,8 +12,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5175,
+    port: 5177,
     host: true,
+    strictPort: true, // Fail if port is in use instead of trying another
     historyApiFallback: true, // Enable client-side routing support
     proxy: {
       '/api': {
@@ -21,10 +22,9 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         ws: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
-            console.log('[VITE PROXY] Proxy error:', err);
+            console.log('[VITE PROXY] Proxy error:', String(err));
           });
           
           proxy.on('proxyReq', (proxyReq, req, res) => {
@@ -52,7 +52,7 @@ export default defineConfig({
               
               console.log(`[VITE PROXY] ${req.method} ${req.url} -> ${proxyReq.getHeader('host')}${proxyReq.path}`);
             } catch (err) {
-              console.log('[VITE PROXY] Error handling headers:', err);
+              console.log('[VITE PROXY] Error handling headers:', String(err));
             }
           });
           
