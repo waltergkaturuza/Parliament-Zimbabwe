@@ -4119,7 +4119,7 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
         """Role-based permissions for different actions"""
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission()]
+        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
     
     def create(self, request, *args, **kwargs):
         """Create a new beneficiary with proper error handling"""

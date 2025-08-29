@@ -71,7 +71,7 @@ const AuditLogs: FC = () => {
       setLoading(true);
       
       // Call real audit logs API
-      const response = await apiClient.get('/v1/audit-logs/', {
+      const response = await apiClient.get('/audit/logs/', {
         params: {
           page: currentPage,
           page_size: pageSize,

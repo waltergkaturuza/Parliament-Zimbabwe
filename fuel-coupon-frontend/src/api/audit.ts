@@ -24,13 +24,13 @@ class AuditAPI {
       if (value) params.append(key, value.toString());
     });
     
-    const response = await apiClient.get(`/v1/audit-logs/?${params.toString()}`);
+    const response = await apiClient.get(`/audit-logs/?${params.toString()}`);
     return response.data;
   }
 
   // Get filter options for audit logs
   async getFilterOptions() {
-    const response = await apiClient.get('/v1/audit-logs/filter-options/');
+    const response = await apiClient.get('/audit-logs/filter-options/');
     return response.data as FilterOptions;
   }
 
@@ -53,13 +53,13 @@ class AuditAPI {
 
   // Get security events
   async getSecurityEvents() {
-    const response = await apiClient.get('/v1/audit-logs/security-events/');
+    const response = await apiClient.get('/audit-logs/security-events/');
     return response.data;
   }
 
   // Export audit data
   async exportAuditData(format: string, startDate?: string, endDate?: string) {
-    const response = await apiClient.post('/v1/audit-logs/export-audit-data/', {
+    const response = await apiClient.post('/audit-logs/export-audit-data/', {
       format,
       start_date: startDate,
       end_date: endDate
