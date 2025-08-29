@@ -810,6 +810,36 @@ class SubCenterViewSet(viewsets.ModelViewSet):
             'total_pages': (queryset.count() + page_size - 1) // page_size
         })
 
+    @action(detail=False, methods=['post'], url_path='quick-actions')
+    def quick_actions(self, request):
+        """Handle quick action requests from subcenter dashboard"""
+        try:
+            action_type = request.data.get('action_type')
+            subcenter_id = request.data.get('subcenter_id')
+            
+            # Create a system alert/notification for the main center
+            SystemAlert.objects.create(
+                alert_type='INFO',
+                title=f'Quick Action Request: {action_type}',
+                message=f'Subcenter {subcenter_id} requested: {action_type}',
+                source='SUBCENTER_DASHBOARD',
+                status='ACTIVE',
+                created_by=request.user,
+                data=request.data
+            )
+            
+            return Response({
+                'status': 'success',
+                'message': 'Quick action request submitted successfully',
+                'action_type': action_type
+            }, status=201)
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'Failed to submit quick action: {str(e)}'
+            }, status=400)
+
 
 # === COUPON RECEPTION AND DISPATCH VIEWSETS ===
 
@@ -7209,6 +7239,42 @@ def subcenters_stats(request):
             'error': str(e),
             'status': 'error'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_notification(request):
+    """
+    Send notifications - simplified endpoint for subcenter quick actions
+    """
+    try:
+        recipient_type = request.data.get('recipient_type', 'MAIN_CENTER')
+        message_type = request.data.get('message_type', 'INFO')
+        title = request.data.get('title', 'Notification')
+        message = request.data.get('message', '')
+        priority = request.data.get('priority', 'NORMAL')
+        
+        # Create system alert as notification
+        SystemAlert.objects.create(
+            alert_type=message_type,
+            title=title,
+            message=message,
+            source='SUBCENTER_NOTIFICATION',
+            status='ACTIVE',
+            created_by=request.user,
+            data=request.data
+        )
+        
+        return Response({
+            'status': 'success',
+            'message': 'Notification sent successfully'
+        }, status=201)
+        
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': f'Failed to send notification: {str(e)}'
+        }, status=400)
 
 
 @api_view(['GET'])
