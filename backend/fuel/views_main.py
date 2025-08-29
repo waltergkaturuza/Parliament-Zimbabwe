@@ -46,7 +46,8 @@ from .permissions import (
     AuditorPermission, BeneficiaryPermission, CenterBasedObjectPermission,
     
     # Workflow permissions
-    MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
+    MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission,
+    BeneficiaryManagementPermission
 )
 from .email_utils import send_user_approval_email, send_user_rejection_email
 from rest_framework.views import APIView # Ensure this import is present
@@ -4136,7 +4137,7 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
         """Role-based permissions for different actions"""
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), BeneficiaryManagementPermission()]
     
     def create(self, request, *args, **kwargs):
         """Create a new beneficiary with proper error handling"""

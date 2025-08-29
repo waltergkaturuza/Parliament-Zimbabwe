@@ -1939,10 +1939,9 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         ).aggregate(total=models.Sum('litres'))['total'] or 0
     
     def get_pending_entitlements(self, obj):
-        return obj.user.fuel_entitlements.filter(
-            status__in=['PENDING', 'APPROVED'],
-            period_end__gte=timezone.now().date()
-        ).count()
+        if obj.user:
+            return obj.user.fuelentitlement_set.count()
+        return 0
     
     def validate_employee_id(self, value):
         """Validate employee_id to ensure uniqueness"""
@@ -2057,7 +2056,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 if isinstance(constituency_id, str):
                     constituency = Constituency.objects.create(
                         name=constituency_id,
-                        region="Auto-created"
+                        province="Auto-created"
                     )
                     validated_data['constituency'] = constituency
         
@@ -2070,6 +2069,10 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         
         # Set default values for fields not in frontend
         validated_data.setdefault('engine_multiplier', Decimal('1.0'))
+        
+        # Ensure monthly_entitlement_litres is properly formatted
+        if 'monthly_entitlement_litres' in validated_data:
+            validated_data['monthly_entitlement_litres'] = Decimal(str(validated_data['monthly_entitlement_litres'])).quantize(Decimal('0.01'))
         
         # Party field is now handled automatically via source='party_affiliation'
         

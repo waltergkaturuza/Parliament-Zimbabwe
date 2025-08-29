@@ -3644,7 +3644,9 @@ class BeneficiaryProfile(TimeStampedModel):
     
     def calculate_final_allocation(self):
         """Calculate final monthly allocation based on multipliers"""
-        return self.base_allocation * self.category_multiplier * self.engine_multiplier
+        result = self.base_allocation * self.category_multiplier * self.engine_multiplier
+        # Round to 2 decimal places to prevent decimal validation errors
+        return result.quantize(Decimal('0.01'))
     
     def calculate_engine_multiplier_from_size(self):
         """Calculate engine multiplier based on engine size string"""
@@ -3679,9 +3681,9 @@ class BeneficiaryProfile(TimeStampedModel):
         """Model validation"""
         super().clean()
         
-        # Validate parliamentary_id format
-        if self.parliamentary_id and not self.parliamentary_id.strip():
-            raise ValidationError({'parliamentary_id': 'Parliamentary ID cannot be empty'})
+        # Validate employee_id format
+        if self.employee_id and not self.employee_id.strip():
+            raise ValidationError({'employee_id': 'Employee ID cannot be empty'})
         
         # Validate vehicle year
         current_year = timezone.now().year

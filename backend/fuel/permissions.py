@@ -62,3 +62,62 @@ class SubCenterAccess(permissions.BasePermission):
         if request.user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and obj.assigned_to == request.user.sub_center:
             return True
         return False
+
+# Aliases for backward compatibility and consistency
+class SuperUserPermission(IsSuperUser):
+    """Alias for IsSuperUser permission"""
+    pass
+
+class AdminPermission(IsAdmin):
+    """Alias for IsAdmin permission"""
+    pass
+
+class MainCenterPermission(IsMainCenterOfficer):
+    """Alias for IsMainCenterOfficer permission"""
+    pass
+
+class SubCenterPermission(IsSubCenterOfficer):
+    """Alias for IsSubCenterOfficer permission"""
+    pass
+
+class ApproverPermission(IsApprover):
+    """Alias for IsApprover permission"""
+    pass
+
+class MainCenterApproverPermission(IsMainCenterApprover):
+    """Alias for IsMainCenterApprover permission"""
+    pass
+
+class SubCenterApproverPermission(IsSubCenterApprover):
+    """Alias for IsSubCenterApprover permission"""
+    pass
+
+class AuditorPermission(IsAuditor):
+    """Alias for IsAuditor permission"""
+    pass
+
+class BeneficiaryPermission(IsBeneficiary):
+    """Alias for IsBeneficiary permission"""
+    pass
+
+class CenterBasedObjectPermission(SubCenterAccess):
+    """Alias for SubCenterAccess permission"""
+    pass
+
+class MainCenterApprovalPermission(IsMainCenterApprover):
+    """Alias for MainCenterApprover permission for approvals"""
+    pass
+
+class SubCenterApprovalPermission(IsSubCenterApprover):
+    """Alias for SubCenterApprover permission for approvals"""
+    pass
+
+class CrossCenterApprovalPermission(permissions.BasePermission):
+    """Permission for cross-center approval operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER_APPROVER', 'SUB_CENTER_APPROVER']
+
+class BeneficiaryManagementPermission(permissions.BasePermission):
+    """Permission for beneficiary management - allows MAIN_CENTER and SUB_CENTER"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']

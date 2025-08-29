@@ -51,6 +51,11 @@ class BeneficiaryPermission(RoleBasedPermission):
     allowed_roles = ['BENEFICIARY']
 
 
+class BeneficiaryManagementPermission(RoleBasedPermission):
+    """Permission for beneficiary management - allows MAIN_CENTER and SUB_CENTER"""
+    allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
+
+
 class CenterBasedObjectPermission(AdminPermissionMixin, CenterAccessMixin):
     """
     Object-level permission that checks center-based access.

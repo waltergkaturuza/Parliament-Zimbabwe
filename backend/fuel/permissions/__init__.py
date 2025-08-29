@@ -24,6 +24,7 @@ from .roles import (
     SubCenterApproverPermission,
     AuditorPermission,
     BeneficiaryPermission,
+    BeneficiaryManagementPermission,
     CenterBasedObjectPermission,
 )
 
@@ -64,6 +65,7 @@ __all__ = [
     'SubCenterApproverPermission',
     'AuditorPermission',
     'BeneficiaryPermission',
+    'BeneficiaryManagementPermission',
     'CenterBasedObjectPermission',
     
     # Workflow permissions
