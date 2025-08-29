@@ -8,10 +8,9 @@ import {
     useRef,
     FC,
   } from 'react';
-  import axios from 'axios';
   import { toast } from 'react-toastify';
   import { decodeJWT } from '@/utils/jwt';
-import apiClient from '@/api';
+import apiClient, { API_BASE } from '@/api';
   
   type Role = 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER';
   
@@ -76,60 +75,88 @@ import apiClient from '@/api';
       setUser(null);
       setUserRole(null);
       setIsAuthenticated(false);
-      setIsAuthLoading(false); // Ensure loading is false on logout
+    setIsAuthLoading(false); // Ensure loading is false on logout
+    // Remove Authorization header from apiClient when logging out
+    try { delete apiClient.defaults.headers.common['Authorization']; } catch(_) {}
       toast.info('You have been logged out');
       onLogout?.();
     }, []); // logout doesn't depend on anything that changes externally
   
+
+    // Use a ref to hold an in-flight refresh promise so multiple 401s queue on the same refresh
+    const refreshPromiseRef = useRef<Promise<string | undefined> | null>(null);
+
     const refreshToken = useCallback(async (): Promise<string | undefined> => {
-      const now = Date.now();
-      // Prevent rapid refresh attempts
-      if (now - lastRefreshTime < 30000) {
-          console.log('Skipping token refresh due to rate limit.');
-          return; // Return undefined as no new token was obtained
-      }
-      setLastRefreshTime(now); // Update last refresh time
-  
+      // If a refresh is already in progress, return the same promise so callers wait
+      if (refreshPromiseRef.current) {
+        console.log('Awaiting existing refresh promise');
+        return refreshPromiseRef.current;
+      }
+
+      const runRefresh = async (): Promise<string | undefined> => {
+        const now = Date.now();
+        // Prevent very rapid refresh attempts
+        if (now - lastRefreshTime < 30000) {
+          console.log('Skipping token refresh due to rate limit.');
+          return undefined;
+        }
+        setLastRefreshTime(now);
+
+        try {
+          const storedRefresh = localStorage.getItem('refresh_token');
+          if (!storedRefresh) {
+            console.warn('No refresh token available for refresh.');
+            logout();
+            return undefined;
+          }
+
+          // Build refresh URL from shared API_BASE. In dev API_BASE may be '/api/v1', which is fine.
+          const refreshUrl = `${API_BASE.replace(/\/$/, '')}/auth/refresh/`;
+
+          // Use fetch to avoid triggering axios interceptors; include JSON body
+          const response = await fetch(refreshUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refresh: storedRefresh }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const newAccessToken = data.access;
+          if (newAccessToken) {
+            // Persist and wire up the new token for apiClient immediately
+            localStorage.setItem('access_token', newAccessToken);
+            setAccessToken(newAccessToken);
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
+            console.log('Token refreshed successfully and set on apiClient.');
+            return newAccessToken;
+          }
+
+          // If no token returned, force logout
+          console.warn('Refresh response did not include access token. Logging out.');
+          logout();
+          return undefined;
+        } catch (err) {
+          console.error('Refresh token failed:', err);
+          logout();
+          return undefined;
+        }
+      };
+
+      // Assign and run the refresh promise
+      refreshPromiseRef.current = runRefresh();
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          console.warn('No refresh token available for refresh.');
-          // If no refresh token, force logout (which sets loading to false)
-          logout();
-          return undefined;
-        }
-  
-  // Use fetch instead of axios to avoid interceptor loops
-  // Call the backend directly using the configured API base so static host doesn't intercept
-  const backendBase = (import.meta.env.VITE_API_BASE_URL || '') || (window as any).__API_BASE__ || '';
-  const refreshUrl = backendBase ? `${backendBase.replace(/\/$/, '')}/auth/refresh/` : '/api/v1/auth/refresh/';
-  const response = await fetch(refreshUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refresh: refreshToken }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const newAccessToken = data.access;        // Store the new access token, keep the existing refresh token
-        localStorage.setItem('access_token', newAccessToken);
-        setAccessToken(newAccessToken);
-  
-        console.log('Token refreshed successfully.');
-        return newAccessToken;
-      } catch (error) {
-        console.error('Refresh token failed:', error);
-        // If refresh fails, force logout (which sets loading to false)
-        logout();
-        // Don't re-throw here, just log and let the promise resolve to undefined
-        return undefined;
-      }
-    }, [logout, lastRefreshTime]); // Added lastRefreshTime to dependencies
+        return await refreshPromiseRef.current;
+      } finally {
+        // Clear the ref so future refreshes can run
+        refreshPromiseRef.current = null;
+      }
+    }, [logout, lastRefreshTime]);
   
     const initializeAuth = useCallback(async (): Promise<boolean> => {
       if (isInitializing.current) {
@@ -143,6 +170,10 @@ import apiClient from '@/api';
       console.log('Starting authentication initialization.');
       const token = localStorage.getItem('access_token');
       setAccessToken(token);
+        // Ensure apiClient will send the token for subsequent requests
+        if (token) {
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
   
       if (!token) {
         console.log('No access token found during initialization.');
@@ -265,52 +296,47 @@ import apiClient from '@/api';
   
   
     // Axios interceptor to retry on 401
-    useEffect(() => {
-       console.log('Setting up apiClient interceptor.');
-      const interceptor = axios.interceptors.response.use(
-        response => response,
-        async error => {
-          const originalRequest = error.config;
-  
-          // If the error is a 401 and we haven't already retried this request
-          if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true; // Mark this request as retried
-  
-            try {
-              console.log('401 error, attempting token refresh from interceptor.');
-              const newAccessToken = await refreshToken(); // Attempt to refresh the token
-              if (newAccessToken) {
-                // Update default headers for future requests
-                
-                // Update header for the original failed request
-                originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-                console.log('Retrying original request with new token.');
-                                return apiClient(originalRequest); // Retry the original request
-              } else {
-                   console.error('Refresh token failed from interceptor, forcing logout.');
-                   // If refresh fails, navigate to login page
-                   logout(() => (window.location.href = '/login'));
-                   // Do not retry, reject the original error
-                   return Promise.reject(error);
-               }
-            } catch (refreshError) {
-              console.error('Error during token refresh or retrying original request:', refreshError);
-              // If there's an error during refresh or retry, force logout
-              logout(() => (window.location.href = '/login'));
-              // Reject the original error
-              return Promise.reject(error);
-            }
-          }
-          // For all other errors, or if retry failed, just reject the error
-          return Promise.reject(error);
-        }
-      );
-  
-      return () => {
+  useEffect(() => {
+      console.log('Setting up apiClient interceptor.');
+    const interceptor = apiClient.interceptors.response.use(
+      response => response,
+      async error => {
+        const originalRequest = error.config || {};
+
+        // If the error is a 401 and we haven't already retried this request
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true; // Mark this request as retried
+
+          try {
+            console.log('401 error, attempting token refresh from interceptor.');
+            const newAccessToken = await refreshToken(); // Attempt to refresh the token
+            if (newAccessToken) {
+              // Ensure headers exist and set Authorization
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+              console.log('Retrying original request with new token.');
+              return apiClient(originalRequest); // Retry the original request
+            } else {
+              console.error('Refresh token failed from interceptor, forcing logout.');
+              logout(() => (window.location.href = '/login'));
+              return Promise.reject(error);
+            }
+          } catch (refreshError) {
+            console.error('Error during token refresh or retrying original request:', refreshError);
+            logout(() => (window.location.href = '/login'));
+            return Promise.reject(error);
+          }
+        }
+        // For all other errors, or if retry failed, just reject the error
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
           console.log('Ejecting apiClient interceptor.');
           apiClient.interceptors.response.eject(interceptor); // Clean up the interceptor
       };
-    }, [refreshToken, logout]); // Dependencies: refreshToken and logout are used inside the interceptor
+  }, [refreshToken, logout]); // Dependencies: refreshToken and logout are used inside the interceptor
       const login = useCallback(
       async (tokenData: TokenData, onSuccess?: () => void) => {
         setIsAuthLoading(true); // Start loading

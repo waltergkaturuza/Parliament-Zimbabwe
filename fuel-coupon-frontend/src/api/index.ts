@@ -34,6 +34,9 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
+// Debug: show current default Authorization header (if any)
+try { console.log('apiClient default Authorization:', apiClient.defaults.headers.common['Authorization']); } catch(_) {}
+
 // Attach Authorization header (JWT) if present in localStorage
 apiClient.interceptors.request.use(
   (config) => {

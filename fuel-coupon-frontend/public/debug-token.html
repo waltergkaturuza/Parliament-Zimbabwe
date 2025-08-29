@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Auth Debug Helper</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    pre { background:#111; color:#0f0; padding:10px; height:300px; overflow:auto }
+    button { margin:4px; }
+  </style>
+</head>
+<body>
+  <h2>Auth Debug Helper</h2>
+  <p>Use this page to inspect tokens, force an expired access token, and exercise the refresh + retry flow using the same origin/proxy as the app.</p>
+
+  <div>
+    <button id="show">Show tokens</button>
+    <button id="force-expire">Force expire access_token</button>
+    <button id="call-protected">Call /api/v1/boxes/ (protected)</button>
+    <button id="call-refresh">Call refresh endpoint</button>
+    <button id="clear">Clear tokens</button>
+  </div>
+
+  <h3>Logs</h3>
+  <pre id="log">Logs will appear here...</pre>
+
+<script>
+const logEl = document.getElementById('log');
+function log(...args){
+  const line = args.map(a=> (typeof a==='object'? JSON.stringify(a,null,2): String(a))).join(' ');
+  logEl.textContent = (new Date()).toISOString() + ' ' + line + '\n' + logEl.textContent;
+  console.log(...args);
+}
+
+function showTokens(){
+  const access = localStorage.getItem('access_token');
+  const refresh = localStorage.getItem('refresh_token');
+  log('access_token:', access);
+  log('refresh_token:', refresh);
+}
+
+function forceExpire(){
+  // Make token clearly invalid by truncating it
+  const access = localStorage.getItem('access_token');
+  if (!access) { log('No access_token to expire'); return; }
+  const expired = access.slice(0,10) + 'EXPIRED';
+  localStorage.setItem('access_token', expired);
+  log('access_token overwritten with expired value');
+}
+
+async function callProtected(){
+  const url = '/api/v1/boxes/';
+  const access = localStorage.getItem('access_token');
+  log('Calling protected:', url, 'with access token length', access?access.length:0);
+  try{
+    const resp = await fetch(url, { method: 'GET', headers: { 'Authorization': access?('Bearer '+access): '' } });
+    log('Status', resp.status);
+    const text = await resp.text();
+    try { log('Response JSON', JSON.parse(text)); } catch(e){ log('Response text', text); }
+    if (resp.status === 401) {
+      log('401 received - attempting client-side refresh then retry');
+      const refreshOk = await callRefresh();
+      if (refreshOk) {
+        log('Refresh succeeded - retrying protected request');
+        return await callProtected();
+      } else {
+        log('Refresh failed');
+      }
+    }
+  } catch (err){
+    log('Network/Fetch error:', err);
+  }
+}
+
+async function callRefresh(){
+  const refresh = localStorage.getItem('refresh_token');
+  if (!refresh) { log('No refresh_token present'); return false; }
+  const url = '/api/v1/auth/refresh/';
+  log('Calling refresh endpoint', url);
+  try{
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh })
+    });
+    log('Refresh status', resp.status);
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    if (data.access) {
+      localStorage.setItem('access_token', data.access);
+      log('New access token set (length)', data.access.length);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    log('Refresh fetch error', err);
+    return false;
+  }
+}
+
+function clearTokens(){
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  log('Tokens cleared from localStorage');
+}
+
+document.getElementById('show').addEventListener('click', showTokens);
+document.getElementById('force-expire').addEventListener('click', forceExpire);
+document.getElementById('call-protected').addEventListener('click', callProtected);
+document.getElementById('call-refresh').addEventListener('click', () => callRefresh().then(ok=>log('Refresh returned', ok)));
+document.getElementById('clear').addEventListener('click', clearTokens);
+
+log('Debug helper loaded. Origin:', location.origin);
+</script>
+</body>
+</html>
