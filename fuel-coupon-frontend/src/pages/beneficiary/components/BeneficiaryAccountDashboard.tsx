@@ -24,6 +24,7 @@ import {
   Divider,
   Tooltip,
   message,
+  Spin,
 } from 'antd';
 import {
   UserOutlined,
@@ -46,276 +47,95 @@ import {
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useAuth } from '../../../contexts/AuthContext';
+import BeneficiaryDashboardService, {
+  BeneficiaryProfile,
+  CouponAllocation,
+  CouponDetail,
+  AttendanceRecord,
+  UpcomingEvent,
+} from '../../../api/beneficiaryDashboard';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 
-interface BeneficiaryProfile {
-  id: string;
-  memberId: string;
-  name: string;
-  position: string;
-  department: string;
-  category: 'MP' | 'SENATOR' | 'STAFF' | 'DRIVER' | 'CONSULTANT';
-  contactInfo: {
-    email: string;
-    phone: string;
-    office: string;
-    address: string;
-  };
-  vehicleInfo: {
-    make: string;
-    model: string;
-    year: number;
-    engineSize: string;
-    registrationNumber: string;
-    fuelType: 'PETROL' | 'DIESEL';
-  };
-  allocationProfile: {
-    monthlyAllocation: number;
-    currentBalance: number;
-    usedThisMonth: number;
-    lastUpdated: string;
-    baseAllocation: number;
-    multiplier: number;
-  };
-  status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE';
-  joinDate: string;
-  lastLogin: string;
-}
-
-interface CouponAllocation {
-  id: string;
-  allocationDate: string;
-  sessionName: string;
-  programName: string;
-  eventName?: string;
-  couponsAllocated: number;
-  totalLitres: number;
-  totalValue: number;
-  couponsUsed: number;
-  couponsRemaining: number;
-  status: 'ACTIVE' | 'USED' | 'EXPIRED' | 'VOIDED';
-  allocatedBy: string;
-  subCenterName: string;
-  firstCouponSerial: string;
-  lastCouponSerial: string;
-  expiryDate: string;
-  notes?: string;
-  coupons: CouponDetail[];
-}
-
-interface CouponDetail {
-  id: string;
-  couponSerial: string;
-  status: 'ALLOCATED' | 'USED' | 'EXPIRED' | 'VOIDED';
-  usedDate?: string;
-  usedLocation?: string;
-  litres: number;
-  value: number;
-}
-
-interface AttendanceRecord {
-  id: string;
-  date: string;
-  sessionName: string;
-  sessionType: 'PLENARY' | 'COMMITTEE' | 'SPECIAL' | 'WORKSHOP';
-  startTime: string;
-  endTime: string;
-  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
-  duration: number;
-  location: string;
-  notes?: string;
-}
-
-interface EventCalendar {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  type: 'SESSION' | 'COMMITTEE' | 'EVENT' | 'MEETING';
-  location: string;
-  description: string;
-  fuelAllocationEligible: boolean;
-  estimatedFuelRequirement?: number;
-  status: 'UPCOMING' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
-}
-
 const BeneficiaryAccountDashboard: FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedAllocation, setSelectedAllocation] = useState<CouponAllocation | null>(null);
   const [allocationDetailsVisible, setAllocationDetailsVisible] = useState(false);
 
-  // Sample beneficiary profile data
-  const [profile, setProfile] = useState<BeneficiaryProfile>({
-    id: 'BEN001',
-    memberId: 'MP001',
-    name: 'Hon. John Mukamuri',
-    position: 'Member of Parliament',
-    department: 'Finance Committee',
-    category: 'MP',
-    contactInfo: {
-      email: 'john.mukamuri@parliament.gov.zw',
-      phone: '+263771234567',
-      office: 'Room 205, Parliament Building',
-      address: '123 Independence Ave, Harare',
-    },
-    vehicleInfo: {
-      make: 'Toyota',
-      model: 'Prado',
-      year: 2022,
-      engineSize: '3.0L V6',
-      registrationNumber: 'AEZ-1234',
-      fuelType: 'DIESEL',
-    },
-    allocationProfile: {
-      monthlyAllocation: 300,
-      currentBalance: 185,
-      usedThisMonth: 115,
-      lastUpdated: '2024-08-09',
-      baseAllocation: 200,
-      multiplier: 1.5, // MP multiplier
-    },
-    status: 'ACTIVE',
-    joinDate: '2023-08-23',
-    lastLogin: '2024-08-09 09:30',
+  // State for real data from API
+  const [profile, setProfile] = useState<BeneficiaryProfile | null>(null);
+  const [allocations, setAllocations] = useState<CouponAllocation[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [stats, setStats] = useState({
+    totalAllocations: 0,
+    totalUsed: 0,
+    currentBalance: 0,
+    attendanceRate: 0,
   });
 
-  const [allocations, setAllocations] = useState<CouponAllocation[]>([
-    {
-      id: 'ALLOC001',
-      allocationDate: '2024-08-09',
-      sessionName: 'Morning Parliamentary Session',
-      programName: 'Budget Review Committee',
-      couponsAllocated: 10,
-      totalLitres: 50,
-      totalValue: 9000,
-      couponsUsed: 3,
-      couponsRemaining: 7,
-      status: 'ACTIVE',
-      allocatedBy: 'Peter Ncube - Harare Sub-Center',
-      subCenterName: 'Harare Central Sub-Center',
-      firstCouponSerial: 'DSL5-2024-08-000001',
-      lastCouponSerial: 'DSL5-2024-08-000010',
-      expiryDate: '2024-08-16',
-      notes: 'Committee travel and official duties',
-      coupons: [
-        {
-          id: 'C001',
-          couponSerial: 'DSL5-2024-08-000001',
-          status: 'USED',
-          usedDate: '2024-08-09',
-          usedLocation: 'Shell Station - Borrowdale',
-          litres: 5,
-          value: 900,
-        },
-        {
-          id: 'C002',
-          couponSerial: 'DSL5-2024-08-000002',
-          status: 'USED',
-          usedDate: '2024-08-09',
-          usedLocation: 'Total Station - Sam Levy',
-          litres: 5,
-          value: 900,
-        },
-        {
-          id: 'C003',
-          couponSerial: 'DSL5-2024-08-000003',
-          status: 'USED',
-          usedDate: '2024-08-09',
-          usedLocation: 'Puma Station - Westgate',
-          litres: 5,
-          value: 900,
-        },
-      ],
-    },
-    {
-      id: 'ALLOC002',
-      allocationDate: '2024-08-05',
-      sessionName: 'Special Committee Session',
-      programName: 'Infrastructure Development',
-      eventName: 'Site Inspection Tour',
-      couponsAllocated: 20,
-      totalLitres: 100,
-      totalValue: 18000,
-      couponsUsed: 20,
-      couponsRemaining: 0,
-      status: 'USED',
-      allocatedBy: 'Susan Moyo - Bulawayo Sub-Center',
-      subCenterName: 'Bulawayo North Sub-Center',
-      firstCouponSerial: 'DSL5-2024-08-000021',
-      lastCouponSerial: 'DSL5-2024-08-000040',
-      expiryDate: '2024-08-12',
-      notes: 'Multi-day committee travel for infrastructure inspection',
-      coupons: [],
-    },
-  ]);
+  // Load dashboard data on component mount
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([
-    {
-      id: 'ATT001',
-      date: '2024-08-09',
-      sessionName: 'Parliamentary Plenary Session',
-      sessionType: 'PLENARY',
-      startTime: '09:00',
-      endTime: '17:00',
-      status: 'PRESENT',
-      duration: 8,
-      location: 'Main Parliament Chamber',
-    },
-    {
-      id: 'ATT002',
-      date: '2024-08-08',
-      sessionName: 'Finance Committee Meeting',
-      sessionType: 'COMMITTEE',
-      startTime: '14:00',
-      endTime: '16:30',
-      status: 'PRESENT',
-      duration: 2.5,
-      location: 'Committee Room A',
-    },
-    {
-      id: 'ATT003',
-      date: '2024-08-07',
-      sessionName: 'Budget Workshop',
-      sessionType: 'WORKSHOP',
-      startTime: '09:00',
-      endTime: '12:00',
-      status: 'LATE',
-      duration: 2.5,
-      location: 'Conference Hall',
-      notes: 'Arrived 30 minutes late due to traffic',
-    },
-  ]);
+  const loadDashboardData = async () => {
+    setDataLoading(true);
+    try {
+      // Try to get all data in one call, fallback to individual calls if not available
+      try {
+        const dashboardData = await BeneficiaryDashboardService.getDashboardData();
+        setProfile(dashboardData.profile);
+        setAllocations(dashboardData.allocations);
+        setAttendance(dashboardData.attendance);
+        setUpcomingEvents(dashboardData.upcomingEvents);
+        setStats(dashboardData.stats);
+      } catch (error) {
+        // Fallback to individual API calls
+        console.log('Dashboard endpoint not available, using individual endpoints');
+        await loadIndividualData();
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      message.error('Failed to load dashboard data');
+    } finally {
+      setDataLoading(false);
+    }
+  };
 
-  const [upcomingEvents, setUpcomingEvents] = useState<EventCalendar[]>([
-    {
-      id: 'EVT001',
-      title: 'Parliamentary Plenary Session',
-      date: '2024-08-12',
-      time: '09:00',
-      type: 'SESSION',
-      location: 'Main Parliament Chamber',
-      description: 'Regular parliamentary session for bill readings and debates',
-      fuelAllocationEligible: true,
-      estimatedFuelRequirement: 25,
-      status: 'UPCOMING',
-    },
-    {
-      id: 'EVT002',
-      title: 'Finance Committee Site Visit',
-      date: '2024-08-15',
-      time: '08:00',
-      type: 'COMMITTEE',
-      location: 'Harare Industrial Area',
-      description: 'Committee inspection of new industrial developments',
-      fuelAllocationEligible: true,
-      estimatedFuelRequirement: 40,
-      status: 'UPCOMING',
-    },
-  ]);
+  const loadIndividualData = async () => {
+    try {
+      const [profileData, allocationsData, attendanceData, eventsData, statsData] = await Promise.allSettled([
+        BeneficiaryDashboardService.getBeneficiaryProfile(),
+        BeneficiaryDashboardService.getBeneficiaryAllocations({ page_size: 20 }),
+        BeneficiaryDashboardService.getBeneficiaryAttendance({ page_size: 20 }),
+        BeneficiaryDashboardService.getUpcomingEvents(),
+        BeneficiaryDashboardService.getDashboardStats(),
+      ]);
+
+      if (profileData.status === 'fulfilled') {
+        setProfile(profileData.value);
+      }
+      if (allocationsData.status === 'fulfilled') {
+        setAllocations(allocationsData.value.results);
+      }
+      if (attendanceData.status === 'fulfilled') {
+        setAttendance(attendanceData.value.results);
+      }
+      if (eventsData.status === 'fulfilled') {
+        setUpcomingEvents(eventsData.value);
+      }
+      if (statsData.status === 'fulfilled') {
+        setStats(statsData.value);
+      }
+    } catch (error) {
+      console.error('Error loading individual data:', error);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -350,6 +170,25 @@ const BeneficiaryAccountDashboard: FC = () => {
       default:
         return { label: category, color: 'default', icon: <UserOutlined /> };
     }
+  };
+
+  // Handler functions
+  const handleViewAllocationDetails = async (allocation: CouponAllocation) => {
+    setLoading(true);
+    try {
+      const details = await BeneficiaryDashboardService.getAllocationDetails(allocation.id);
+      setSelectedAllocation(details);
+      setAllocationDetailsVisible(true);
+    } catch (error) {
+      console.error('Error loading allocation details:', error);
+      message.error('Failed to load allocation details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefreshData = () => {
+    loadDashboardData();
   };
 
   const allocationColumns: ColumnsType<CouponAllocation> = [
@@ -436,12 +275,10 @@ const BeneficiaryAccountDashboard: FC = () => {
       key: 'actions',
       render: (_, record) => (
         <Button
-         
+          size="small"
           icon={<EyeOutlined />}
-          onClick={() => {
-            setSelectedAllocation(record);
-            setAllocationDetailsVisible(true);
-          }}
+          onClick={() => handleViewAllocationDetails(record)}
+          loading={loading}
         >
           View
         </Button>
@@ -498,6 +335,15 @@ const BeneficiaryAccountDashboard: FC = () => {
     },
   ];
 
+  // Show loading spinner while data is loading
+  if (dataLoading || !profile) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   const categoryInfo = getCategoryInfo(profile.category);
 
   return (
@@ -517,13 +363,13 @@ const BeneficiaryAccountDashboard: FC = () => {
                 <Tag color={categoryInfo.color} icon={categoryInfo.icon}>
                   {categoryInfo.label}
                 </Tag>
-                <Tag color="blue">{profile.position}</Tag>
-                <Tag color="green">{profile.department}</Tag>
+                <Tag color="blue">{profile.title}</Tag>
+                <Tag color="green">{profile.constituency || 'N/A'}</Tag>
               </Space>
               <Space>
-                <Text type="secondary">Member ID: {profile.memberId}</Text>
+                <Text type="secondary">Member ID: {profile.parliamentaryId}</Text>
                 <Divider type="vertical" />
-                <Text type="secondary">Last Login: {profile.lastLogin}</Text>
+                <Text type="secondary">Last Login: {dayjs(profile.lastLogin).format('DD MMM YYYY HH:mm')}</Text>
               </Space>
             </Space>
           </Col>
@@ -592,7 +438,19 @@ const BeneficiaryAccountDashboard: FC = () => {
         </Col>
       </Row>
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+      <Tabs 
+        activeKey={activeTab} 
+        onChange={setActiveTab}
+        tabBarExtraContent={
+          <Button 
+            icon={<HistoryOutlined />} 
+            onClick={handleRefreshData}
+            loading={dataLoading}
+          >
+            Refresh
+          </Button>
+        }
+      >
         <TabPane tab="Overview" key="overview">
           <Row gutter={16}>
             <Col span={16}>
@@ -602,7 +460,8 @@ const BeneficiaryAccountDashboard: FC = () => {
                   dataSource={allocations}
                   rowKey="id"
                   pagination={{ pageSize: 5 }}
-                 
+                  size="small"
+                  loading={dataLoading}
                 />
               </Card>
 
@@ -657,15 +516,19 @@ const BeneficiaryAccountDashboard: FC = () => {
             <Col span={8}>
               <Card title="Profile Information" style={{ marginBottom: 16 }}>
                 <Descriptions column={1}>
-                  <Descriptions.Item label="Vehicle">
-                    {profile.vehicleInfo.year} {profile.vehicleInfo.make} {profile.vehicleInfo.model}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Engine">
-                    {profile.vehicleInfo.engineSize} ({profile.vehicleInfo.fuelType})
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Registration">
-                    {profile.vehicleInfo.registrationNumber}
-                  </Descriptions.Item>
+                  {profile.vehicleInfo && (
+                    <>
+                      <Descriptions.Item label="Vehicle">
+                        {profile.vehicleInfo.year} {profile.vehicleInfo.make} {profile.vehicleInfo.model}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Engine">
+                        {profile.vehicleInfo.engineSize} ({profile.vehicleInfo.fuelType})
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Registration">
+                        {profile.vehicleInfo.registrationNumber}
+                      </Descriptions.Item>
+                    </>
+                  )}
                   <Descriptions.Item label="Base Allocation">
                     {profile.allocationProfile.baseAllocation}L
                   </Descriptions.Item>
@@ -679,19 +542,15 @@ const BeneficiaryAccountDashboard: FC = () => {
                 <Space direction="vertical" style={{ width: '100%' }}>
                   <Space>
                     <MailOutlined />
-                    <Text copyable>{profile.contactInfo.email}</Text>
+                    <Text copyable>{profile.email}</Text>
                   </Space>
                   <Space>
                     <PhoneOutlined />
-                    <Text copyable>{profile.contactInfo.phone}</Text>
-                  </Space>
-                  <Space>
-                    <BankOutlined />
-                    <Text>{profile.contactInfo.office}</Text>
+                    <Text copyable>{profile.phoneNumber}</Text>
                   </Space>
                   <Space>
                     <EnvironmentOutlined />
-                    <Text>{profile.contactInfo.address}</Text>
+                    <Text>{profile.address}</Text>
                   </Space>
                 </Space>
               </Card>
