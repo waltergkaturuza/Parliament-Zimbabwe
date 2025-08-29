@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "vite build --mode production",
     "build:with-types": "tsc && vite build --mode production",
+    "build:production": "vite build --mode production && cp public/_redirects dist/ || copy public\\_redirects dist\\",
     "preview": "vite preview",
     "build:analyze": "vite build --mode production --build-analyze",
-    "build:render": "vite build --mode production"
+    "build:render": "vite build --mode production && cp public/_redirects dist/ || copy public\\_redirects dist\\"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",

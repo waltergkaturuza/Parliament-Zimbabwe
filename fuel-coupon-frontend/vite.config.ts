@@ -13,6 +13,7 @@ export default defineConfig({
   },
   server: {
     port: 5174,
+    historyApiFallback: true, // Enable client-side routing support
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
@@ -73,6 +74,19 @@ export default defineConfig({
         drop_console: true,
         drop_debugger: true,
       }
+    },
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html')
+      },
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          antd: ['antd', '@ant-design/icons'],
+          charts: ['chart.js', 'recharts']
+        }
+      }
     }
-  }
+  },
+  base: './' // Use relative paths for deployment flexibility
 })// Rebuild: 2025-08-03-01-04-06

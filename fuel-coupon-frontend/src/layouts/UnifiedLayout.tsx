@@ -1,4 +1,3 @@
-// src/layouts/UnifiedLayout.tsx
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -56,6 +55,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ParliamentLogo from '@/components/ParliamentLogo';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import useIdleLogout from '@/hooks/useIdleLogout';
 
 const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -84,6 +84,12 @@ const UnifiedLayout: React.FC = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+
+  // Initialize idle logout functionality (30 minutes idle, 5 minutes warning)
+  useIdleLogout({
+    idleTimeLimit: 30 * 60 * 1000, // 30 minutes
+    warningTime: 5 * 60 * 1000 // 5 minutes warning
+  });
 
   // Auto-collapse sidebar on mobile
   useEffect(() => {

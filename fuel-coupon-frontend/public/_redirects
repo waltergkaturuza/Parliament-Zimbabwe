@@ -1,0 +1,8 @@
+# SPA redirect rules for client-side routing
+# This ensures all routes are handled by React Router
+
+# API routes should be proxied to backend
+/api/* https://parliament-zimbabwe.onrender.com/api/:splat 200
+
+# All other routes should serve the main index.html
+/* /index.html 200
