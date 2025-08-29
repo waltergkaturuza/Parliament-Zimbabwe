@@ -646,50 +646,67 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def recent_activity(self, request, pk=None):
         """Get recent activity for a specific subcenter"""
-        subcenter = self.get_object()
+        try:
+            subcenter = self.get_object()
+        except SubCenter.DoesNotExist:
+            return Response(
+                {'error': f'SubCenter with id {pk} not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to get subcenter: {str(e)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
-        # Get recent transactions (last 10)
-        recent_transactions = FuelTransaction.objects.filter(
-            coupon__book__box__assigned_to=subcenter
-        ).select_related('coupon', 'coupon__book', 'beneficiary').order_by('-timestamp')[:10]
+        try:
+            # Get recent transactions (last 10)
+            recent_transactions = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=subcenter
+            ).select_related('coupon', 'coupon__book', 'beneficiary').order_by('-timestamp')[:10]
+            
+            # Get recent dispatches (last 5)
+            recent_dispatches = BookDispatch.objects.filter(
+                assigned_to=subcenter
+            ).select_related('book', 'dispatched_by').order_by('-dispatch_date')[:5]
+            
+            activities = []
+            
+            # Add transactions
+            for transaction in recent_transactions:
+                activities.append({
+                    'type': 'transaction',
+                    'description': f'Fuel transaction - {transaction.litres_consumed}L',
+                    'date': transaction.timestamp,
+                    'details': {
+                        'beneficiary': transaction.beneficiary.get_full_name() if transaction.beneficiary else 'Unknown',
+                        'amount': f'{transaction.litres_consumed}L',
+                        'location': transaction.transaction_location or 'Not specified'
+                    }
+                })
+            
+            # Add dispatches
+            for dispatch in recent_dispatches:
+                activities.append({
+                    'type': 'dispatch',
+                    'description': f'Book dispatch: {dispatch.book.book_number}',
+                    'date': dispatch.dispatch_date,
+                    'details': {
+                        'book_number': dispatch.book.book_number,
+                        'dispatched_by': dispatch.dispatched_by.get_full_name() if dispatch.dispatched_by else 'Unknown',
+                        'quantity': dispatch.quantity if hasattr(dispatch, 'quantity') else 'Not specified'
+                    }
+                })
+            
+            # Sort by date descending
+            activities.sort(key=lambda x: x['date'], reverse=True)
+            
+            return Response(activities[:15])  # Return top 15 activities
         
-        # Get recent dispatches (last 5)
-        recent_dispatches = BookDispatch.objects.filter(
-            assigned_to=subcenter
-        ).select_related('book', 'dispatched_by').order_by('-dispatch_date')[:5]
-        
-        activities = []
-        
-        # Add transactions
-        for transaction in recent_transactions:
-            activities.append({
-                'type': 'transaction',
-                'description': f'Fuel transaction - {transaction.litres_consumed}L',
-                'date': transaction.timestamp,
-                'details': {
-                    'beneficiary': transaction.beneficiary.get_full_name() if transaction.beneficiary else 'Unknown',
-                    'amount': f'{transaction.litres_consumed}L',
-                    'location': transaction.transaction_location or 'Not specified'
-                }
-            })
-        
-        # Add dispatches
-        for dispatch in recent_dispatches:
-            activities.append({
-                'type': 'dispatch',
-                'description': f'Book dispatch: {dispatch.book.book_number}',
-                'date': dispatch.dispatch_date,
-                'details': {
-                    'book_number': dispatch.book.book_number,
-                    'dispatched_by': dispatch.dispatched_by.get_full_name() if dispatch.dispatched_by else 'Unknown',
-                    'quantity': dispatch.quantity if hasattr(dispatch, 'quantity') else 'Not specified'
-                }
-            })
-        
-        # Sort by date descending
-        activities.sort(key=lambda x: x['date'], reverse=True)
-        
-        return Response(activities[:15])  # Return top 15 activities
+        except Exception as e:
+            # Return empty activities if there's an error, but don't fail completely
+            print(f"Error getting recent activity for subcenter {pk}: {str(e)}")
+            return Response([])  # Return empty list instead of error
 
     def list(self, request, *args, **kwargs):
         """Enhanced list to return data in MainCenter SubCenterMonitoring format"""
@@ -4124,8 +4141,24 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create a new beneficiary with proper error handling"""
         try:
-            # Log the incoming data for debugging
-            print("Incoming data:", request.data)
+            # Log the user and role for debugging
+            print(f"=== BENEFICIARY CREATION DEBUG ===")
+            print(f"User: {request.user}")
+            print(f"User role: {getattr(request.user, 'role', 'No role')}")
+            print(f"User authenticated: {request.user.is_authenticated}")
+            print(f"Incoming data: {request.data}")
+            
+            # Check permissions manually for debugging
+            permissions = self.get_permissions()
+            for permission in permissions:
+                has_permission = permission.has_permission(request, self)
+                print(f"Permission {permission.__class__.__name__}: {has_permission}")
+                if not has_permission:
+                    print(f"Permission denied by {permission.__class__.__name__}")
+                    return Response(
+                        {'error': f'Permission denied: {permission.__class__.__name__}. Required roles: MAIN_CENTER, SUB_CENTER, ADMIN, SUPERUSER'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
             
             serializer = self.get_serializer(data=request.data)
             if not serializer.is_valid():
