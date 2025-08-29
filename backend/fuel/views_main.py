@@ -51,6 +51,9 @@ from .permissions import (
 from .email_utils import send_user_approval_email, send_user_rejection_email
 from rest_framework.views import APIView # Ensure this import is present
 
+# Import specialized API viewsets
+from .api_views import BeneficiaryDashboardAPIViewSet
+
 logger = logging.getLogger(__name__)
 
 User = get_user_model()

@@ -287,6 +287,26 @@ urlpatterns = [
         'get': 'stats'
     }), name='beneficiaries-stats'),
     
+    # Beneficiaries "me" endpoints for authenticated user dashboard
+    path('beneficiaries/me/dashboard/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'personal_overview'
+    }), name='beneficiaries-me-dashboard'),
+    path('beneficiaries/me/profile/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'personal_overview'
+    }), name='beneficiaries-me-profile'),
+    path('beneficiaries/me/allocations/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'allocation_history'
+    }), name='beneficiaries-me-allocations'),
+    path('beneficiaries/me/attendance/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'attendance_records'
+    }), name='beneficiaries-me-attendance'),
+    path('beneficiaries/me/upcoming-events/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'upcoming_sessions'
+    }), name='beneficiaries-me-upcoming-events'),
+    path('beneficiaries/me/stats/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'personal_overview'
+    }), name='beneficiaries-me-stats'),
+    
     # Audit endpoints
     path('audit-logs/', lazy_viewset_action('AuditLogViewSet', {'get': 'list'}), name='audit-logs'),
     path('audit-logs/filter-options/', lazy_viewset_action('AuditLogViewSet', {'get': 'filter_options'}), name='audit-filter-options'),
