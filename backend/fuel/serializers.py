@@ -85,9 +85,14 @@ User = get_user_model()
 # These are used to avoid serializing full objects when nesting related data
 
 class SimpleUserSerializer(serializers.ModelSerializer):
+    sub_center_id = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'role') # Include basic user info
+        fields = ('id', 'username', 'first_name', 'last_name', 'role', 'sub_center_id') # Include sub_center_id
+    
+    def get_sub_center_id(self, obj):
+        return obj.sub_center.id if obj.sub_center else None
 
 
 class SimpleSubCenterSerializer(serializers.ModelSerializer):

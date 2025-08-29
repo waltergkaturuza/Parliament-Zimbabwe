@@ -16,17 +16,17 @@ import apiClient from '@/api';
   type Role = 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER';
   
   interface User {
-    id: number;
-    username: string;
-    email: string;
-    name: string;
-    role: Role;
-    is_superuser?: boolean;
-    centerId?: number;
-    permissions?: string[];
-  }
-  
-  interface TokenData {
+    id: number;
+    username: string;
+    email: string;
+    name: string;
+    role: Role;
+    is_superuser?: boolean;
+    centerId?: number;
+    sub_center_id?: number;
+    sub_center?: { id: number; name: string; };
+    permissions?: string[];
+  }  interface TokenData {
     access: string;
     refresh: string;
   }
@@ -333,6 +333,7 @@ import apiClient from '@/api';
             role: decoded.role as Role,
             is_superuser: decoded.is_superuser || false,
             centerId: decoded.sub_center_id || undefined,
+            sub_center_id: decoded.sub_center_id || undefined, // Add this field too
             permissions: decoded.permissions || []
           };
           

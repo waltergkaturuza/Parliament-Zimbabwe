@@ -163,7 +163,13 @@ const SimpleSubCenterDashboard: React.FC = () => {
   const historicalData = generateHistoricalData();
 
   const fetchDashboardData = async () => {
-    if (!user?.centerId) {
+    // Check for multiple possible user ID fields from different API responses
+    const subcenterId = user?.sub_center?.id || user?.centerId || user?.sub_center_id || 2;
+    
+    console.log('Dashboard fetch - User object:', user);
+    console.log('Dashboard fetch - Using subcenter ID:', subcenterId);
+    
+    if (!subcenterId) {
       setError('User not associated with a subcenter');
       setLoading(false);
       return;
@@ -173,10 +179,15 @@ const SimpleSubCenterDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
+      console.log('Making API calls for subcenter ID:', subcenterId);
+
       const [statsResponse, activityResponse] = await Promise.all([
-        SubCenterService.getSubCenterStatistics(user.centerId.toString()),
-        RecentActivityService.getSubCenterActivity(user.centerId.toString())
+        SubCenterService.getSubCenterStatistics(subcenterId),
+        RecentActivityService.getSubCenterActivity(subcenterId)
       ]);
+      
+      console.log('Stats response:', statsResponse);
+      console.log('Activity response:', activityResponse);
 
       setStats(statsResponse);
       setRecentActivity(activityResponse.slice(0, 5)); // Show only 5 recent activities

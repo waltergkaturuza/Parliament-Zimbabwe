@@ -12,22 +12,28 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    port: 5175,
+    host: true,
     historyApiFallback: true, // Enable client-side routing support
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
         ws: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
         configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq: any, req: any, res: any) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('[VITE PROXY] Proxy error:', err);
+          });
+          
+          proxy.on('proxyReq', (proxyReq, req, res) => {
             try {
               // Forward all headers, but specifically ensure Authorization is preserved
               const auth = req.headers['authorization'] || req.headers['Authorization'];
               if (auth) {
                 proxyReq.setHeader('Authorization', auth);
-                console.log('[VITE PROXY] Forwarding Authorization header:', auth.substring(0, 20) + '...');
+                console.log('[VITE PROXY] Forwarding Authorization header');
               } else {
                 console.log('[VITE PROXY] No Authorization header found in request');
               }
@@ -43,9 +49,15 @@ export default defineConfig({
               if (origin) {
                 proxyReq.setHeader('Origin', origin);
               }
+              
+              console.log(`[VITE PROXY] ${req.method} ${req.url} -> ${proxyReq.getHeader('host')}${proxyReq.path}`);
             } catch (err) {
               console.log('[VITE PROXY] Error handling headers:', err);
             }
+          });
+          
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            console.log(`[VITE PROXY] Response: ${proxyRes.statusCode} for ${req.method} ${req.url}`);
           });
         },
       },

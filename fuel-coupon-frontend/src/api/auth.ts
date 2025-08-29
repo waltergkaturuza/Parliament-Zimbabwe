@@ -30,16 +30,29 @@ export const AuthService = {
   login: async (credentials: LoginData): Promise<{ success: boolean; access?: string; refresh?: string; message?: string; user?: any }> => {
     try {
       console.log('AuthService.login called with:', credentials);
-    // Use the correct Django auth endpoint
-    // Base URL already includes /api, so this hits /api/auth/login/
-    const response = await apiClient.post<{ success: boolean; access_token: string; refresh_token?: string; message?: string; user?: any }>('/auth/login/', credentials);
+      // Use the correct Django auth endpoint
+      // Base URL already includes /api, so this hits /api/auth/login/
+      const response = await apiClient.post<{ 
+        success: boolean; 
+        access_token: string; 
+        refresh_token?: string; 
+        message?: string; 
+        user?: any 
+      }>('/auth/login/', credentials);
+      
       console.log('AuthService.login response received:', response.status, response.data);
       
       if (response.data.success === true) {
+        // Store tokens immediately for subsequent requests
+        localStorage.setItem('access_token', response.data.access_token);
+        if (response.data.refresh_token) {
+          localStorage.setItem('refresh_token', response.data.refresh_token);
+        }
+        
         return { 
           success: true,
           access: response.data?.access_token, 
-          refresh: response.data?.refresh_token, // Use real refresh token if provided
+          refresh: response.data?.refresh_token,
           user: response.data?.user
         };
       } else {
