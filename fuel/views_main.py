@@ -44,6 +44,7 @@ from .permissions import (
     SuperUserPermission, AdminPermission, MainCenterPermission, SubCenterPermission,
     ApproverPermission, MainCenterApproverPermission, SubCenterApproverPermission,
     AuditorPermission, BeneficiaryPermission, CenterBasedObjectPermission,
+    BeneficiaryManagementPermission, CenterAndAuditorPermission, CenterOperationsPermission,
     
     # Workflow permissions
     MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
@@ -474,7 +475,7 @@ class UserViewSet(viewsets.ModelViewSet):
 class SubCenterOfficerViewSet(viewsets.ModelViewSet):
     queryset = SubCenterOfficer.objects.all().select_related('user', 'sub_center')
     serializer_class = SubCenterOfficerSerializer
-    permission_classes = [IsAuthenticated, MainCenterPermission | SubCenterPermission] # Adjust permissions
+    permission_classes = [IsAuthenticated, CenterOperationsPermission] # Fixed permissions
 
 
 class SubCenterViewSet(viewsets.ModelViewSet):
@@ -2404,8 +2405,8 @@ class ProgramViewSet(viewsets.ModelViewSet):
 class FuelTransactionViewSet(viewsets.ReadOnlyModelViewSet): # ReadOnly as transactions are records, not typically created/updated via API
     queryset = FuelTransaction.objects.all().select_related('beneficiary', 'coupon', 'recorded_by').order_by('-timestamp') # Default ordering
     serializer_class = FuelTransactionSerializer
-    # Adjust permissions as needed - who can view transaction history?
-    permission_classes = [IsAuthenticated, MainCenterPermission | AuditorPermission | SubCenterPermission | BeneficiaryPermission]
+    # Fixed permissions - who can view transaction history
+    permission_classes = [IsAuthenticated, CenterAndAuditorPermission]
 
     def get_queryset(self):
         user = self.request.user
@@ -3850,9 +3851,21 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Role-based permissions for different actions"""
-        if self.action in ['list', 'retrieve']:
+        user = self.request.user if hasattr(self.request, 'user') else None
+        
+        # SUPERUSER and ADMIN always have full access
+        if user and getattr(user, 'role', None) in ['SUPERUSER', 'ADMIN']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission()]
+        
+        if self.action in ['list', 'retrieve', 'stats', 'categories', 'constituencies']:
+            # Allow all authenticated users to view beneficiaries and get stats
+            return [IsAuthenticated()]
+        elif self.action in ['activate', 'deactivate', 'allocation_history']:
+            # Allow management roles to manage beneficiaries
+            return [IsAuthenticated(), BeneficiaryManagementPermission()]
+        else:
+            # Create, update, delete require management permissions
+            return [IsAuthenticated(), BeneficiaryManagementPermission()]
     
     def create(self, request, *args, **kwargs):
         """Create a new beneficiary with proper error handling"""
