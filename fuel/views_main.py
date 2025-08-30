@@ -500,7 +500,17 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         - Read access: All authenticated users
         - Write access: Main Center, Auditor roles only
         """
-        if self.action in ['list', 'retrieve', 'overview']:
+        # 1) If this action defined its own permission_classes via @action, honor that
+        try:
+            action_handler = getattr(self, self.action, None)
+            if action_handler and hasattr(action_handler, 'permission_classes'):
+                return [perm() for perm in getattr(action_handler, 'permission_classes')]
+        except Exception:
+            pass
+
+        # 2) Treat common read-only actions as read access
+        read_actions = ['list', 'retrieve', 'overview', 'statistics', 'recent_activity', 'activities', 'monitoring']
+        if self.action in read_actions:
             return [IsAuthenticated()]
         
         # Create a composite permission for write operations
@@ -602,7 +612,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         return Response(activities)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def statistics(self, request, pk=None):
         """Get statistics for a specific subcenter"""
         subcenter = self.get_object()
@@ -617,9 +627,10 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         total_coupons = Coupon.objects.filter(
             book__box__assigned_to=subcenter
         ).count()
+        # Align with model: use status field rather than non-existent is_used
         used_coupons = Coupon.objects.filter(
             book__box__assigned_to=subcenter,
-            is_used=True
+            status='USED'
         ).count()
         
         # Recent transactions count (last 30 days)
@@ -643,7 +654,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         return Response(statistics)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def recent_activity(self, request, pk=None):
         """Get recent activity for a specific subcenter"""
         subcenter = self.get_object()
