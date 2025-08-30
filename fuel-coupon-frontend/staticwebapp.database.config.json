@@ -1,4 +1,0 @@
-{
-  "connectionString": "@Microsoft.KeyVault(VaultName=parliament-keyvault;SecretName=database-connection-string)",
-  "type": "PostgreSQL"
-}

@@ -15,19 +15,16 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-1*p133x5+uzwh8
 DEBUG = True
 print(f"DEBUG: Forced DEBUG to True for local development")
 
-# Azure-specific hostname configuration
-AZURE_HOSTNAME = os.environ.get('AZURE_HOSTNAME', 'parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net')
-FRONTEND_HOSTNAME = os.environ.get('FRONTEND_HOSTNAME', 'jolly-ocean-0e0dee90f.2.azurestaticapps.net')
+# Production deployment configuration
+RENDER_BACKEND_HOSTNAME = os.environ.get('RENDER_BACKEND_HOSTNAME', 'parliament-zimbabwe-backend.onrender.com')
+RENDER_FRONTEND_HOSTNAME = os.environ.get('RENDER_FRONTEND_HOSTNAME', 'parliament-zimbabwe-frontend.onrender.com')
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
     '0.0.0.0',  # Allow all interfaces for local development
-    AZURE_HOSTNAME,  # Actual Azure hostname
-    'parliament-fuel-system.azurewebsites.net',  # Alternative hostname
-    '169.254.131.3',  # Azure internal health check IP
-    '169.254.131.1',  # Azure internal load balancer IP
-    '169.254.131.2',  # Azure internal services IP
+    RENDER_BACKEND_HOSTNAME,  # Render backend hostname
+    'parliament-zimbabwe-backend.onrender.com',  # Direct Render hostname
     '169.254.131.4',  # Additional Azure internal IP
     '169.254.131.7',  # Additional Azure internal IP
     '169.254.130.5',  # Azure internal IP from logs
@@ -100,10 +97,10 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # Production URLs
-    f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
-    f"https://{AZURE_HOSTNAME}",     # Azure App Service
-    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Current frontend deployment
-    "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
+    f"https://{RENDER_FRONTEND_HOSTNAME}",  # Render Frontend
+    f"https://{RENDER_BACKEND_HOSTNAME}",   # Render Backend  
+    "https://parliament-zimbabwe-frontend.onrender.com",  # Direct frontend URL
+    "https://parliament-zimbabwe-backend.onrender.com",   # Direct backend URL
 ]
 
 # CORS settings
@@ -121,12 +118,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",  # Django backend
     "http://127.0.0.1:8000",  # Django backend
     # Production URLs
-    f"https://{FRONTEND_HOSTNAME}",  # Azure Static Web App
-    f"https://{AZURE_HOSTNAME}",     # Azure App Service
-    "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Current frontend deployment
-    "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
-    # Add alternative backend URLs that might be referenced
-    "https://parliament-fuel-system.azurewebsites.net",  # Alternative backend URL
+    f"https://{RENDER_FRONTEND_HOSTNAME}",  # Render Frontend
+    f"https://{RENDER_BACKEND_HOSTNAME}",   # Render Backend
+    "https://parliament-zimbabwe-frontend.onrender.com",  # Direct frontend URL
+    "https://parliament-zimbabwe-backend.onrender.com",   # Direct backend URL
 ]
 
 # Additional CORS settings for proper preflight handling
@@ -163,7 +158,7 @@ CORS_EXPOSE_HEADERS = [
 # Debug CORS configuration
 print(f"DEBUG: CORS_ALLOWED_ORIGINS = {CORS_ALLOWED_ORIGINS}")
 print(f"DEBUG: CORS_ALLOW_ALL_ORIGINS = {CORS_ALLOW_ALL_ORIGINS}")
-print(f"DEBUG: FRONTEND_HOSTNAME = {FRONTEND_HOSTNAME}")
+print(f"DEBUG: RENDER_FRONTEND_HOSTNAME = {RENDER_FRONTEND_HOSTNAME}")
 print(f"DEBUG: DEBUG mode = {DEBUG}")
 
 ROOT_URLCONF = 'config.urls'

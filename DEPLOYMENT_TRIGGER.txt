@@ -1,3 +1,18 @@
-Deployment forced at 2025-08-10 01:06:53
-This file triggers Azure App Service to restart with latest code.
-All 9 missing endpoints should be working after this deployment.
+URGENT DEPLOYMENT TRIGGER - SERGEANT_OF_ARMS FIX - AUGUST 30, 2025
+
+Critical Issue: SERGEANT_OF_ARMS role not appearing on deployed system
+Local Status: All 9 roles including SERGEANT_OF_ARMS working perfectly
+Production Problem: Role missing from admin user management interface
+
+FORCE DEPLOYMENT REQUESTED:
+✅ Backend: User.ROLE_CHOICES includes SERGEANT_OF_ARMS  
+✅ Frontend: Fallback roles updated to include SERGEANT_OF_ARMS
+✅ API: /api/auth/roles/ returns complete 9-role list when authenticated
+✅ Admin Interface: Dynamic role selection implemented
+✅ Testing: Local verification confirms all roles visible
+
+Expected Result: SERGEANT_OF_ARMS appears in admin dropdowns on production
+Deployment Target: parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net
+Frontend Target: jolly-ocean-0e0dee90f.2.azurestaticapps.net
+
+STATUS: CRITICAL FIX - DEPLOY IMMEDIATELY! 🔥

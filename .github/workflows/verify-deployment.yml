@@ -2,7 +2,7 @@ name: Post-Deployment Verification
 
 on:
   workflow_run:
-    workflows: ["Build and deploy Python app to Azure Web App"]
+    workflows: ["Deploy to Render"]
     types:
       - completed
   workflow_dispatch:
@@ -10,11 +10,11 @@ on:
       backend_url:
         description: 'Backend URL to test'
         required: false
-        default: 'https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net'
+        default: 'https://parliament-zimbabwe-backend.onrender.com'
       frontend_url:
         description: 'Frontend URL to test'
         required: false
-        default: 'https://jolly-ocean-0e0dee90f.2.azurestaticapps.net'
+        default: 'https://parliament-zimbabwe-frontend.onrender.com'
 
 jobs:
   verify-deployment:

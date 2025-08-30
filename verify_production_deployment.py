@@ -8,9 +8,9 @@ import requests
 import time
 import json
 
-# Production URLs
-BACKEND_URL = "https://parliament-fuel-system-d0bvbjfrdbepdrfh.southafricanorth-01.azurewebsites.net"
-FRONTEND_URL = "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net"
+# Render Production URLs
+BACKEND_URL = "https://parliament-zimbabwe-backend.onrender.com"
+FRONTEND_URL = "https://parliament-zimbabwe-frontend.onrender.com"
 
 def test_production_deployment():
     print("🚀 PRODUCTION DEPLOYMENT VERIFICATION")

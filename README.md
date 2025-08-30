@@ -2,7 +2,14 @@
 
 A comprehensive fuel coupon management system for the Parliament of Zimbabwe (POZ).
 
-## 🚀 Quick Start
+## � URGENT DEPLOYMENT - SERGEANT_OF_ARMS FIX (August 30, 2025)
+**CRITICAL**: SERGEANT_OF_ARMS role visibility fix deployed
+- ✅ All 9 roles including SERGEANT_OF_ARMS working locally
+- 🎯 Production deployment needed for role visibility
+- 📝 Admin user management updated with dynamic role fetching
+- 🚀 Force push completed - awaiting production sync
+
+## �🚀 Quick Start
 
 ### Prerequisites
 - Python 3.9+
