@@ -13,37 +13,37 @@ class IsAdmin(permissions.BasePermission):
 class IsMainCenterOfficer(permissions.BasePermission):
     """Permission for main center officers"""
     def has_permission(self, request, view):
-        return request.user.role == 'MAIN_CENTER'
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER']
 
 class IsSubCenterOfficer(permissions.BasePermission):
     """Permission for sub center officers"""
     def has_permission(self, request, view):
-        return request.user.role == 'SUB_CENTER'
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'SUB_CENTER']
 
 class IsMainCenterApprover(permissions.BasePermission):
     """Permission for main center approvers"""
     def has_permission(self, request, view):
-        return request.user.role == 'MAIN_CENTER_APPROVER'
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER_APPROVER']
 
 class IsSubCenterApprover(permissions.BasePermission):
     """Permission for sub center approvers"""
     def has_permission(self, request, view):
-        return request.user.role == 'SUB_CENTER_APPROVER'
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'SUB_CENTER_APPROVER']
 
 class IsApprover(permissions.BasePermission):
     """Permission for any approver (main center or sub center)"""
     def has_permission(self, request, view):
-        return request.user.role in ['MAIN_CENTER_APPROVER', 'SUB_CENTER_APPROVER']
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER_APPROVER', 'SUB_CENTER_APPROVER']
 
 class IsBeneficiary(permissions.BasePermission):
     """Permission for beneficiaries"""
     def has_permission(self, request, view):
-        return request.user.role == 'BENEFICIARY'
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'BENEFICIARY']
 
 class IsAuditor(permissions.BasePermission):
     """Permission for auditors"""
     def has_permission(self, request, view):
-        return request.user.role == 'AUDITOR'
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'AUDITOR']
 
 class IsOwnerOrAdmin(permissions.BasePermission):
     """Permission for object owners or administrators"""
