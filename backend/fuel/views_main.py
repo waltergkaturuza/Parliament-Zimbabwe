@@ -2538,8 +2538,16 @@ class ConstituencyViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), ConstituencyWritePermission()]
     
     def list(self, request, *args, **kwargs):
-        """List all constituencies with proper error handling"""
+        """List constituencies with page_size override support for the selector UI"""
         try:
+            page_size = request.query_params.get('page_size')
+            if page_size:
+                try:
+                    page_size = int(page_size)
+                except Exception:
+                    page_size = None
+                if page_size and hasattr(self, 'paginator') and self.paginator:
+                    self.paginator.page_size = page_size
             return super().list(request, *args, **kwargs)
         except Exception as e:
             return Response(

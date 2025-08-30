@@ -217,9 +217,9 @@ const SimpleSubCenterDashboard: React.FC = () => {
         setTrendUsed(usedSeries);
         setTrendDistributed(dates.map(() => 0));
         // 7-day moving average for a simple predictive overlay
-        const window = 7;
+        const winSize = 7;
         const ma = usedSeries.map((_, i) => {
-          const start = Math.max(0, i - window + 1);
+          const start = Math.max(0, i - winSize + 1);
           const slice = usedSeries.slice(start, i + 1);
           const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
           return Number(avg.toFixed(2));
@@ -307,10 +307,38 @@ const SimpleSubCenterDashboard: React.FC = () => {
     },
   };
 
-  const lineChartData = {
-    labels: trendLabels,
-    datasets: [
-      {
+  const lineChartData = (() => {
+    const datasets: any[] = [];
+    // Add usage
+    datasets.push({
+      label: 'Coupons Used (L)',
+      data: trendUsed,
+      borderColor: '#4CAF50',
+      backgroundColor: 'rgba(76, 175, 80, 0.1)',
+      borderWidth: 3,
+      fill: true,
+      tension: 0.4,
+      pointBackgroundColor: '#4CAF50',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 5,
+    });
+    // Add moving average
+    datasets.push({
+      label: 'Usage 7d MA',
+      data: trendUsedMA,
+      borderColor: '#9C27B0',
+      backgroundColor: 'rgba(156, 39, 176, 0.05)',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.3,
+      pointRadius: 0,
+      borderDash: [6, 4],
+    });
+    // Add distributed only if non-zero
+    const hasDistributed = (trendDistributed || []).some(v => Number(v) > 0);
+    if (hasDistributed) {
+      datasets.unshift({
         label: 'Coupons Distributed',
         data: trendDistributed,
         borderColor: '#2196F3',
@@ -322,33 +350,10 @@ const SimpleSubCenterDashboard: React.FC = () => {
         pointBorderColor: '#ffffff',
         pointBorderWidth: 2,
         pointRadius: 5,
-      },
-      {
-        label: 'Coupons Used (L)',
-        data: trendUsed,
-        borderColor: '#4CAF50',
-        backgroundColor: 'rgba(76, 175, 80, 0.1)',
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-        pointBackgroundColor: '#4CAF50',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-        pointRadius: 5,
-      },
-      {
-        label: 'Usage 7d MA',
-        data: trendUsedMA,
-        borderColor: '#9C27B0',
-        backgroundColor: 'rgba(156, 39, 176, 0.05)',
-        borderWidth: 2,
-        fill: false,
-        tension: 0.3,
-        pointRadius: 0,
-        borderDash: [6, 4],
-      },
-    ],
-  };
+      });
+    }
+    return { labels: trendLabels, datasets };
+  })();
 
   const doughnutData = {
     labels: ['Available', 'Used', 'Reserved'],

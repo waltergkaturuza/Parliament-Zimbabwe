@@ -53,7 +53,12 @@ class BeneficiaryPermission(RoleBasedPermission):
 
 class BeneficiaryManagementPermission(RoleBasedPermission):
     """Permission for beneficiary management - allows MAIN_CENTER and SUB_CENTER"""
-    allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
+    allowed_roles = [
+        'SUPERUSER', 'ADMIN',
+        'MAIN_CENTER', 'SUB_CENTER',
+        # Include approver roles to support authorized creates/updates
+        'MAIN_CENTER_APPROVER', 'SUB_CENTER_APPROVER'
+    ]
 
 
 class SergeantOfArmsPermission(RoleBasedPermission):

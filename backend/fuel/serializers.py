@@ -1789,6 +1789,8 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     
     # Nested user data for creation (write-only)
     user = serializers.JSONField(write_only=True, required=False)
+    # Accept existing user id for creation/update scenarios
+    user_id = serializers.IntegerField(write_only=True, required=False)
     
     # Legacy fields for backward compatibility
     user_details = SimpleUserSerializer(source='user', read_only=True)
@@ -1806,6 +1808,16 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             # Allow writing to category and constituency via string names
             'category': {'required': False},
             'constituency': {'required': False},
+            'position': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'department': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'engine_size': {'required': False, 'allow_null': True},
+            'vehicle_make': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'vehicle_model': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'vehicle_registration': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'fuel_type': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'employee_id': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'office_location': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'status': {'required': False},
         }
     
     def get_name(self, obj):
@@ -1976,6 +1988,20 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         
         # Extract user data if provided
         user_data = validated_data.pop('user', {})
+        # Try to get an explicit user_id (from serializer field) or from raw payload
+        explicit_user_id = validated_data.pop('user_id', None)
+        raw = getattr(self, 'initial_data', {}) or {}
+        # Support multiple ways to reference an existing user
+        if explicit_user_id is None:
+            try:
+                if isinstance(raw.get('user'), (int, str)):
+                    explicit_user_id = int(raw.get('user'))
+                elif isinstance(raw.get('user'), dict) and raw.get('user', {}).get('id'):
+                    explicit_user_id = int(raw.get('user', {}).get('id'))
+                elif raw.get('user_id') is not None:
+                    explicit_user_id = int(raw.get('user_id'))
+            except Exception:
+                explicit_user_id = None
         print("User data:", user_data)
         
         # Extract foreign key IDs
@@ -1987,8 +2013,21 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         print("Constituency ID:", constituency_id)
         print("Vehicle Category ID:", vehicle_category_id)
         
-        # Create user if user data is provided
-        if user_data:
+        # Create or reuse user
+        if explicit_user_id:
+            # Reuse existing user by ID
+            try:
+                user = User.objects.get(id=explicit_user_id)
+            except User.DoesNotExist:
+                raise serializers.ValidationError({ 'user_id': 'Specified user does not exist' })
+            # Ensure role is BENEFICIARY for access to beneficiary features
+            if getattr(user, 'role', None) != 'BENEFICIARY':
+                try:
+                    user.role = 'BENEFICIARY'
+                    user.save(update_fields=['role'])
+                except Exception:
+                    pass
+        elif user_data:
             # Generate unique username
             base_username = user_data.get('email', '').split('@')[0] or validated_data.get('employee_id', 'user')
             username = base_username
@@ -2006,14 +2045,14 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             
             user = User.objects.create_user(**user_data)
         else:
-            # Create a minimal user with required fields
+            # Create a minimal user with required fields when no user reference/data provided
             employee_id = validated_data.get('employee_id', f"user_{int(time.time())}")
             username = employee_id
             counter = 1
             while User.objects.filter(username=username).exists():
                 username = f"{employee_id}_{counter}"
                 counter += 1
-                
+
             user = User.objects.create_user(
                 username=username,
                 role='BENEFICIARY',

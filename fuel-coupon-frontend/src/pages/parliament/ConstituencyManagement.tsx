@@ -1,5 +1,5 @@
 // src/pages/parliament/ConstituencyManagement.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Card,
   Table,
@@ -76,11 +76,14 @@ const ZIMBABWE_PROVINCES = {
 
 // API Service
 const ConstituencyService = {
-  async getConstituencies(): Promise<Constituency[]> {
-    const response = await apiClient.get('/constituencies/?page_size=100');
+  async getConstituencies(page: number, pageSize: number): Promise<{ results: Constituency[]; total: number }> {
+    const response = await apiClient.get(`/constituencies/?page=${page}&page_size=${pageSize}`);
     const data = response.data;
-    // Handle both paginated response and direct array
-    return Array.isArray(data) ? data : (data.results || []);
+    // Support both paginated response and direct array
+    if (Array.isArray(data)) {
+      return { results: data, total: data.length };
+    }
+    return { results: data.results || [], total: data.count ?? (data.results?.length || 0) };
   },
 
   async createConstituency(data: ConstituencyFormData): Promise<Constituency> {
@@ -104,19 +107,28 @@ const ConstituencyManagement: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingConstituency, setEditingConstituency] = useState<Constituency | null>(null);
   const [selectedProvince, setSelectedProvince] = useState<string>('');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   const queryClient = useQueryClient();
 
   // Fetch constituencies
   const { data: constituenciesData, isLoading, refetch } = useQuery({
-    queryKey: ['constituencies'],
-    queryFn: ConstituencyService.getConstituencies,
+    queryKey: ['constituencies', page, pageSize],
+    queryFn: () => ConstituencyService.getConstituencies(page, pageSize),
+    placeholderData: (prev) => prev,
   });
 
   // Ensure constituencies is always an array (handle both array and paginated response)
-  const constituencies = Array.isArray(constituenciesData) 
-    ? constituenciesData 
-    : (constituenciesData?.results || []);
+  const constituencies = useMemo(() => {
+    if (!constituenciesData) return [] as Constituency[];
+    return constituenciesData.results || [];
+  }, [constituenciesData]);
+
+  const total = useMemo(() => {
+    if (!constituenciesData) return 0;
+    return constituenciesData.total ?? 0;
+  }, [constituenciesData]);
 
   // Create constituency mutation
   const createMutation = useMutation({
@@ -125,7 +137,7 @@ const ConstituencyManagement: React.FC = () => {
       message.success('Constituency created successfully!');
       setIsCreateModalOpen(false);
       form.resetFields();
-      queryClient.invalidateQueries({ queryKey: ['constituencies'] });
+  queryClient.invalidateQueries({ queryKey: ['constituencies'] });
     },
     onError: (error: any) => {
       message.error(`Failed to create constituency: ${error.message}`);
@@ -141,7 +153,7 @@ const ConstituencyManagement: React.FC = () => {
       setIsEditModalOpen(false);
       setEditingConstituency(null);
       form.resetFields();
-      queryClient.invalidateQueries({ queryKey: ['constituencies'] });
+  queryClient.invalidateQueries({ queryKey: ['constituencies'] });
     },
     onError: (error: any) => {
       message.error(`Failed to update constituency: ${error.message}`);
@@ -153,7 +165,7 @@ const ConstituencyManagement: React.FC = () => {
     mutationFn: ConstituencyService.deleteConstituency,
     onSuccess: () => {
       message.success('Constituency deleted successfully!');
-      queryClient.invalidateQueries({ queryKey: ['constituencies'] });
+  queryClient.invalidateQueries({ queryKey: ['constituencies'] });
     },
     onError: (error: any) => {
       message.error(`Failed to delete constituency: ${error.message}`);
@@ -356,10 +368,19 @@ const ConstituencyManagement: React.FC = () => {
           rowKey="id"
           loading={isLoading}
           pagination={{
-            pageSize: 20,
+            current: page,
+            pageSize,
+            total,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} constituencies`,
+            showTotal: (t, range) => `${range[0]}-${range[1]} of ${t} constituencies`,
+            onChange: (p, ps) => {
+              setPage(p);
+              if (ps !== pageSize) {
+                setPageSize(ps);
+                setPage(1); // reset to first page when page size changes
+              }
+            },
           }}
           scroll={{ x: 1000 }}
         />
@@ -458,8 +479,14 @@ const ConstituencyManagement: React.FC = () => {
                   min={0}
                   placeholder="Estimated population"
                   style={{ width: '100%' }}
-                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                  formatter={(value) => (value ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
+                  // @ts-ignore AntD typing expects (string|undefined)=>number but is too strict in our setup
+                  parser={(value: any) => {
+                    if (!value) return 0;
+                    const cleaned = String(value).replace(/\$\s?|,/g, '');
+                    const n = Number.parseInt(cleaned, 10);
+                    return Number.isNaN(n) ? 0 : n;
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -594,8 +621,14 @@ const ConstituencyManagement: React.FC = () => {
                   min={0}
                   placeholder="Estimated population"
                   style={{ width: '100%' }}
-                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                  formatter={(value) => (value ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
+                  // @ts-ignore AntD typing expects (string|undefined)=>number but is too strict in our setup
+                  parser={(value: any) => {
+                    if (!value) return 0;
+                    const cleaned = String(value).replace(/\$\s?|,/g, '');
+                    const n = Number.parseInt(cleaned, 10);
+                    return Number.isNaN(n) ? 0 : n;
+                  }}
                 />
               </Form.Item>
             </Col>
