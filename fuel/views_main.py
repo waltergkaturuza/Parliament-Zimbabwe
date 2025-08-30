@@ -186,6 +186,7 @@ class LoginView(APIView):
 
 # --- Existing ViewSets (Updated Permissions and Querysets) ---
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().select_related('sub_center', 'approved_by')
     serializer_class = UserSerializer
@@ -3858,6 +3859,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for managing beneficiary profiles with frontend compatibility"""
     serializer_class = BeneficiaryProfileSerializer

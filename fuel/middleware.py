@@ -5,6 +5,7 @@ since they use JWT authentication instead.
 import re
 from django.middleware.csrf import CsrfViewMiddleware
 from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
 
 
 class CsrfExemptMiddleware(CsrfViewMiddleware):
@@ -22,7 +23,13 @@ class CsrfExemptMiddleware(CsrfViewMiddleware):
             if re.match(pattern, request.path):
                 # Mark the view as CSRF exempt
                 setattr(callback, 'csrf_exempt', True)
+                # Return None to skip CSRF processing entirely
                 return None
                 
+        # For API endpoints, skip CSRF verification completely
+        if request.path.startswith('/api/'):
+            setattr(callback, 'csrf_exempt', True)
+            return None
+            
         # Continue with normal CSRF processing for non-exempt URLs
         return super().process_view(request, callback, callback_args, callback_kwargs)

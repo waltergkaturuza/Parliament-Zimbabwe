@@ -103,6 +103,13 @@ CSRF_TRUSTED_ORIGINS = [
     "https://parliament-zimbabwe-backend.onrender.com",   # Direct backend URL
 ]
 
+# For development, disable CSRF for all API endpoints
+if DEBUG:
+    CSRF_COOKIE_SECURE = False
+    CSRF_COOKIE_HTTPONLY = False
+    CSRF_USE_SESSIONS = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
+
 # Exempt API endpoints from CSRF verification (JWT handles auth)
 CSRF_EXEMPT_URLS = [
     r'^/api/v1/',  # All API v1 endpoints
