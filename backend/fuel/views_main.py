@@ -679,8 +679,8 @@ class SubCenterViewSet(viewsets.ModelViewSet):
             
             # Get recent dispatches (last 5)
             recent_dispatches = BookDispatch.objects.filter(
-                assigned_to=subcenter
-            ).select_related('book', 'dispatched_by').order_by('-dispatch_date')[:5]
+                to_center=subcenter
+            ).select_related('dispatched_by').order_by('-dispatch_date')[:5]
             
             activities = []
             

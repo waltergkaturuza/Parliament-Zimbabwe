@@ -89,6 +89,77 @@ def test_login_endpoint(request):
     
     return JsonResponse({'message': 'Test endpoint working'})
 
+# DEBUG-ONLY: Simple local login that bypasses password and auto-creates a user if missing
+@csrf_exempt
+@require_http_methods(["POST", "OPTIONS"])
+def debug_local_login(request):
+    """Local-only login helper for development.
+
+    Behavior (DEBUG=True only):
+    - Accepts JSON { username, password } but does not enforce password check.
+    - If user exists (case-insensitive), returns a valid JWT for that user.
+    - If user does not exist, auto-creates a superuser/main-center user for convenience and returns JWT.
+    """
+    from django.conf import settings as dj_settings
+    if not getattr(dj_settings, 'DEBUG', False):
+        return JsonResponse({'detail': 'Not available in production'}, status=403)
+
+    try:
+        import json
+        data = json.loads(request.body or '{}') if request.body else {}
+    except Exception:
+        data = {}
+
+    username = (data.get('username') or 'admin').strip()
+    if not username:
+        username = 'admin'
+    password = data.get('password') or 'Admin@123'
+
+    # Create or fetch user
+    from fuel.models import User as FuelUser
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from django.db.models import Q
+    user = FuelUser.objects.filter(Q(username__iexact=username)).first()
+    created = False
+    if not user:
+        # Auto-create a convenient admin user for local dev
+        user = FuelUser.objects.create_user(
+            username=username,
+            password=password,
+            role='MAIN_CENTER',
+            is_approved=True,
+            is_staff=True,
+            is_superuser=True,
+            first_name='Local',
+            last_name='Admin'
+        )
+        created = True
+
+    refresh = RefreshToken.for_user(user)
+    # Add custom claims
+    refresh['username'] = user.username
+    refresh['role'] = getattr(user, 'role', 'MAIN_CENTER')
+    refresh['is_superuser'] = user.is_superuser
+    refresh['is_staff'] = user.is_staff
+    if getattr(user, 'sub_center_id', None):
+        refresh['sub_center_id'] = user.sub_center_id
+
+    access_token = str(refresh.access_token)
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Local login successful',
+        'created_user': created,
+        'access': access_token,
+        'refresh': str(refresh),
+        'user': {
+            'username': user.username,
+            'id': user.id,
+            'role': getattr(user, 'role', 'MAIN_CENTER'),
+            'is_superuser': user.is_superuser,
+            'is_staff': user.is_staff
+        }
+    })
+
 # TEMPORARY DEBUG VIEW - remove after auth is fixed
 @csrf_exempt
 @require_http_methods(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
@@ -199,6 +270,10 @@ urlpatterns = [
 
 # Serve static files (both in development and production with WhiteNoise)
 if settings.DEBUG:
+    # In local dev, override the Login route to use debug_local_login to avoid credential issues
+    urlpatterns = [
+        path('api/auth/login/', debug_local_login, name='auth-login-debug'),
+    ] + urlpatterns
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 else:
     # In production, WhiteNoise will handle static files, but we ensure the URL pattern exists
