@@ -8,22 +8,17 @@ import {
   Statistic,
   Typography,
   Select,
-  DatePicker,
   Spin,
   Progress,
   Table,
   Tag,
   Space,
   Button,
-  Alert,
-  Tooltip,
-  Divider,
   App
 } from 'antd';
 import {
   BarChartOutlined,
   LineChartOutlined,
-  PieChartOutlined,
   RiseOutlined,
   TeamOutlined,
   CalendarOutlined,
@@ -41,11 +36,6 @@ import {
   Line,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -54,21 +44,9 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import apiClient from '@/api/index';
-import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { RangePicker } = DatePicker;
-
-interface AnalyticsData {
-  period: string;
-  sessions: number;
-  attendance: number;
-  fuel_allocated: number;
-  subcenters_active: number;
-  programs: number;
-  compliance_score: number;
-}
 
 interface SubCenterPerformance {
   name: string;
@@ -90,7 +68,6 @@ interface TrendData {
 const SystemParliamentAnalytics: FC = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData[]>([]);
   const [performanceData, setPerformanceData] = useState<SubCenterPerformance[]>([]);
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('last_6_months');
@@ -108,143 +85,75 @@ const SystemParliamentAnalytics: FC = () => {
   });
 
   useEffect(() => {
-    loadAnalytics();
-    loadPerformanceData();
-    loadTrendData();
-    loadStats();
+    const run = async () => {
+      setLoading(true);
+      await Promise.allSettled([
+        loadOverviewStats(),
+        loadPerformanceData(),
+        loadTrendData()
+      ]);
+      setLoading(false);
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod, selectedMetric]);
 
-  const loadAnalytics = async () => {
+  const loadOverviewStats = async () => {
     try {
-      setLoading(true);
-      
-      // Fetch analytics data from backend
-      const response = await apiClient.get('/parliament/analytics/', {
-        params: {
-          period: selectedPeriod,
-          metric: selectedMetric
-        }
+      const res = await apiClient.get('/subcenter/overview/', { params: { include_parliament_data: true } });
+      const d = res.data || {};
+      setStats({
+        totalSessions: d.total_sessions || 0,
+        totalAttendance: d.total_attendance || 0,
+        totalFuelAllocated: d.total_fuel_allocated || 0,
+        averageEfficiency: d.average_compliance || 0,
+        activeSubcenters: d.active_subcenters || 0,
+        systemCompliance: d.average_compliance || 0,
+        monthlyGrowth: d.monthly_growth || 0,
+        costPerSession: d.cost_per_session || 0
       });
-      
-      const analyticsData = response.data.results || response.data;
-      
-      if (Array.isArray(analyticsData)) {
-        const mappedAnalytics = analyticsData.map((item: any) => ({
-          period: item.period || 'Unknown Period',
-          sessions: item.sessions_count || 0,
-          attendance: item.total_attendance || 0,
-          fuel_allocated: item.fuel_allocated || 0,
-          subcenters_active: item.active_subcenters || 0,
-          programs: item.programs_count || 0,
-          compliance_score: item.compliance_score || 0
-        }));
-
-        setAnalyticsData(mappedAnalytics);
-      } else {
-        console.warn('Expected array but got:', analyticsData);
-        setAnalyticsData([]);
-      }
-    } catch (error) {
-      console.error('Error loading analytics:', error);
-      message.error('Failed to load analytics data');
-    } finally {
-      setLoading(false);
+    } catch (error: any) {
+      console.error('Error loading overview stats:', error);
+      message.error('Failed to load overview stats');
     }
   };
 
   const loadPerformanceData = async () => {
     try {
-      // Mock performance data
-      const mockPerformance: SubCenterPerformance[] = [
-        {
-          name: 'Harare Central',
-          sessions: 45,
-          attendance_rate: 94,
-          fuel_efficiency: 89,
-          compliance_score: 96,
-          status: 'excellent'
-        },
-        {
-          name: 'Bulawayo',
-          sessions: 32,
-          attendance_rate: 87,
-          fuel_efficiency: 85,
-          compliance_score: 91,
-          status: 'good'
-        },
-        {
-          name: 'Chitungwiza',
-          sessions: 28,
-          attendance_rate: 82,
-          fuel_efficiency: 78,
-          compliance_score: 84,
-          status: 'good'
-        },
-        {
-          name: 'Gweru',
-          sessions: 15,
-          attendance_rate: 68,
-          fuel_efficiency: 65,
-          compliance_score: 72,
-          status: 'needs_improvement'
-        },
-        {
-          name: 'Mutare',
-          sessions: 22,
-          attendance_rate: 79,
-          fuel_efficiency: 81,
-          compliance_score: 86,
-          status: 'good'
-        },
-        {
-          name: 'Masvingo',
-          sessions: 18,
-          attendance_rate: 71,
-          fuel_efficiency: 69,
-          compliance_score: 75,
-          status: 'needs_improvement'
-        }
-      ];
-
-      setPerformanceData(mockPerformance);
-    } catch (error) {
+      const res = await apiClient.get('/subcenter/statistics/', { params: { include_parliament_data: true } });
+      const items = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.results) ? res.data.results : []);
+      const mapped: SubCenterPerformance[] = items.map((it: any) => ({
+        name: it.name || it.subcenter_name || 'Unknown',
+        sessions: it.sessions || it.sessions_count || 0,
+        attendance_rate: it.attendance_rate || it.avg_attendance_rate || 0,
+        fuel_efficiency: it.fuel_efficiency || it.avg_fuel_efficiency || 0,
+        compliance_score: it.compliance_score || it.avg_compliance || 0,
+        status: (it.status as SubCenterPerformance['status']) || 'good',
+      }));
+      setPerformanceData(mapped);
+    } catch (error: any) {
       console.error('Error loading performance data:', error);
+      message.error('Failed to load subcenter performance');
+      setPerformanceData([]);
     }
   };
 
   const loadTrendData = async () => {
     try {
-      // Mock trend data
-      const mockTrends: TrendData[] = [
-        { month: 'Jul', sessions: 74, attendance: 1021, fuel_usage: 20100, efficiency: 87 },
-        { month: 'Aug', sessions: 68, attendance: 932, fuel_usage: 18200, efficiency: 83 },
-        { month: 'Sep', sessions: 71, attendance: 987, fuel_usage: 19500, efficiency: 85 },
-        { month: 'Oct', sessions: 82, attendance: 1156, fuel_usage: 23200, efficiency: 90 },
-        { month: 'Nov', sessions: 76, attendance: 1089, fuel_usage: 21800, efficiency: 88 },
-        { month: 'Dec', sessions: 89, attendance: 1245, fuel_usage: 24500, efficiency: 92 }
-      ];
-
-      setTrendData(mockTrends);
-    } catch (error) {
+      const res = await apiClient.get('/parliament/analytics/', { params: { period: selectedPeriod, metric: selectedMetric } });
+      const items = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.results) ? res.data.results : []);
+      const mapped: TrendData[] = items.map((it: any) => ({
+        month: it.period || it.month || '',
+        sessions: it.sessions_count || it.sessions || 0,
+        attendance: it.total_attendance || it.attendance || 0,
+        fuel_usage: it.fuel_allocated || it.fuel_usage || 0,
+        efficiency: it.compliance_score || it.efficiency || 0,
+      }));
+      setTrendData(mapped);
+    } catch (error: any) {
       console.error('Error loading trend data:', error);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      // Mock stats
-      setStats({
-        totalSessions: 460,
-        totalAttendance: 6430,
-        totalFuelAllocated: 127300,
-        averageEfficiency: 86,
-        activeSubcenters: 8,
-        systemCompliance: 89,
-        monthlyGrowth: 12.5,
-        costPerSession: 276.8
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
+      message.error('Failed to load trend data');
+      setTrendData([]);
     }
   };
 
@@ -291,20 +200,7 @@ const SystemParliamentAnalytics: FC = () => {
         <Progress
           percent={rate}
           size="small"
-          status={rate >= 85 ? 'success' : rate >= 70 ? 'normal' : 'exception'}
-        />
-      )
-    },
-    {
-      title: 'Fuel Efficiency',
-      dataIndex: 'fuel_efficiency',
-      key: 'fuel_efficiency',
-      sorter: (a: SubCenterPerformance, b: SubCenterPerformance) => a.fuel_efficiency - b.fuel_efficiency,
-      render: (efficiency: number) => (
-        <Progress
-          percent={efficiency}
-          size="small"
-          status={efficiency >= 80 ? 'success' : efficiency >= 65 ? 'normal' : 'exception'}
+          status={rate >= 80 ? 'success' : rate >= 65 ? 'normal' : 'exception'}
         />
       )
     },
@@ -333,8 +229,6 @@ const SystemParliamentAnalytics: FC = () => {
     }
   ];
 
-  const COLORS = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#fa8c16'];
-
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -354,14 +248,6 @@ const SystemParliamentAnalytics: FC = () => {
           Comprehensive analytics and performance insights across all parliamentary operations
         </Text>
       </div>
-
-      <Alert
-        message="Real-time Analytics Dashboard"
-        description="This dashboard provides real-time insights into parliament session management, attendance tracking, fuel allocation efficiency, and subcenter performance across the entire system."
-        type="info"
-        showIcon
-        style={{ marginBottom: 24 }}
-      />
 
       <Space style={{ marginBottom: 24 }}>
         <Select

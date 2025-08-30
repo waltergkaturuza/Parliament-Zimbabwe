@@ -12,7 +12,7 @@ from django.db.models.functions import TruncDate
 
 from .models import (
     BeneficiaryProfile, CouponAllocation, BeneficiaryCategory,
-    SessionAttendance, ParliamentSession, FuelEntitlement, FuelTransaction
+    SessionAttendance, ParliamentSession, FuelEntitlement, FuelTransaction, SubCenter, User, Coupon, Book, Box
 )
 from .serializers import (
     BeneficiaryProfileSerializer, CouponAllocationSerializer,
@@ -509,3 +509,141 @@ def sergeant_of_arms_dashboard(request):
         })
     except Exception as e:
         return Response({'error': f'Failed to load sergeant dashboard: {str(e)}'}, status=503)
+
+
+# Parliament analytics endpoints expected by frontend
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def parliament_analytics_view(request):
+    """Return high-level analytics over time for parliament dashboards.
+    Shape: array of {period, sessions_count, total_attendance, fuel_allocated, active_subcenters, programs_count, compliance_score}
+    """
+    try:
+        period = request.GET.get('period', 'last_6_months')
+        metric = request.GET.get('metric', 'all')  # currently unused; reserved
+
+        # Build monthly buckets for last 6 months by default
+        now = timezone.now()
+        months = 6 if period == 'last_6_months' else 3
+        buckets = []
+        for i in range(months, -1, -1):
+            dt = (now - timedelta(days=30*i))
+            key = dt.strftime('%Y-%m')
+            buckets.append(key)
+
+        # Pre-query basics
+        sessions = ParliamentSession.objects.all()
+        attendance = SessionAttendance.objects.all()
+        fuel_tx = FuelTransaction.objects.all()
+        active_subcenters = SubCenter.objects.filter(is_active=True).count()
+
+        # Monthly aggregates (best-effort; guard missing fields)
+        data = []
+        for ym in buckets:
+            year, month = ym.split('-')
+            y, m = int(year), int(month)
+            start = timezone.datetime(y, m, 1, tzinfo=timezone.get_current_timezone())
+            # Compute month end safely
+            if m == 12:
+                month_end = timezone.datetime(y+1, 1, 1, tzinfo=timezone.get_current_timezone()) - timedelta(seconds=1)
+            else:
+                month_end = timezone.datetime(y, m+1, 1, tzinfo=timezone.get_current_timezone()) - timedelta(seconds=1)
+
+            sess_count = sessions.filter(date__gte=start.date(), date__lte=month_end.date()).count() if hasattr(ParliamentSession, 'date') else 0
+            att_total = attendance.filter(date__gte=start.date(), date__lte=month_end.date()).count() if hasattr(SessionAttendance, 'date') else 0
+            fuel_total = fuel_tx.filter(timestamp__gte=start, timestamp__lte=month_end).aggregate(v=Sum('litres_consumed'))['v'] or 0
+
+            data.append({
+                'period': ym,
+                'sessions_count': sess_count,
+                'total_attendance': att_total,
+                'fuel_allocated': float(fuel_total),
+                'active_subcenters': active_subcenters,
+                'programs_count': 0,
+                'compliance_score': 0,
+            })
+
+        return Response(data)
+    except Exception as e:
+        return Response({'error': f'Failed to load analytics: {str(e)}'}, status=503)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def parliament_reports_view(request):
+    """Return available parliament reports (placeholder until real reports exist)."""
+    try:
+        report_type = request.GET.get('type')  # filter not used yet
+        # No reports feature yet; return empty consistent array
+        return Response([])
+    except Exception as e:
+        return Response({'error': f'Failed to load reports: {str(e)}'}, status=503)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_statistics_list_view(request):
+    """List-style subcenter statistics expected by FE at /subcenter/statistics/"""
+    try:
+        # Scope by role
+        user = request.user
+        if user.role == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+            subcenters = SubCenter.objects.filter(id=user.sub_center_id)
+        else:
+            subcenters = SubCenter.objects.all()
+
+        results = []
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        for sc in subcenters:
+            total_attendance = 0  # No direct mapping; keep 0 unless modeling exists
+            recent_tx = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=sc,
+                timestamp__gte=thirty_days_ago
+            ).count()
+            fuel_allocated = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=sc
+            ).aggregate(v=Sum('litres_consumed'))['v'] or 0
+
+            results.append({
+                'id': sc.id,
+                'name': sc.name,
+                'code': sc.code,
+                'location': getattr(sc, 'location', '') or '',
+                'managed_by': {'first_name': getattr(getattr(sc, 'managed_by', None), 'first_name', ''), 'last_name': getattr(getattr(sc, 'managed_by', None), 'last_name', '')},
+                'sessions_this_month': 0,
+                'programs_organized': 0,
+                'total_attendance': int(total_attendance),
+                'fuel_allocated': float(fuel_allocated or 0),
+                'last_activity': timezone.now().isoformat(),
+                'is_active': getattr(sc, 'is_active', True),
+                'compliance_score': 0,
+                'recent_activities': [],
+            })
+
+        return Response(results)
+    except Exception as e:
+        return Response({'error': f'Failed to load subcenter stats: {str(e)}'}, status=503)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_overview_view(request):
+    """Overview summary expected at /subcenter/overview/"""
+    try:
+        total_subcenters = SubCenter.objects.count()
+        active_subcenters = SubCenter.objects.filter(is_active=True).count()
+        total_sessions = ParliamentSession.objects.count()
+        total_programs = 0
+        average_compliance = 0
+        total_fuel_allocated = float(FuelTransaction.objects.aggregate(v=Sum('litres_consumed'))['v'] or 0)
+
+        return Response({
+            'total_subcenters': total_subcenters,
+            'active_subcenters': active_subcenters,
+            'total_sessions': total_sessions,
+            'total_programs': total_programs,
+            'average_compliance': average_compliance,
+            'total_fuel_allocated': total_fuel_allocated,
+        })
+    except Exception as e:
+        return Response({'error': f'Failed to load subcenter overview: {str(e)}'}, status=503)

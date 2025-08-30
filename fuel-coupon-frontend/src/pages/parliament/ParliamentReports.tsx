@@ -116,14 +116,18 @@ const ParliamentReports: FC = () => {
 
   const loadStats = async () => {
     try {
-      // Mock statistics data
+      // Fetch overview stats from backend, compute report counters locally
+      const res = await apiClient.get('/subcenter/overview/', { params: { include_parliament_data: true } });
+      const d = res.data || {};
+      const now = dayjs();
+      const recentCount = (reports || []).filter(r => dayjs(r.generated_date).isAfter(now.subtract(7, 'day'))).length;
       setStats({
-        totalReports: 45,
-        recentReports: 12,
-        totalSessions: 234,
-        averageAttendance: 87.5,
-        totalFuelAllocated: 156780,
-        activeSubcenters: 8
+        totalReports: (reports || []).length,
+        recentReports: recentCount,
+        totalSessions: d.total_sessions || 0,
+        averageAttendance: d.average_attendance || 0,
+        totalFuelAllocated: d.total_fuel_allocated || 0,
+        activeSubcenters: d.active_subcenters || 0
       });
     } catch (error) {
       console.error('Error loading stats:', error);

@@ -272,6 +272,10 @@ urlpatterns = [
     path('analytics/fuel-requirements/', lazy_view('fuel_statistics'), name='fuel-requirements-analytics'),
     path('financial-analytics/', lazy_view('analytics_view'), name='financial-analytics'),
     path('statistics/', lazy_view('fuel_statistics'), name='statistics'),  # General statistics endpoint
+
+    # Parliament dashboards expected by frontend
+    path('parliament/analytics/', lazy_api_view('parliament_analytics_view'), name='parliament-analytics'),
+    path('parliament/reports/', lazy_api_view('parliament_reports_view'), name='parliament-reports'),
     
     # Fuel pricing and statistics endpoints
     path('fuel-stats/', lazy_view('fuel_statistics'), name='fuel-statistics'),
@@ -279,6 +283,9 @@ urlpatterns = [
     
     # SubCenter statistics endpoint
     path('subcenters/stats/', lazy_view('subcenters_stats'), name='subcenters-stats'),
+    # FE expects these list-style endpoints
+    path('subcenter/statistics/', lazy_api_view('subcenter_statistics_list_view'), name='subcenter-statistics-list'),
+    path('subcenter/overview/', lazy_api_view('subcenter_overview_view'), name='subcenter-overview'),
     
     # Users endpoints with role filtering
     path('users/me/', lazy_viewset_action('UserViewSet', {'get': 'me'}), name='user-me'),
