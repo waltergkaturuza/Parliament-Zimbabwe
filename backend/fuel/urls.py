@@ -22,6 +22,22 @@ def lazy_view(view_name):
             }, status=503)
     return _view
 
+def lazy_api_view(view_name):
+    """Return a function-based view that resolves a target from api_views at request time.
+    This avoids importing heavy views_main when only lightweight api_views is needed.
+    """
+    def _view(request, *args, **kwargs):
+        try:
+            from . import api_views
+            view = getattr(api_views, view_name)
+            return view(request, *args, **kwargs)
+        except Exception as e:
+            return JsonResponse({
+                'detail': f'Endpoint temporarily unavailable: {view_name}',
+                'error': str(e)
+            }, status=503)
+    return _view
+
 def lazy_class_view(class_name):
     """Wrap a class-based view by resolving .as_view() at request time."""
     def _view(request, *args, **kwargs):
@@ -81,7 +97,7 @@ try:
         admin_dashboard, fuel_statistics, analytics_view, notification_stats,
         
         # NEW: Missing view implementations from views_main
-        main_dashboard, analytics_consumption_trend,
+    main_dashboard, analytics_consumption_trend,
         change_password, mark_all_notifications_read, subcenter_statistics,
         dynamic_allocation, subcenters_stats,
         
@@ -114,7 +130,16 @@ try:
 except ImportError as e:
     print(f"Import error in fuel/urls.py: {e}")
     # Fallback imports will be handled by lazy loading
+    # Ensure referenced symbols exist to avoid NameError below
+    analytics_consumption_trend = None
     pass
+# Small placeholder for endpoints the frontend expects but backend doesn’t own yet
+def attendance_corrections_placeholder(request, *args, **kwargs):
+    try:
+        # Return an empty list to satisfy UI fetches gracefully
+        return JsonResponse([], safe=False, status=200)
+    except Exception as e:
+        return JsonResponse({'detail': 'Temporary placeholder error', 'error': str(e)}, status=503)
 
 # Import debug views
 from .views_debug import (
@@ -237,7 +262,9 @@ urlpatterns = [
     
     # Analytics endpoints - keep relative paths only
     path('analytics/', lazy_view('analytics_view'), name='analytics-view'),
-    path('analytics/consumption-trend/', lazy_view('analytics_consumption_trend'), name='consumption-trend-analytics'),
+    # Use direct function if import succeeded; otherwise fall back to lazy resolver
+    # Prefer lightweight api_views implementation to avoid import-time failures
+    path('analytics/consumption-trend/', lazy_api_view('analytics_consumption_trend_view'), name='consumption-trend-analytics'),
     # New analytics endpoints
     path('analytics/received-breakdown/', get_view_function('analytics_received_breakdown'), name='analytics-received-breakdown'),
     path('analytics/available-by-center/', get_view_function('analytics_available_by_center'), name='analytics-available-by-center'),
@@ -259,6 +286,13 @@ urlpatterns = [
     
     # Books endpoints
     path('books/received/', lazy_viewset_action('BookViewSet', {'get': 'received'}), name='books-received-v1'),
+
+    # Aliases for legacy/alternate frontend paths
+    path('attendance-registries/', lazy_viewset_action('SessionAttendanceViewSet', {'get': 'list'}), name='attendance-registries-alias'),
+    path('attendance-corrections/', attendance_corrections_placeholder, name='attendance-corrections-placeholder'),
+    path('audit/logs/', lazy_viewset_action('AuditLogViewSet', {'get': 'list'}), name='audit-logs-alias'),
+    # Sergeant of Arms dashboard (new)
+    path('sergeant-of-arms/dashboard/', lazy_api_view('sergeant_of_arms_dashboard'), name='sergeant-of-arms-dashboard'),
     
     # Dynamic allocation endpoint
     path('dynamic-allocation/', lazy_view('dynamic_allocation'), name='dynamic-allocation'),
