@@ -647,46 +647,62 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         """Get recent activity for a specific subcenter"""
         subcenter = self.get_object()
         
-        # Get recent transactions (last 10)
-        recent_transactions = FuelTransaction.objects.filter(
-            coupon__book__box__assigned_to=subcenter
-        ).select_related('coupon', 'coupon__book', 'beneficiary').order_by('-timestamp')[:10]
-        
-        # Get recent dispatches (last 5)
-        recent_dispatches = BookDispatch.objects.filter(
-            assigned_to=subcenter
-        ).select_related('book', 'dispatched_by').order_by('-dispatch_date')[:5]
-        
         activities = []
         
-        # Add transactions
-        for transaction in recent_transactions:
-            activities.append({
-                'type': 'transaction',
-                'description': f'Fuel transaction - {transaction.litres_consumed}L',
-                'date': transaction.timestamp,
-                'details': {
-                    'beneficiary': transaction.beneficiary.get_full_name() if transaction.beneficiary else 'Unknown',
-                    'amount': f'{transaction.litres_consumed}L',
-                    'location': transaction.transaction_location or 'Not specified'
-                }
-            })
+        # Get recent transactions (last 10)
+        try:
+            recent_transactions = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=subcenter
+            ).select_related('coupon', 'coupon__book', 'beneficiary').order_by('-timestamp')[:10]
+            
+            # Add transactions
+            for transaction in recent_transactions:
+                activities.append({
+                    'type': 'transaction',
+                    'description': f'Fuel transaction - {transaction.litres_consumed}L',
+                    'date': transaction.timestamp.isoformat() if transaction.timestamp else None,
+                    'sort_date': transaction.timestamp,
+                    'details': {
+                        'beneficiary': transaction.beneficiary.get_full_name() if transaction.beneficiary else 'Unknown',
+                        'amount': f'{transaction.litres_consumed}L',
+                        'location': transaction.transaction_location or 'Not specified'
+                    }
+                })
+        except Exception as e:
+            # Log the error but continue
+            import logging
+            logging.error(f"Error fetching transactions for subcenter {subcenter.id}: {e}")
         
-        # Add dispatches
-        for dispatch in recent_dispatches:
-            activities.append({
-                'type': 'dispatch',
-                'description': f'Book dispatch: {dispatch.book.book_number}',
-                'date': dispatch.dispatch_date,
-                'details': {
-                    'book_number': dispatch.book.book_number,
-                    'dispatched_by': dispatch.dispatched_by.get_full_name() if dispatch.dispatched_by else 'Unknown',
-                    'quantity': dispatch.quantity if hasattr(dispatch, 'quantity') else 'Not specified'
-                }
-            })
+        # Get recent dispatches (last 5)
+        try:
+            recent_dispatches = BookDispatch.objects.filter(
+                assigned_to=subcenter
+            ).select_related('book', 'dispatched_by').order_by('-dispatch_date')[:5]
+            
+            # Add dispatches
+            for dispatch in recent_dispatches:
+                activities.append({
+                    'type': 'dispatch',
+                    'description': f'Book dispatch: {dispatch.book.book_number}',
+                    'date': dispatch.dispatch_date.isoformat() if dispatch.dispatch_date else None,
+                    'sort_date': dispatch.dispatch_date,
+                    'details': {
+                        'book_number': dispatch.book.book_number,
+                        'dispatched_by': dispatch.dispatched_by.get_full_name() if dispatch.dispatched_by else 'Unknown',
+                        'quantity': dispatch.quantity if hasattr(dispatch, 'quantity') else 'Not specified'
+                    }
+                })
+        except Exception as e:
+            # Log the error but continue
+            import logging
+            logging.error(f"Error fetching dispatches for subcenter {subcenter.id}: {e}")
         
-        # Sort by date descending
-        activities.sort(key=lambda x: x['date'], reverse=True)
+        # Sort by date descending using sort_date
+        activities.sort(key=lambda x: x.get('sort_date') or timezone.now(), reverse=True)
+        
+        # Remove sort_date from response
+        for activity in activities:
+            activity.pop('sort_date', None)
         
         return Response(activities[:15])  # Return top 15 activities
 

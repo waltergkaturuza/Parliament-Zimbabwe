@@ -62,3 +62,39 @@ class SubCenterAccess(permissions.BasePermission):
         if request.user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and obj.assigned_to == request.user.sub_center:
             return True
         return False
+
+class BeneficiaryManagementPermission(permissions.BasePermission):
+    """Permission for beneficiary management operations"""
+    def has_permission(self, request, view):
+        """Allow SUPERUSER, ADMIN, MAIN_CENTER, SUB_CENTER, and AUDITOR roles to manage beneficiaries"""
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'AUDITOR']
+
+class MainCenterPermission(permissions.BasePermission):
+    """Permission for main center operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER']
+
+class AuditorPermission(permissions.BasePermission):
+    """Permission for auditor operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'AUDITOR']
+
+class SubCenterPermission(permissions.BasePermission):
+    """Permission for sub center operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'SUB_CENTER']
+
+class BeneficiaryPermission(permissions.BasePermission):
+    """Permission for beneficiary operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'BENEFICIARY']
+
+class SergeantOfArmsPermission(permissions.BasePermission):
+    """Permission for Sergeant of Arms operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'SERGEANT_OF_ARMS']
+
+class AttendanceManagementPermission(permissions.BasePermission):
+    """Permission for attendance management operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SERGEANT_OF_ARMS']
