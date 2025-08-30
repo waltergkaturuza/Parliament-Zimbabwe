@@ -227,7 +227,11 @@ const ConstituencyManagement: React.FC = () => {
       sorter: (a, b) => a.distance_from_parliament_km - b.distance_from_parliament_km,
       render: (distance: number) => (
         <div className="text-center">
-          <Badge count={distance} color={distance < 50 ? 'green' : distance < 200 ? 'orange' : 'red'} />
+          <Badge
+            count={distance}
+            overflowCount={100000}
+            color={distance < 50 ? 'green' : distance < 200 ? 'orange' : 'red'}
+          />
         </div>
       ),
     },
