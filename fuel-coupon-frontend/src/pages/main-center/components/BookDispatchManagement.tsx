@@ -179,11 +179,24 @@ const BookDispatchManagement: FC = () => {
 
   const loadAvailableBooks = async () => {
     try {
-      const response = await apiClient.get('/books/', {
-        params: { status: 'VERIFIED', available: true }
-      });
-      const data = response.data.results || response.data || [];
-      setAvailableBooks(data);
+      // Prefer intelligent backend endpoint with accurate counts and values
+      const response = await apiClient.get('/books/available_for_dispatch/');
+      const payload = response.data || {};
+      const data = payload.results || payload || [];
+      const mapped: AvailableBook[] = (Array.isArray(data) ? data : []).map((b: any) => ({
+        key: String(b.id ?? b.bookId ?? b.bookCode ?? Math.random()),
+        bookId: String(b.bookCode ?? b.bookId ?? b.id ?? ''),
+        boxId: String(b.boxId ?? b.box_code ?? ''),
+        fuelType: (String(b.fuelType || '').toUpperCase() === 'PETROL' ? 'PETROL' : 'DIESEL') as 'PETROL' | 'DIESEL',
+        couponAmount: (b.denomination ?? 20) as 5 | 20,
+        firstCouponId: String(b.firstCouponNumber ?? b.first_coupon_number ?? ''),
+        lastCouponId: String(b.lastCouponNumber ?? b.last_coupon_number ?? ''),
+        numberOfCoupons: Number(b.numberOfCoupons ?? b.total_coupons ?? 100),
+        value: Number(b.estimatedValue ?? (Number(b.numberOfCoupons ?? 100) * Number(b.denomination ?? 20))),
+        pricePerLitre: Number(b.pricePerLitre ?? 0),
+        status: 'AVAILABLE',
+      }));
+      setAvailableBooks(mapped);
     } catch (error) {
       console.error('Error loading available books:', error);
       message.error('Failed to load available books');
@@ -194,9 +207,27 @@ const BookDispatchManagement: FC = () => {
 
   const loadSubCenters = async () => {
     try {
-      const response = await apiClient.get('/subcenters/');
-      const data = response.data.results || response.data || [];
-      setSubCenters(data);
+      // Try primary then alias for compatibility
+      let response = await apiClient.get('/subcenters/');
+      let data = response.data.results || response.data || [];
+      if (!Array.isArray(data) || data.length === 0) {
+        try {
+          const alt = await apiClient.get('/sub-centers/');
+          data = alt.data.results || alt.data || [];
+        } catch {}
+      }
+      const mapped = (Array.isArray(data) ? data : []).map((subcenter: any) => ({
+        id: String(subcenter.id),
+        name: subcenter.name,
+        location: subcenter.location || 'Unknown Location',
+        officerName: subcenter.officer_in_charge?.first_name && subcenter.officer_in_charge?.last_name
+          ? `${subcenter.officer_in_charge.first_name} ${subcenter.officer_in_charge.last_name}`
+          : (subcenter.officerName || 'Unknown Officer'),
+        phone: subcenter.contact_phone || subcenter.phone || '',
+        email: subcenter.contact_email || subcenter.email || '',
+        status: 'ACTIVE' as const,
+      }));
+      setSubCenters(mapped);
     } catch (error) {
       console.error('Error loading sub-centers:', error);
       message.error('Failed to load sub-centers');
@@ -257,7 +288,8 @@ const BookDispatchManagement: FC = () => {
       selectedBooks.forEach(key => {
         if (!next[key]) {
           const book = availableBooks.find(b => b.key === key);
-          next[key] = Math.min(book?.numberOfCoupons || 10, 10);
+          // Default to full available coupons for the selected book
+          next[key] = Math.max(1, book?.numberOfCoupons || 100);
         }
       });
       // Remove for deselected

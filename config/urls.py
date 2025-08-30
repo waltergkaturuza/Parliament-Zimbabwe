@@ -11,6 +11,9 @@ from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
 from .health_check import health_check, simple_health
+from django.views.generic.base import RedirectView
+from django.http import HttpResponse
+import os
 
 # Import the actual LoginView for testing
 def get_login_view():
@@ -193,3 +196,22 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Temporary SPA fallback for frontend dashboard routes to avoid 404s when served by backend
+def spa_fallback_view(request, path=None):
+    try:
+        # Attempt to serve built index.html if available
+        frontend_index = os.path.join(settings.BASE_DIR, 'fuel-coupon-frontend', 'dist', 'index.html')
+        if os.path.exists(frontend_index):
+            with open(frontend_index, 'rb') as f:
+                return HttpResponse(f.read(), content_type='text/html')
+    except Exception:
+        pass
+    # Generic minimal HTML fallback
+    return HttpResponse('<!doctype html><html><head><meta charset="utf-8"><title>Parliament App</title></head><body><div id="root"></div><script>location.href="/"</script></body></html>', content_type='text/html')
+
+# Place after API routes to not shadow them
+urlpatterns += [
+    path('dashboard/', spa_fallback_view),
+    path('dashboard/<path:path>/', spa_fallback_view),
+]
