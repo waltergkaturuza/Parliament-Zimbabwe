@@ -12,7 +12,7 @@ import {
   import { decodeJWT } from '@/utils/jwt';
 import apiClient, { API_BASE } from '@/api';
   
-  type Role = 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER';
+  type Role = 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER' | 'SERGEANT_OF_ARMS';
   
   interface User {
     id: number;

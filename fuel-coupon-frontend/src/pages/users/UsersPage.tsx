@@ -160,6 +160,12 @@ const UsersPage = () => {
       icon: <AuditOutlined />, 
       label: 'Auditor',
       description: 'System auditor'
+    },
+    SERGEANT_OF_ARMS: {
+      color: '#2f54eb',
+      icon: <TeamOutlined />,
+      label: 'Sergeant of Arms',
+      description: 'Attendance management'
     }
   };
 

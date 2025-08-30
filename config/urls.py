@@ -169,9 +169,8 @@ urlpatterns = [
     path('health/simple/', simple_health, name='simple-health'),  # Simple health check
     path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
-    path('api/', home_view, name='api-home'),  # Fix the /api/ endpoint
-    path('api/v1/', include('fuel.urls')),
-    path('api/auth/', include('fuel.urls')),  # Add direct auth path for frontend compatibility
+    path('api/v1/', include('fuel.urls')),  # Main API endpoints
+    path('api/', include('fuel.urls')),  # Direct api path for frontend compatibility (home endpoints, auth, etc.)
     
     # TEMPORARY DEBUG ENDPOINT - remove after auth is fixed
     path('api/v1/debug-headers/', debug_headers_view, name='debug-headers'),

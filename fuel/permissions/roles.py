@@ -56,6 +56,16 @@ class BeneficiaryManagementPermission(RoleBasedPermission):
     allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'MAIN_CENTER_APPROVER', 'SUB_CENTER', 'SUB_CENTER_APPROVER', 'AUDITOR']
 
 
+class SergeantOfArmsPermission(RoleBasedPermission):
+    """Permission for Sergeant of Arms attendance marking"""
+    allowed_roles = ['SUPERUSER', 'ADMIN', 'SERGEANT_OF_ARMS']
+
+
+class AttendanceManagementPermission(RoleBasedPermission):
+    """Permission for managing attendance registries and sessions"""
+    allowed_roles = ['SUPERUSER', 'ADMIN', 'SUB_CENTER', 'SUB_CENTER_APPROVER', 'SERGEANT_OF_ARMS']
+
+
 class CenterAndAuditorPermission(RoleBasedPermission):
     """Permission for center operations and auditors"""
     allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'MAIN_CENTER_APPROVER', 'SUB_CENTER', 'SUB_CENTER_APPROVER', 'AUDITOR', 'BENEFICIARY']

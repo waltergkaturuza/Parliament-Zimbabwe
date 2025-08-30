@@ -118,6 +118,7 @@ class User(AbstractUser):
         ('AUDITOR', 'Auditor'),
         ('MAIN_CENTER_APPROVER', 'Main Center Approver'),
         ('SUB_CENTER_APPROVER', 'Sub Center Approver'),
+        ('SERGEANT_OF_ARMS', 'Sergeant of Arms'),
     ]
 
     # Override inherited fields to fix conflicts
@@ -3358,6 +3359,251 @@ class SessionAttendance(TimeStampedModel):
 
     def __str__(self):
         return f"{self.beneficiary} - {self.session} on {self.date}: {self.get_status_display()}"
+
+
+class SessionAttendanceRegistry(TimeStampedModel):
+    """
+    Published attendance registry for sessions/programs that Sergeant of Arms can mark
+    """
+    REGISTRY_STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('PUBLISHED', 'Published'),
+        ('IN_PROGRESS', 'Marking in Progress'),
+        ('SUBMITTED', 'Submitted'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+    
+    session = models.ForeignKey(
+        'ParliamentSession',
+        on_delete=models.CASCADE,
+        related_name='attendance_registries'
+    )
+    program = models.ForeignKey(
+        'Program',
+        on_delete=models.CASCADE,
+        related_name='attendance_registries',
+        null=True,
+        blank=True
+    )
+    title = models.CharField(max_length=200, help_text="Registry title/name")
+    expected_attendees = models.ManyToManyField(
+        'BeneficiaryProfile',
+        through='AttendanceRegistryMember',
+        related_name='expected_registries'
+    )
+    
+    # Publishing and management
+    published_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='published_registries'
+    )
+    published_date = models.DateTimeField(null=True, blank=True)
+    managing_subcenter = models.ForeignKey(
+        'SubCenter',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='managed_registries'
+    )
+    
+    # Marking and submission
+    marked_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='marked_registries',
+        limit_choices_to={'role': 'SERGEANT_OF_ARMS'}
+    )
+    submitted_date = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=REGISTRY_STATUS_CHOICES,
+        default='DRAFT'
+    )
+    
+    # Approval workflow
+    reviewed_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='reviewed_registries'
+    )
+    reviewed_date = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True, null=True)
+    
+    # Registry details
+    attendance_date = models.DateField(help_text="Date when attendance was/will be marked")
+    notes = models.TextField(blank=True, null=True)
+    is_editable = models.BooleanField(default=True, help_text="Can Sergeant of Arms still edit?")
+    
+    class Meta:
+        ordering = ['-attendance_date', '-created']
+        verbose_name = "Attendance Registry"
+        verbose_name_plural = "Attendance Registries"
+    
+    def __str__(self):
+        return f"{self.title} - {self.attendance_date} ({self.get_status_display()})"
+    
+    def can_be_edited(self, user):
+        """Check if registry can be edited by user"""
+        if user.role in ['SUPERUSER', 'ADMIN']:
+            return True
+        if user.role == 'SERGEANT_OF_ARMS' and self.status in ['PUBLISHED', 'IN_PROGRESS']:
+            return self.is_editable
+        if user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and self.managing_subcenter:
+            return user.sub_center == self.managing_subcenter
+        return False
+    
+    def publish(self, user):
+        """Publish registry for Sergeant of Arms to mark"""
+        if user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            self.status = 'PUBLISHED'
+            self.published_by = user
+            self.published_date = timezone.now()
+            self.save()
+            return True
+        return False
+    
+    def submit_attendance(self, user):
+        """Submit marked attendance for approval"""
+        if user.role == 'SERGEANT_OF_ARMS' and self.status == 'IN_PROGRESS':
+            self.status = 'SUBMITTED'
+            self.submitted_date = timezone.now()
+            self.marked_by = user
+            self.is_editable = False
+            self.save()
+            return True
+        return False
+
+
+class AttendanceRegistryMember(TimeStampedModel):
+    """
+    Members expected to attend a specific registry with their attendance status
+    """
+    ATTENDANCE_STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('PRESENT', 'Present'),
+        ('ABSENT', 'Absent'),
+        ('EXCUSED', 'Excused'),
+        ('LATE', 'Late'),
+    ]
+    
+    registry = models.ForeignKey(
+        'SessionAttendanceRegistry',
+        on_delete=models.CASCADE,
+        related_name='members'
+    )
+    beneficiary = models.ForeignKey(
+        'BeneficiaryProfile',
+        on_delete=models.CASCADE,
+        related_name='registry_memberships'
+    )
+    expected_to_attend = models.BooleanField(default=True)
+    attendance_status = models.CharField(
+        max_length=10,
+        choices=ATTENDANCE_STATUS_CHOICES,
+        default='PENDING'
+    )
+    arrival_time = models.TimeField(null=True, blank=True)
+    departure_time = models.TimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, null=True)
+    marked_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='marked_attendances'
+    )
+    marked_date = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        unique_together = ('registry', 'beneficiary')
+        ordering = ['beneficiary__user__last_name', 'beneficiary__user__first_name']
+        verbose_name = "Registry Member"
+        verbose_name_plural = "Registry Members"
+    
+    def __str__(self):
+        return f"{self.beneficiary} - {self.registry.title}: {self.get_attendance_status_display()}"
+    
+    def mark_attendance(self, status, user, arrival_time=None, notes=None):
+        """Mark attendance for this member"""
+        self.attendance_status = status
+        self.marked_by = user
+        self.marked_date = timezone.now()
+        if arrival_time:
+            self.arrival_time = arrival_time
+        if notes:
+            self.notes = notes
+        self.save()
+
+
+class AttendanceCorrection(TimeStampedModel):
+    """
+    Corrections requested by Sergeant of Arms for submitted attendance
+    """
+    CORRECTION_STATUS_CHOICES = [
+        ('PENDING', 'Pending Review'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+    
+    registry = models.ForeignKey(
+        'SessionAttendanceRegistry',
+        on_delete=models.CASCADE,
+        related_name='corrections'
+    )
+    requested_by = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='requested_corrections',
+        limit_choices_to={'role': 'SERGEANT_OF_ARMS'}
+    )
+    reason = models.TextField(help_text="Reason for correction request")
+    correction_details = models.JSONField(
+        help_text="Details of what needs to be corrected",
+        default=dict
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=CORRECTION_STATUS_CHOICES,
+        default='PENDING'
+    )
+    
+    # Approval
+    reviewed_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='reviewed_corrections'
+    )
+    reviewed_date = models.DateTimeField(null=True, blank=True)
+    response = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-created']
+        verbose_name = "Attendance Correction"
+        verbose_name_plural = "Attendance Corrections"
+    
+    def __str__(self):
+        return f"Correction for {self.registry.title} - {self.get_status_display()}"
+    
+    def approve(self, user, response=None):
+        """Approve correction request"""
+        if user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            self.status = 'APPROVED'
+            self.reviewed_by = user
+            self.reviewed_date = timezone.now()
+            self.response = response or "Correction approved"
+            
+            # Make registry editable again
+            self.registry.is_editable = True
+            self.registry.status = 'IN_PROGRESS'
+            self.registry.save()
+            
+            self.save()
+            return True
+        return False
 
 
 class BeneficiaryProfile(TimeStampedModel):

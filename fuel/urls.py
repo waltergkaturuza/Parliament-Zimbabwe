@@ -2,6 +2,7 @@ from django.urls import path, include
 from django.http import JsonResponse
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
+from django.views.decorators.csrf import csrf_exempt
 
 # Use lazy imports to avoid circular import issues
 def get_view_function(view_name):
@@ -189,10 +190,15 @@ _maybe_register('AuditLogViewSet', r'audit-logs', 'audit-log')
 _maybe_register('ProgramViewSet', r'programs', 'program')
 # router.register(r'attendances', AttendanceViewSet, basename='attendance')  # TODO: Commented out - no Attendance model
 
+# Attendance Management System (Sergeant of Arms)
+_maybe_register('SessionAttendanceRegistryViewSet', r'attendance-registries', 'attendance-registry')
+_maybe_register('AttendanceRegistryMemberViewSet', r'attendance-members', 'attendance-member')
+_maybe_register('AttendanceCorrectionViewSet', r'attendance-corrections', 'attendance-correction')
+
 urlpatterns = [
     # Authentication
-    path('auth/register/', lazy_class_view('RegisterView'), name='register'),
-    path('auth/login/', lazy_class_view('LoginView'), name='login'),
+    path('auth/register/', csrf_exempt(lazy_class_view('RegisterView')), name='register'),
+    path('auth/login/', csrf_exempt(lazy_class_view('LoginView')), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Add refresh endpoint
     path('auth/user/', lazy_view('user_profile_view'), name='current-user'),  # Add user profile endpoint
     path('auth/roles/', lazy_view('auth_roles'), name='auth-roles'),  # Available user roles
@@ -213,6 +219,9 @@ urlpatterns = [
     # Admin dashboard endpoints - use relative paths
     path('admin/dashboard/', lazy_view('admin_dashboard'), name='admin-dashboard-v1'),
     path('dashboard/', lazy_view('main_dashboard'), name='main-dashboard-v1'),
+    
+    # Sergeant of Arms dashboard
+    path('sergeant-of-arms/dashboard/', lazy_class_view('SergeantOfArmsDashboardAPIView'), name='sergeant-of-arms-dashboard'),
     
     # Fuel statistics endpoint
     path('fuel-stats/', lazy_view('fuel_statistics'), name='fuel-statistics'),

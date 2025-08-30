@@ -60,6 +60,7 @@ const DashboardRedirect = () => {
       MAIN_CENTER_APPROVER: '/dashboard/approvals',
       SUB_CENTER_APPROVER: '/dashboard/approvals',
       BENEFICIARY: '/dashboard/beneficiary',
+      SERGEANT_OF_ARMS: '/sergeant-of-arms', // Parliamentary calendar dashboard
     };
 
     const targetPath = routeMap[role] || null;

@@ -56,7 +56,9 @@ try:
         PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
         FuelRequirementConfiguration, Program, HarmonizedBeneficiaryProfile,
         # Dynamic Fuel Allocation System Models
-        FuelAllocationRule, FuelPrice, DynamicAllocation
+        FuelAllocationRule, FuelPrice, DynamicAllocation,
+        # Attendance Management Models
+        SessionAttendanceRegistry, AttendanceRegistryMember, AttendanceCorrection
     )
 except Exception:
     # Fallback when HarmonizedBeneficiaryProfile (or other optional models) is not present
@@ -68,7 +70,9 @@ except Exception:
         PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
         FuelRequirementConfiguration, Program,
         # Dynamic Fuel Allocation System Models
-        FuelAllocationRule, FuelPrice, DynamicAllocation
+        FuelAllocationRule, FuelPrice, DynamicAllocation,
+        # Attendance Management Models
+        SessionAttendanceRegistry, AttendanceRegistryMember, AttendanceCorrection
     )
     HarmonizedBeneficiaryProfile = None  # type: ignore
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -3342,3 +3346,197 @@ class BookDispatchEnhancedSerializer(serializers.ModelSerializer):
     
     def get_status_display(self, obj):
         return obj.get_status_display() if hasattr(obj, 'get_status_display') else obj.status
+
+
+# ========================= ATTENDANCE MANAGEMENT SERIALIZERS =========================
+
+class AttendanceRegistryMemberSerializer(serializers.ModelSerializer):
+    """Serializer for attendance registry members"""
+    beneficiary_details = serializers.SerializerMethodField()
+    marked_by_details = SimpleUserSerializer(source='marked_by', read_only=True)
+    
+    class Meta:
+        model = AttendanceRegistryMember
+        fields = [
+            'id', 'registry', 'beneficiary', 'beneficiary_details',
+            'expected_to_attend', 'attendance_status', 'arrival_time',
+            'departure_time', 'notes', 'marked_by', 'marked_by_details',
+            'marked_date', 'created', 'modified'
+        ]
+        read_only_fields = ['id', 'created', 'modified', 'marked_by', 'marked_date']
+    
+    def get_beneficiary_details(self, obj):
+        if obj.beneficiary and obj.beneficiary.user:
+            return {
+                'id': obj.beneficiary.id,
+                'user_id': obj.beneficiary.user.id,
+                'full_name': obj.beneficiary.user.get_full_name(),
+                'employee_id': obj.beneficiary.employee_id,
+                'category': obj.beneficiary.category.name if obj.beneficiary.category else None,
+                'constituency': obj.beneficiary.constituency.name if obj.beneficiary.constituency else None
+            }
+        return None
+
+
+class SessionAttendanceRegistrySerializer(serializers.ModelSerializer):
+    """Serializer for attendance registries"""
+    members = AttendanceRegistryMemberSerializer(many=True, read_only=True)
+    expected_attendees_details = serializers.SerializerMethodField()
+    published_by_details = SimpleUserSerializer(source='published_by', read_only=True)
+    marked_by_details = SimpleUserSerializer(source='marked_by', read_only=True)
+    reviewed_by_details = SimpleUserSerializer(source='reviewed_by', read_only=True)
+    session_details = serializers.SerializerMethodField()
+    program_details = serializers.SerializerMethodField()
+    managing_subcenter_details = serializers.SerializerMethodField()
+    
+    # Stats
+    total_expected = serializers.SerializerMethodField()
+    total_present = serializers.SerializerMethodField()
+    total_absent = serializers.SerializerMethodField()
+    attendance_percentage = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SessionAttendanceRegistry
+        fields = [
+            'id', 'session', 'session_details', 'program', 'program_details',
+            'title', 'expected_attendees_details', 'published_by', 'published_by_details',
+            'published_date', 'managing_subcenter', 'managing_subcenter_details',
+            'marked_by', 'marked_by_details', 'submitted_date', 'status',
+            'reviewed_by', 'reviewed_by_details', 'reviewed_date', 'review_notes',
+            'attendance_date', 'notes', 'is_editable', 'members',
+            'total_expected', 'total_present', 'total_absent', 'attendance_percentage',
+            'created', 'modified'
+        ]
+        read_only_fields = [
+            'id', 'created', 'modified', 'published_by', 'published_date',
+            'marked_by', 'submitted_date', 'reviewed_by', 'reviewed_date'
+        ]
+    
+    def get_expected_attendees_details(self, obj):
+        return AttendanceRegistryMemberSerializer(obj.members.all(), many=True).data
+    
+    def get_session_details(self, obj):
+        if obj.session:
+            return {
+                'id': obj.session.id,
+                'title': obj.session.title,
+                'session_type': obj.session.session_type,
+                'start_date': obj.session.start_date,
+                'end_date': obj.session.end_date,
+                'start_time': obj.session.start_time,
+                'end_time': obj.session.end_time,
+                'venue': obj.session.venue
+            }
+        return None
+    
+    def get_program_details(self, obj):
+        if obj.program:
+            return {
+                'id': obj.program.id,
+                'title': obj.program.title,
+                'program_type': obj.program.program_type,
+                'scheduled_date': obj.program.scheduled_date
+            }
+        return None
+    
+    def get_managing_subcenter_details(self, obj):
+        if obj.managing_subcenter:
+            return {
+                'id': obj.managing_subcenter.id,
+                'name': obj.managing_subcenter.name,
+                'location': obj.managing_subcenter.location
+            }
+        return None
+    
+    def get_total_expected(self, obj):
+        return obj.members.filter(expected_to_attend=True).count()
+    
+    def get_total_present(self, obj):
+        return obj.members.filter(attendance_status='PRESENT').count()
+    
+    def get_total_absent(self, obj):
+        return obj.members.filter(attendance_status='ABSENT').count()
+    
+    def get_attendance_percentage(self, obj):
+        total_expected = self.get_total_expected(obj)
+        if total_expected > 0:
+            total_present = self.get_total_present(obj)
+            return round((total_present / total_expected) * 100, 2)
+        return 0
+
+
+class AttendanceCorrectionSerializer(serializers.ModelSerializer):
+    """Serializer for attendance corrections"""
+    registry_details = serializers.SerializerMethodField()
+    requested_by_details = SimpleUserSerializer(source='requested_by', read_only=True)
+    reviewed_by_details = SimpleUserSerializer(source='reviewed_by', read_only=True)
+    
+    class Meta:
+        model = AttendanceCorrection
+        fields = [
+            'id', 'registry', 'registry_details', 'requested_by', 'requested_by_details',
+            'reason', 'correction_details', 'status', 'reviewed_by', 'reviewed_by_details',
+            'reviewed_date', 'response', 'created', 'modified'
+        ]
+        read_only_fields = ['id', 'created', 'modified', 'requested_by', 'reviewed_by', 'reviewed_date']
+    
+    def get_registry_details(self, obj):
+        if obj.registry:
+            return {
+                'id': obj.registry.id,
+                'title': obj.registry.title,
+                'attendance_date': obj.registry.attendance_date,
+                'status': obj.registry.status
+            }
+        return None
+
+
+class SergeantOfArmsRegistryListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for Sergeant of Arms registry list view"""
+    session_details = serializers.SerializerMethodField()
+    program_details = serializers.SerializerMethodField()
+    managing_subcenter_name = serializers.CharField(source='managing_subcenter.name', read_only=True)
+    total_expected = serializers.SerializerMethodField()
+    total_marked = serializers.SerializerMethodField()
+    completion_percentage = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SessionAttendanceRegistry
+        fields = [
+            'id', 'title', 'attendance_date', 'status', 'is_editable',
+            'session_details', 'program_details', 'managing_subcenter_name',
+            'total_expected', 'total_marked', 'completion_percentage',
+            'published_date', 'notes'
+        ]
+    
+    def get_session_details(self, obj):
+        if obj.session:
+            return {
+                'title': obj.session.title,
+                'session_type': obj.session.get_session_type_display(),
+                'venue': obj.session.venue,
+                'start_time': obj.session.start_time,
+                'end_time': obj.session.end_time
+            }
+        return None
+    
+    def get_program_details(self, obj):
+        if obj.program:
+            return {
+                'title': obj.program.title,
+                'program_type': obj.program.get_program_type_display()
+            }
+        return None
+    
+    def get_total_expected(self, obj):
+        return obj.members.filter(expected_to_attend=True).count()
+    
+    def get_total_marked(self, obj):
+        return obj.members.exclude(attendance_status='PENDING').count()
+    
+    def get_completion_percentage(self, obj):
+        total_expected = self.get_total_expected(obj)
+        if total_expected > 0:
+            total_marked = self.get_total_marked(obj)
+            return round((total_marked / total_expected) * 100, 2)
+        return 0

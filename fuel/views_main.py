@@ -24,7 +24,8 @@ from .models import (
     User as UserModel, FuelData, CouponDistribution, FuelTransaction, SubCenterOfficer,
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, SessionAttendance,
     BeneficiaryProfile, AuditLog, SystemAlert, BookDispatch, CouponAllocation, FuelEntitlement,
-    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program, CouponHandover
+    PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program, CouponHandover,
+    SessionAttendanceRegistry, AttendanceRegistryMember, AttendanceCorrection
 )
 from .serializers import (
     CouponSerializer, SubCenterSerializer,
@@ -37,7 +38,9 @@ from .serializers import (
     BookDispatchSerializer, CouponAllocationSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
-    FuelRequirementConfigurationSerializer, ProgramSerializer, ProgramWriteSerializer
+    FuelRequirementConfigurationSerializer, ProgramSerializer, ProgramWriteSerializer,
+    SessionAttendanceRegistrySerializer, AttendanceRegistryMemberSerializer, AttendanceCorrectionSerializer,
+    SergeantOfArmsRegistryListSerializer
 )
 from .permissions import (
     # Role-based permissions
@@ -45,6 +48,7 @@ from .permissions import (
     ApproverPermission, MainCenterApproverPermission, SubCenterApproverPermission,
     AuditorPermission, BeneficiaryPermission, CenterBasedObjectPermission,
     BeneficiaryManagementPermission, CenterAndAuditorPermission, CenterOperationsPermission,
+    SergeantOfArmsPermission, AttendanceManagementPermission,
     
     # Workflow permissions
     MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
@@ -81,6 +85,7 @@ except ImportError:
 
 # --- Authentication Views (Keeping as they were provided, added user detail in login) ---
 
+@method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
@@ -106,6 +111,7 @@ class RegisterView(generics.CreateAPIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     authentication_classes = []  # Disable authentication for login endpoint
     permission_classes = [AllowAny]  # Allow unauthenticated access
@@ -159,9 +165,13 @@ class LoginView(APIView):
             access_token = str(access_token_obj.access_token)
 
             print(f"Login successful for user: {user.username}")
+            # Provide both legacy and new keys for frontend compatibility
             response = Response({
+                'success': True,
                 'refresh': refresh_token_string,
                 'access': access_token,
+                'refresh_token': refresh_token_string,
+                'access_token': access_token,
                 'user': SimpleUserSerializer(user).data, # Include user details in login response
             }, status=status.HTTP_200_OK)
             
@@ -169,7 +179,7 @@ class LoginView(APIView):
         else:
             print(f"Authentication failed for username: {username}")
             # Use a consistent error response format
-            response = Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            response = Response({'detail': 'Invalid credentials', 'success': False}, status=status.HTTP_401_UNAUTHORIZED)
             
             return response
 
@@ -5634,10 +5644,14 @@ def fuel_statistics(request):
             ]
             
             # SubCenter allocation data
-            subcenter_allocation = (SubCenter.objects
-                                  .annotate(coupon_count=Count('coupon_allocations'))
-                                  .values('name', 'coupon_count')
-                                  .order_by('-coupon_count'))
+            # NOTE: The legacy related_name 'coupon_allocations' no longer exists on SubCenter.
+            # Use the actual relations: SubCenter -> Box (boxes) -> Book (books) -> Coupon (coupons)
+            subcenter_allocation = (
+                SubCenter.objects
+                .annotate(coupon_count=Count('boxes__books__coupons', distinct=True))
+                .values('name', 'coupon_count')
+                .order_by('-coupon_count')
+            )
             
             subcenters_chart_data = [
                 {
@@ -7243,3 +7257,386 @@ def programs_stats(request):
             'error': str(e),
             'status': 'error'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ========================= ATTENDANCE MANAGEMENT VIEWS =========================
+
+class SessionAttendanceRegistryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing session attendance registries
+    - SubCenter creates and publishes registries
+    - Sergeant of Arms marks attendance
+    - SubCenter approves corrections
+    """
+    queryset = SessionAttendanceRegistry.objects.all()
+    
+    def get_serializer_class(self):
+        if self.action == 'list' and self.request.user.role == 'SERGEANT_OF_ARMS':
+            return SergeantOfArmsRegistryListSerializer
+        return SessionAttendanceRegistrySerializer
+    
+    def get_permissions(self):
+        """Role-based permissions for different actions"""
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), AttendanceManagementPermission()]
+        elif self.action in ['create', 'update', 'partial_update']:
+            return [IsAuthenticated(), SubCenterPermission()]
+        elif self.action == 'destroy':
+            return [IsAuthenticated(), AdminPermission()]
+        else:
+            return [IsAuthenticated(), AttendanceManagementPermission()]
+    
+    def get_queryset(self):
+        """Filter queryset based on user role"""
+        user = self.request.user
+        queryset = SessionAttendanceRegistry.objects.all()
+        
+        if user.role == 'SERGEANT_OF_ARMS':
+            # Show published registries for marking
+            return queryset.filter(status__in=['PUBLISHED', 'IN_PROGRESS'])
+        elif user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            # Show registries managed by their subcenter
+            if hasattr(user, 'sub_center') and user.sub_center:
+                return queryset.filter(managing_subcenter=user.sub_center)
+        elif user.role in ['SUPERUSER', 'ADMIN']:
+            return queryset
+        
+        return queryset.none()
+    
+    @action(detail=True, methods=['post'])
+    def publish(self, request, pk=None):
+        """Publish registry for Sergeant of Arms to mark"""
+        registry = self.get_object()
+        
+        if registry.publish(request.user):
+            return Response({
+                'message': 'Registry published successfully',
+                'status': 'published'
+            })
+        else:
+            return Response({
+                'error': 'You do not have permission to publish this registry'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=True, methods=['post'])
+    def submit_attendance(self, request, pk=None):
+        """Submit marked attendance for approval"""
+        registry = self.get_object()
+        
+        if registry.submit_attendance(request.user):
+            return Response({
+                'message': 'Attendance submitted successfully',
+                'status': 'submitted'
+            })
+        else:
+            return Response({
+                'error': 'You do not have permission to submit this registry'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=True, methods=['post'])
+    def start_marking(self, request, pk=None):
+        """Start marking attendance (Sergeant of Arms)"""
+        registry = self.get_object()
+        
+        if request.user.role == 'SERGEANT_OF_ARMS' and registry.status == 'PUBLISHED':
+            registry.status = 'IN_PROGRESS'
+            registry.marked_by = request.user
+            registry.save()
+            
+            return Response({
+                'message': 'Attendance marking started',
+                'status': 'in_progress'
+            })
+        else:
+            return Response({
+                'error': 'You cannot start marking this registry'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        """List members for a specific registry (used by frontend at /registries/{id}/members/)"""
+        registry = self.get_object()
+        # Permission: user must be able to view/edit this registry based on role
+        user = request.user
+        if not (
+            user.role in ['SUPERUSER', 'ADMIN', 'SERGEANT_OF_ARMS'] or
+            (user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and registry.managing_subcenter and getattr(user, 'sub_center', None) == registry.managing_subcenter)
+        ):
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = registry.members.all().order_by('beneficiary__user__last_name', 'beneficiary__user__first_name')
+        page = self.paginate_queryset(qs)
+        from .serializers import AttendanceRegistryMemberSerializer
+        if page is not None:
+            serializer = AttendanceRegistryMemberSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = AttendanceRegistryMemberSerializer(qs, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class AttendanceRegistryMemberViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing individual attendance registry members
+    Used by Sergeant of Arms to mark attendance
+    """
+    queryset = AttendanceRegistryMember.objects.all()
+    serializer_class = AttendanceRegistryMemberSerializer
+    permission_classes = [IsAuthenticated, SergeantOfArmsPermission]
+    
+    def get_queryset(self):
+        """Filter to members of registries the user can access"""
+        user = self.request.user
+        if user.role == 'SERGEANT_OF_ARMS':
+            return AttendanceRegistryMember.objects.filter(
+                registry__status__in=['PUBLISHED', 'IN_PROGRESS']
+            )
+        elif user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            if hasattr(user, 'sub_center') and user.sub_center:
+                return AttendanceRegistryMember.objects.filter(
+                    registry__managing_subcenter=user.sub_center
+                )
+        elif user.role in ['SUPERUSER', 'ADMIN']:
+            return AttendanceRegistryMember.objects.all()
+        
+        return AttendanceRegistryMember.objects.none()
+    
+    @action(detail=True, methods=['post'])
+    def mark_present(self, request, pk=None):
+        """Mark member as present"""
+        member = self.get_object()
+        arrival_time = request.data.get('arrival_time')
+        notes = request.data.get('notes', '')
+        
+        member.mark_attendance('PRESENT', request.user, arrival_time, notes)
+        
+        return Response({
+            'message': 'Marked as present',
+            'attendance_status': 'PRESENT'
+        })
+    
+    @action(detail=True, methods=['post'])
+    def mark_absent(self, request, pk=None):
+        """Mark member as absent"""
+        member = self.get_object()
+        notes = request.data.get('notes', '')
+        
+        member.mark_attendance('ABSENT', request.user, notes=notes)
+        
+        return Response({
+            'message': 'Marked as absent',
+            'attendance_status': 'ABSENT'
+        })
+    
+    @action(detail=True, methods=['post'])
+    def mark_excused(self, request, pk=None):
+        """Mark member as excused"""
+        member = self.get_object()
+        notes = request.data.get('notes', '')
+        
+        member.mark_attendance('EXCUSED', request.user, notes=notes)
+        
+        return Response({
+            'message': 'Marked as excused',
+            'attendance_status': 'EXCUSED'
+        })
+    
+    @action(detail=True, methods=['post'])
+    def mark_late(self, request, pk=None):
+        """Mark member as late"""
+        member = self.get_object()
+        arrival_time = request.data.get('arrival_time')
+        notes = request.data.get('notes', '')
+        
+        member.mark_attendance('LATE', request.user, arrival_time, notes)
+        
+        return Response({
+            'message': 'Marked as late',
+            'attendance_status': 'LATE'
+        })
+    
+    @action(detail=False, methods=['post'])
+    def bulk_mark(self, request):
+        """Bulk mark attendance for multiple members"""
+        member_ids = request.data.get('member_ids', [])
+        attendance_status = request.data.get('attendance_status', 'PRESENT')
+        arrival_time = request.data.get('arrival_time')
+        notes = request.data.get('notes', '')
+        
+        updated_count = 0
+        for member_id in member_ids:
+            try:
+                member = AttendanceRegistryMember.objects.get(id=member_id)
+                if member.registry.can_be_edited(request.user):
+                    member.mark_attendance(attendance_status, request.user, arrival_time, notes)
+                    updated_count += 1
+            except AttendanceRegistryMember.DoesNotExist:
+                continue
+        
+        return Response({
+            'message': f'Updated {updated_count} members',
+            'updated_count': updated_count
+        })
+
+
+class AttendanceCorrectionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing attendance corrections
+    Sergeant of Arms can request corrections, SubCenter can approve/reject
+    """
+    queryset = AttendanceCorrection.objects.all()
+    serializer_class = AttendanceCorrectionSerializer
+    permission_classes = [IsAuthenticated, AttendanceManagementPermission]
+    
+    def get_queryset(self):
+        """Filter based on user role"""
+        user = self.request.user
+        if user.role == 'SERGEANT_OF_ARMS':
+            return AttendanceCorrection.objects.filter(requested_by=user)
+        elif user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            if hasattr(user, 'sub_center') and user.sub_center:
+                return AttendanceCorrection.objects.filter(
+                    registry__managing_subcenter=user.sub_center
+                )
+        elif user.role in ['SUPERUSER', 'ADMIN']:
+            return AttendanceCorrection.objects.all()
+        
+        return AttendanceCorrection.objects.none()
+    
+    def perform_create(self, serializer):
+        """Set the requesting user"""
+        serializer.save(requested_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        """Unified review endpoint expected by frontend to approve/reject a correction"""
+        correction = self.get_object()
+        status_param = (request.data.get('status') or '').upper()
+        notes = request.data.get('review_notes') or request.data.get('response') or ''
+
+        if status_param not in ['APPROVED', 'REJECTED']:
+            return Response({'error': 'Invalid status. Use APPROVED or REJECTED.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Only SubCenter roles can review items for their center; admins can always review
+        user = request.user
+        if user.role in ['SUPERUSER', 'ADMIN'] or (
+            user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and
+            correction.registry.managing_subcenter and getattr(user, 'sub_center', None) == correction.registry.managing_subcenter
+        ):
+            if status_param == 'APPROVED':
+                # Reuse approve logic if available
+                if hasattr(correction, 'approve'):
+                    ok = correction.approve(user, notes)
+                    if not ok:
+                        return Response({'error': 'Unable to approve correction'}, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    correction.status = 'APPROVED'
+                    correction.reviewed_by = user
+                    correction.reviewed_date = timezone.now()
+                    correction.response = notes
+                    correction.save()
+            else:
+                correction.status = 'REJECTED'
+                correction.reviewed_by = user
+                correction.reviewed_date = timezone.now()
+                correction.response = notes
+                correction.save()
+
+            return Response({'message': f'Correction {status_param.lower()}', 'status': status_param})
+
+        return Response({'error': 'You do not have permission to review this correction'}, status=status.HTTP_403_FORBIDDEN)
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Approve correction request"""
+        correction = self.get_object()
+        response_text = request.data.get('response', '')
+        
+        if correction.approve(request.user, response_text):
+            return Response({
+                'message': 'Correction approved',
+                'status': 'approved'
+            })
+        else:
+            return Response({
+                'error': 'You do not have permission to approve this correction'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Reject correction request"""
+        correction = self.get_object()
+        response_text = request.data.get('response', 'Correction rejected')
+        
+        if request.user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            correction.status = 'REJECTED'
+            correction.reviewed_by = request.user
+            correction.reviewed_date = timezone.now()
+            correction.response = response_text
+            correction.save()
+            
+            return Response({
+                'message': 'Correction rejected',
+                'status': 'rejected'
+            })
+        else:
+            return Response({
+                'error': 'You do not have permission to reject this correction'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+
+class SergeantOfArmsDashboardAPIView(APIView):
+    """
+    Dashboard API for Sergeant of Arms
+    Shows published registries and attendance statistics
+    """
+    permission_classes = [IsAuthenticated, SergeantOfArmsPermission]
+    
+    def get(self, request):
+        """Get dashboard data for Sergeant of Arms"""
+        try:
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            today = timezone.now().date()
+            week_ago = today - timedelta(days=7)
+            
+            # Published registries awaiting marking
+            pending_registries = SessionAttendanceRegistry.objects.filter(
+                status='PUBLISHED',
+                attendance_date__gte=today
+            ).count()
+            
+            # Registries in progress
+            in_progress_registries = SessionAttendanceRegistry.objects.filter(
+                status='IN_PROGRESS',
+                marked_by=request.user
+            ).count()
+            
+            # Completed registries this week
+            completed_this_week = SessionAttendanceRegistry.objects.filter(
+                status='SUBMITTED',
+                marked_by=request.user,
+                submitted_date__gte=week_ago
+            ).count()
+            
+            # Recent registries for marking
+            recent_registries = SessionAttendanceRegistry.objects.filter(
+                status__in=['PUBLISHED', 'IN_PROGRESS'],
+                attendance_date__gte=today
+            ).order_by('attendance_date')[:5]
+            
+            recent_data = SergeantOfArmsRegistryListSerializer(recent_registries, many=True).data
+            
+            return Response({
+                'pending_registries': pending_registries,
+                'in_progress_registries': in_progress_registries,
+                'completed_this_week': completed_this_week,
+                'recent_registries': recent_data,
+                'user_role': request.user.role,
+                'status': 'success'
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'status': 'error'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

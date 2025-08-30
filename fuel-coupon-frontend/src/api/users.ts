@@ -7,7 +7,7 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER';
+  role: 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER' | 'SERGEANT_OF_ARMS';
   phone?: string;
   is_active: boolean;
   is_staff: boolean;
@@ -38,7 +38,7 @@ export interface UpdateUserData {
   email?: string;
   first_name?: string;
   last_name?: string;
-  role?: 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER';
+  role?: 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER' | 'SERGEANT_OF_ARMS';
   phone?: string;
   is_active?: boolean;
   is_staff?: boolean;

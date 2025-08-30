@@ -104,8 +104,15 @@ const ReportsAnalyticsPage = lazy(() => import('@/pages/admin/ReportsAnalyticsPa
 // Profile page
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 
+// Sergeant of Arms pages
+const SergeantOfArmsDashboard = lazy(() => import('@/pages/sergeant-of-arms/SergeantOfArmsDashboard'));
+const AttendanceRegistryList = lazy(() => import('@/pages/sergeant-of-arms/AttendanceRegistryList'));
+const AttendanceMarkingPage = lazy(() => import('@/pages/sergeant-of-arms/AttendanceMarkingPage'));
+const AttendanceCorrections = lazy(() => import('@/pages/sergeant-of-arms/AttendanceCorrections'));
+
 // Test pages
 const BookDispatchTest = lazy(() => import('@/pages/test/BookDispatchTest'));
+const SergeantTestPage = lazy(() => import('@/pages/test/SergeantTestPage'));
 
 // Auth Guard Component
 interface AuthGuardProps {
@@ -327,8 +334,24 @@ const router = createBrowserRouter(
         <Route path="users" element={<Suspense fallback={<LoadingSpinner />}><UserApprovalDashboard /></Suspense>} />
       </Route>
 
+      {/* Sergeant of Arms Routes */}
+      <Route
+        path="/sergeant-of-arms/*"
+        element={
+          <AuthGuard requiredRoles={['SERGEANT_OF_ARMS', 'SUPERUSER', 'ADMIN']}>
+            <UnifiedLayout />
+          </AuthGuard>
+        }
+      >
+        <Route index element={<Suspense fallback={<LoadingSpinner />}><SergeantOfArmsDashboard /></Suspense>} />
+        <Route path="attendance" element={<Suspense fallback={<LoadingSpinner />}><AttendanceRegistryList /></Suspense>} />
+        <Route path="attendance/:registryId" element={<Suspense fallback={<LoadingSpinner />}><AttendanceMarkingPage /></Suspense>} />
+        <Route path="corrections" element={<Suspense fallback={<LoadingSpinner />}><AttendanceCorrections /></Suspense>} />
+      </Route>
+
       {/* Test routes */}
       <Route path="test/book-dispatch" element={<Suspense fallback={<LoadingSpinner />}><BookDispatchTest /></Suspense>} />
+      <Route path="test/sergeant" element={<Suspense fallback={<LoadingSpinner />}><SergeantTestPage /></Suspense>} />
 
       {/* Catch-all route */}
       <Route path="*" element={<NotFound />} />

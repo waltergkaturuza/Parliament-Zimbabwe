@@ -48,6 +48,7 @@ import {
   SendOutlined,
   HistoryOutlined,
   CalculatorOutlined,
+  CalendarOutlined,
   BankOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -61,7 +62,7 @@ const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
-type Role = 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER';
+type Role = 'SUPERUSER' | 'ADMIN' | 'MAIN_CENTER' | 'SUB_CENTER' | 'BENEFICIARY' | 'AUDITOR' | 'MAIN_CENTER_APPROVER' | 'SUB_CENTER_APPROVER' | 'SERGEANT_OF_ARMS';
 
 interface MenuItem {
   key: string;
@@ -363,6 +364,32 @@ const UnifiedLayout: React.FC = () => {
       );
     }
 
+    // SERGEANT OF ARMS (Parliamentary Attendance Management)
+  if (hasRole(['SERGEANT_OF_ARMS', 'SUPERUSER', 'ADMIN'])) {
+      items.push(
+        { type: 'divider' } as MenuItem,
+        {
+          key: 'sergeant-group',
+          label: 'ATTENDANCE MANAGEMENT',
+          type: 'group',
+          icon: <TeamOutlined />,
+          path: '',
+        },
+        {
+          key: 'attendance-registries',
+          icon: <CalendarOutlined />,
+          label: 'Attendance Registries',
+          path: '/sergeant-of-arms/attendance',
+        },
+        {
+          key: 'attendance-corrections',
+          icon: <HistoryOutlined />,
+          label: 'Attendance Corrections',
+          path: '/sergeant-of-arms/corrections',
+        }
+      );
+    }
+
     // ANALYTICS & FINANCE (Main Center, Admin, Auditor only - not for Sub Centers)
     if (hasRole(['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'AUDITOR'])) {
       items.push(
@@ -517,6 +544,11 @@ const UnifiedLayout: React.FC = () => {
     if (path.includes('/fuel-allocations')) return ['fuel-allocations'];
     if (path.includes('/dynamic-allocations')) return ['dynamic-allocations'];
     if (path.includes('/analytics')) return ['usage-analytics'];
+    
+    // Sergeant of Arms routes
+    if (path.includes('/sergeant-of-arms/corrections')) return ['attendance-corrections'];
+    if (path.includes('/sergeant-of-arms/attendance')) return ['attendance-registries'];
+    if (path.includes('/sergeant-of-arms')) return ['attendance-registries']; // Default to registries instead of dashboard
     
     return ['dashboard'];
   };
