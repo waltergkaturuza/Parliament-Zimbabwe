@@ -129,27 +129,27 @@ export const sergeantOfArmsAPI = {
 
   // Attendance Members
   getAttendanceMembers: async (registryId: number): Promise<AttendanceMember[]> => {
-    const response = await api.get(`/api/attendance-registries/${registryId}/members/`);
+  const response = await api.get(`/attendance-registries/${registryId}/members/`);
     return response.data.results || response.data;
   },
 
   markMemberPresent: async (memberId: number, notes?: string): Promise<void> => {
-    await api.post(`/api/attendance-members/${memberId}/mark_present/`, { notes });
+  await api.post(`/attendance-members/${memberId}/mark_present/`, { notes });
   },
 
   markMemberAbsent: async (memberId: number, notes?: string): Promise<void> => {
-    await api.post(`/api/attendance-members/${memberId}/mark_absent/`, { notes });
+  await api.post(`/attendance-members/${memberId}/mark_absent/`, { notes });
   },
 
   markMemberExcused: async (memberId: number, excuseReason: string, notes?: string): Promise<void> => {
-    await api.post(`/api/attendance-members/${memberId}/mark_excused/`, {
+  await api.post(`/attendance-members/${memberId}/mark_excused/`, {
       excuse_reason: excuseReason,
       notes
     });
   },
 
   markMemberLate: async (memberId: number, arrivalTime?: string, notes?: string): Promise<void> => {
-    await api.post(`/api/attendance-members/${memberId}/mark_late/`, {
+  await api.post(`/attendance-members/${memberId}/mark_late/`, {
       arrival_time: arrivalTime,
       notes
     });
@@ -162,7 +162,7 @@ export const sergeantOfArmsAPI = {
   },
 
   reviewCorrection: async (correctionId: number, status: 'APPROVED' | 'REJECTED', reviewNotes?: string): Promise<void> => {
-    await api.post(`/api/attendance-corrections/${correctionId}/review/`, {
+  await api.post(`/attendance-corrections/${correctionId}/review/`, {
       status,
       review_notes: reviewNotes
     });
