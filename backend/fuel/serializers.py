@@ -2188,31 +2188,82 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
 # ========================= MISSING SERIALIZERS =========================
 
 class FuelEntitlementSerializer(serializers.ModelSerializer):
-    """Serializer for FuelEntitlement model"""
+    """Serializer for FuelEntitlement model with backwards-compatibility.
+    Uses all model fields available at runtime and adds helpful read-only details
+    only when the underlying fields exist in the database schema.
+    """
     beneficiary_details = SimpleUserSerializer(source='beneficiary', read_only=True)
     session_details = serializers.SerializerMethodField()
     created_by_details = SimpleUserSerializer(source='created_by', read_only=True)
     approved_by_details = SimpleUserSerializer(source='approved_by', read_only=True)
-    
+
     class Meta:
         model = FuelEntitlement
-        fields = [
-            'id', 'beneficiary', 'beneficiary_details', 'entitlement_type',
-            'session', 'session_details', 'litres_entitled', 'litres_allocated',
-            'status', 'period_start', 'period_end', 'created_by', 'created_by_details',
-            'approved_by', 'approved_by_details', 'approved_at', 'notes',
-            'created', 'modified'
+        # Include whatever exists on the model to avoid FieldError on older schemas
+        fields = '__all__'
+        read_only_fields = ['id', 'created', 'modified']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Drop detail fields that depend on columns which might not exist
+        model_field_names = {f.name for f in FuelEntitlement._meta.get_fields()}
+
+        # If these base fields are missing, remove companion "_details" fields
+        if 'session' not in model_field_names and 'session_details' in self.fields:
+            self.fields.pop('session_details')
+        if 'created_by' not in model_field_names and 'created_by_details' in self.fields:
+            self.fields.pop('created_by_details')
+        if 'approved_by' not in model_field_names and 'approved_by_details' in self.fields:
+            self.fields.pop('approved_by_details')
+
+        # If beneficiary is absent (shouldn't be), also drop details field
+        if 'beneficiary' not in model_field_names and 'beneficiary_details' in self.fields:
+            self.fields.pop('beneficiary_details')
+
+        # Ensure frontend-expected keys exist; provide nulls if model lacks them
+        optional_keys = [
+            'entitlement_type', 'session', 'litres_entitled', 'litres_allocated',
+            'status', 'period_start', 'period_end', 'created_by', 'approved_by',
+            'approved_at', 'notes'
         ]
-        read_only_fields = ['id', 'created', 'modified', 'created_by', 'approved_by', 'approved_at']
-    
+        for key in optional_keys:
+            if key not in model_field_names and key not in self.fields:
+                # Dynamically add SerializerMethodField to output null
+                self.fields[key] = serializers.SerializerMethodField()
+
     def get_session_details(self, obj):
-        if obj.session:
+        # Guard when 'session' column doesn't exist
+        if hasattr(obj, 'session') and obj.session:
             return {
-                'id': obj.session.id,
-                'title': obj.session.title,
-                'start_date': obj.session.start_date,
-                'end_date': obj.session.end_date
+                'id': getattr(obj.session, 'id', None),
+                'title': getattr(obj.session, 'title', None),
+                'start_date': getattr(obj.session, 'start_date', None),
+                'end_date': getattr(obj.session, 'end_date', None)
             }
+        return None
+
+    # Generic getters for dynamically added optional keys (returns None)
+    def get_entitlement_type(self, obj):
+        return None
+    def get_session(self, obj):
+        return None
+    def get_litres_entitled(self, obj):
+        return None
+    def get_litres_allocated(self, obj):
+        return None
+    def get_status(self, obj):
+        return None
+    def get_period_start(self, obj):
+        return None
+    def get_period_end(self, obj):
+        return None
+    def get_created_by(self, obj):
+        return None
+    def get_approved_by(self, obj):
+        return None
+    def get_approved_at(self, obj):
+        return None
+    def get_notes(self, obj):
         return None
 
 

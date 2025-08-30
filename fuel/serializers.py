@@ -2226,30 +2226,39 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
 # ========================= MISSING SERIALIZERS =========================
 
 class FuelEntitlementSerializer(serializers.ModelSerializer):
-    """Serializer for FuelEntitlement model"""
+    """Serializer for FuelEntitlement model with backwards-compatibility.
+    Uses runtime model fields and drops optional detail fields if base columns are absent.
+    """
     beneficiary_details = SimpleUserSerializer(source='beneficiary', read_only=True)
     session_details = serializers.SerializerMethodField()
     created_by_details = SimpleUserSerializer(source='created_by', read_only=True)
     approved_by_details = SimpleUserSerializer(source='approved_by', read_only=True)
-    
+
     class Meta:
         model = FuelEntitlement
-        fields = [
-            'id', 'beneficiary', 'beneficiary_details', 'entitlement_type',
-            'session', 'session_details', 'litres_entitled', 'litres_allocated',
-            'status', 'period_start', 'period_end', 'created_by', 'created_by_details',
-            'approved_by', 'approved_by_details', 'approved_at', 'notes',
-            'created', 'modified'
-        ]
-        read_only_fields = ['id', 'created', 'modified', 'created_by', 'approved_by', 'approved_at']
-    
+        fields = '__all__'
+        read_only_fields = ['id', 'created', 'modified']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        model_field_names = {f.name for f in FuelEntitlement._meta.get_fields()}
+        # Remove companion detail fields if base field doesn't exist
+        if 'session' not in model_field_names:
+            self.fields.pop('session_details', None)
+        if 'created_by' not in model_field_names:
+            self.fields.pop('created_by_details', None)
+        if 'approved_by' not in model_field_names:
+            self.fields.pop('approved_by_details', None)
+        if 'beneficiary' not in model_field_names:
+            self.fields.pop('beneficiary_details', None)
+
     def get_session_details(self, obj):
-        if obj.session:
+        if hasattr(obj, 'session') and obj.session:
             return {
-                'id': obj.session.id,
-                'title': obj.session.title,
-                'start_date': obj.session.start_date,
-                'end_date': obj.session.end_date
+                'id': getattr(obj.session, 'id', None),
+                'title': getattr(obj.session, 'title', None),
+                'start_date': getattr(obj.session, 'start_date', None),
+                'end_date': getattr(obj.session, 'end_date', None)
             }
         return None
 
