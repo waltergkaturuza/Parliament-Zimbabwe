@@ -23,13 +23,14 @@ import {
   Timeline,
   TrendingDown,
 } from '@mui/icons-material';
-import { Line, Doughnut } from 'react-chartjs-2';
+import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip as ChartTooltip,
   Legend,
@@ -39,6 +40,7 @@ import { styled } from '@mui/material/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import { SubCenterService } from "../../api/subcenters";
 import { RecentActivityService } from "../../api/recentActivity";
+import apiClient from '@/api/index';
 
 // Register Chart.js components
 ChartJS.register(
@@ -46,6 +48,7 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   ChartTooltip,
   Legend,
@@ -141,26 +144,13 @@ const SimpleSubCenterDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  // Generate sample historical data for charts
-  const generateHistoricalData = () => {
-    const last14Days = Array.from({ length: 14 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (13 - i));
-      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-    });
-
-    const distributionData = Array.from({ length: 14 }, () => 
-      Math.floor(Math.random() * 50) + 20
-    );
-
-    const usageData = Array.from({ length: 14 }, () => 
-      Math.floor(Math.random() * 40) + 10
-    );
-
-    return { dates: last14Days, distribution: distributionData, usage: usageData };
-  };
-
-  const historicalData = generateHistoricalData();
+  // Real data state for charts
+  const [trendLabels, setTrendLabels] = useState<string[]>([]);
+  const [trendDistributed, setTrendDistributed] = useState<number[]>([]);
+  const [trendUsed, setTrendUsed] = useState<number[]>([]);
+  const [trendUsedMA, setTrendUsedMA] = useState<number[]>([]);
+  const [subcenterBars, setSubcenterBars] = useState<{ labels: string[]; datasets: any[] }>({ labels: [], datasets: [] });
+  const [programBars, setProgramBars] = useState<{ labels: string[]; datasets: any[] }>({ labels: [], datasets: [] });
 
   const fetchDashboardData = async () => {
     // Check for multiple possible user ID fields from different API responses
@@ -183,7 +173,7 @@ const SimpleSubCenterDashboard: React.FC = () => {
 
       const [statsResponse, activityResponse] = await Promise.all([
         SubCenterService.getSubCenterStatistics(subcenterId),
-        RecentActivityService.getSubCenterActivity(subcenterId)
+        RecentActivityService.getSubCenterActivity(String(subcenterId))
       ]);
       
       console.log('Stats response:', statsResponse);
@@ -202,6 +192,81 @@ const SimpleSubCenterDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    // Load timelines and histograms (14 days window)
+    const loadAnalytics = async () => {
+      try {
+        // Trend: use parliament analytics for sessions/attendance proxy or subcenter distribution timeline for usage
+        const [distributionRes, programsRes] = await Promise.all([
+          // Subcenter distribution over time
+          apiClient.get('/analytics/subcenter-distribution-timeline/', { params: { days: 14 } }).then(r => r.data),
+          // Top programs consumption over time
+          apiClient.get('/analytics/top-programs-consumption/', { params: { days: 30 } }).then(r => r.data),
+        ]);
+
+        // Build line trends from distribution timeline by summing per day
+        const byDate: Record<string, { used: number; distributed: number }> = {};
+        (distributionRes || []).forEach((row: any) => {
+          const d = row.date;
+          if (!byDate[d]) byDate[d] = { used: 0, distributed: 0 };
+          // litres_used approximates usage; distributed unknown here, keep 0 for now
+          byDate[d].used += Number(row.litres_used || 0);
+        });
+        const dates = Object.keys(byDate).sort();
+        setTrendLabels(dates.map(d => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })));
+        const usedSeries = dates.map(d => Number(byDate[d].used.toFixed(2)));
+        setTrendUsed(usedSeries);
+        setTrendDistributed(dates.map(() => 0));
+        // 7-day moving average for a simple predictive overlay
+        const window = 7;
+        const ma = usedSeries.map((_, i) => {
+          const start = Math.max(0, i - window + 1);
+          const slice = usedSeries.slice(start, i + 1);
+          const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+          return Number(avg.toFixed(2));
+        });
+        setTrendUsedMA(ma);
+
+        // Build subcenter histogram (stacked bars per subcenter across dates)
+        const subcenterNames = Array.from(new Set((distributionRes || []).map((r: any) => r.subcenter_name || 'Unknown')));
+        const subLabels = dates;
+        const scDatasets = subcenterNames.map((name, idx) => {
+          const color = `hsl(${(idx * 47) % 360} 70% 50%)`;
+          return {
+            label: name,
+            data: subLabels.map(d => {
+              const rows = (distributionRes || []).filter((r: any) => (r.subcenter_name || 'Unknown') === name && r.date === d);
+              const sum = rows.reduce((acc: number, r: any) => acc + Number(r.litres_used || 0), 0);
+              return Number(sum.toFixed(2));
+            }),
+            backgroundColor: color,
+            stack: 'subcenter',
+          };
+        });
+        setSubcenterBars({ labels: subLabels.map(d => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })), datasets: scDatasets });
+
+        // Programs histogram (top 5)
+        const topPrograms: string[] = Array.isArray(programsRes?.top_programs) ? programsRes.top_programs : [];
+        const progRows: any[] = Array.isArray(programsRes?.data) ? programsRes.data : [];
+        const progDates = Array.from(new Set(progRows.map(r => r.date))).sort();
+        const progDatasets = topPrograms.map((p, idx) => {
+          const color = `hsl(${(idx * 67) % 360} 70% 45%)`;
+          return {
+            label: p || 'UNSPECIFIED',
+            data: progDates.map(d => {
+              const sum = progRows.filter(r => (r.program_name || 'UNSPECIFIED') === p && r.date === d)
+                                   .reduce((acc: number, r: any) => acc + Number(r.coupons_allocated || 0), 0);
+              return sum;
+            }),
+            backgroundColor: color,
+            stack: 'programs',
+          };
+        });
+        setProgramBars({ labels: progDates.map(d => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })), datasets: progDatasets });
+      } catch (e) {
+        console.error('Failed to load analytics timelines:', e);
+      }
+    };
+    loadAnalytics();
     // Auto-refresh every 60 seconds
     const interval = setInterval(fetchDashboardData, 60000);
     return () => clearInterval(interval);
@@ -243,11 +308,11 @@ const SimpleSubCenterDashboard: React.FC = () => {
   };
 
   const lineChartData = {
-    labels: historicalData.dates,
+    labels: trendLabels,
     datasets: [
       {
         label: 'Coupons Distributed',
-        data: historicalData.distribution,
+        data: trendDistributed,
         borderColor: '#2196F3',
         backgroundColor: 'rgba(33, 150, 243, 0.1)',
         borderWidth: 3,
@@ -259,8 +324,8 @@ const SimpleSubCenterDashboard: React.FC = () => {
         pointRadius: 5,
       },
       {
-        label: 'Coupons Used',
-        data: historicalData.usage,
+        label: 'Coupons Used (L)',
+        data: trendUsed,
         borderColor: '#4CAF50',
         backgroundColor: 'rgba(76, 175, 80, 0.1)',
         borderWidth: 3,
@@ -270,6 +335,17 @@ const SimpleSubCenterDashboard: React.FC = () => {
         pointBorderColor: '#ffffff',
         pointBorderWidth: 2,
         pointRadius: 5,
+      },
+      {
+        label: 'Usage 7d MA',
+        data: trendUsedMA,
+        borderColor: '#9C27B0',
+        backgroundColor: 'rgba(156, 39, 176, 0.05)',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        borderDash: [6, 4],
       },
     ],
   };
@@ -479,6 +555,52 @@ const SimpleSubCenterDashboard: React.FC = () => {
                       },
                     },
                   }} 
+                />
+              </Box>
+            </CardContent>
+          </ChartCard>
+        </Box>
+
+        {/* New Histograms Row */}
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
+          gap: 3, 
+          mb: 3
+        }}>
+          <ChartCard>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Distribution by SubCenter (last 14 days)
+              </Typography>
+              <Box sx={{ height: 300 }}>
+                <Bar 
+                  data={{ labels: subcenterBars.labels, datasets: subcenterBars.datasets }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' as const } },
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+                  }}
+                />
+              </Box>
+            </CardContent>
+          </ChartCard>
+
+          <ChartCard>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Top 5 Programs by Coupons (last 30 days)
+              </Typography>
+              <Box sx={{ height: 300 }}>
+                <Bar 
+                  data={{ labels: programBars.labels, datasets: programBars.datasets }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' as const } },
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+                  }}
                 />
               </Box>
             </CardContent>

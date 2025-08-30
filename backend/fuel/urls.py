@@ -276,6 +276,9 @@ urlpatterns = [
     # Parliament dashboards expected by frontend
     path('parliament/analytics/', lazy_api_view('parliament_analytics_view'), name='parliament-analytics'),
     path('parliament/reports/', lazy_api_view('parliament_reports_view'), name='parliament-reports'),
+    # New analytics histograms
+    path('analytics/subcenter-distribution-timeline/', lazy_api_view('subcenter_distribution_timeline_view'), name='subcenter-distribution-timeline'),
+    path('analytics/top-programs-consumption/', lazy_api_view('top_programs_consumption_timeline_view'), name='top-programs-consumption'),
     
     # Fuel pricing and statistics endpoints
     path('fuel-stats/', lazy_view('fuel_statistics'), name='fuel-statistics'),

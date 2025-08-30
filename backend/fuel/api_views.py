@@ -647,3 +647,74 @@ def subcenter_overview_view(request):
         })
     except Exception as e:
         return Response({'error': f'Failed to load subcenter overview: {str(e)}'}, status=503)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_distribution_timeline_view(request):
+    """Histogram-ready data: coupons (fuel) usage by subcenter over time.
+    Returns array of { date: 'YYYY-MM-DD', subcenter_id, subcenter_name, litres_used, tx_count }
+    """
+    try:
+        days = int(request.GET.get('days', 14))
+        start_date = timezone.now() - timedelta(days=days)
+
+        qs = (
+            FuelTransaction.objects.filter(timestamp__gte=start_date)
+            .annotate(day=TruncDate('timestamp'))
+            .values('day', 'coupon__book__box__assigned_to__id', 'coupon__book__box__assigned_to__name')
+            .annotate(litres_used=Sum('litres_consumed'), tx_count=Count('id'))
+            .order_by('day')
+        )
+        data = []
+        for row in qs:
+            data.append({
+                'date': row['day'].strftime('%Y-%m-%d') if row['day'] else '',
+                'subcenter_id': row['coupon__book__box__assigned_to__id'],
+                'subcenter_name': row['coupon__book__box__assigned_to__name'] or 'Unknown',
+                'litres_used': float(row['litres_used'] or 0),
+                'tx_count': int(row['tx_count'] or 0),
+            })
+        return Response(data)
+    except Exception as e:
+        return Response({'error': f'Failed to load subcenter distribution: {str(e)}'}, status=503)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def top_programs_consumption_timeline_view(request):
+    """Histogram-ready data: top 5 programs allocating/consuming most coupons over time.
+    Uses CouponAllocation(program_name, allocation_date, quantity) as proxy.
+    Returns array of { date: 'YYYY-MM-DD', program_name, coupons_allocated }
+    """
+    try:
+        days = int(request.GET.get('days', 30))
+        start_date = timezone.now().date() - timedelta(days=days)
+
+        base_qs = CouponAllocation.objects.filter(allocation_date__gte=start_date)
+
+        # Determine top 5 programs overall in the window
+        top_qs = (
+            base_qs.values('program_name')
+            .annotate(total_qty=Sum('quantity'))
+            .order_by('-total_qty')[:5]
+        )
+        top_programs = [row['program_name'] or 'UNSPECIFIED' for row in top_qs]
+
+        qs = (
+            base_qs.filter(program_name__in=top_programs)
+            .values('allocation_date', 'program_name')
+            .annotate(coupons_allocated=Sum('quantity'))
+            .order_by('allocation_date')
+        )
+        data = []
+        for row in qs:
+            d = row['allocation_date']
+            data.append({
+                'date': d.strftime('%Y-%m-%d') if hasattr(d, 'strftime') else str(d),
+                'program_name': row['program_name'] or 'UNSPECIFIED',
+                'coupons_allocated': int(row['coupons_allocated'] or 0),
+            })
+        return Response({'top_programs': top_programs, 'data': data})
+    except Exception as e:
+        return Response({'error': f'Failed to load programs consumption: {str(e)}'}, status=503)
