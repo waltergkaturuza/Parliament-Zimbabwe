@@ -117,7 +117,8 @@ class User(AbstractUser):
         ('BENEFICIARY', 'Beneficiary'),
         ('AUDITOR', 'Auditor'),
         ('MAIN_CENTER_APPROVER', 'Main Center Approver'),
-        ('SUB_CENTER_APPROVER', 'Sub Center Approver'),
+    ('SUB_CENTER_APPROVER', 'Sub Center Approver'),
+    ('SERGEANT_OF_ARMS', 'Sergeant of Arms'),
     ]
 
     # Override inherited fields to fix conflicts

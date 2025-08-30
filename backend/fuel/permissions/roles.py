@@ -56,6 +56,16 @@ class BeneficiaryManagementPermission(RoleBasedPermission):
     allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
 
 
+class SergeantOfArmsPermission(RoleBasedPermission):
+    """Permission for sergeant of arms operations"""
+    allowed_roles = ['SUPERUSER', 'ADMIN', 'SERGEANT_OF_ARMS']
+
+
+class AttendanceManagementPermission(RoleBasedPermission):
+    """Permission for managing attendance across allowed roles"""
+    allowed_roles = ['SUPERUSER', 'ADMIN', 'SUB_CENTER', 'SUB_CENTER_APPROVER', 'SERGEANT_OF_ARMS']
+
+
 class CenterBasedObjectPermission(AdminPermissionMixin, CenterAccessMixin):
     """
     Object-level permission that checks center-based access.
