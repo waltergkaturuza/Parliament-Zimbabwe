@@ -1579,17 +1579,27 @@ class BookViewSet(viewsets.ModelViewSet):
         Get books available for dispatch - enhanced for intelligent generator
         """
         try:
-            # Books that are received but not yet dispatched
+            # Base queryset: Books that are in received boxes and not assigned to beneficiaries
             available_books = Book.objects.filter(
                 box__is_received=True,
                 is_assigned=False,
-                dispatches__isnull=True
             ).select_related('box', 'box__assigned_to').order_by('-generated_at')
+
+            # If historical M2M relation 'dispatches' exists, exclude previously dispatched
+            try:
+                # Will raise FieldDoesNotExist if field is missing in current model
+                Book._meta.get_field('dispatches')
+                available_books = available_books.filter(dispatches__isnull=True)
+            except Exception:
+                # No dispatches relation on Book in this schema; proceed without this filter
+                pass
             
             # Add query parameters for filtering
             fuel_type = request.query_params.get('fuel_type')
             denomination = request.query_params.get('denomination')
             subcenter = request.query_params.get('subcenter')
+            box_id = request.query_params.get('box_id')
+            box_code = request.query_params.get('box_code')
             
             if fuel_type:
                 available_books = available_books.filter(box__fuel_type=fuel_type)
@@ -1597,12 +1607,25 @@ class BookViewSet(viewsets.ModelViewSet):
                 available_books = available_books.filter(box__denomination=denomination)
             if subcenter:
                 available_books = available_books.filter(box__assigned_to_id=subcenter)
+            if box_id:
+                available_books = available_books.filter(box_id=box_id)
+            if box_code:
+                available_books = available_books.filter(box__box_code=box_code)
             
             # Prepare enhanced book data for intelligent generator
             books_data = []
             for book in available_books:
-                coupon_count = book.initial_coupon_count or 100
-                estimated_value = coupon_count * book.box.denomination
+                # Prefer actually available coupons if coupons are generated
+                try:
+                    coupon_count = getattr(book, 'available_coupons_count', None)
+                    coupon_count = coupon_count() if callable(coupon_count) else coupon_count
+                except Exception:
+                    coupon_count = None
+
+                if not coupon_count:
+                    coupon_count = book.initial_coupon_count or getattr(book.box, 'coupons_per_book', 100)
+
+                estimated_value = (coupon_count or 0) * (book.box.denomination or 0)
                 
                 books_data.append({
                     'id': book.id,
@@ -1611,8 +1634,8 @@ class BookViewSet(viewsets.ModelViewSet):
                     'boxId': book.box.box_code,
                     'fuelType': book.box.fuel_type,
                     'denomination': book.box.denomination,
-                    'firstCouponNumber': book.first_coupon_number,
-                    'lastCouponNumber': book.last_coupon_number,
+                    'firstCouponNumber': getattr(book, 'first_coupon_number', None),
+                    'lastCouponNumber': getattr(book, 'last_coupon_number', None),
                     'numberOfCoupons': coupon_count,
                     'estimatedValue': estimated_value,
                     'pricePerLitre': float(book.box.fuel_price_per_litre_usd or 1.45),
