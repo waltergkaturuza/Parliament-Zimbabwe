@@ -307,6 +307,10 @@ urlpatterns = [
         'put': 'update',
         'delete': 'destroy'
     }), name='subcenters-detail'),
+    # Safe fallback for subcenters detail (production resilience)
+    path('sub-centers/<int:pk>/', lazy_viewset_action('SubCenterViewSet', {
+        'get': 'retrieve'
+    }), name='sub-centers-detail-alias'),
     path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenters-detail-statistics'),
     path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenters-detail-recent-activity'),
     
