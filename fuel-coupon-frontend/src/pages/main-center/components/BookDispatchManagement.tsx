@@ -134,6 +134,8 @@ const BookDispatchManagement: FC = () => {
   const [loading, setLoading] = useState(false);
   const [dispatches, setDispatches] = useState<BookDispatch[]>([]);
   const [availableBooks, setAvailableBooks] = useState<AvailableBook[]>([]);
+  const [boxes, setBoxes] = useState<Array<{ box_code: string; id?: string }>>([]);
+  const [selectedBoxCode, setSelectedBoxCode] = useState<string | undefined>(undefined);
   const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
   const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
   const [nextDispatchNumber, setNextDispatchNumber] = useState('');
@@ -159,6 +161,7 @@ const BookDispatchManagement: FC = () => {
     loadDispatches();
     loadAvailableBooks();
     loadSubCenters();
+    loadBoxes();
   }, []);
 
   const loadDispatches = async () => {
@@ -180,7 +183,9 @@ const BookDispatchManagement: FC = () => {
   const loadAvailableBooks = async () => {
     try {
       // Prefer intelligent backend endpoint with accurate counts and values
-      const response = await apiClient.get('/books/available_for_dispatch/');
+      const response = await apiClient.get('/books/available_for_dispatch/', {
+        params: selectedBoxCode ? { box_code: selectedBoxCode } : undefined,
+      });
       const payload = response.data || {};
       const data = payload.results || payload || [];
       const mapped: AvailableBook[] = (Array.isArray(data) ? data : []).map((b: any) => ({
@@ -204,6 +209,28 @@ const BookDispatchManagement: FC = () => {
       setAvailableBooks([]);
     }
   };
+
+  const loadBoxes = async () => {
+    try {
+      const response = await apiClient.get('/boxes/', {
+        params: { is_received: true, ordering: '-box_code', page_size: 200 },
+      });
+      const results = response.data?.results || response.data || [];
+      const mapped = (Array.isArray(results) ? results : []).map((b: any) => ({
+        box_code: String(b.box_code || b.boxId || ''),
+        id: String(b.id || ''),
+      }));
+      setBoxes(mapped);
+    } catch (err) {
+      // Silent; filter will just not render options
+      setBoxes([]);
+    }
+  };
+
+  // Reload available books when box filter changes
+  useEffect(() => {
+    loadAvailableBooks();
+  }, [selectedBoxCode]);
 
   const loadSubCenters = async () => {
     try {
@@ -680,7 +707,7 @@ const BookDispatchManagement: FC = () => {
           status: mapBackendStatus(dispatch.status),
           receivedDate: dispatch.received_date ? new Date(dispatch.received_date).toISOString().split('T')[0] : undefined,
           notes: dispatch.notes || '',
-          trackingNumber: `TRK-${new Date().getFullYear()}-${String(dispatch.id).padStart(6, '0')}`,
+          trackingNumber: `TRK-${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}${Date.now().toString().slice(-4)}`,
         }));
         
         setDispatches(mappedDispatches);
@@ -1372,14 +1399,27 @@ const BookDispatchManagement: FC = () => {
                 style={{ marginBottom: 16 }}
               />
 
+              <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                <Col span={8}>
+                  <Select
+                    allowClear
+                    placeholder="Filter by Box"
+                    value={selectedBoxCode}
+                    onChange={(val) => setSelectedBoxCode(val)}
+                    style={{ width: '100%' }}
+                    options={boxes.map(b => ({ label: b.box_code, value: b.box_code }))}
+                  />
+                </Col>
+              </Row>
               <Transfer
                 dataSource={availableBooks}
-                titles={['Available Books', 'Selected Books']}
                 targetKeys={selectedBooks}
-                onChange={(targetKeys: React.Key[]) => setSelectedBooks(targetKeys as string[])}
-                render={item => `${item.bookId} - ${item.fuelType} ${item.couponAmount}L (${item.numberOfCoupons} coupons)`}
-                oneWay
-                style={{ marginBottom: 16 }}
+                onChange={(nextTargetKeys) => setSelectedBooks(nextTargetKeys as string[])}
+                rowKey={(item) => item.key}
+                showSearch
+                listStyle={{ width: '48%', height: 400 }}
+                render={(item) => `${item.bookId} • ${item.boxId} • ${item.fuelType} • ${item.couponAmount} • ${item.numberOfCoupons}`}
+                titles={['Available Books', 'Selected Books']}
               />
 
               {selectedBooks.length > 0 && (
