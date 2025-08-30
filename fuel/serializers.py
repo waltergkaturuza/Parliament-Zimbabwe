@@ -479,6 +479,17 @@ class SubCenterSerializer(serializers.ModelSerializer):
     active_programs = serializers.SerializerMethodField()
     distributed_coupons = serializers.SerializerMethodField()
     capacity = serializers.IntegerField(required=False, allow_null=True)
+    
+    # Additional frontend expected fields
+    contact_person = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    contact_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    
+    # Frontend aliases
+    phone = serializers.CharField(source='contact_number', required=False, allow_blank=True, allow_null=True)
+    status = serializers.SerializerMethodField()  # 'active' | 'inactive' | 'maintenance'
+    created_at = serializers.DateTimeField(source='created', read_only=True)
+    updated_at = serializers.DateTimeField(source='modified', read_only=True)
 
     class Meta:
         model = SubCenter
@@ -486,11 +497,21 @@ class SubCenterSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'name', 'location', 'managed_by', 'managed_by_details', 
             'is_active', 'capacity', 'users_count', 'active_programs', 
-            'distributed_coupons', 'created', 'modified'
+            'distributed_coupons', 'created', 'modified',
+            'contact_person', 'contact_number', 'email', 'phone', 'status',
+            'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'created', 'modified', 'users_count', 'active_programs', 'distributed_coupons'
-        ] # Set created/modified as readonly
+            'id', 'created', 'modified', 'created_at', 'updated_at', 'users_count', 
+            'active_programs', 'distributed_coupons', 'status', 'phone'
+        ] # Set computed and timestamp fields as readonly
+    
+    def get_status(self, obj):
+        """Get status in frontend-expected format"""
+        if not obj.is_active:
+            return 'inactive'
+        # You can add more logic here for 'maintenance' status if needed
+        return 'active'
     
     def get_users_count(self, obj):
         """Get count of users assigned to this subcenter"""
@@ -2270,36 +2291,41 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 class PoolVehicleSerializer(serializers.ModelSerializer):
     """Enhanced PoolVehicle serializer with frontend compatibility"""
-    sub_center_details = SimpleSubCenterSerializer(source='sub_center', read_only=True)
+    sub_center_details = SimpleSubCenterSerializer(source='assigned_subcenter', read_only=True)
     current_driver_details = serializers.SerializerMethodField()
     
-    # Frontend field mappings
-    registration_number = serializers.CharField(source='vehicle_number', required=False)
-    vehicle_type = serializers.CharField(source='vehicle_category', required=False)
-    engine_cc = serializers.IntegerField(source='engine_capacity', required=False)
-    assigned_subcenter = serializers.PrimaryKeyRelatedField(
-        source='sub_center', 
+    # Frontend field mappings (aliases for compatibility)
+    vehicle_number = serializers.CharField(source='registration_number', required=False)
+    vehicle_category = serializers.CharField(source='vehicle_type', required=False)
+    engine_capacity = serializers.IntegerField(source='engine_cc', required=False, allow_null=True)
+    sub_center = serializers.PrimaryKeyRelatedField(
+        source='assigned_subcenter', 
         queryset=SubCenter.objects.all(), 
         required=False, 
         allow_null=True
     )
-    current_mileage = serializers.IntegerField(source='mileage', required=False)
-    last_service_date = serializers.DateField(required=False, allow_null=True)
-    next_service_due = serializers.DateField(source='next_service_date', required=False, allow_null=True)
-    insurance_expiry = serializers.DateField(required=False, allow_null=True)
+    mileage = serializers.IntegerField(source='current_mileage', required=False)
+    next_service_date = serializers.DateField(source='next_service_due', required=False, allow_null=True)
+    
+    # Frontend expected field names (for compatibility)
+    assigned_subcenter = serializers.PrimaryKeyRelatedField(
+        queryset=SubCenter.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
     current_driver = serializers.SerializerMethodField()
     
     class Meta:
         model = PoolVehicle
         fields = [
-            'id', 'vehicle_number', 'registration_number', 'make', 'model', 'year', 
-            'engine_capacity', 'engine_cc', 'fuel_type', 'vehicle_category', 'vehicle_type',
-            'sub_center', 'sub_center_details', 'assigned_subcenter',
-            'status', 'mileage', 'current_mileage', 'last_service_date', 'next_service_date', 'next_service_due',
-            'insurance_expiry', 'license_expiry', 'current_driver_details', 'current_driver',
-            'notes', 'created', 'modified'
+            'id', 'registration_number', 'vehicle_number', 'make', 'model', 'year', 
+            'engine_cc', 'engine_capacity', 'fuel_type', 'vehicle_type', 'vehicle_category',
+            'assigned_subcenter', 'sub_center', 'sub_center_details',
+            'status', 'current_mileage', 'mileage', 'last_service_date', 'next_service_due', 'next_service_date',
+            'insurance_expiry', 'current_driver_details', 'current_driver',
+            'created', 'modified'
         ]
-        read_only_fields = ['id', 'created', 'modified', 'current_driver_details', 'current_driver']
+        read_only_fields = ['id', 'created', 'modified', 'current_driver_details', 'current_driver', 'sub_center_details']
     
     def get_current_driver_details(self, obj):
         """Get current driver details from active assignment"""
@@ -2325,18 +2351,19 @@ class DriverSerializer(serializers.ModelSerializer):
     """Enhanced Driver serializer with frontend compatibility"""
     current_vehicle_details = serializers.SerializerMethodField()
     
-    # Frontend field mappings
+    # All fields are optional for frontend compatibility (backend will handle required validation)
     employee_id = serializers.CharField(required=False, allow_blank=True)
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
     id_number = serializers.CharField(required=False, allow_blank=True)
+    license_number = serializers.CharField(required=False, allow_blank=True)
     license_class = serializers.CharField(required=False, allow_blank=True)
     license_expiry = serializers.DateField(required=False, allow_null=True)
     phone_number = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.CharField(required=False, allow_blank=True)
     assigned_subcenter = serializers.PrimaryKeyRelatedField(
-        source='sub_center', 
         queryset=SubCenter.objects.all(), 
         required=False, 
         allow_null=True
@@ -2349,9 +2376,9 @@ class DriverSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'employee_id', 'first_name', 'last_name', 'full_name', 
             'id_number', 'license_number', 'license_class', 'license_expiry',
-            'phone_number', 'email', 'address', 'status', 'employment_status',
+            'phone_number', 'email', 'address', 'status',
             'assigned_subcenter', 'hire_date', 'current_vehicle_details', 'current_vehicle',
-            'notes', 'created', 'modified'
+            'created', 'modified'
         ]
         read_only_fields = ['id', 'created', 'modified', 'current_vehicle_details', 'current_vehicle', 'full_name']
     
@@ -3089,7 +3116,7 @@ class MainCenterDashboardSerializer(serializers.Serializer):
 class SubCenterMonitoringSerializer(serializers.ModelSerializer):
     """
     Enhanced serializer for SubCenter data used in MainCenter SubCenterMonitoring component
-    Provides all fields expected by the frontend table and cards
+    Provides all fields expected by the frontend table and cards with both snake_case and camelCase aliases
     """
     # Basic SubCenter fields (from model)
     id = serializers.IntegerField(read_only=True)
@@ -3104,6 +3131,10 @@ class SubCenterMonitoringSerializer(serializers.ModelSerializer):
     contact_number = serializers.CharField(default='Not provided')
     email = serializers.CharField(default='Not provided')
     
+    # Frontend camelCase aliases for compatibility
+    manager = serializers.SerializerMethodField()  # alias for manager_name
+    contact = serializers.SerializerMethodField()  # alias for contact_number
+    
     # Inventory statistics (calculated fields)
     total_boxes = serializers.SerializerMethodField()
     total_books = serializers.SerializerMethodField()
@@ -3113,30 +3144,52 @@ class SubCenterMonitoringSerializer(serializers.ModelSerializer):
     available_coupons = serializers.SerializerMethodField()
     used_coupons = serializers.SerializerMethodField()
     
+    # Frontend camelCase aliases for inventory
+    totalBooks = serializers.SerializerMethodField()  # alias for total_books
+    booksUsed = serializers.SerializerMethodField()   # alias for books_used
+    booksRemaining = serializers.SerializerMethodField()  # alias for books_remaining
+    
     # Financial information
     total_value_usd = serializers.SerializerMethodField()
     total_value_zwg = serializers.SerializerMethodField()
     monthly_consumption_usd = serializers.SerializerMethodField()
     
+    # Frontend camelCase aliases for financial
+    totalValueUSD = serializers.SerializerMethodField()  # alias for total_value_usd
+    totalValueZWG = serializers.SerializerMethodField()  # alias for total_value_zwg
+    monthlyConsumptionUSD = serializers.SerializerMethodField()  # alias for monthly_consumption_usd
+    
     # Performance metrics
     performance_score = serializers.SerializerMethodField()
     alerts_count = serializers.SerializerMethodField()
+    
+    # Frontend camelCase aliases for performance
+    performanceScore = serializers.SerializerMethodField()  # alias for performance_score
+    alerts = serializers.SerializerMethodField()  # alias for alerts_count
     
     # Metadata
     last_activity = serializers.SerializerMethodField()
     created = serializers.SerializerMethodField()
     coordinates = serializers.SerializerMethodField()
     
+    # Frontend camelCase aliases for metadata
+    lastActivity = serializers.SerializerMethodField()  # alias for last_activity
+    
     class Meta:
         model = SubCenter
         fields = [
             'id', 'name', 'code', 'location', 'status',
             'manager_name', 'manager_email', 'contact_number', 'email',
+            'manager', 'contact',  # camelCase aliases
             'total_boxes', 'total_books', 'books_used', 'books_remaining',
+            'totalBooks', 'booksUsed', 'booksRemaining',  # camelCase aliases
             'total_coupons', 'available_coupons', 'used_coupons',
             'total_value_usd', 'total_value_zwg', 'monthly_consumption_usd',
+            'totalValueUSD', 'totalValueZWG', 'monthlyConsumptionUSD',  # camelCase aliases
             'performance_score', 'alerts_count',
-            'last_activity', 'created', 'coordinates'
+            'performanceScore', 'alerts',  # camelCase aliases
+            'last_activity', 'created', 'coordinates',
+            'lastActivity'  # camelCase alias
         ]
     
     def get_status(self, obj):
@@ -3240,6 +3293,51 @@ class SubCenterMonitoringSerializer(serializers.ModelSerializer):
                 'lng': obj.longitude
             }
         return None
+
+    # Frontend camelCase alias methods
+    def get_manager(self, obj):
+        """Alias for manager_name"""
+        return self.get_manager_name(obj)
+    
+    def get_contact(self, obj):
+        """Alias for contact_number"""
+        return getattr(obj, 'contact_number', 'Not provided')
+    
+    def get_totalBooks(self, obj):
+        """Alias for total_books"""
+        return self.get_total_books(obj)
+    
+    def get_booksUsed(self, obj):
+        """Alias for books_used"""
+        return self.get_books_used(obj)
+    
+    def get_booksRemaining(self, obj):
+        """Alias for books_remaining"""
+        return self.get_books_remaining(obj)
+    
+    def get_totalValueUSD(self, obj):
+        """Alias for total_value_usd"""
+        return self.get_total_value_usd(obj)
+    
+    def get_totalValueZWG(self, obj):
+        """Alias for total_value_zwg"""
+        return self.get_total_value_zwg(obj)
+    
+    def get_monthlyConsumptionUSD(self, obj):
+        """Alias for monthly_consumption_usd"""
+        return self.get_monthly_consumption_usd(obj)
+    
+    def get_performanceScore(self, obj):
+        """Alias for performance_score"""
+        return self.get_performance_score(obj)
+    
+    def get_alerts(self, obj):
+        """Alias for alerts_count"""
+        return self.get_alerts_count(obj)
+    
+    def get_lastActivity(self, obj):
+        """Alias for last_activity"""
+        return self.get_last_activity(obj)
 
 
 class FuelStatisticsSerializer(serializers.Serializer):

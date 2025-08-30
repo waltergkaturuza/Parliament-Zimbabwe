@@ -76,7 +76,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enable CSRF protection
+    'fuel.middleware.CsrfExemptMiddleware',  # Custom CSRF middleware that exempts API endpoints
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -101,6 +101,13 @@ CSRF_TRUSTED_ORIGINS = [
     f"https://{RENDER_BACKEND_HOSTNAME}",   # Render Backend  
     "https://parliament-zimbabwe-frontend.onrender.com",  # Direct frontend URL
     "https://parliament-zimbabwe-backend.onrender.com",   # Direct backend URL
+]
+
+# Exempt API endpoints from CSRF verification (JWT handles auth)
+CSRF_EXEMPT_URLS = [
+    r'^/api/v1/',  # All API v1 endpoints
+    r'^/api/',     # All API endpoints
+    r'^/auth/',    # Auth endpoints
 ]
 
 # CORS settings
@@ -238,6 +245,9 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    
+    # Explicitly disable CSRF for API views using JWT
+    'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
 }
 
 SIMPLE_JWT = {

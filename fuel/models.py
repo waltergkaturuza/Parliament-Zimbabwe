@@ -304,6 +304,12 @@ class SubCenter(TimeStampedModel):
         null=True,
         help_text="Primary contact phone number for the sub-center"
     )
+    contact_person = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Name of the primary contact person at the sub-center"
+    )
     email = models.EmailField(
         blank=True,
         null=True,

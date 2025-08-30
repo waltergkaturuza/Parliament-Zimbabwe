@@ -305,6 +305,7 @@ urlpatterns = [
     # Subcenter endpoints - use relative paths
     path('subcenters/overview/', lazy_viewset_action('SubCenterViewSet', {'get': 'overview'}), name='subcenter-overview'),
     path('subcenters/activities/', lazy_viewset_action('SubCenterViewSet', {'get': 'activities'}), name='subcenter-activities'),
+    path('subcenters/monitoring/', lazy_viewset_action('SubCenterViewSet', {'get': 'monitoring'}), name='subcenter-monitoring'),
     # General subcenter statistics endpoint - Using new function-based view
     path('subcenter/statistics/', lazy_view('subcenter_statistics'), name='subcenter-statistics-v1'),
     path('subcenters/stats/', lazy_view('subcenters_stats'), name='subcenters-stats'),  # Frontend stats endpoint

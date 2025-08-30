@@ -809,6 +809,38 @@ class SubCenterViewSet(viewsets.ModelViewSet):
             'total_pages': (queryset.count() + page_size - 1) // page_size
         })
 
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def monitoring(self, request):
+        """Get subcenter data formatted for monitoring dashboard with camelCase fields"""
+        try:
+            from .serializers import SubCenterMonitoringSerializer
+            queryset = self.get_queryset()
+            
+            # Apply filtering if provided
+            search = request.query_params.get('search', None)
+            status_filter = request.query_params.get('status', 'all')
+            
+            if search:
+                queryset = queryset.filter(
+                    Q(name__icontains=search) | 
+                    Q(code__icontains=search) | 
+                    Q(location__icontains=search)
+                )
+            
+            if status_filter != 'all':
+                is_active = status_filter.upper() == 'ACTIVE'
+                queryset = queryset.filter(is_active=is_active)
+            
+            # Serialize using monitoring serializer
+            serializer = SubCenterMonitoringSerializer(queryset, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to retrieve monitoring data: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 # === COUPON RECEPTION AND DISPATCH VIEWSETS ===
 
