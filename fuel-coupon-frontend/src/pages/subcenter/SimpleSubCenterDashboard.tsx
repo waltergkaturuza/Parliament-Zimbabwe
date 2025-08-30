@@ -330,9 +330,10 @@ const SimpleSubCenterDashboard: React.FC = () => {
     <Container maxWidth={false} sx={{ 
       background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
       minHeight: '100vh',
-      padding: 3,
+      py: 3,
+      px: '10mm', // ensure 10mm margin from left and right edges
     }}>
-      <Box sx={{ maxWidth: 1400, margin: '0 auto' }}>
+      <Box sx={{ width: '100%' }}>
         {/* Header */}
         <Box sx={{ marginBottom: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
