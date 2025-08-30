@@ -170,11 +170,13 @@ urlpatterns = [
     path('health/simple/', simple_health, name='simple-health'),  # Simple health check
     path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),  # Include API URLs
-    # Also include fuel app URLs under /api/ as a fallback so frontend using /api/* works
-    path('api/', include('fuel.urls')),
+
+    # IMPORTANT: Include fuel API routes before any generic 'api/' includes to avoid shadowing
     path('api/v1/', include('fuel.urls')),
-    path('api/auth/', include('fuel.urls')),  # Add direct auth path for frontend compatibility
+    path('api/', include('fuel.urls')),
+
+    # Move the simple API info endpoints under a non-conflicting prefix
+    path('api/core/', include('api.urls')),  # prevents /api/* from being shadowed
     
     # TEMPORARY DEBUG ENDPOINT - remove after auth is fixed
     path('api/v1/debug-headers/', debug_headers_view, name='debug-headers'),

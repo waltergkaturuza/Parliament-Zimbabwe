@@ -603,7 +603,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         return Response(activities)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def statistics(self, request, pk=None):
         """Get statistics for a specific subcenter"""
         subcenter = self.get_object()
@@ -646,7 +646,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         return Response(statistics)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def recent_activity(self, request, pk=None):
         """Get recent activity for a specific subcenter"""
         try:

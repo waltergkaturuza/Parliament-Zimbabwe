@@ -256,6 +256,15 @@ urlpatterns = [
     # Router endpoints for missing paths
     path('subcenters/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='subcenters-list'),
     path('sub-centers/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='sub-centers-list'),  # Alternative path
+    # Ensure detail action endpoints exist explicitly (beyond router)
+    path('subcenters/<int:pk>/', lazy_viewset_action('SubCenterViewSet', {
+        'get': 'retrieve',
+        'patch': 'partial_update',
+        'put': 'update',
+        'delete': 'destroy'
+    }), name='subcenters-detail'),
+    path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenters-detail-statistics'),
+    path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenters-detail-recent-activity'),
     
     # Beneficiaries endpoints - full CRUD support
     path('beneficiaries/', lazy_viewset_action('BeneficiaryProfileViewSet', {
