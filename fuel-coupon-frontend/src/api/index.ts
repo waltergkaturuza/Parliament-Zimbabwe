@@ -30,6 +30,7 @@ const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
   timeout: 10000,
 });
@@ -50,9 +51,26 @@ apiClient.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
       console.log('Added Authorization header with token length', token.length);
     }
-  // Don't send cookies by default for API requests during token auth
-  // (some proxies or dev servers may strip Authorization when withCredentials=true)
-  config.withCredentials = false;
+    // Decide whether to send cookies/CSRF: only for same-origin requests
+    try {
+      const base = new URL(API_BASE_URL, window.location.href);
+      const sameOrigin = base.origin === window.location.origin;
+      if (sameOrigin) {
+        // Send cookies for same-origin so Django can read csrftoken if needed
+        config.withCredentials = true;
+        // Attach CSRF token if present (Django's default cookie name)
+        const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+        if (match && config.headers) {
+          config.headers['X-CSRFToken'] = decodeURIComponent(match[1]);
+        }
+      } else {
+        // Cross-origin: rely on JWT, avoid cookies
+        config.withCredentials = false;
+      }
+    } catch {
+      // Fallback: don't send cookies
+      config.withCredentials = false;
+    }
     return config;
   },
   (error) => {

@@ -89,17 +89,36 @@ const ProgramsPage: FC = () => {
     try {
       setLoading(true);
       
-      // Load programs
+      // Load programs first
+      const programsPromise = apiClient.get('/programs/');
+
+      // Sub-centers endpoint can be either '/sub-centers/' or '/subcenters/' depending on router; try both
+      const subCentersPromise = (async () => {
+        try {
+          return await apiClient.get('/sub-centers/');
+        } catch (e: any) {
+          console.warn('GET /sub-centers/ failed, trying /subcenters/ instead', e?.response?.status);
+          return await apiClient.get('/subcenters/');
+        }
+      })();
+
+      // Organizers: MAIN_CENTER or SUB_CENTER users
+      const organizersPromise = apiClient.get('/users/?role__in=MAIN_CENTER,SUB_CENTER');
+
       const [programsResponse, subCentersResponse, organizersResponse] = await Promise.all([
-        apiClient.get('/programs/'),
-        apiClient.get('/sub-centers/'),
-        apiClient.get('/users/?role__in=MAIN_CENTER,SUB_CENTER')
+        programsPromise,
+        subCentersPromise,
+        organizersPromise,
       ]);
 
       const programData = programsResponse.data.results || programsResponse.data;
       setPrograms(programData);
-      setSubCenters(subCentersResponse.data.results || subCentersResponse.data);
-      setOrganizers(organizersResponse.data.results || organizersResponse.data);
+
+      const subCentersData = subCentersResponse.data?.results ?? subCentersResponse.data ?? [];
+      setSubCenters(Array.isArray(subCentersData) ? subCentersData : []);
+
+      const organizersData = organizersResponse.data?.results ?? organizersResponse.data ?? [];
+      setOrganizers(Array.isArray(organizersData) ? organizersData : []);
 
       // Calculate stats
       const now = dayjs();
@@ -117,9 +136,9 @@ const ProgramsPage: FC = () => {
         )
       };
       setStats(newStats);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading data:', error);
-      message.error('Failed to load programs data');
+      message.error(error?.response?.data?.detail || 'Failed to load programs data');
     } finally {
       setLoading(false);
     }
@@ -702,19 +721,23 @@ const ProgramsPage: FC = () => {
               </Descriptions.Item>
             )}
             <Descriptions.Item label="Organizer">
-              {viewingProgram.organizer ? (
+              {viewingProgram.organizer_details ? (
                 <div>
-                  <UserOutlined /> {viewingProgram.organizer.first_name} {viewingProgram.organizer.last_name}
+                  <UserOutlined /> {viewingProgram.organizer_details.first_name} {viewingProgram.organizer_details.last_name}
                   <br />
-                  <Text type="secondary">{viewingProgram.organizer.role?.replace('_', ' ')}</Text>
+                  <Text type="secondary">{viewingProgram.organizer_details.role?.replace('_', ' ')}</Text>
                 </div>
+              ) : viewingProgram.organizer ? (
+                <span>{String(viewingProgram.organizer)}</span>
               ) : (
                 'No organizer assigned'
               )}
             </Descriptions.Item>
             <Descriptions.Item label="Sub Center">
-              {viewingProgram.sub_center ? (
-                <Tag color="cyan">{viewingProgram.sub_center.name}</Tag>
+              {viewingProgram.sub_center_details ? (
+                <Tag color="cyan">{viewingProgram.sub_center_details.name}</Tag>
+              ) : viewingProgram.sub_center ? (
+                <span>{String(viewingProgram.sub_center)}</span>
               ) : (
                 'No sub center assigned'
               )}
