@@ -144,16 +144,27 @@ const UsersManagementPage: React.FC = () => {
     queryKey: ['available-roles'],
     queryFn: async () => {
       try {
-        return await adminService.getRoles();
+        console.log('🔄 Fetching roles from backend API...');
+        const roles = await adminService.getRoles();
+        console.log('✅ Roles fetched successfully:', roles.length, 'roles');
+        console.log('📋 Roles:', roles.map(r => r.code).join(', '));
+        const hasSergeant = roles.some(r => r.code === 'SERGEANT_OF_ARMS');
+        console.log('🎯 SERGEANT_OF_ARMS found:', hasSergeant);
+        return roles;
       } catch (err) {
-        console.error('Error fetching roles:', err);
-        // Fallback to default roles if backend fails
+        console.error('❌ Error fetching roles from backend:', err);
+        console.log('🔄 Using fallback roles...');
+        // Fallback to complete list of roles if backend fails
         return [
-          { code: 'ADMIN', name: 'Administrator' },
+          { code: 'SUPERUSER', name: 'Super User (Developer)' },
+          { code: 'ADMIN', name: 'System Administrator' },
           { code: 'MAIN_CENTER', name: 'Main Center Officer' },
           { code: 'SUB_CENTER', name: 'Sub Center Officer' },
+          { code: 'BENEFICIARY', name: 'Beneficiary' },
           { code: 'AUDITOR', name: 'Auditor' },
-          { code: 'BENEFICIARY', name: 'Beneficiary' }
+          { code: 'MAIN_CENTER_APPROVER', name: 'Main Center Approver' },
+          { code: 'SUB_CENTER_APPROVER', name: 'Sub Center Approver' },
+          { code: 'SERGEANT_OF_ARMS', name: 'Sergeant of Arms' }
         ];
       }
     }
