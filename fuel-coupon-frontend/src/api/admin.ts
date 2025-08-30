@@ -228,6 +228,14 @@ class AdminService {
     return response.data.results || response.data;
   }
 
+  /**
+   * Get available user roles from backend
+   */
+  async getRoles(): Promise<Array<{ code: string; name: string }>> {
+    const response = await apiClient.get('/auth/roles/');
+    return response.data.roles || [];
+  }
+
 }
 
 // Export a singleton instance

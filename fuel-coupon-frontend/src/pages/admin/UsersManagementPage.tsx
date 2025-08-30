@@ -139,6 +139,26 @@ const UsersManagementPage: React.FC = () => {
     }
   });
 
+  // Fetch available roles from backend
+  const { data: availableRoles } = useQuery({
+    queryKey: ['available-roles'],
+    queryFn: async () => {
+      try {
+        return await adminService.getRoles();
+      } catch (err) {
+        console.error('Error fetching roles:', err);
+        // Fallback to default roles if backend fails
+        return [
+          { code: 'ADMIN', name: 'Administrator' },
+          { code: 'MAIN_CENTER', name: 'Main Center Officer' },
+          { code: 'SUB_CENTER', name: 'Sub Center Officer' },
+          { code: 'AUDITOR', name: 'Auditor' },
+          { code: 'BENEFICIARY', name: 'Beneficiary' }
+        ];
+      }
+    }
+  });
+
   // Update and delete mutations
   const updateUserMutation = useMutation({
     mutationFn: ({ id, ...userData }: { id: number } & Partial<User>) => {
@@ -307,17 +327,17 @@ const UsersManagementPage: React.FC = () => {
 
   const getRoleConfig = (role: string) => {
     const configs = {
-      SUPER_ADMIN: { 
+      SUPERUSER: { 
         color: '#722ed1', 
         icon: <CrownOutlined />, 
-        label: 'Super Admin',
-        description: 'Full system access'
+        label: 'Super User',
+        description: 'Developer access'
       },
       ADMIN: { 
         color: '#f5222d', 
         icon: <SettingOutlined />, 
         label: 'Administrator',
-        description: 'Full system access'
+        description: 'System administrator'
       },
       MAIN_CENTER: { 
         color: '#1890ff', 
@@ -348,6 +368,12 @@ const UsersManagementPage: React.FC = () => {
         icon: <AuditOutlined />, 
         label: 'Auditor',
         description: 'Audit and compliance'
+      },
+      SERGEANT_OF_ARMS: {
+        color: '#fa8c16',
+        icon: <SafetyCertificateOutlined />,
+        label: 'Sergeant of Arms',
+        description: 'Parliamentary attendance management'
       },
       BENEFICIARY: { 
         color: '#fadb14', 
@@ -668,14 +694,14 @@ const UsersManagementPage: React.FC = () => {
                 placeholder="Filter by role"
                 value={selectedRole}
                 onChange={setSelectedRole}
-                style={{ width: 150 }}
+                style={{ width: 200 }}
                 allowClear
               >
-                <Option value="ADMIN">Admin</Option>
-                <Option value="MAIN_CENTER">Main Center</Option>
-                <Option value="SUB_CENTER">Sub Center</Option>
-                <Option value="AUDITOR">Auditor</Option>
-                <Option value="BENEFICIARY">Beneficiary</Option>
+                {availableRoles?.map((role) => (
+                  <Option key={role.code} value={role.code}>
+                    {role.name}
+                  </Option>
+                ))}
               </Select>
               <Select
                 placeholder="Filter by status"
@@ -845,12 +871,11 @@ const UsersManagementPage: React.FC = () => {
                 rules={[{ required: true, message: 'Please select role' }]}
               >
                 <Select onChange={(value) => setFormRole(value)}>
-                  <Option value="ADMIN">Administrator</Option>
-                  <Option value="MAIN_CENTER">Main Center Officer</Option>
-                  <Option value="SUB_CENTER">Sub Center Officer</Option>
-                  <Option value="SUB_CENTER_APPROVER">Sub Center Approver</Option>
-                  <Option value="AUDITOR">Auditor</Option>
-                  <Option value="BENEFICIARY">Beneficiary</Option>
+                  {availableRoles?.map((role) => (
+                    <Option key={role.code} value={role.code}>
+                      {role.name}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
@@ -866,19 +891,19 @@ const UsersManagementPage: React.FC = () => {
               <Form.Item 
                 name="sub_center" 
                 label={
-                  ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '') 
+                  ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER', 'SERGEANT_OF_ARMS'].includes(formRole || '') 
                     ? "Sub Center (Required)" 
                     : "Sub Center (Optional)"
                 }
                 rules={[
-                  ...((['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '')) 
+                  ...((['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER', 'SERGEANT_OF_ARMS'].includes(formRole || '')) 
                     ? [{ required: true, message: 'Sub Center is required for this role' }] 
                     : [])
                 ]}
               >
                 <Select
                   placeholder={
-                    ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER'].includes(formRole || '')
+                    ['SUB_CENTER', 'AUDITOR', 'BENEFICIARY', 'SUB_CENTER_APPROVER', 'SERGEANT_OF_ARMS'].includes(formRole || '')
                       ? "Select sub center (required for this role)"
                       : "Select sub center (optional)"
                   }
