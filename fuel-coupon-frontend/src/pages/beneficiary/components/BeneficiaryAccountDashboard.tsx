@@ -593,7 +593,9 @@ const BeneficiaryAccountDashboard: FC = () => {
         <TabPane tab="Calendar" key="calendar">
           <Card>
             <Calendar
-              dateCellRender={(date) => {
+              cellRender={(current, info) => {
+                if (info.type !== 'date') return info.originNode;
+                const date = current as any;
                 const dayEvents = upcomingEvents.filter(event => 
                   dayjs(event.date).isSame(date, 'day')
                 );

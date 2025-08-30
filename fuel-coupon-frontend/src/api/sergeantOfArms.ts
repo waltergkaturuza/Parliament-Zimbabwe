@@ -109,21 +109,22 @@ export const sergeantOfArmsAPI = {
     end_date?: string;
     managing_subcenter?: string;
   }): Promise<AttendanceRegistry[]> => {
-    const response = await api.get('/api/attendance-registries/', { params });
+  // Path should be relative to API base; avoid double "/api" when baseURL already ends with /api or /api/v1
+  const response = await api.get('/attendance-registries/', { params });
     return response.data.results || response.data;
   },
 
   getAttendanceRegistry: async (registryId: number): Promise<AttendanceRegistry> => {
-    const response = await api.get(`/api/attendance-registries/${registryId}/`);
+  const response = await api.get(`/attendance-registries/${registryId}/`);
     return response.data;
   },
 
   startAttendanceMarking: async (registryId: number): Promise<void> => {
-    await api.post(`/api/attendance-registries/${registryId}/start_marking/`);
+  await api.post(`/attendance-registries/${registryId}/start_marking/`);
   },
 
   submitAttendance: async (registryId: number, notes?: string): Promise<void> => {
-    await api.post(`/api/attendance-registries/${registryId}/submit_attendance/`, { notes });
+  await api.post(`/attendance-registries/${registryId}/submit_attendance/`, { notes });
   },
 
   // Attendance Members
@@ -156,7 +157,7 @@ export const sergeantOfArmsAPI = {
 
   // Corrections
   getAttendanceCorrections: async (): Promise<AttendanceCorrection[]> => {
-    const response = await api.get('/api/attendance-corrections/');
+  const response = await api.get('/attendance-corrections/');
     return response.data.results || response.data;
   },
 

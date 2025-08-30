@@ -197,7 +197,8 @@ const SergeantOfArmsDashboard: React.FC = () => {
     message.info('Navigate to attendance management page');
   };
 
-  const dateCellRender = (value: Dayjs) => {
+  // AntD v5: use cellRender instead of deprecated dateCellRender
+  const renderDateCell = (value: Dayjs) => {
     const sessionsForDate = getSessionsForDate(value);
     
     if (sessionsForDate.length === 0) return null;
@@ -517,7 +518,12 @@ const SergeantOfArmsDashboard: React.FC = () => {
         <Calendar
           value={selectedDate}
           onChange={setSelectedDate}
-          dateCellRender={dateCellRender}
+          cellRender={(current, info) => {
+            if (info.type === 'date') {
+              return renderDateCell(current as Dayjs) as any;
+            }
+            return info.originNode;
+          }}
           headerRender={({ value, type, onChange, onTypeChange }) => (
             <div style={{ 
               padding: '16px',
