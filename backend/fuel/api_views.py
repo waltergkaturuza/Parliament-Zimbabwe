@@ -25,90 +25,132 @@ class BeneficiaryDashboardAPIViewSet(viewsets.ViewSet):
     """
     permission_classes = [IsAuthenticated]
     
-    @action(detail=False, methods=['get'])
-    def personal_overview(self, request):
-        """Get personal overview for beneficiary dashboard"""
-        user = request.user
-        
+    def _get_beneficiary(self, user):
         try:
-            beneficiary = BeneficiaryProfile.objects.get(user=user)
+            return BeneficiaryProfile.objects.select_related('user', 'category', 'constituency').get(user=user)
         except BeneficiaryProfile.DoesNotExist:
+            return None
+
+    def _serialize_profile(self, beneficiary: BeneficiaryProfile):
+        """Return frontend-expected BeneficiaryProfile shape"""
+        return {
+            'id': str(beneficiary.id),
+            'parliamentaryId': beneficiary.employee_id or '',
+            'name': beneficiary.get_full_name(),
+            'title': beneficiary.position or '',
+            'category': beneficiary.category.name if getattr(beneficiary, 'category', None) else '',
+            'constituency': beneficiary.constituency.name if getattr(beneficiary, 'constituency', None) else None,
+            'party': beneficiary.party_affiliation or '',
+            'phoneNumber': beneficiary.mobile_phone if hasattr(beneficiary, 'mobile_phone') else '',
+            'email': beneficiary.official_email if hasattr(beneficiary, 'official_email') else '',
+            'address': beneficiary.full_address if hasattr(beneficiary, 'full_address') else '',
+            'status': beneficiary.status,
+            'profilePhoto': getattr(getattr(beneficiary.user, 'profile_picture', None), 'url', None) if hasattr(beneficiary.user, 'profile_picture') else None,
+            'vehicleInfo': {
+                'make': beneficiary.vehicle_make or '',
+                'model': beneficiary.vehicle_model or '',
+                'year': beneficiary.vehicle_year or None,
+                'engineSize': beneficiary.engine_size or '',
+                'registrationNumber': beneficiary.vehicle_registration or '',
+                'fuelType': beneficiary.fuel_type or 'DIESEL',
+            },
+            'allocationProfile': beneficiary.get_allocation_profile() if hasattr(beneficiary, 'get_allocation_profile') else {
+                'monthlyAllocation': float(beneficiary.monthly_entitlement_litres or 0),
+                'currentBalance': float(beneficiary.current_balance or 0),
+                'usedThisMonth': float(beneficiary.used_this_month or 0),
+                'lastUpdated': beneficiary.last_allocation_date.isoformat() if beneficiary.last_allocation_date else None,
+                'baseAllocation': float(getattr(beneficiary, 'base_allocation', Decimal('0'))),
+                'multiplier': float(getattr(beneficiary, 'category_multiplier', Decimal('1.0'))),
+            },
+            'joinDate': beneficiary.created_at.isoformat() if hasattr(beneficiary, 'created_at') and beneficiary.created_at else None,
+            'lastLogin': beneficiary.user.last_login.isoformat() if beneficiary.user and beneficiary.user.last_login else None,
+        }
+
+    def _serialize_allocation(self, allocation):
+        # Given stub CouponAllocation model, expose minimal fields safely
+        return {
+            'id': str(getattr(allocation, 'id', '')),
+            'allocationDate': getattr(allocation, 'allocation_date', None),
+            'sessionName': getattr(allocation, 'session_name', '') if hasattr(allocation, 'session_name') else '',
+            'programName': getattr(allocation, 'program_name', '') if hasattr(allocation, 'program_name') else '',
+            'eventName': getattr(allocation, 'event_name', None) if hasattr(allocation, 'event_name') else None,
+            'couponsAllocated': getattr(allocation, 'quantity', 0) if hasattr(allocation, 'quantity') else 0,
+            'totalLitres': float(getattr(allocation, 'total_litres', 0) or 0),
+            'totalValue': float(getattr(allocation, 'total_value', 0) or 0),
+            'couponsUsed': getattr(allocation, 'coupons_used', 0) if hasattr(allocation, 'coupons_used') else 0,
+            'couponsRemaining': getattr(allocation, 'coupons_remaining', 0) if hasattr(allocation, 'coupons_remaining') else 0,
+            'status': getattr(allocation, 'status', 'ACTIVE') if hasattr(allocation, 'status') else 'ACTIVE',
+            'allocatedBy': getattr(getattr(allocation, 'allocated_by', None), 'username', '') if hasattr(allocation, 'allocated_by') else '',
+            'subCenterName': getattr(getattr(allocation, 'sub_center', None), 'name', '') if hasattr(allocation, 'sub_center') else '',
+            'firstCouponSerial': getattr(allocation, 'first_coupon_serial', '') if hasattr(allocation, 'first_coupon_serial') else '',
+            'lastCouponSerial': getattr(allocation, 'last_coupon_serial', '') if hasattr(allocation, 'last_coupon_serial') else '',
+            'expiryDate': getattr(allocation, 'expiry_date', None) if hasattr(allocation, 'expiry_date') else None,
+            'notes': getattr(allocation, 'notes', None) if hasattr(allocation, 'notes') else None,
+            'coupons': [],  # Details not available in stub; leave empty list
+        }
+
+    def _serialize_attendance(self, record: SessionAttendance):
+        session = getattr(record, 'session', None)
+        return {
+            'id': str(record.id),
+            'date': getattr(record, 'date', None),
+            'sessionName': getattr(session, 'title', None) or getattr(session, 'session_name', ''),
+            'sessionType': getattr(session, 'session_type', 'SESSION') if session else 'SESSION',
+            'startTime': getattr(session, 'start_time', None) if session else None,
+            'endTime': getattr(session, 'end_time', None) if session else None,
+            'status': getattr(record, 'status', 'ABSENT'),
+            'duration': None,
+            'location': getattr(session, 'location', '') if session else '',
+            'notes': getattr(record, 'notes', None),
+        }
+
+    def _compute_stats(self, beneficiary: BeneficiaryProfile):
+        # Support both schemas: allocation.beneficiary -> BeneficiaryProfile or -> User
+        alloc_filter = Q(beneficiary=beneficiary) | Q(beneficiary=getattr(beneficiary, 'user', None))
+        allocations_qs = CouponAllocation.objects.filter(alloc_filter)
+        total_allocations = allocations_qs.count()
+        # Guard for absent fields on stub models
+        try:
+            total_used = allocations_qs.aggregate(v=Sum('coupons_used'))['v'] or 0
+        except Exception:
+            total_used = 0
+        try:
+            current_balance = allocations_qs.aggregate(v=Sum('coupons_remaining'))['v'] or 0
+        except Exception:
+            current_balance = 0
+        attended = SessionAttendance.objects.filter(beneficiary=beneficiary, status='PRESENT').count()
+        total_sessions = SessionAttendance.objects.filter(beneficiary=beneficiary).count()
+        attendance_rate = round((attended / total_sessions * 100), 1) if total_sessions > 0 else 0
+        return {
+            'totalAllocations': total_allocations,
+            'totalUsed': total_used,
+            'currentBalance': current_balance,
+            'attendanceRate': attendance_rate,
+        }
+
+    @action(detail=False, methods=['get'])
+    def get_profile(self, request):
+        """Return profile in frontend contract shape"""
+        user = request.user
+        beneficiary = self._get_beneficiary(user)
+        if not beneficiary:
             return Response({'error': 'Beneficiary profile not found'}, status=404)
-        
-        # Get allocations for this beneficiary
-        allocations = CouponAllocation.objects.filter(beneficiary=beneficiary)
-        
-        # Calculate statistics
-        total_allocations = allocations.count()
-        total_coupons = allocations.aggregate(
-            total=Sum('quantity')
-        )['total'] or 0
-        
-        used_coupons = allocations.aggregate(
-            used=Sum('coupons_used')
-        )['used'] or 0
-        
-        remaining_coupons = allocations.aggregate(
-            remaining=Sum('coupons_remaining')
-        )['remaining'] or 0
-        
-        # Current month statistics
-        current_month = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        monthly_allocations = allocations.filter(allocation_date__gte=current_month)
-        monthly_coupons = monthly_allocations.aggregate(
-            total=Sum('quantity')
-        )['total'] or 0
-        
-        # Engine size multiplier calculation
-        engine_multiplier = 1.0
-        if beneficiary.engine_size:
-            if beneficiary.engine_size >= 3.0:
-                engine_multiplier = 1.3
-            elif beneficiary.engine_size >= 2.0:
-                engine_multiplier = 1.2
-        
-        # Category multiplier
-        category_multiplier = 1.0
-        if beneficiary.category:
-            category_multiplier = float(beneficiary.category.category_multiplier)
-        
-        return Response({
-            'beneficiary': {
-                'id': beneficiary.id,
-                'name': beneficiary.get_full_name(),
-                'role': beneficiary.role,
-                'category': beneficiary.category.name if beneficiary.category else None,
-                'vehicle': {
-                    'make': beneficiary.vehicle_make,
-                    'model': beneficiary.vehicle_model,
-                    'year': beneficiary.vehicle_year,
-                    'engine_size': float(beneficiary.engine_size) if beneficiary.engine_size else None,
-                    'registration': beneficiary.vehicle_registration,
-                },
-                'contact': {
-                    'phone': beneficiary.phone_number,
-                    'office': beneficiary.office_location,
-                    'emergency': beneficiary.emergency_contact,
-                },
-                'multipliers': {
-                    'category_multiplier': category_multiplier,
-                    'engine_multiplier': engine_multiplier,
-                    'total_multiplier': category_multiplier * engine_multiplier,
-                }
-            },
-            'statistics': {
-                'total_allocations': total_allocations,
-                'total_coupons': total_coupons,
-                'used_coupons': used_coupons,
-                'remaining_coupons': remaining_coupons,
-                'usage_percentage': round((used_coupons / total_coupons * 100), 1) if total_coupons > 0 else 0,
-                'monthly_coupons': monthly_coupons,
-            },
-            'status': {
-                'is_active': beneficiary.is_active,
-                'last_allocation': allocations.first().allocation_date if allocations.exists() else None,
-            }
-        })
+        return Response(self._serialize_profile(beneficiary))
+
+    @action(detail=False, methods=['patch'])
+    def update_profile(self, request):
+        user = request.user
+        beneficiary = self._get_beneficiary(user)
+        if not beneficiary:
+            return Response({'error': 'Beneficiary profile not found'}, status=404)
+        # Minimal safe updates
+        for field in ['vehicle_make', 'vehicle_model', 'vehicle_year', 'engine_size', 'vehicle_registration', 'office_location', 'party_affiliation']:
+            if field in request.data:
+                setattr(beneficiary, field, request.data.get(field))
+        beneficiary.save(update_fields=[
+            'vehicle_make', 'vehicle_model', 'vehicle_year', 'engine_size', 'vehicle_registration', 'office_location', 'party_affiliation'
+        ])
+        return Response(self._serialize_profile(beneficiary))
     
     @action(detail=False, methods=['get'])
     def allocation_history(self, request):
@@ -125,7 +167,7 @@ class BeneficiaryDashboardAPIViewSet(viewsets.ViewSet):
         page_size = int(request.query_params.get('page_size', 10))
         
         allocations = CouponAllocation.objects.filter(
-            beneficiary=beneficiary
+            Q(beneficiary=beneficiary) | Q(beneficiary=beneficiary.user)
         ).order_by('-allocation_date')
         
         # Apply pagination
@@ -133,20 +175,23 @@ class BeneficiaryDashboardAPIViewSet(viewsets.ViewSet):
         end = start + page_size
         paginated_allocations = allocations[start:end]
         
-        allocation_data = []
-        for allocation in paginated_allocations:
-            allocation_data.append(allocation.get_allocation_details())
-        
+        allocation_data = [self._serialize_allocation(a) for a in paginated_allocations]
         return Response({
-            'allocations': allocation_data,
-            'pagination': {
-                'page': page,
-                'page_size': page_size,
-                'total': allocations.count(),
-                'has_next': end < allocations.count(),
-                'has_previous': page > 1,
-            }
+            'results': allocation_data,
+            'count': allocations.count(),
         })
+
+    @action(detail=True, methods=['get'])
+    def allocation_detail(self, request, pk=None):
+        user = request.user
+        beneficiary = self._get_beneficiary(user)
+        if not beneficiary:
+            return Response({'error': 'Beneficiary profile not found'}, status=404)
+        try:
+            allocation = CouponAllocation.objects.get(id=pk, beneficiary=beneficiary)
+        except CouponAllocation.DoesNotExist:
+            return Response({'error': 'Allocation not found'}, status=404)
+        return Response(self._serialize_allocation(allocation))
     
     @action(detail=False, methods=['get'])
     def attendance_records(self, request):
@@ -158,41 +203,14 @@ class BeneficiaryDashboardAPIViewSet(viewsets.ViewSet):
         except BeneficiaryProfile.DoesNotExist:
             return Response({'error': 'Beneficiary profile not found'}, status=404)
         
-        # Get recent attendance records
-        attendance_records = SessionAttendance.objects.filter(
-            beneficiary=beneficiary
-        ).select_related('session').order_by('-session__date')[:20]
-        
-        attendance_data = []
-        for record in attendance_records:
-            attendance_data.append({
-                'id': record.id,
-                'session': {
-                    'id': record.session.id,
-                    'name': record.session.session_name,
-                    'date': record.session.date,
-                    'type': record.session.session_type,
-                },
-                'attendance_status': record.attendance_status,
-                'check_in_time': record.check_in_time,
-                'check_out_time': record.check_out_time,
-                'notes': record.notes,
-            })
-        
-        # Calculate attendance statistics
-        total_sessions = attendance_records.count()
-        attended_sessions = attendance_records.filter(attendance_status='PRESENT').count()
-        attendance_rate = round((attended_sessions / total_sessions * 100), 1) if total_sessions > 0 else 0
-        
-        return Response({
-            'attendance_records': attendance_data,
-            'statistics': {
-                'total_sessions': total_sessions,
-                'attended_sessions': attended_sessions,
-                'missed_sessions': total_sessions - attended_sessions,
-                'attendance_rate': attendance_rate,
-            }
-        })
+        # Filters and pagination (optional)
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        qs = SessionAttendance.objects.filter(beneficiary=beneficiary).select_related('session').order_by('-date')
+        total = qs.count()
+        records = qs[(page - 1) * page_size: (page - 1) * page_size + page_size]
+        data = [self._serialize_attendance(r) for r in records]
+        return Response({'results': data, 'count': total})
     
     @action(detail=False, methods=['get'])
     def upcoming_sessions(self, request):
@@ -205,17 +223,57 @@ class BeneficiaryDashboardAPIViewSet(viewsets.ViewSet):
         for session in upcoming_sessions:
             session_data.append({
                 'id': session.id,
-                'name': session.session_name,
-                'date': session.date,
-                'start_time': session.start_time,
-                'end_time': session.end_time,
-                'type': session.session_type,
-                'location': session.location,
-                'description': session.description,
+                'title': getattr(session, 'title', None) or getattr(session, 'session_name', ''),
+                'date': getattr(session, 'date', None) or getattr(session, 'start_date', None),
+                'time': getattr(session, 'start_time', None),
+                'type': getattr(session, 'session_type', 'SESSION'),
+                'location': getattr(session, 'location', ''),
+                'description': getattr(session, 'description', ''),
+                'fuelAllocationEligible': getattr(session, 'fuel_allocation_eligible', False) if hasattr(session, 'fuel_allocation_eligible') else False,
+                'estimatedFuelRequirement': float(getattr(session, 'estimated_fuel_requirement', 0) or 0) if hasattr(session, 'estimated_fuel_requirement') else None,
+                'status': 'UPCOMING',
             })
-        
+        return Response(session_data)
+
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        beneficiary = self._get_beneficiary(request.user)
+        if not beneficiary:
+            return Response({'error': 'Beneficiary profile not found'}, status=404)
+        return Response(self._compute_stats(beneficiary))
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        beneficiary = self._get_beneficiary(request.user)
+        if not beneficiary:
+            return Response({'error': 'Beneficiary profile not found'}, status=404)
+        profile = self._serialize_profile(beneficiary)
+        allocations = [
+            self._serialize_allocation(a)
+            for a in CouponAllocation.objects.filter(Q(beneficiary=beneficiary) | Q(beneficiary=beneficiary.user)).order_by('-allocation_date')[:10]
+        ]
+        attendance = [self._serialize_attendance(r) for r in SessionAttendance.objects.filter(beneficiary=beneficiary).order_by('-date')[:10]]
+        upcoming = []
+        for session in ParliamentSession.objects.filter(date__gte=timezone.now().date()).order_by('date')[:5]:
+            upcoming.append({
+                'id': session.id,
+                'title': getattr(session, 'title', None) or getattr(session, 'session_name', ''),
+                'date': getattr(session, 'date', None) or getattr(session, 'start_date', None),
+                'time': getattr(session, 'start_time', None),
+                'type': getattr(session, 'session_type', 'SESSION'),
+                'location': getattr(session, 'location', ''),
+                'description': getattr(session, 'description', ''),
+                'fuelAllocationEligible': getattr(session, 'fuel_allocation_eligible', False) if hasattr(session, 'fuel_allocation_eligible') else False,
+                'estimatedFuelRequirement': float(getattr(session, 'estimated_fuel_requirement', 0) or 0) if hasattr(session, 'estimated_fuel_requirement') else None,
+                'status': 'UPCOMING',
+            })
+        stats = self._compute_stats(beneficiary)
         return Response({
-            'upcoming_sessions': session_data
+            'profile': profile,
+            'allocations': allocations,
+            'attendance': attendance,
+            'upcomingEvents': upcoming,
+            'stats': stats,
         })
 
 

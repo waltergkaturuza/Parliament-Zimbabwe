@@ -38,11 +38,17 @@ def lazy_class_view(class_name):
     return _view
 
 def lazy_viewset_action(viewset_name, actions):
-    """Wrap a ViewSet action by resolving class and .as_view(actions) at request time."""
+    """Wrap a ViewSet action by resolving class and .as_view(actions) at request time.
+    Tries views_main first, then falls back to api_views to avoid import coupling issues.
+    """
     def _view(request, *args, **kwargs):
         try:
-            from . import views_main
-            vs = getattr(views_main, viewset_name)
+            try:
+                from . import views_main as _vm
+                vs = getattr(_vm, viewset_name)
+            except Exception:
+                from . import api_views as _av
+                vs = getattr(_av, viewset_name)
             view = vs.as_view(actions)
             return view(request, *args, **kwargs)
         except Exception as e:
@@ -53,13 +59,17 @@ def lazy_viewset_action(viewset_name, actions):
     return _view
 
 def safe_get_viewset(name: str):
-    """Try to import a ViewSet from views_main; return None if unavailable."""
+    """Try to import a ViewSet from views_main; fall back to api_views; return None if unavailable."""
     try:
         from . import views_main
         return getattr(views_main, name)
-    except Exception as e:
-        print(f"Skipping router for {name}: {e}")
-        return None
+    except Exception as e1:
+        try:
+            from . import api_views
+            return getattr(api_views, name)
+        except Exception as e2:
+            print(f"Skipping router for {name}: {e1 or e2}")
+            return None
 
 # Import ViewSets and views that don't cause circular imports
 try:
@@ -298,14 +308,18 @@ urlpatterns = [
     
     # Beneficiaries "me" endpoints for authenticated user dashboard
     path('beneficiaries/me/dashboard/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
-        'get': 'personal_overview'
+        'get': 'dashboard'
     }), name='beneficiaries-me-dashboard'),
     path('beneficiaries/me/profile/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
-        'get': 'personal_overview'
+        'get': 'get_profile',
+        'patch': 'update_profile'
     }), name='beneficiaries-me-profile'),
     path('beneficiaries/me/allocations/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
         'get': 'allocation_history'
     }), name='beneficiaries-me-allocations'),
+    path('beneficiaries/me/allocations/<int:pk>/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
+        'get': 'allocation_detail'
+    }), name='beneficiaries-me-allocation-detail'),
     path('beneficiaries/me/attendance/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
         'get': 'attendance_records'
     }), name='beneficiaries-me-attendance'),
@@ -313,8 +327,9 @@ urlpatterns = [
         'get': 'upcoming_sessions'
     }), name='beneficiaries-me-upcoming-events'),
     path('beneficiaries/me/stats/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {
-        'get': 'personal_overview'
+        'get': 'dashboard_stats'
     }), name='beneficiaries-me-stats'),
+    
     
     # Audit endpoints
     path('audit-logs/', lazy_viewset_action('AuditLogViewSet', {'get': 'list'}), name='audit-logs'),
