@@ -2874,10 +2874,10 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), MainCenterPermission()]
 
     def create(self, request, *args, **kwargs):
-        """Create a dispatch in a production-safe way, compatible with current DB schema and FE payload.
+        """Create a dispatch in a production-safe way, linking to actual books from the database.
 
-        Accepts frontend payload shape and avoids relying on optional model relations/fields (like books)
-        that may not exist in the current database. Returns a rich response computed from the request.
+        Accepts frontend payload shape and properly links to actual Book models in the database.
+        This ensures dispatched books are subtracted from available stock.
         """
         from django.utils import timezone
         try:
@@ -2906,21 +2906,101 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 dispatch_date=timezone.now(),
             )
 
-            # Build response using FE payload fields to avoid serializer mismatches
-            books = data.get('books') or []
-            # Compute totals from payload
-            try:
-                total_books = int(data.get('totalBooks')) if data.get('totalBooks') is not None else len(books)
-            except Exception:
-                total_books = len(books)
-            total_coupons = 0
-            total_value = 0.0
-            for b in books:
-                try:
-                    total_coupons += int(b.get('numberOfCoupons') or 0)
-                    total_value += float(b.get('value') or 0)
-                except Exception:
-                    pass
+            # CRITICAL FIX: Link actual books from the database to the dispatch
+            books_payload = data.get('books') or []
+            actual_books = []
+            
+            for book_data in books_payload:
+                # Extract book identifiers from frontend payload
+                book_id = book_data.get('bookId') or book_data.get('id')
+                box_id = book_data.get('boxId')
+                first_coupon = book_data.get('firstCouponId')
+                
+                # Find the actual book in the database
+                book = None
+                if book_id:
+                    # Try to find by book_number or ID
+                    book = Book.objects.filter(
+                        models.Q(book_number=book_id) | 
+                        models.Q(id=book_id) if str(book_id).isdigit() else models.Q(book_number=book_id)
+                    ).first()
+                
+                # If not found by book_id, try by box + first coupon
+                if not book and box_id and first_coupon:
+                    book = Book.objects.filter(
+                        box__box_code=box_id,
+                        first_coupon_number=first_coupon
+                    ).first()
+                
+                # If still not found, try by first coupon number only
+                if not book and first_coupon:
+                    book = Book.objects.filter(first_coupon_number=first_coupon).first()
+                
+                if book:
+                    actual_books.append(book)
+                    # Mark book as dispatched
+                    book.is_assigned = True
+                    book.save()
+                else:
+                    # Log warning but don't fail the dispatch
+                    print(f"Warning: Could not find book with ID: {book_id}, boxId: {box_id}, firstCoupon: {first_coupon}")
+            
+            # Link the actual books to the dispatch
+            if actual_books:
+                dispatch.books.set(actual_books)
+                
+                # Update dispatch totals based on actual books
+                total_coupons = sum(book.initial_coupon_count or 100 for book in actual_books)
+                first_serials = [book.first_coupon_number for book in actual_books if book.first_coupon_number]
+                last_serials = [book.last_coupon_number for book in actual_books if book.last_coupon_number]
+                
+                if first_serials:
+                    dispatch.first_serial = min(first_serials)
+                if last_serials:
+                    dispatch.last_serial = max(last_serials)
+                dispatch.total_coupons = total_coupons
+                dispatch.save()
+                
+                print(f"Successfully linked {len(actual_books)} actual books to dispatch {dispatch.id}")
+            else:
+                print(f"Warning: No actual books found for dispatch {dispatch.id}, using payload data only")
+
+            # Build response using actual books data when available, fallback to payload
+            books_payload = data.get('books') or []
+            
+            # If we have actual books, use their data for accurate response
+            if actual_books:
+                # Create enriched book data from actual database books
+                enriched_books = []
+                for book in actual_books:
+                    # Find matching payload data for frontend fields
+                    payload_book = next((b for b in books_payload if 
+                                       b.get('bookId') == book.book_number or 
+                                       str(b.get('id')) == str(book.id)), {})
+                    
+                    enriched_books.append({
+                        'id': str(book.id),
+                        'bookId': book.book_number,
+                        'boxId': book.box.box_code if book.box else 'Unknown',
+                        'fuelType': book.box.fuel_type if book.box else 'DIESEL',
+                        'couponAmount': book.box.denomination if book.box else 20,
+                        'firstCouponId': book.first_coupon_number,
+                        'lastCouponId': book.last_coupon_number,
+                        'numberOfCoupons': book.initial_coupon_count or 100,
+                        'value': payload_book.get('value', 0),  # Keep frontend calculated value
+                        'pricePerLitre': payload_book.get('pricePerLitre', 1.45),
+                    })
+                
+                total_books = len(actual_books)
+                total_coupons = sum(book.initial_coupon_count or 100 for book in actual_books)
+                total_value = sum(float(b.get('value', 0)) for b in books_payload)  # Use payload values
+                response_books = enriched_books
+            else:
+                # Fallback to payload data
+                total_books = len(books_payload)
+                total_coupons = sum(int(b.get('numberOfCoupons', 0)) for b in books_payload)
+                total_value = sum(float(b.get('value', 0)) for b in books_payload)
+                response_books = books_payload
 
             now = timezone.localtime()
             dispatched_date = data.get('dispatchedDate') or now.strftime('%Y-%m-%d')
@@ -2935,10 +3015,10 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 'dispatchedBy': getattr(request.user, 'username', 'system'),
                 'dispatchedDate': dispatched_date,
                 'dispatchedTime': dispatched_time,
-                'books': books,
+                'books': response_books,
                 'totalBooks': total_books,
-                'totalCoupons': data.get('totalCoupons') or total_coupons,
-                'totalValue': data.get('totalValue') or round(total_value, 2),
+                'totalCoupons': total_coupons,
+                'totalValue': round(total_value, 2),
                 'status': status_val,
                 'receivedBy': data.get('receivedBy') or None,
                 'receivedDate': data.get('receivedDate') or None,

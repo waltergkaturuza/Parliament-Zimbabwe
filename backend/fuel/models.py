@@ -4893,16 +4893,41 @@ class DynamicAllocation(TimeStampedModel):
 # TEMPORARY MODEL STUBS - TO BE PROPERLY IMPLEMENTED LATER
 
 class BookDispatch(TimeStampedModel):
-    """Temporary stub for BookDispatch model"""
+    """Book dispatch model with actual book relationships"""
     to_center = models.ForeignKey(SubCenter, on_delete=models.CASCADE, related_name='dispatches', null=True, blank=True)
     dispatched_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispatches_sent', null=True, blank=True)
     received_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispatches_received', null=True, blank=True)
     status = models.CharField(max_length=20, choices=[('PENDING', 'Pending'), ('DISPATCHED', 'Dispatched'), ('RECEIVED', 'Received')], default='PENDING')
     dispatch_date = models.DateTimeField(auto_now_add=True)
     
+    # CRITICAL: Many-to-Many relationship with books
+    books = models.ManyToManyField(Book, related_name='dispatches', blank=True, help_text="Books included in this dispatch")
+    
+    # Additional fields for tracking
+    first_serial = models.CharField(max_length=50, null=True, blank=True, help_text="First coupon serial in this dispatch")
+    last_serial = models.CharField(max_length=50, null=True, blank=True, help_text="Last coupon serial in this dispatch")
+    total_coupons = models.IntegerField(default=0, help_text="Total number of coupons in this dispatch")
+    
     # Fields needed for analytics migration
     program = models.ForeignKey(Program, on_delete=models.CASCADE, null=True, blank=True, help_text="Program associated with this dispatch")
     session = models.ForeignKey(ParliamentSession, on_delete=models.CASCADE, null=True, blank=True, help_text="Parliament session associated with this dispatch")
+    
+    def __str__(self):
+        return f"Dispatch to {self.to_center.name if self.to_center else 'Unknown'} - {self.status}"
+    
+    @property
+    def total_books(self):
+        """Count of books in this dispatch"""
+        return self.books.count()
+    
+    @property
+    def total_value(self):
+        """Total monetary value of this dispatch"""
+        total = 0
+        for book in self.books.all():
+            if book.box:
+                total += (book.initial_coupon_count or 100) * (book.box.denomination or 20) * 1.45  # Default price per liter
+        return total
     
     class Meta:
         db_table = 'fuel_bookdispatch'

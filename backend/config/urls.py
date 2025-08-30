@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
+from fuel.urls import lazy_api_view  # reuse lazy resolver for function-based views
 from .health_check import health_check, simple_health
 from api.views import health_check as api_health_check
 
@@ -273,6 +274,9 @@ if settings.DEBUG:
     # In local dev, override the Login route to use debug_local_login to avoid credential issues
     urlpatterns = [
         path('api/auth/login/', debug_local_login, name='auth-login-debug'),
+    # Local-only duplicates for analytics endpoints to avoid 404s in dev
+    path('api/analytics/subcenter-distribution-timeline/', lazy_api_view('subcenter_distribution_timeline_view'), name='analytics-subcenter-distribution-timeline-debug'),
+    path('api/analytics/top-programs-consumption/', lazy_api_view('top_programs_consumption_timeline_view'), name='analytics-top-programs-consumption-debug'),
     ] + urlpatterns
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 else:
