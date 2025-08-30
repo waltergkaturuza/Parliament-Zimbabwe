@@ -1273,11 +1273,13 @@ const BookDispatchManagement: FC = () => {
             {dispatchType === 'BOOK' ? 'New Book Dispatch' : 'New Page Dispatch'}
           </Space>
         }
-        open={isModalVisible}
-        onCancel={handleModalClose}
-        footer={null}
-        width={900}
-        destroyOnHidden
+  open={isModalVisible}
+  onCancel={handleModalClose}
+  footer={null}
+  width="95vw"
+  style={{ top: 16 }}
+  bodyStyle={{ maxHeight: '82vh', overflow: 'auto' }}
+  destroyOnHidden
       >
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step title="Sub Center" icon={<EnvironmentOutlined />} />
@@ -1417,7 +1419,7 @@ const BookDispatchManagement: FC = () => {
                 onChange={(nextTargetKeys) => setSelectedBooks(nextTargetKeys as string[])}
                 rowKey={(item) => item.key}
                 showSearch
-                listStyle={{ width: '48%', height: 400 }}
+                listStyle={{ width: '48%', height: 600 }}
                 render={(item) => `${item.bookId} • ${item.boxId} • ${item.fuelType} • ${item.couponAmount} • ${item.numberOfCoupons}`}
                 titles={['Available Books', 'Selected Books']}
               />
@@ -1726,7 +1728,7 @@ const BookDispatchManagement: FC = () => {
       </Modal>
 
       {/* View Dispatch Details Modal */}
-      <Modal
+  <Modal
         title={
           <Space>
             <EyeOutlined />
@@ -1755,7 +1757,9 @@ const BookDispatchManagement: FC = () => {
             Print
           </Button>,
         ]}
-        width={900}
+  width="90vw"
+  style={{ top: 24 }}
+  bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}
       >
         {selectedDispatch && (
           <div>
@@ -1854,7 +1858,7 @@ const BookDispatchManagement: FC = () => {
       </Modal>
 
       {/* Book Details Modal */}
-      <Modal
+  <Modal
         title={
           <Space>
             <BookOutlined />
@@ -1881,7 +1885,9 @@ const BookDispatchManagement: FC = () => {
             Confirm Book Details
           </Button>,
         ]}
-        width={800}
+  width="85vw"
+  style={{ top: 24 }}
+  bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}
       >
         {selectedBookForDetails && (
           <div>
