@@ -29,6 +29,8 @@ import {
   DownloadOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
+import apiClient from '@/api';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { Step } = Steps;
@@ -41,12 +43,12 @@ interface HandoverRecord {
   bookCount: number;
   couponCount: number;
   fuelType: 'PETROL' | 'DIESEL';
-  status: 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'CONFIRMED';
+  status: 'PENDING' | 'DISPATCHED' | 'RECEIVED' | 'CONFIRMED';
   createdDate: string;
   deliveryDate?: string;
   confirmedDate?: string;
-  driverName: string;
-  vehicleNumber: string;
+  driverName?: string;
+  vehicleNumber?: string;
 }
 
 const HandoverManagement: FC = () => {
@@ -62,11 +64,44 @@ const HandoverManagement: FC = () => {
 
   const fetchHandovers = async () => {
     try {
-      // Use real API data - no fallback mock data
-      setHandovers([]);
+      setLoading(true);
+      // For sub-center users, backend filters /dispatches/ to to_center=current user's subcenter
+      const resp = await apiClient.get('/dispatches/');
+      const rows = Array.isArray(resp.data?.results) ? resp.data.results : (Array.isArray(resp.data) ? resp.data : []);
+
+      // Normalize mixed backend shapes: serializer snake_case vs create() camelCase
+      const normalize = (d: any): HandoverRecord => {
+        const id = String(d.id ?? d.dispatchId ?? d.dispatch_id ?? '');
+        const toCenter = d.to_center?.name ?? d.subCenterName ?? d.subcenter_name ?? '';
+        const fromCenter = d.from_center?.name ?? d.fromCenter ?? 'Main Center';
+        const created = d.dispatch_date ?? d.dispatched_date ?? d.dispatchedDate ?? d.created ?? new Date().toISOString();
+        // Count books/coupons from payload if present; fall back to totals
+        const books = Array.isArray(d.books) ? d.books : [];
+        const bookCount = Number(d.total_books ?? d.totalBooks ?? books.length ?? 0);
+        const couponCount = Number(d.total_coupons ?? d.totalCoupons ?? books.reduce((s: number, b: any) => s + Number(b.numberOfCoupons || 0), 0));
+        const fuelType = (books[0]?.fuelType ?? 'DIESEL') as 'PETROL' | 'DIESEL';
+        const status = (d.status ?? 'DISPATCHED') as HandoverRecord['status'];
+        return {
+          id,
+          handoverNumber: (d.dispatchId ?? d.dispatch_id ?? `DSP-${id}`).toString(),
+          fromCenter,
+          toCenter,
+          bookCount,
+          couponCount,
+          fuelType,
+          status,
+          createdDate: dayjs(created).format('YYYY-MM-DD HH:mm'),
+        };
+      };
+
+      const mapped: HandoverRecord[] = rows
+        .map(normalize)
+        .filter((h: HandoverRecord) => ['DISPATCHED', 'PENDING', 'RECEIVED', 'CONFIRMED'].includes(h.status));
+      setHandovers(mapped);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching handovers:', error);
+      message.error('Failed to load incoming handovers');
       setLoading(false);
     }
   };
@@ -142,38 +177,15 @@ const HandoverManagement: FC = () => {
         </Tag>
       ),
     },
-    {
-      title: 'Driver & Vehicle',
-      key: 'transport',
-      render: (_, record) => (
-        <div>
-          <Text>{record.driverName}</Text>
-          <br />
-          <Text type="secondary">{record.vehicleNumber}</Text>
-        </div>
-      ),
-    },
+    // Removed Driver & Vehicle column for sub-center acceptance flow
     {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button 
-            type="link" 
-            icon={<EyeOutlined />} 
-            size="small"
-            onClick={() => viewHandover(record)}
-          >
-            View
-          </Button>
-          {record.status === 'DELIVERED' && (
-            <Button 
-              type="primary" 
-              size="small"
-              onClick={() => confirmHandover(record)}
-            >
-              Confirm
-            </Button>
+          <Button type="link" icon={<EyeOutlined />} size="small" onClick={() => viewHandover(record)}>View</Button>
+          {record.status === 'DISPATCHED' && (
+            <Button type="primary" size="small" onClick={() => acceptHandover(record)}>Accept / Confirm Received</Button>
           )}
         </Space>
       ),
@@ -190,6 +202,18 @@ const HandoverManagement: FC = () => {
     setConfirmModalVisible(true);
   };
 
+  const acceptHandover = async (handover: HandoverRecord) => {
+    try {
+      // Update status to RECEIVED; backend also assigns received_by when supported
+      await apiClient.patch(`/dispatches/${handover.id}/`, { status: 'RECEIVED' });
+      message.success('Handover accepted');
+      fetchHandovers();
+    } catch (e: any) {
+      console.error('Accept error', e);
+      message.error(e?.response?.data?.detail || 'Failed to accept handover');
+    }
+  };
+
   const handleConfirmSubmit = async (values: any) => {
     try {
       // API call to confirm handover
@@ -201,7 +225,7 @@ const HandoverManagement: FC = () => {
     }
   };
 
-  const pendingCount = handovers.filter(h => h.status === 'PENDING' || h.status === 'DELIVERED').length;
+  const pendingCount = handovers.filter(h => h.status === 'PENDING' || h.status === 'DISPATCHED').length;
 
   return (
     <div style={{ padding: '24px' }}>

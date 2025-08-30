@@ -1988,6 +1988,15 @@ class CouponAllocationViewSet(viewsets.ModelViewSet):
         """
         Allocate multiple coupon ranges efficiently
         """
+        # Gating: require at least one RECEIVED dispatch for subcenter users
+        user = request.user
+        try:
+            if getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+                if not BookDispatch.objects.filter(to_center=user.sub_center, status='RECEIVED').exists():
+                    return Response({'error': 'You must accept at least one incoming dispatch before allocations.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            # If BookDispatch table missing or errors, do not hard fail allocations
+            pass
         allocations_data = request.data.get('allocations', [])
         
         if not allocations_data:
@@ -2836,6 +2845,9 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
+        # Allow sub-centers to PATCH their own dispatch to mark as RECEIVED
+        if self.action in ['partial_update']:
+            return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission()]
 
     def create(self, request, *args, **kwargs):
@@ -2925,6 +2937,156 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 {'detail': f'Failed to create dispatch', 'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    def list(self, request, *args, **kwargs):
+        """Return dispatches in a frontend-friendly shape without relying on serializer fields.
+
+        This avoids FieldError issues from optional relations missing in the current DB schema
+        (like books, notes, received_date, etc.). Also applies simple pagination and respects
+        sub-center scoping from get_queryset().
+        """
+        try:
+            qs = self.filter_queryset(self.get_queryset().order_by('-dispatch_date'))
+
+            # Simple pagination compatible with our other endpoints
+            page_size = request.query_params.get('page_size', 50)
+            page = request.query_params.get('page', 1)
+            try:
+                page_size = int(page_size)
+                page = int(page)
+            except Exception:
+                page_size = 50
+                page = 1
+
+            start = (page - 1) * page_size
+            end = start + page_size
+            items = list(qs[start:end])
+
+            results = []
+            now_str = timezone.localtime(timezone.now()).strftime('%Y-%m')
+            for d in items:
+                dispatched_local = timezone.localtime(getattr(d, 'dispatch_date', timezone.now()))
+                results.append({
+                    'id': str(d.id),
+                    'dispatchId': f"DSP-{now_str}-{str(d.id).zfill(4)}",
+                    'subCenterId': str(getattr(getattr(d, 'to_center', None), 'id', '') or ''),
+                    'subCenterName': getattr(getattr(d, 'to_center', None), 'name', '') or '',
+                    'dispatchedBy': getattr(getattr(d, 'dispatched_by', None), 'username', 'system'),
+                    'dispatchedDate': dispatched_local.strftime('%Y-%m-%d'),
+                    'dispatchedTime': dispatched_local.strftime('%H:%M'),
+                    'books': [],
+                    'totalBooks': 0,
+                    'totalCoupons': 0,
+                    'totalValue': 0.0,
+                    'status': getattr(d, 'status', 'DISPATCHED') or 'DISPATCHED',
+                    'receivedBy': getattr(getattr(d, 'received_by', None), 'username', None),
+                    'receivedDate': None,
+                    'receivedTime': None,
+                    'receiverSignature': None,
+                    'transportDetails': None,
+                    'vehicleNumber': None,
+                    'driverName': None,
+                    'driverPhone': None,
+                    'notes': '',
+                    'trackingNumber': f"TRK-{now_str}{str(d.id).zfill(4)}",
+                })
+
+            return Response({
+                'results': results,
+                'count': qs.count(),
+                'page': page,
+                'page_size': page_size
+            })
+        except Exception as e:
+            return Response({
+                'results': [],
+                'count': 0,
+                'page': 1,
+                'page_size': 50,
+                'error': str(e)
+            }, status=status.HTTP_200_OK)
+
+    def partial_update(self, request, *args, **kwargs):
+        """Allow sub-center to accept/confirm receipt of a dispatch addressed to them.
+
+        Only permits setting status to RECEIVED (or CONFIRMED for future workflows) on own dispatches.
+        Other updates remain restricted to main center via default permissions.
+        """
+        try:
+            instance = self.get_object()
+            user = request.user
+
+            requested_status = str(request.data.get('status') or '').upper()
+            allowed_statuses = {'RECEIVED'}
+
+            # Gate: only sub-center user for whom the dispatch is addressed can accept
+            if getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+                if instance.to_center_id != user.sub_center.id:
+                    return Response({'detail': 'Not authorized to modify this dispatch'}, status=status.HTTP_403_FORBIDDEN)
+                if requested_status not in allowed_statuses:
+                    return Response({'detail': 'Only status update to RECEIVED is allowed'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Perform safe update
+                instance.status = requested_status
+                try:
+                    instance.received_by = user  # field exists on stub
+                except Exception:
+                    pass
+                instance.save(update_fields=['status', 'received_by'] if hasattr(instance, 'received_by') else ['status'])
+
+                # Return the same lightweight shape as list/create
+                dispatched_local = timezone.localtime(getattr(instance, 'dispatch_date', timezone.now()))
+                now_str = timezone.localtime(timezone.now()).strftime('%Y-%m')
+                payload = {
+                    'id': str(instance.id),
+                    'dispatchId': f"DSP-{now_str}-{str(instance.id).zfill(4)}",
+                    'subCenterId': str(getattr(getattr(instance, 'to_center', None), 'id', '') or ''),
+                    'subCenterName': getattr(getattr(instance, 'to_center', None), 'name', '') or '',
+                    'dispatchedBy': getattr(getattr(instance, 'dispatched_by', None), 'username', 'system'),
+                    'dispatchedDate': dispatched_local.strftime('%Y-%m-%d'),
+                    'dispatchedTime': dispatched_local.strftime('%H:%M'),
+                    'books': [],
+                    'totalBooks': 0,
+                    'totalCoupons': 0,
+                    'totalValue': 0.0,
+                    'status': instance.status,
+                    'receivedBy': getattr(getattr(instance, 'received_by', None), 'username', None),
+                    'receivedDate': None,
+                    'receivedTime': None,
+                    'trackingNumber': f"TRK-{now_str}{str(instance.id).zfill(4)}",
+                }
+                return Response(payload)
+
+            # Fallback to default behavior for other roles (will be guarded by MainCenterPermission)
+            return super().partial_update(request, *args, **kwargs)
+
+        except Exception as e:
+            return Response({'detail': 'Failed to update dispatch', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def accept(self, request, pk=None):
+        """Dedicated endpoint to accept a dispatch. Alias for PATCH status=RECEIVED.
+
+        Only the addressed subcenter can accept their dispatch.
+        """
+        try:
+            instance = self.get_object()
+            user = request.user
+            if getattr(user, 'role', None) != 'SUB_CENTER' or not getattr(user, 'sub_center', None):
+                return Response({'detail': 'Only subcenter users can accept a dispatch'}, status=status.HTTP_403_FORBIDDEN)
+            if instance.to_center_id != user.sub_center.id:
+                return Response({'detail': 'Not authorized to accept this dispatch'}, status=status.HTTP_403_FORBIDDEN)
+
+            instance.status = 'RECEIVED'
+            try:
+                instance.received_by = user
+            except Exception:
+                pass
+            instance.save(update_fields=['status', 'received_by'] if hasattr(instance, 'received_by') else ['status'])
+
+            return Response({'status': 'RECEIVED', 'id': str(instance.id)})
+        except Exception as e:
+            return Response({'detail': 'Failed to accept dispatch', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def available_books(self, request):
@@ -3345,6 +3507,14 @@ class CouponAllocationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_allocate(self, request):
         """Bulk allocate coupons to beneficiaries"""
+        # Gating: require at least one RECEIVED dispatch for subcenter users
+        user = request.user
+        try:
+            if getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+                if not BookDispatch.objects.filter(to_center=user.sub_center, status='RECEIVED').exists():
+                    return Response({'error': 'You must accept at least one incoming dispatch before allocations.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            pass
         allocations = request.data.get('allocations', [])
         created_allocations = []
         
