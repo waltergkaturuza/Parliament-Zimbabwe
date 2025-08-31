@@ -886,7 +886,7 @@ const BeneficiaryManagement = () => {
         }}
         onOk={() => createForm.submit()}
         confirmLoading={isLoading}
-        width={900}
+        width={1200}
         destroyOnHidden
       >
         <Form
@@ -999,7 +999,7 @@ const BeneficiaryManagement = () => {
             {/* Personal Information */}
             <Card size="small" title="Personal Information">
               <Row gutter={16}>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="firstName"
                     label="First Name"
@@ -1008,7 +1008,7 @@ const BeneficiaryManagement = () => {
                     <Input placeholder="Enter first name" />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="lastName"
                     label="Last Name"
@@ -1017,13 +1017,22 @@ const BeneficiaryManagement = () => {
                     <Input placeholder="Enter last name" />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="employeeId"
                     label="Employee/Parliamentary ID"
                     rules={[{ required: false, message: 'Please enter ID' }]}
                   >
                     <Input placeholder="Auto-generated if left empty" />
+                  </Form.Item>
+                </Col>
+                <Col span={6}>
+                  <Form.Item
+                    name="nationalId"
+                    label="National ID"
+                    rules={[{ required: true, message: 'Please enter national ID' }]}
+                  >
+                    <Input placeholder="Enter national ID" />
                   </Form.Item>
                 </Col>
               </Row>
@@ -1052,23 +1061,11 @@ const BeneficiaryManagement = () => {
                 </Col>
                 <Col span={8}>
                   <Form.Item
-                    name="nationalId"
-                    label="National ID"
-                    rules={[{ required: true, message: 'Please enter national ID' }]}
-                  >
-                    <Input placeholder="Enter national ID" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Item
                     name="address"
                     label="Address"
                     rules={[{ required: true, message: 'Please enter address' }]}
                   >
-                    <Input.TextArea rows={2} placeholder="Enter full address" />
+                    <Input.TextArea rows={1} placeholder="Enter full address" />
                   </Form.Item>
                 </Col>
               </Row>
@@ -1184,7 +1181,7 @@ const BeneficiaryManagement = () => {
             {/* Vehicle Information */}
             <Card size="small" title="Vehicle Information">
               <Row gutter={16}>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="vehicleMake"
                     label="Vehicle Make"
@@ -1193,7 +1190,7 @@ const BeneficiaryManagement = () => {
                     <Input placeholder="e.g., Toyota, Mercedes" />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="vehicleModel"
                     label="Vehicle Model"
@@ -1202,7 +1199,7 @@ const BeneficiaryManagement = () => {
                     <Input placeholder="e.g., Prado, C-Class" />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="vehicleYear"
                     label="Year"
@@ -1211,28 +1208,7 @@ const BeneficiaryManagement = () => {
                     <Input placeholder="e.g., 2020" type="number" />
                   </Form.Item>
                 </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Form.Item
-                    name="engineSize"
-                    label="Engine Size"
-                    rules={[{ required: true, message: 'Please enter engine size' }]}
-                  >
-                    <Input placeholder="e.g., 2.0L, 3.0L V6" />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item
-                    name="vehicleRegistration"
-                    label="Registration Number"
-                    rules={[{ required: true, message: 'Please enter registration' }]}
-                  >
-                    <Input placeholder="Enter registration number" />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="fuelType"
                     label="Fuel Type"
@@ -1242,6 +1218,27 @@ const BeneficiaryManagement = () => {
                       <Select.Option value="PETROL">Petrol</Select.Option>
                       <Select.Option value="DIESEL">Diesel</Select.Option>
                     </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="engineSize"
+                    label="Engine Size"
+                    rules={[{ required: true, message: 'Please enter engine size' }]}
+                  >
+                    <Input placeholder="e.g., 2.0L, 3.0L V6" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="vehicleRegistration"
+                    label="Registration Number"
+                    rules={[{ required: true, message: 'Please enter registration' }]}
+                  >
+                    <Input placeholder="Enter registration number" />
                   </Form.Item>
                 </Col>
               </Row>
