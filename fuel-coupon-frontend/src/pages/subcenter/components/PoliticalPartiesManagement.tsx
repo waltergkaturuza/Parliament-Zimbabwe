@@ -36,7 +36,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { apiClient } from '../../../services/api';
+import apiClient from '@/api';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
