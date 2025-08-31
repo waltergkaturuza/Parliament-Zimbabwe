@@ -2,7 +2,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Q, Count
 from django.utils import timezone
 
@@ -21,6 +21,14 @@ class PoliticalPartyViewSet(viewsets.ModelViewSet):
     """
     queryset = PoliticalParty.objects.all()
     permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """Allow unauthenticated access to read-only actions needed for dropdowns"""
+        if self.action in ['active_parties', 'parliamentary_parties']:
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
     
     def get_serializer_class(self):
         """Return appropriate serializer based on action"""
