@@ -31,24 +31,51 @@ EXCEPTION
         NULL;
 END $$;
 
--- Mark migrations as applied (safe approach)
+-- CRITICAL: Clean up any existing incorrect migration records first
+DELETE FROM django_migrations 
+WHERE app = 'fuel' AND name IN (
+    '10014_add_centralized_generation_fields',
+    '10015_remove_book_total_coupons_remove_coupon_fuel_type_and_more',
+    '10016_remove_book_total_coupons_remove_coupon_fuel_type_and_more'
+);
+
+-- Mark migrations as applied in CORRECT dependency order
+-- 1. First ensure the dependency migration exists
 INSERT INTO django_migrations (app, name, applied) 
-SELECT 'fuel', '10014_add_centralized_generation_fields', NOW()
+SELECT 'fuel', '10013_add_books_relationship', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM django_migrations 
+    WHERE app = 'fuel' AND name = '10013_add_books_relationship'
+);
+
+-- 2. Add small delay and insert dependent migration
+SELECT pg_sleep(0.1);
+INSERT INTO django_migrations (app, name, applied) 
+SELECT 'fuel', '10014_add_centralized_generation_fields', NOW() + INTERVAL '1 second'
 WHERE NOT EXISTS (
     SELECT 1 FROM django_migrations 
     WHERE app = 'fuel' AND name = '10014_add_centralized_generation_fields'
 );
 
+-- 3. Insert subsequent migrations with proper timing
+SELECT pg_sleep(0.1);
 INSERT INTO django_migrations (app, name, applied) 
-SELECT 'fuel', '10015_remove_book_total_coupons_remove_coupon_fuel_type_and_more', NOW()
+SELECT 'fuel', '10015_remove_book_total_coupons_remove_coupon_fuel_type_and_more', NOW() + INTERVAL '2 seconds'
 WHERE NOT EXISTS (
     SELECT 1 FROM django_migrations 
     WHERE app = 'fuel' AND name = '10015_remove_book_total_coupons_remove_coupon_fuel_type_and_more'
 );
 
+SELECT pg_sleep(0.1);
 INSERT INTO django_migrations (app, name, applied) 
-SELECT 'fuel', '10016_remove_book_total_coupons_remove_coupon_fuel_type_and_more', NOW()
+SELECT 'fuel', '10016_remove_book_total_coupons_remove_coupon_fuel_type_and_more', NOW() + INTERVAL '3 seconds'
 WHERE NOT EXISTS (
     SELECT 1 FROM django_migrations 
     WHERE app = 'fuel' AND name = '10016_remove_book_total_coupons_remove_coupon_fuel_type_and_more'
 );
+
+-- Verification
+SELECT 'MIGRATION DEPENDENCY FIX COMPLETE' as status;
+SELECT app, name, applied FROM django_migrations 
+WHERE app = 'fuel' AND name LIKE '1001%' 
+ORDER BY applied;
