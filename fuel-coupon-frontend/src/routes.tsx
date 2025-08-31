@@ -92,6 +92,7 @@ const UsageAnalytics = lazy(() => import('@/pages/analytics/UsageAnalytics'));
 const UsersPage = lazy(() => import('@/pages/users/UsersPage'));
 const SubCenterSettings = lazy(() => import('@/pages/subcenter/SubCenterSettings'));
 const SubCenterManagement = lazy(() => import('@/pages/subcenter/SubCenterManagement'));
+const SubCenterPoliticalPartiesPage = lazy(() => import('@/pages/subcenter/SubCenterPoliticalPartiesPage'));
 const SystemSettings = lazy(() => import('@/pages/admin/SystemSettings'));
 const AuditLogs = lazy(() => import('@/pages/admin/AuditLogs'));
 
@@ -261,6 +262,11 @@ const router = createBrowserRouter(
         <Route path="users" element={<Suspense fallback={<LoadingSpinner />}><UsersPage /></Suspense>} />
         <Route path="subcenters" element={<Suspense fallback={<LoadingSpinner />}><SubCenterSettings /></Suspense>} />
         <Route path="subcenter-management" element={<Suspense fallback={<LoadingSpinner />}><SubCenterManagement /></Suspense>} />
+        <Route path="political-parties" element={
+          <SubCenterRoute>
+            <Suspense fallback={<LoadingSpinner />}><SubCenterPoliticalPartiesPage /></Suspense>
+          </SubCenterRoute>
+        } />
         <Route path="settings" element={<Suspense fallback={<LoadingSpinner />}><SystemSettings /></Suspense>} />
         <Route path="audit-logs" element={<Suspense fallback={<LoadingSpinner />}><AuditLogs /></Suspense>} />
         

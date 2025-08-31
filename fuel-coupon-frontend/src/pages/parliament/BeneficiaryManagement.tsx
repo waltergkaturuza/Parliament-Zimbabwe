@@ -152,8 +152,32 @@ const BeneficiaryManagement = () => {
     },
   });
 
-  // Ensure constituencies is always an array
+  // Fetch political parties for dropdowns
+  const { data: politicalPartiesData, isLoading: partiesLoading } = useQuery({
+    queryKey: ['political-parties-active'],
+    queryFn: async () => {
+      const response = await apiClient.get('/political-parties/active_parties/');
+      const data = response.data;
+      // Handle both paginated response and direct array
+      return Array.isArray(data) ? data : (data.results || []);
+    },
+  });
+
+  // Fetch system users with BENEFICIARY role for dropdowns
+  const { data: systemUsersData, isLoading: usersLoading } = useQuery({
+    queryKey: ['system-users-beneficiaries'],
+    queryFn: async () => {
+      const response = await apiClient.get('/users/?role=BENEFICIARY&page_size=100');
+      const data = response.data;
+      // Handle both paginated response and direct array
+      return Array.isArray(data) ? data : (data.results || []);
+    },
+  });
+
+  // Ensure constituencies, parties, and users are always arrays
   const constituencies = constituenciesData || [];
+  const politicalParties = politicalPartiesData || [];
+  const systemUsers = systemUsersData || [];
 
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
@@ -914,6 +938,52 @@ const BeneficiaryManagement = () => {
           }}
         >
           <div className="space-y-4">
+            {/* System User Selection */}
+            <Card size="small" title="System User Selection">
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item
+                    name="systemUser"
+                    label="Link to Existing System User (Optional)"
+                    help="Select an existing system user with BENEFICIARY role to auto-populate information"
+                  >
+                    <Select
+                      placeholder="Select a system user or leave blank to create new"
+                      allowClear
+                      showSearch
+                      loading={usersLoading}
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                      }
+                      onChange={(userId) => {
+                        if (userId) {
+                          const selectedUser = systemUsers.find((user: any) => user.id === userId);
+                          if (selectedUser) {
+                            // Auto-populate form fields
+                            createForm.setFieldsValue({
+                              firstName: selectedUser.first_name || '',
+                              lastName: selectedUser.last_name || '',
+                              email: selectedUser.email || '',
+                              phoneNumber: selectedUser.phone_number || '',
+                              employeeId: selectedUser.username || '',
+                            });
+                            message.success(`Auto-populated data from user: ${selectedUser.username}`);
+                          }
+                        }
+                      }}
+                    >
+                      {systemUsers.map((user: any) => (
+                        <Select.Option key={user.id} value={user.id}>
+                          {user.username} - {user.first_name} {user.last_name} ({user.email})
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
             {/* Personal Information */}
             <Card size="small" title="Personal Information">
               <Row gutter={16}>
@@ -998,10 +1068,10 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="category"
-                    label="Parliamentary Position"
-                    rules={[{ required: true, message: 'Please select parliamentary position' }]}
+                    label="Parliamentary Position (Optional)"
+                    help="Leave blank if position will be assigned later"
                   >
-                    <Select placeholder="Select parliamentary position" showSearch>
+                    <Select placeholder="Select parliamentary position (optional)" showSearch allowClear>
                       <Select.Option value="SPEAKER_NATIONAL_ASSEMBLY">Speaker of the National Assembly</Select.Option>
                       <Select.Option value="DEPUTY_SPEAKER">Deputy Speaker</Select.Option>
                       <Select.Option value="MP">Members of Parliament (MPs)</Select.Option>
@@ -1075,15 +1145,21 @@ const BeneficiaryManagement = () => {
                     name="party"
                     label="Political Party"
                   >
-                    <Select placeholder="Select party" allowClear>
-                      <Select.Option value="ZANU-PF">ZANU-PF</Select.Option>
-                      <Select.Option value="MDC-T">MDC-T</Select.Option>
-                      <Select.Option value="MDC-A">MDC-A</Select.Option>
-                      <Select.Option value="CCC">Citizens Coalition for Change (CCC)</Select.Option>
-                      <Select.Option value="ZAPU">ZAPU</Select.Option>
-                      <Select.Option value="ZPF">Zimbabwe People First (ZPF)</Select.Option>
-                      <Select.Option value="Independent">Independent</Select.Option>
-                      <Select.Option value="Other">Other</Select.Option>
+                    <Select 
+                      placeholder="Select party" 
+                      allowClear
+                      loading={partiesLoading}
+                      showSearch
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                      }
+                    >
+                      {politicalParties.map((party: any) => (
+                        <Select.Option key={party.id} value={party.short_name}>
+                          {party.short_name} - {party.name}
+                        </Select.Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>
@@ -1337,10 +1413,10 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="category"
-                    label="Parliamentary Position"
-                    rules={[{ required: true, message: 'Please select parliamentary position' }]}
+                    label="Parliamentary Position (Optional)"
+                    help="Leave blank if position will be assigned later"
                   >
-                    <Select placeholder="Select parliamentary position" showSearch>
+                    <Select placeholder="Select parliamentary position (optional)" showSearch allowClear>
                       <Select.Option value="SPEAKER_NATIONAL_ASSEMBLY">Speaker of the National Assembly</Select.Option>
                       <Select.Option value="DEPUTY_SPEAKER">Deputy Speaker</Select.Option>
                       <Select.Option value="MP">Members of Parliament (MPs)</Select.Option>
@@ -1414,15 +1490,21 @@ const BeneficiaryManagement = () => {
                     name="party"
                     label="Political Party"
                   >
-                    <Select placeholder="Select party" allowClear>
-                      <Select.Option value="ZANU-PF">ZANU-PF</Select.Option>
-                      <Select.Option value="MDC-T">MDC-T</Select.Option>
-                      <Select.Option value="MDC-A">MDC-A</Select.Option>
-                      <Select.Option value="CCC">Citizens Coalition for Change (CCC)</Select.Option>
-                      <Select.Option value="ZAPU">ZAPU</Select.Option>
-                      <Select.Option value="ZPF">Zimbabwe People First (ZPF)</Select.Option>
-                      <Select.Option value="Independent">Independent</Select.Option>
-                      <Select.Option value="Other">Other</Select.Option>
+                    <Select 
+                      placeholder="Select party" 
+                      allowClear
+                      loading={partiesLoading}
+                      showSearch
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                      }
+                    >
+                      {politicalParties.map((party: any) => (
+                        <Select.Option key={party.id} value={party.short_name}>
+                          {party.short_name} - {party.name}
+                        </Select.Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>

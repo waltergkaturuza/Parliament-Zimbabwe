@@ -27,6 +27,7 @@ from .models import (
     PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program, CouponHandover,
     SessionAttendanceRegistry, AttendanceRegistryMember, AttendanceCorrection
 )
+from .models_political_parties import PoliticalParty
 from .serializers import (
     CouponSerializer, SubCenterSerializer,
     BookSerializer, BoxSerializer, UserSerializer,
@@ -7743,3 +7744,7 @@ class SergeantOfArmsDashboardAPIView(APIView):
                 'error': str(e),
                 'status': 'error'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Import Political Party ViewSet at the end to make it available for URL routing
+from .views_political_parties import PoliticalPartyViewSet

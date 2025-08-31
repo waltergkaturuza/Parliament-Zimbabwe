@@ -1794,7 +1794,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     # status field is handled by the model field directly
     
     # Related objects - custom fields that handle both read and write
-    category = CategoryField(required=False)
+    category = CategoryField(required=False, allow_null=True)
     constituency = ConstituencyField(required=False) 
     party = serializers.CharField(required=False, allow_blank=True, source='party_affiliation')
     
@@ -2004,7 +2004,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         return value or None  # Convert empty string to None
     
     def create(self, validated_data):
-        """Create a new beneficiary with associated user"""
+        """Create a new beneficiary with associated user - Enhanced with auto-population"""
         from django.contrib.auth import get_user_model
         from .models import BeneficiaryCategory, Constituency, VehicleCategory
         from decimal import Decimal
@@ -2029,8 +2029,39 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         print("Constituency ID:", constituency_id)
         print("Vehicle Category ID:", vehicle_category_id)
         
-        # Create user if user data is provided
-        if user_data:
+        # NEW: Check if user_data contains an existing user_id/username to link to
+        existing_user = None
+        if user_data.get('id'):
+            try:
+                existing_user = User.objects.get(id=user_data['id'], role='BENEFICIARY')
+                print(f"Found existing BENEFICIARY user: {existing_user.username}")
+            except User.DoesNotExist:
+                print(f"User with ID {user_data['id']} not found or not a BENEFICIARY")
+        elif user_data.get('username'):
+            try:
+                existing_user = User.objects.get(username=user_data['username'], role='BENEFICIARY')
+                print(f"Found existing BENEFICIARY user: {existing_user.username}")
+            except User.DoesNotExist:
+                print(f"User with username {user_data['username']} not found or not a BENEFICIARY")
+        elif user_data.get('email'):
+            try:
+                existing_user = User.objects.get(email=user_data['email'], role='BENEFICIARY')
+                print(f"Found existing BENEFICIARY user: {existing_user.username}")
+            except User.DoesNotExist:
+                print(f"User with email {user_data['email']} not found or not a BENEFICIARY")
+        
+        # Use existing user or create new one
+        if existing_user:
+            user = existing_user
+            print(f"Using existing user: {user.username} ({user.email})")
+            # Auto-populate data from existing user
+            if not validated_data.get('employee_id'):
+                validated_data['employee_id'] = user.username
+            # Extract name info for position if not provided
+            if not validated_data.get('position') and user.first_name and user.last_name:
+                validated_data['position'] = f"{user.first_name} {user.last_name}"
+        elif user_data:
+            # Create new user with provided data
             # Generate unique username
             base_username = user_data.get('email', '').split('@')[0] or validated_data.get('employee_id', 'user')
             username = base_username
@@ -2065,7 +2096,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         # Set user in validated_data
         validated_data['user'] = user
         
-        # Set foreign key relationships - Category is REQUIRED
+        # Set foreign key relationships - Category is now OPTIONAL
         if category_id:
             try:
                 if isinstance(category_id, str):
@@ -2083,13 +2114,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                     description=f"Parliamentary position: {category_name}"
                 )
                 validated_data['category'] = category
-        else:
-            # If no category provided, create a default one
-            category, created = BeneficiaryCategory.objects.get_or_create(
-                name='ADMINISTRATIVE_STAFF',
-                defaults={'description': 'Administrative Staff'}
-            )
-            validated_data['category'] = category
+        # No else clause - category can be None now
         
         if constituency_id:
             try:

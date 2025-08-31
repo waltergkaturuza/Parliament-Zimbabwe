@@ -11,6 +11,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.conf import settings
 from .validators import validate_petrotrade_serial
 
+# Import political parties model
+from .models_political_parties import PoliticalParty
+
 
 # --- Archive and Audit Managers ---
 
@@ -3624,7 +3627,10 @@ class BeneficiaryProfile(TimeStampedModel):
     category = models.ForeignKey(
         BeneficiaryCategory,
         on_delete=models.PROTECT,
-        related_name='beneficiaries'
+        related_name='beneficiaries',
+        null=True,
+        blank=True,
+        help_text="Beneficiary category - optional, can be set later"
     )
     constituency = models.ForeignKey(
         Constituency,
@@ -3743,9 +3749,12 @@ class BeneficiaryProfile(TimeStampedModel):
     )
     
     # Political Information (Added for parliament operations)
-    party_affiliation = models.CharField(
-        max_length=100, 
-        blank=True, 
+    political_party = models.ForeignKey(
+        PoliticalParty,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='beneficiaries',
         help_text="Political party affiliation"
     )
     
@@ -5110,7 +5119,10 @@ class HarmonizedBeneficiaryProfile(TimeStampedModel):
     category = models.ForeignKey(
         BeneficiaryCategory,
         on_delete=models.PROTECT,
-        related_name='harmonized_beneficiaries'
+        related_name='harmonized_beneficiaries',
+        null=True,
+        blank=True,
+        help_text="Beneficiary category - optional, can be set later"
     )
     constituency = models.ForeignKey(
         Constituency,
@@ -5130,7 +5142,14 @@ class HarmonizedBeneficiaryProfile(TimeStampedModel):
     # Professional Information
     position = models.CharField(max_length=100, blank=True)
     department = models.CharField(max_length=100, blank=True)
-    party_affiliation = models.CharField(max_length=100, blank=True)
+    political_party = models.ForeignKey(
+        PoliticalParty,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='harmonized_beneficiaries',
+        help_text="Political party affiliation"
+    )
     
     # Personal Information
     date_of_birth = models.DateField(null=True, blank=True)

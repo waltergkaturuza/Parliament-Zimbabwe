@@ -450,7 +450,7 @@ class ConstituencyAdmin(admin.ModelAdmin):
 # BeneficiaryProfile Admin
 @admin.register(BeneficiaryProfile)
 class BeneficiaryProfileAdmin(admin.ModelAdmin):
-    list_display = ['get_full_name', 'employee_id', 'category', 'constituency', 'party_affiliation', 'status', 'monthly_entitlement_litres']
+    list_display = ['get_full_name', 'employee_id', 'category', 'constituency', 'political_party', 'status', 'monthly_entitlement_litres']
     list_filter = ['status', 'category', 'is_active_beneficiary', 'vehicle_category']
     search_fields = ['user__first_name', 'user__last_name', 'employee_id', 'vehicle_registration']
     raw_id_fields = ['user', 'category', 'constituency', 'vehicle_category']
@@ -463,7 +463,7 @@ class BeneficiaryProfileAdmin(admin.ModelAdmin):
             'fields': ('category', 'constituency', 'vehicle_category')
         }),
         ('Position Details', {
-            'fields': ('position', 'department', 'office_location', 'party_affiliation')
+            'fields': ('position', 'department', 'office_location', 'political_party')
         }),
         ('Fuel Allocation', {
             'fields': ('monthly_entitlement_litres', 'base_allocation', 'category_multiplier', 'engine_multiplier')
