@@ -12,7 +12,8 @@ import {
   ArrowLeftOnRectangleIcon,
   ChevronDownIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  BuildingLibraryIcon
 } from '@heroicons/react/24/outline';
 import { ClipboardDocumentCheckIcon } from '@heroicons/react/24/solid';
 
@@ -49,6 +50,12 @@ const NavBar = () => {
       label: 'Coupons',
       icon: <TicketIcon className="h-5 w-5 flex-shrink-0" />,
       roles: ['MAIN_CENTER', 'SUB_CENTER']
+    },
+    {
+      path: '/dashboard/political-parties',
+      label: 'Political Parties',
+      icon: <BuildingLibraryIcon className="h-5 w-5 flex-shrink-0" />,
+      roles: ['SUB_CENTER', 'MAIN_CENTER']
     },
     {
       path: '/attendance',
