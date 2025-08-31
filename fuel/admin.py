@@ -8,13 +8,30 @@ from .models import (
     BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
     BeneficiaryProfile, BookDispatch, CouponAllocation, FuelEntitlement,
     CouponDistribution, AuditLog, SystemAlert, SessionAttendance,
-    FuelRequirementConfiguration, Program
+    Program, FuelRequirementConfiguration
 )
 from django import forms
 from django.db import models
 
 class BeneficiaryProfileAdminForm(forms.ModelForm):
-    """Custom form for BeneficiaryProfile admin with organized sections"""
+    """Custom form for BeneficiaryProfile admin with organized sections and proper widgets"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Customize User field to show only Beneficiary users
+        if 'user' in self.fields:
+            self.fields['user'].queryset = User.objects.filter(role='BENEFICIARY').order_by('username')
+            self.fields['user'].empty_label = "Select a beneficiary user"
+        
+        # Customize Category field
+        if 'category' in self.fields:
+            self.fields['category'].queryset = BeneficiaryCategory.objects.filter(is_active=True).order_by('name')
+            self.fields['category'].empty_label = "Select a category (optional)"
+        
+        # Customize Constituency field
+        if 'constituency' in self.fields:
+            self.fields['constituency'].queryset = Constituency.objects.all().order_by('name')
+            self.fields['constituency'].empty_label = "Select a constituency (optional)"
     
     class Meta:
         model = BeneficiaryProfile
@@ -26,6 +43,8 @@ class BeneficiaryProfileAdminForm(forms.ModelForm):
             'engine_multiplier': forms.NumberInput(attrs={'step': '0.01'}),
             'current_balance': forms.NumberInput(attrs={'step': '0.01'}),
             'used_this_month': forms.NumberInput(attrs={'step': '0.01'}),
+            'date_of_birth': forms.DateInput(attrs={'type': 'date'}),
+            'address': forms.Textarea(attrs={'rows': 3}),
         }
 
 class BoxAdminForm(forms.ModelForm):
@@ -450,39 +469,92 @@ class ConstituencyAdmin(admin.ModelAdmin):
 # BeneficiaryProfile Admin
 @admin.register(BeneficiaryProfile)
 class BeneficiaryProfileAdmin(admin.ModelAdmin):
+    form = BeneficiaryProfileAdminForm
     list_display = ['get_full_name', 'employee_id', 'category', 'constituency', 'political_party', 'status', 'monthly_entitlement_litres']
     list_filter = ['status', 'category', 'is_active_beneficiary', 'vehicle_category']
     search_fields = ['user__first_name', 'user__last_name', 'employee_id', 'vehicle_registration']
-    raw_id_fields = ['user', 'category', 'constituency', 'vehicle_category']
+    # Removed raw_id_fields to show proper dropdowns instead of text inputs
+    autocomplete_fields = []  # Use autocomplete for large datasets if needed
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('user', 'employee_id', 'status', 'is_active_beneficiary')
+            'fields': ('user', 'employee_id', 'status', 'is_active_beneficiary'),
+            'description': 'Link to system user and basic identification'
+        }),
+        ('Personal Information', {
+            'fields': ('first_name', 'last_name', 'email', 'phone_number', 'address', 'date_of_birth', 'national_id'),
+            'description': 'Personal details for the beneficiary'
         }),
         ('Categories and Assignments', {
-            'fields': ('category', 'constituency', 'vehicle_category')
+            'fields': ('category', 'constituency', 'vehicle_category'),
+            'description': 'Parliamentary roles and assignments'
         }),
         ('Position Details', {
-            'fields': ('position', 'department', 'office_location', 'political_party')
+            'fields': ('position', 'department', 'office_location', 'political_party'),
+            'description': 'Work-related information'
         }),
         ('Fuel Allocation', {
-            'fields': ('monthly_entitlement_litres', 'base_allocation', 'category_multiplier', 'engine_multiplier')
+            'fields': ('monthly_entitlement_litres', 'base_allocation', 'category_multiplier', 'engine_multiplier'),
+            'description': 'Fuel entitlement calculations'
         }),
         ('Fuel Usage Tracking', {
-            'fields': ('current_balance', 'used_this_month', 'last_allocation_date')
+            'fields': ('current_balance', 'used_this_month', 'last_allocation_date'),
+            'description': 'Current fuel usage and balances'
         }),
         ('Vehicle Information', {
-            'fields': ('vehicle_make', 'vehicle_model', 'vehicle_year', 'engine_size', 'vehicle_registration', 'fuel_type')
+            'fields': ('vehicle_make', 'vehicle_model', 'vehicle_year', 'engine_size', 'vehicle_registration', 'fuel_type'),
+            'description': 'Vehicle details for fuel allocation'
         }),
         ('Advanced Settings', {
             'fields': ('engine_capacity_cc', 'distance_from_parliament_km'),
-            'classes': ('collapse',)
+            'classes': ('collapse',),
+            'description': 'Advanced configuration options'
         })
     )
     
     def get_full_name(self, obj):
-        return f"{obj.user.first_name} {obj.user.last_name}"
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return f"{obj.first_name} {obj.last_name}".strip()
     get_full_name.short_description = 'Beneficiary Name'
+    
+    def save_model(self, request, obj, form, change):
+        """Auto-populate fields from linked user if available"""
+        if obj.user and not change:  # Only on creation
+            if not obj.first_name and obj.user.first_name:
+                obj.first_name = obj.user.first_name
+            if not obj.last_name and obj.user.last_name:
+                obj.last_name = obj.user.last_name
+            if not obj.email and obj.user.email:
+                obj.email = obj.user.email
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(BeneficiaryCategory)
+class BeneficiaryCategoryAdmin(admin.ModelAdmin):
+    """Admin interface for managing beneficiary categories"""
+    list_display = ['name', 'description', 'monthly_entitlement_litres', 'category_multiplier', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name', 'description']
+    ordering = ['name']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'description', 'is_active'),
+            'description': 'Category identification and status'
+        }),
+        ('Fuel Entitlements', {
+            'fields': ('monthly_entitlement_litres', 'category_multiplier'),
+            'description': 'Default fuel allocations for this category'
+        }),
+    )
+    
+    def get_readonly_fields(self, request, obj=None):
+        # Make name read-only after creation to prevent accidental changes
+        if obj:  # Editing existing object
+            return ['name']
+        return []
+
 
 # Admin Site Customization
 admin.site.site_header = "Fuel Coupon Management System"
