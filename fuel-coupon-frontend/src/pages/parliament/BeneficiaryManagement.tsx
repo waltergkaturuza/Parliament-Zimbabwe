@@ -174,10 +174,22 @@ const BeneficiaryManagement = () => {
     },
   });
 
-  // Ensure constituencies, parties, and users are always arrays
+  // Fetch beneficiary categories from backend
+  const { data: beneficiaryCategoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['beneficiary-categories'],
+    queryFn: async () => {
+      const response = await apiClient.get('/beneficiary-categories/');
+      const data = response.data;
+      // Handle both paginated response and direct array
+      return Array.isArray(data) ? data : (data.results || []);
+    },
+  });
+
+  // Ensure constituencies, parties, users, and categories are always arrays
   const constituencies = constituenciesData || [];
   const politicalParties = politicalPartiesData || [];
   const systemUsers = systemUsersData || [];
+  const beneficiaryCategories = beneficiaryCategoriesData || [];
 
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
@@ -1071,30 +1083,25 @@ const BeneficiaryManagement = () => {
                     label="Parliamentary Position (Optional)"
                     help="Leave blank if position will be assigned later"
                   >
-                    <Select placeholder="Select parliamentary position (optional)" showSearch allowClear>
-                      <Select.Option value="SPEAKER_NATIONAL_ASSEMBLY">Speaker of the National Assembly</Select.Option>
-                      <Select.Option value="DEPUTY_SPEAKER">Deputy Speaker</Select.Option>
-                      <Select.Option value="MP">Members of Parliament (MPs)</Select.Option>
-                      <Select.Option value="WOMEN_QUOTA_MP">Women Quota MPs</Select.Option>
-                      <Select.Option value="YOUTH_QUOTA_MP">Youth Quota MPs</Select.Option>
-                      <Select.Option value="MINISTER">Ministers</Select.Option>
-                      <Select.Option value="DEPUTY_MINISTER">Deputy Ministers</Select.Option>
-                      <Select.Option value="CHIEF_WHIP">Chief Whips</Select.Option>
-                      <Select.Option value="PORTFOLIO_COMMITTEE_MEMBER">Portfolio Committee Members</Select.Option>
-                      <Select.Option value="CLERK_OF_PARLIAMENT">Clerk of Parliament</Select.Option>
-                      <Select.Option value="SERGEANT_AT_ARMS">Sergeant-at-Arms</Select.Option>
-                      <Select.Option value="LEGAL_ADVISOR">Legal Advisors</Select.Option>
-                      <Select.Option value="HANSARD_STAFF">Hansard Staff</Select.Option>
-                      <Select.Option value="RESEARCH_OFFICER">Research Officers</Select.Option>
-                      <Select.Option value="ADMINISTRATIVE_STAFF">Administrative Staff</Select.Option>
-                      <Select.Option value="SENATOR">Senators</Select.Option>
-                      <Select.Option value="PRESIDENT_OF_SENATE">President of the Senate</Select.Option>
-                      <Select.Option value="DEPUTY_PRESIDENT_OF_SENATE">Deputy President of the Senate</Select.Option>
-                      <Select.Option value="TRADITIONAL_CHIEF_SENATOR">Traditional Chiefs (Senators)</Select.Option>
-                      <Select.Option value="DISABILITY_REPRESENTATIVE_SENATE">Disability Representatives (Senate)</Select.Option>
-                      <Select.Option value="PARLIAMENTARY_LEGAL_COMMITTEE">Parliamentary Legal Committee</Select.Option>
-                      <Select.Option value="PUBLIC_ACCOUNTS_COMMITTEE">Public Accounts Committee</Select.Option>
-                      <Select.Option value="COMMITTEE_CHAIRPERSON">Committee Chairpersons</Select.Option>
+                    <Select 
+                      placeholder="Select parliamentary position (optional)" 
+                      showSearch 
+                      allowClear
+                      loading={categoriesLoading}
+                      filterOption={(input, option) =>
+                        option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0
+                      }
+                    >
+                      {beneficiaryCategories.map((category: any) => (
+                        <Select.Option key={category.id} value={category.id}>
+                          {category.name}
+                          {category.description && (
+                            <span style={{ color: '#666', fontSize: '12px' }}>
+                              {' '}({category.description})
+                            </span>
+                          )}
+                        </Select.Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>
@@ -1416,30 +1423,25 @@ const BeneficiaryManagement = () => {
                     label="Parliamentary Position (Optional)"
                     help="Leave blank if position will be assigned later"
                   >
-                    <Select placeholder="Select parliamentary position (optional)" showSearch allowClear>
-                      <Select.Option value="SPEAKER_NATIONAL_ASSEMBLY">Speaker of the National Assembly</Select.Option>
-                      <Select.Option value="DEPUTY_SPEAKER">Deputy Speaker</Select.Option>
-                      <Select.Option value="MP">Members of Parliament (MPs)</Select.Option>
-                      <Select.Option value="WOMEN_QUOTA_MP">Women Quota MPs</Select.Option>
-                      <Select.Option value="YOUTH_QUOTA_MP">Youth Quota MPs</Select.Option>
-                      <Select.Option value="MINISTER">Ministers</Select.Option>
-                      <Select.Option value="DEPUTY_MINISTER">Deputy Ministers</Select.Option>
-                      <Select.Option value="CHIEF_WHIP">Chief Whips</Select.Option>
-                      <Select.Option value="PORTFOLIO_COMMITTEE_MEMBER">Portfolio Committee Members</Select.Option>
-                      <Select.Option value="CLERK_OF_PARLIAMENT">Clerk of Parliament</Select.Option>
-                      <Select.Option value="SERGEANT_AT_ARMS">Sergeant-at-Arms</Select.Option>
-                      <Select.Option value="LEGAL_ADVISOR">Legal Advisors</Select.Option>
-                      <Select.Option value="HANSARD_STAFF">Hansard Staff</Select.Option>
-                      <Select.Option value="RESEARCH_OFFICER">Research Officers</Select.Option>
-                      <Select.Option value="ADMINISTRATIVE_STAFF">Administrative Staff</Select.Option>
-                      <Select.Option value="SENATOR">Senators</Select.Option>
-                      <Select.Option value="PRESIDENT_OF_SENATE">President of the Senate</Select.Option>
-                      <Select.Option value="DEPUTY_PRESIDENT_OF_SENATE">Deputy President of the Senate</Select.Option>
-                      <Select.Option value="TRADITIONAL_CHIEF_SENATOR">Traditional Chiefs (Senators)</Select.Option>
-                      <Select.Option value="DISABILITY_REPRESENTATIVE_SENATE">Disability Representatives (Senate)</Select.Option>
-                      <Select.Option value="PARLIAMENTARY_LEGAL_COMMITTEE">Parliamentary Legal Committee</Select.Option>
-                      <Select.Option value="PUBLIC_ACCOUNTS_COMMITTEE">Public Accounts Committee</Select.Option>
-                      <Select.Option value="COMMITTEE_CHAIRPERSON">Committee Chairpersons</Select.Option>
+                    <Select 
+                      placeholder="Select parliamentary position (optional)" 
+                      showSearch 
+                      allowClear
+                      loading={categoriesLoading}
+                      filterOption={(input, option) =>
+                        option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0
+                      }
+                    >
+                      {beneficiaryCategories.map((category: any) => (
+                        <Select.Option key={category.id} value={category.id}>
+                          {category.name}
+                          {category.description && (
+                            <span style={{ color: '#666', fontSize: '12px' }}>
+                              {' '}({category.description})
+                            </span>
+                          )}
+                        </Select.Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>
