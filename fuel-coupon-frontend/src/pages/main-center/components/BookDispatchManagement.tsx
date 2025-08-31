@@ -195,19 +195,37 @@ const BookDispatchManagement: FC = () => {
         params.box_code = selectedBoxCode;
       }
 
-      // Try intelligent endpoint first, then fallback
+      // Try production endpoints in priority order
       let response;
-      try {
-        response = await apiClient.get('/books/available_for_dispatch/', { params });
-      } catch (error) {
-        console.warn('📚 Intelligent endpoint failed, trying standard endpoint...');
-        response = await apiClient.get('/books/', { 
-          params: { 
-            ...params,
-            is_verified: true,
-            status: 'AVAILABLE' 
+      const endpoints = [
+        '/fuel/books/available_for_dispatch/',  // Primary production endpoint
+        '/books/available_for_dispatch/',       // Secondary endpoint
+        '/fuel/books/',                         // Fallback with filtering
+        '/books/'                               // Last resort
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`📚 Attempting to load books from: ${endpoint}`);
+          
+          const requestParams = endpoint.includes('/fuel/books/') && !endpoint.includes('available_for_dispatch') 
+            ? { ...params, is_verified: true, status: 'AVAILABLE' }
+            : params;
+            
+          response = await apiClient.get(endpoint, { params: requestParams });
+          
+          if (response.data && (response.data.results || response.data.length > 0 || Array.isArray(response.data))) {
+            console.log(`✅ Successfully loaded books from: ${endpoint}`);
+            break;
           }
-        });
+        } catch (error) {
+          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          continue;
+        }
+      }
+
+      if (!response) {
+        throw new Error('All book endpoints failed');
       }
 
       const payload = response.data || {};
@@ -267,16 +285,55 @@ const BookDispatchManagement: FC = () => {
 
   const loadBoxes = async () => {
     try {
-      const response = await apiClient.get('/boxes/', {
-        params: { is_received: true, ordering: '-box_code', page_size: 200 },
-      });
+      // Try production endpoints in order
+      const endpoints = [
+        '/fuel/boxes/',     // Primary production endpoint
+        '/boxes/',          // Secondary endpoint  
+        '/fuel/box/',       // Alternative endpoint
+        '/box/'             // Last resort
+      ];
+      
+      let response;
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`📦 Attempting to load boxes from: ${endpoint}`);
+          response = await apiClient.get(endpoint, { 
+            params: { 
+              is_received: true, 
+              ordering: '-box_code', 
+              page_size: 200,
+              status: 'VERIFIED'
+            }
+          });
+          
+          if (response.data && (response.data.results || response.data.length > 0 || Array.isArray(response.data))) {
+            console.log(`✅ Successfully loaded boxes from: ${endpoint}`);
+            break;
+          }
+        } catch (error) {
+          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          continue;
+        }
+      }
+
+      if (!response) {
+        console.warn('All box endpoints failed, using empty array');
+        setBoxes([]);
+        return;
+      }
+
       const results = response.data?.results || response.data || [];
       const mapped = (Array.isArray(results) ? results : []).map((b: any) => ({
-        box_code: String(b.box_code || b.boxId || ''),
+        box_code: String(b.box_code || b.boxCode || b.boxId || b.code || ''),
         id: String(b.id || ''),
+        status: String(b.status || 'UNKNOWN'),
+        numberOfBooks: Number(b.numberOfBooks || b.number_of_books || b.total_books || 0),
       }));
-      setBoxes(mapped);
+      
+      console.log('📦 Mapped boxes:', mapped.length);
+      setBoxes(mapped.filter(box => box.box_code && box.numberOfBooks >= 0));
     } catch (err) {
+      console.error('Error loading boxes:', err);
       // Silent; filter will just not render options
       setBoxes([]);
     }
@@ -289,26 +346,51 @@ const BookDispatchManagement: FC = () => {
 
   const loadSubCenters = async () => {
     try {
-      // Try primary then alias for compatibility
-      let response = await apiClient.get('/subcenters/');
-      let data = response.data.results || response.data || [];
-      if (!Array.isArray(data) || data.length === 0) {
+      // Try production endpoints in order
+      const endpoints = [
+        '/fuel/subcenters/',    // Primary production endpoint
+        '/subcenters/',         // Secondary endpoint
+        '/fuel/sub-centers/',   // Alternative format
+        '/sub-centers/'         // Legacy endpoint
+      ];
+      
+      let data = [];
+      for (const endpoint of endpoints) {
         try {
-          const alt = await apiClient.get('/sub-centers/');
-          data = alt.data.results || alt.data || [];
-        } catch {}
+          console.log(`🏢 Attempting to load sub-centers from: ${endpoint}`);
+          const response = await apiClient.get(endpoint, {
+            params: {
+              ordering: 'name',
+              page_size: 200,
+              status: 'ACTIVE'
+            }
+          });
+          
+          const results = response.data?.results || response.data || [];
+          if (Array.isArray(results) && results.length > 0) {
+            console.log(`✅ Successfully loaded ${results.length} sub-centers from: ${endpoint}`);
+            data = results;
+            break;
+          }
+        } catch (error) {
+          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          continue;
+        }
       }
+
       const mapped = (Array.isArray(data) ? data : []).map((subcenter: any) => ({
         id: String(subcenter.id),
-        name: subcenter.name,
-        location: subcenter.location || 'Unknown Location',
+        name: subcenter.name || 'Unknown Center',
+        location: subcenter.location || subcenter.address || 'Unknown Location',
         officerName: subcenter.officer_in_charge?.first_name && subcenter.officer_in_charge?.last_name
           ? `${subcenter.officer_in_charge.first_name} ${subcenter.officer_in_charge.last_name}`
-          : (subcenter.officerName || 'Unknown Officer'),
-        phone: subcenter.contact_phone || subcenter.phone || '',
+          : (subcenter.officerName || subcenter.officer_name || 'Unknown Officer'),
+        phone: subcenter.contact_phone || subcenter.phone || subcenter.contact_number || '',
         email: subcenter.contact_email || subcenter.email || '',
         status: 'ACTIVE' as const,
       }));
+      
+      console.log('🏢 Mapped sub-centers:', mapped.length);
       setSubCenters(mapped);
     } catch (error) {
       console.error('Error loading sub-centers:', error);
@@ -1331,17 +1413,17 @@ const BookDispatchManagement: FC = () => {
         open={isModalVisible}
         onCancel={handleModalClose}
         footer={null}
-        width="98vw"
-        style={{ top: 8 }}
+        width="99vw"
+        style={{ top: 4 }}
         bodyStyle={{ 
-          maxHeight: '90vh', 
+          maxHeight: '92vh', 
           overflow: 'auto',
-          padding: '24px',
-          minHeight: '600px'
+          padding: '32px',
+          minHeight: '650px'
         }}
         destroyOnHidden
       >
-        <div style={{ minHeight: '70vh' }}>
+        <div style={{ minHeight: '75vh', padding: '0 16px' }}>
           <Steps current={currentStep} style={{ marginBottom: 32 }}>
             <Step title="Sub Center" icon={<EnvironmentOutlined />} />
             <Step 
@@ -1414,11 +1496,11 @@ const BookDispatchManagement: FC = () => {
                 </Card>
 
                 {/* Form Fields */}
-                <Row gutter={[24, 16]}>
-                  <Col xs={24} sm={12} lg={8}>
+                <Row gutter={[32, 24]}>
+                  <Col xs={24} sm={24} md={12} lg={8} xl={8}>
                     <Form.Item
                       label={
-                        <Text strong style={{ fontSize: '14px' }}>
+                        <Text strong style={{ fontSize: '15px' }}>
                           {dispatchType === 'PAGE' ? 'Page Dispatch ID' : 'Book Dispatch ID'}
                         </Text>
                       }
@@ -1431,60 +1513,72 @@ const BookDispatchManagement: FC = () => {
                         style={{ 
                           backgroundColor: '#f5f5f5',
                           borderColor: '#d9d9d9',
-                          color: '#595959'
+                          color: '#595959',
+                          width: '100%',
+                          minWidth: '200px'
                         }}
                       />
                     </Form.Item>
                   </Col>
                   
-                  <Col xs={24} sm={12} lg={8}>
+                  <Col xs={24} sm={24} md={12} lg={8} xl={8}>
                     <Form.Item
-                      label={<Text strong style={{ fontSize: '14px' }}>Dispatched By</Text>}
+                      label={<Text strong style={{ fontSize: '15px' }}>Dispatched By</Text>}
                       name="dispatchedBy"
                       rules={[{ required: true, message: 'Please enter dispatcher name' }]}
                     >
                       <Input 
                         placeholder={`Enter ${dispatchType.toLowerCase()} dispatcher name`}
                         size="large"
+                        style={{ 
+                          width: '100%',
+                          minWidth: '200px'
+                        }}
                       />
                     </Form.Item>
                   </Col>
 
-                  <Col xs={24} sm={12} lg={8}>
+                  <Col xs={24} sm={24} md={12} lg={8} xl={8}>
                     <Form.Item
-                      label={<Text strong style={{ fontSize: '14px' }}>Dispatch Date</Text>}
+                      label={<Text strong style={{ fontSize: '15px' }}>Dispatch Date</Text>}
                       name="dispatchedDate"
                       initialValue={dayjs()}
                       rules={[{ required: true, message: 'Please select date' }]}
                     >
                       <DatePicker 
-                        style={{ width: '100%' }}
+                        style={{ 
+                          width: '100%',
+                          minWidth: '200px'
+                        }}
                         size="large"
                       />
                     </Form.Item>
                   </Col>
                 </Row>
 
-                <Row gutter={[24, 16]}>
-                  <Col xs={24} sm={12} lg={8}>
+                <Row gutter={[32, 24]}>
+                  <Col xs={24} sm={24} md={12} lg={8} xl={8}>
                     <Form.Item
-                      label={<Text strong style={{ fontSize: '14px' }}>Dispatch Time</Text>}
+                      label={<Text strong style={{ fontSize: '15px' }}>Dispatch Time</Text>}
                       name="dispatchedTime"
                       initialValue={dayjs()}
                       rules={[{ required: true, message: 'Please select time' }]}
                     >
                       <TimePicker 
-                        style={{ width: '100%' }}
+                        style={{ 
+                          width: '100%',
+                          minWidth: '200px'
+                        }}
                         format="HH:mm"
                         size="large"
                       />
                     </Form.Item>
                   </Col>
 
-                  <Col xs={24} sm={12} lg={16}>
+                  <Col xs={24} sm={24} md={24} lg={16} xl={16}>
                     <Form.Item
                       label={
-                        <Text strong style={{ fontSize: '14px' }}>
+                        <Text strong style={{ fontSize: '15px' }}>
                           {dispatchType === 'PAGE' ? 'Destination Sub Center (for pages)' : 'Destination Sub Center (for books)'}
                         </Text>
                       }
@@ -1495,6 +1589,10 @@ const BookDispatchManagement: FC = () => {
                         placeholder={`Select destination sub center for ${dispatchType.toLowerCase()} dispatch`}
                         size="large"
                         showSearch
+                        style={{ 
+                          width: '100%',
+                          minWidth: '300px'
+                        }}
                         filterOption={(input, option) =>
                           (option?.children as unknown as string)
                             ?.toLowerCase()
@@ -1503,14 +1601,14 @@ const BookDispatchManagement: FC = () => {
                       >
                         {subCenters.map(sc => (
                           <Option key={sc.id} value={sc.id}>
-                            <div style={{ padding: '4px 0' }}>
-                              <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                            <div style={{ padding: '6px 0' }}>
+                              <div style={{ fontWeight: 600, fontSize: '15px' }}>
                                 {sc.name}
                               </div>
                               <div style={{ 
-                                fontSize: '12px', 
+                                fontSize: '13px', 
                                 color: '#8c8c8c',
-                                marginTop: '2px'
+                                marginTop: '3px'
                               }}>
                                 📍 {sc.location} • 👤 {sc.officerName}
                               </div>
