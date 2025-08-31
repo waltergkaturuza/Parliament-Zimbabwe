@@ -182,31 +182,86 @@ const BookDispatchManagement: FC = () => {
 
   const loadAvailableBooks = async () => {
     try {
-      // Prefer intelligent backend endpoint with accurate counts and values
-      const response = await apiClient.get('/books/available_for_dispatch/', {
-        params: selectedBoxCode ? { box_code: selectedBoxCode } : undefined,
-      });
+      setLoading(true);
+      
+      // Build query parameters for enhanced filtering
+      const params: any = { 
+        ordering: '-created_at',
+        page_size: 500, // Increased page size
+      };
+      
+      // Add box filter if selected
+      if (selectedBoxCode) {
+        params.box_code = selectedBoxCode;
+      }
+
+      // Try intelligent endpoint first, then fallback
+      let response;
+      try {
+        response = await apiClient.get('/books/available_for_dispatch/', { params });
+      } catch (error) {
+        console.warn('📚 Intelligent endpoint failed, trying standard endpoint...');
+        response = await apiClient.get('/books/', { 
+          params: { 
+            ...params,
+            is_verified: true,
+            status: 'AVAILABLE' 
+          }
+        });
+      }
+
       const payload = response.data || {};
       const data = payload.results || payload || [];
+      
+      console.log('📚 Raw books data:', data.length, 'books loaded');
+
       const mapped: AvailableBook[] = (Array.isArray(data) ? data : []).map((b: any) => ({
         key: String(b.id ?? b.bookId ?? b.bookCode ?? Math.random()),
-        bookId: String(b.bookCode ?? b.bookId ?? b.id ?? ''),
-        boxId: String(b.boxId ?? b.box_code ?? ''),
-        fuelType: (String(b.fuelType || '').toUpperCase() === 'PETROL' ? 'PETROL' : 'DIESEL') as 'PETROL' | 'DIESEL',
-        couponAmount: (b.denomination ?? 20) as 5 | 20,
-        firstCouponId: String(b.firstCouponNumber ?? b.first_coupon_number ?? ''),
-        lastCouponId: String(b.lastCouponNumber ?? b.last_coupon_number ?? ''),
-        numberOfCoupons: Number(b.numberOfCoupons ?? b.total_coupons ?? 100),
-        value: Number(b.estimatedValue ?? (Number(b.numberOfCoupons ?? 100) * Number(b.denomination ?? 20))),
-        pricePerLitre: Number(b.pricePerLitre ?? 0),
+        bookId: String(b.bookCode ?? b.bookId ?? b.book_id ?? b.id ?? ''),
+        boxId: String(b.boxId ?? b.box_code ?? b.boxCode ?? 'Unknown'),
+        fuelType: (String(b.fuelType || b.fuel_type || '').toUpperCase() === 'PETROL' ? 'PETROL' : 'DIESEL') as 'PETROL' | 'DIESEL',
+        couponAmount: (b.denomination ?? b.coupon_amount ?? 20) as 5 | 20,
+        firstCouponId: String(b.firstCouponNumber ?? b.first_coupon_number ?? b.first_coupon_serial ?? ''),
+        lastCouponId: String(b.lastCouponNumber ?? b.last_coupon_number ?? b.last_coupon_serial ?? ''),
+        numberOfCoupons: Number(b.numberOfCoupons ?? b.number_of_coupons ?? b.total_coupons ?? 100),
+        value: Number(b.estimatedValue ?? b.estimated_value ?? b.value ?? (Number(b.numberOfCoupons ?? 100) * Number(b.denomination ?? 20))),
+        pricePerLitre: Number(b.pricePerLitre ?? b.price_per_litre ?? 1.50),
         status: 'AVAILABLE',
+        // Additional metadata for enhanced display
+        createdAt: b.created_at ?? b.createdAt,
+        isGenerated: Boolean(b.is_generated ?? b.isGenerated ?? false),
+        verifiedAt: b.verified_at ?? b.verifiedAt,
       }));
+
+      console.log('📊 Books summary:', {
+        total: mapped.length,
+        petrol: mapped.filter(b => b.fuelType === 'PETROL').length,
+        diesel: mapped.filter(b => b.fuelType === 'DIESEL').length,
+        totalValue: mapped.reduce((sum, b) => sum + b.value, 0),
+        totalCoupons: mapped.reduce((sum, b) => sum + b.numberOfCoupons, 0),
+        fiveL: mapped.filter(b => b.couponAmount === 5).length,
+        twentyL: mapped.filter(b => b.couponAmount === 20).length,
+      });
+
       setAvailableBooks(mapped);
+
+      // Success feedback with stats
+      if (mapped.length > 0) {
+        const totalCoupons = mapped.reduce((sum, b) => sum + b.numberOfCoupons, 0);
+        const totalValue = mapped.reduce((sum, b) => sum + b.value, 0);
+        message.success(
+          `✅ Loaded ${mapped.length} books with ${totalCoupons.toLocaleString()} coupons (ZWG ${totalValue.toLocaleString()} total value)`
+        );
+      } else {
+        message.warning('⚠️ No available books found. Check filters or verify books first.');
+      }
+
     } catch (error) {
-      console.error('Error loading available books:', error);
-      message.error('Failed to load available books');
-      // Fallback to empty array
+      console.error('❌ Error loading available books:', error);
+      message.error('Failed to load available books. Please check your connection and try again.');
       setAvailableBooks([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1273,213 +1328,483 @@ const BookDispatchManagement: FC = () => {
             {dispatchType === 'BOOK' ? 'New Book Dispatch' : 'New Page Dispatch'}
           </Space>
         }
-  open={isModalVisible}
-  onCancel={handleModalClose}
-  footer={null}
-  width="95vw"
-  style={{ top: 16 }}
-  bodyStyle={{ maxHeight: '82vh', overflow: 'auto' }}
-  destroyOnHidden
+        open={isModalVisible}
+        onCancel={handleModalClose}
+        footer={null}
+        width="98vw"
+        style={{ top: 8 }}
+        bodyStyle={{ 
+          maxHeight: '90vh', 
+          overflow: 'auto',
+          padding: '24px',
+          minHeight: '600px'
+        }}
+        destroyOnHidden
       >
-        <Steps current={currentStep} style={{ marginBottom: 24 }}>
-          <Step title="Sub Center" icon={<EnvironmentOutlined />} />
-          <Step 
-            title={dispatchType === 'PAGE' ? 'Select Source Books' : 'Select Books'} 
-            icon={dispatchType === 'PAGE' ? <span>📚</span> : <BookOutlined />} 
-          />
-          <Step 
-            title={dispatchType === 'PAGE' ? 'Pages Details' : 'Books Details'} 
-            icon={dispatchType === 'PAGE' ? <span>📄</span> : <FileTextOutlined />} 
-          />
-          <Step title="Confirmation" icon={<CheckOutlined />} />
-        </Steps>
+        <div style={{ minHeight: '70vh' }}>
+          <Steps current={currentStep} style={{ marginBottom: 32 }}>
+            <Step title="Sub Center" icon={<EnvironmentOutlined />} />
+            <Step 
+              title={dispatchType === 'PAGE' ? 'Select Source Books' : 'Select Books'} 
+              icon={dispatchType === 'PAGE' ? <span>📚</span> : <BookOutlined />} 
+            />
+            <Step 
+              title={dispatchType === 'PAGE' ? 'Pages Details' : 'Books Details'} 
+              icon={dispatchType === 'PAGE' ? <span>📄</span> : <FileTextOutlined />} 
+            />
+            <Step title="Confirmation" icon={<CheckOutlined />} />
+          </Steps>
 
-        <Form
-          form={form}
-          layout="vertical"
-        >
-          {currentStep === 0 && (
-            <>
-              <Card size="small" style={{ marginBottom: 12, backgroundColor: dispatchType === 'PAGE' ? '#fff7e6' : '#f6ffed', border: dispatchType === 'PAGE' ? '1px solid #ffd591' : '1px solid #b7eb8f' }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Text strong style={{ color: dispatchType === 'PAGE' ? '#fa8c16' : '#52c41a' }}>
-                    {dispatchType === 'PAGE' ? '📄 Dispatch Type - Page Mode' : '📚 Dispatch Type - Book Mode'}
-                  </Text>
-                  <Radio.Group value={dispatchType} onChange={(e) => setDispatchType(e.target.value)} optionType="button">
-                    <Radio.Button value="BOOK">📚 Full Book</Radio.Button>
-                    <Radio.Button value="PAGE">📄 Coupon Pages</Radio.Button>
-                  </Radio.Group>
-                  {dispatchType === 'PAGE' && (
-                    <Alert type="warning" showIcon message="Page-level dispatch (beta)" description="Select source books, then specify number of coupons to dispatch from each. The details will be saved in notes until a dedicated endpoint is added." />
-                  )}
-                  {dispatchType === 'BOOK' && (
-                    <Alert type="info" showIcon message="Book-level dispatch" description="Select complete books to dispatch to the sub-center. All coupons in each book will be transferred." />
-                  )}
-                </Space>
-              </Card>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label={dispatchType === 'PAGE' ? 'Page Dispatch ID' : 'Book Dispatch ID'}
-                    name="dispatchId"
-                    initialValue={nextDispatchNumber}
-                  >
-                    <Input disabled />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    label="Dispatched By"
-                    name="dispatchedBy"
-                    rules={[{ required: true, message: 'Please enter dispatcher name' }]}
-                  >
-                    <Input placeholder={`Enter ${dispatchType.toLowerCase()} dispatcher name`} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    label="Dispatch Date"
-                    name="dispatchedDate"
-                    initialValue={dayjs()}
-                    rules={[{ required: true, message: 'Please select date' }]}
-                  >
-                    <DatePicker style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    label="Dispatch Time"
-                    name="dispatchedTime"
-                    initialValue={dayjs()}
-                    rules={[{ required: true, message: 'Please select time' }]}
-                  >
-                    <TimePicker style={{ width: '100%' }} format="HH:mm" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item
-                label={dispatchType === 'PAGE' ? 'Destination Sub Center (for pages)' : 'Destination Sub Center (for books)'}
-                name="subCenterId"
-                rules={[{ required: true, message: 'Please select sub center' }]}
-              >
-                <Select placeholder={`Select destination sub center for ${dispatchType.toLowerCase()} dispatch`}>
-                  {subCenters.map(sc => (
-                    <Option key={sc.id} value={sc.id}>
-                      <Space direction="vertical" size={0}>
-                        <Text strong>{sc.name}</Text>
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          {sc.location} - {sc.officerName}
-                        </Text>
-                      </Space>
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <div style={{ textAlign: 'right' }}>
-                <Button
-                  type="primary"
-                  onClick={() => setCurrentStep(1)}
+          <Form
+            form={form}
+            layout="vertical"
+            style={{ minHeight: '500px' }}
+          >
+            {currentStep === 0 && (
+              <div style={{ minHeight: '400px' }}>
+                {/* Dispatch Type Selection */}
+                <Card 
+                  size="small" 
+                  style={{ 
+                    marginBottom: 24, 
+                    backgroundColor: dispatchType === 'PAGE' ? '#fff7e6' : '#f6ffed', 
+                    border: dispatchType === 'PAGE' ? '1px solid #ffd591' : '1px solid #b7eb8f',
+                    borderRadius: '8px'
+                  }}
                 >
-                  {dispatchType === 'PAGE' ? 'Next: Select Source Books' : 'Next: Select Books'}
-                </Button>
-              </div>
-            </>
-          )}
-
-          {currentStep === 1 && (
-            <>
-              <Alert
-        message={dispatchType === 'PAGE' ? 'Select Source Books for Page Dispatch' : 'Select Books for Dispatch'}
-        description={dispatchType === 'PAGE' ? 'Choose the verified books to dispatch from. You will enter coupon counts in the next step.' : 'Choose the verified books to dispatch to the selected sub-center.'}
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-
-              <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                <Col span={8}>
-                  <Select
-                    allowClear
-                    placeholder="Filter by Box"
-                    value={selectedBoxCode}
-                    onChange={(val) => setSelectedBoxCode(val)}
-                    style={{ width: '100%' }}
-                    options={boxes.map(b => ({ label: b.box_code, value: b.box_code }))}
-                  />
-                </Col>
-              </Row>
-              <Transfer
-                dataSource={availableBooks}
-                targetKeys={selectedBooks}
-                onChange={(nextTargetKeys) => setSelectedBooks(nextTargetKeys as string[])}
-                rowKey={(item) => item.key}
-                showSearch
-                listStyle={{ width: '48%', height: 600 }}
-                render={(item) => `${item.bookId} • ${item.boxId} • ${item.fuelType} • ${item.couponAmount} • ${item.numberOfCoupons}`}
-                titles={['Available Books', 'Selected Books']}
-              />
-
-              {selectedBooks.length > 0 && (
-                <Card size="small" title="Dispatch Summary">
-                  <Row gutter={16}>
-                    <Col span={8}>
-                      <Statistic
-                        title="Total Books"
-                        value={selectedBooks.length}
-                        prefix={<BookOutlined />}
+                  <Space direction="vertical" style={{ width: '100%' }} size={16}>
+                    <Title level={4} style={{ 
+                      color: dispatchType === 'PAGE' ? '#fa8c16' : '#52c41a',
+                      margin: 0
+                    }}>
+                      {dispatchType === 'PAGE' ? '📄 Dispatch Type - Page Mode' : '📚 Dispatch Type - Book Mode'}
+                    </Title>
+                    
+                    <Radio.Group 
+                      value={dispatchType} 
+                      onChange={(e) => setDispatchType(e.target.value)} 
+                      optionType="button"
+                      size="large"
+                    >
+                      <Radio.Button value="BOOK" style={{ minWidth: '140px' }}>
+                        📚 Full Book
+                      </Radio.Button>
+                      <Radio.Button value="PAGE" style={{ minWidth: '140px' }}>
+                        📄 Coupon Pages
+                      </Radio.Button>
+                    </Radio.Group>
+                    
+                    {dispatchType === 'PAGE' && (
+                      <Alert 
+                        type="warning" 
+                        showIcon 
+                        message="Page-level dispatch (beta)" 
+                        description="Select source books, then specify number of coupons to dispatch from each. The details will be saved in notes until a dedicated endpoint is added." 
                       />
-                    </Col>
-                    <Col span={8}>
-                      <Statistic
-                        title="Total Coupons"
-                        value={availableBooks
-                          .filter(book => selectedBooks.includes(book.key))
-                          .reduce((sum, book) => sum + (dispatchType === 'PAGE' ? Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons) : book.numberOfCoupons), 0)
+                    )}
+                    {dispatchType === 'BOOK' && (
+                      <Alert 
+                        type="info" 
+                        showIcon 
+                        message="Book-level dispatch" 
+                        description="Select complete books to dispatch to the sub-center. All coupons in each book will be transferred." 
+                      />
+                    )}
+                  </Space>
+                </Card>
+
+                {/* Form Fields */}
+                <Row gutter={[24, 16]}>
+                  <Col xs={24} sm={12} lg={8}>
+                    <Form.Item
+                      label={
+                        <Text strong style={{ fontSize: '14px' }}>
+                          {dispatchType === 'PAGE' ? 'Page Dispatch ID' : 'Book Dispatch ID'}
+                        </Text>
+                      }
+                      name="dispatchId"
+                      initialValue={nextDispatchNumber}
+                    >
+                      <Input 
+                        disabled 
+                        size="large"
+                        style={{ 
+                          backgroundColor: '#f5f5f5',
+                          borderColor: '#d9d9d9',
+                          color: '#595959'
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                  
+                  <Col xs={24} sm={12} lg={8}>
+                    <Form.Item
+                      label={<Text strong style={{ fontSize: '14px' }}>Dispatched By</Text>}
+                      name="dispatchedBy"
+                      rules={[{ required: true, message: 'Please enter dispatcher name' }]}
+                    >
+                      <Input 
+                        placeholder={`Enter ${dispatchType.toLowerCase()} dispatcher name`}
+                        size="large"
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col xs={24} sm={12} lg={8}>
+                    <Form.Item
+                      label={<Text strong style={{ fontSize: '14px' }}>Dispatch Date</Text>}
+                      name="dispatchedDate"
+                      initialValue={dayjs()}
+                      rules={[{ required: true, message: 'Please select date' }]}
+                    >
+                      <DatePicker 
+                        style={{ width: '100%' }}
+                        size="large"
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={[24, 16]}>
+                  <Col xs={24} sm={12} lg={8}>
+                    <Form.Item
+                      label={<Text strong style={{ fontSize: '14px' }}>Dispatch Time</Text>}
+                      name="dispatchedTime"
+                      initialValue={dayjs()}
+                      rules={[{ required: true, message: 'Please select time' }]}
+                    >
+                      <TimePicker 
+                        style={{ width: '100%' }}
+                        format="HH:mm"
+                        size="large"
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col xs={24} sm={12} lg={16}>
+                    <Form.Item
+                      label={
+                        <Text strong style={{ fontSize: '14px' }}>
+                          {dispatchType === 'PAGE' ? 'Destination Sub Center (for pages)' : 'Destination Sub Center (for books)'}
+                        </Text>
+                      }
+                      name="subCenterId"
+                      rules={[{ required: true, message: 'Please select sub center' }]}
+                    >
+                      <Select 
+                        placeholder={`Select destination sub center for ${dispatchType.toLowerCase()} dispatch`}
+                        size="large"
+                        showSearch
+                        filterOption={(input, option) =>
+                          (option?.children as unknown as string)
+                            ?.toLowerCase()
+                            ?.includes(input.toLowerCase())
                         }
+                      >
+                        {subCenters.map(sc => (
+                          <Option key={sc.id} value={sc.id}>
+                            <div style={{ padding: '4px 0' }}>
+                              <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                                {sc.name}
+                              </div>
+                              <div style={{ 
+                                fontSize: '12px', 
+                                color: '#8c8c8c',
+                                marginTop: '2px'
+                              }}>
+                                📍 {sc.location} • 👤 {sc.officerName}
+                              </div>
+                            </div>
+                          </Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                {/* Action Buttons */}
+                <div style={{ 
+                  textAlign: 'right', 
+                  marginTop: 32,
+                  paddingTop: 16,
+                  borderTop: '1px solid #f0f0f0'
+                }}>
+                  <Button
+                    type="primary"
+                    size="large"
+                    onClick={() => setCurrentStep(1)}
+                    style={{ minWidth: '180px' }}
+                  >
+                    {dispatchType === 'PAGE' ? 'Next: Select Source Books' : 'Next: Select Books'} →
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 1 && (
+              <div style={{ minHeight: '500px' }}>
+                <Alert
+                  message={dispatchType === 'PAGE' ? 'Select Source Books for Page Dispatch' : 'Select Books for Dispatch'}
+                  description={dispatchType === 'PAGE' ? 'Choose the verified books to dispatch from. You will enter coupon counts in the next step.' : 'Choose the verified books to dispatch to the selected sub-center.'}
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 24 }}
+                />
+
+                {/* Enhanced Filters */}
+                <Card 
+                  title={
+                    <Space>
+                      <BookOutlined />
+                      <Text strong>Available Books & Filters</Text>
+                    </Space>
+                  }
+                  size="small"
+                  style={{ marginBottom: 24 }}
+                >
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} sm={8} lg={6}>
+                      <Text strong>Filter by Box:</Text>
+                      <Select
+                        allowClear
+                        placeholder="All Boxes"
+                        value={selectedBoxCode}
+                        onChange={(val) => setSelectedBoxCode(val)}
+                        style={{ width: '100%', marginTop: 4 }}
+                        size="large"
+                      >
+                        {boxes.map(b => (
+                          <Option key={b.box_code} value={b.box_code}>
+                            📦 {b.box_code}
+                          </Option>
+                        ))}
+                      </Select>
+                    </Col>
+                    
+                    <Col xs={24} sm={8} lg={6}>
+                      <Text strong>Filter by Fuel Type:</Text>
+                      <Select
+                        allowClear
+                        placeholder="All Fuel Types"
+                        style={{ width: '100%', marginTop: 4 }}
+                        size="large"
+                        onChange={(val) => {
+                          // Add fuel type filter logic here
+                        }}
+                      >
+                        <Option value="PETROL">⛽ Petrol</Option>
+                        <Option value="DIESEL">🚛 Diesel</Option>
+                      </Select>
+                    </Col>
+
+                    <Col xs={24} sm={8} lg={6}>
+                      <Text strong>Filter by Amount:</Text>
+                      <Select
+                        allowClear
+                        placeholder="All Amounts"
+                        style={{ width: '100%', marginTop: 4 }}
+                        size="large"
+                        onChange={(val) => {
+                          // Add amount filter logic here
+                        }}
+                      >
+                        <Option value="5">💧 5L Coupons</Option>
+                        <Option value="20">🛢️ 20L Coupons</Option>
+                      </Select>
+                    </Col>
+
+                    <Col xs={24} sm={24} lg={6}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
+                        <Button 
+                          type="default" 
+                          onClick={loadAvailableBooks}
+                          style={{ marginTop: 20 }}
+                          loading={loading}
+                          size="large"
+                        >
+                          🔄 Refresh Books
+                        </Button>
+                      </div>
+                    </Col>
+                  </Row>
+
+                  {/* Stats Cards */}
+                  <Row gutter={16} style={{ marginTop: 16 }}>
+                    <Col xs={12} sm={6}>
+                      <Statistic
+                        title="Total Available"
+                        value={availableBooks.length}
+                        prefix={<BookOutlined style={{ color: '#1890ff' }} />}
+                        valueStyle={{ color: '#1890ff', fontSize: '18px' }}
                       />
                     </Col>
-                    <Col span={8}>
+                    <Col xs={12} sm={6}>
+                      <Statistic
+                        title="Selected"
+                        value={selectedBooks.length}
+                        prefix={<CheckOutlined style={{ color: '#52c41a' }} />}
+                        valueStyle={{ color: '#52c41a', fontSize: '18px' }}
+                      />
+                    </Col>
+                    <Col xs={12} sm={6}>
+                      <Statistic
+                        title="Available Coupons"
+                        value={availableBooks.reduce((sum, book) => sum + book.numberOfCoupons, 0)}
+                        valueStyle={{ color: '#fa8c16', fontSize: '18px' }}
+                      />
+                    </Col>
+                    <Col xs={12} sm={6}>
                       <Statistic
                         title="Total Value"
-                        value={availableBooks
-                          .filter(book => selectedBooks.includes(book.key))
-                          .reduce((sum, book) => {
-                            if (dispatchType === 'PAGE') {
-                              const cnt = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
-                              const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
-                              return sum + cnt * unit;
-                            }
-                            return sum + book.value;
-                          }, 0)
-                        }
+                        value={availableBooks.reduce((sum, book) => sum + book.value, 0)}
                         formatter={(value) => `ZWG ${value?.toLocaleString()}`}
+                        valueStyle={{ color: '#722ed1', fontSize: '18px' }}
                       />
                     </Col>
                   </Row>
                 </Card>
-              )}
 
-              <div style={{ textAlign: 'right', marginTop: 16 }}>
-                <Space>
-                  <Button onClick={() => setCurrentStep(0)}>
-                    Previous
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={() => setCurrentStep(2)}
-                    disabled={selectedBooks.length === 0}
+                {/* Enhanced Transfer Component */}
+                <div style={{ backgroundColor: '#fafafa', padding: '16px', borderRadius: '8px' }}>
+                  <Transfer
+                    dataSource={availableBooks}
+                    targetKeys={selectedBooks}
+                    onChange={(nextTargetKeys) => setSelectedBooks(nextTargetKeys as string[])}
+                    rowKey={(item) => item.key}
+                    showSearch
+                    filterOption={(inputValue, item) => 
+                      item.bookId.toLowerCase().includes(inputValue.toLowerCase()) ||
+                      item.boxId.toLowerCase().includes(inputValue.toLowerCase()) ||
+                      item.fuelType.toLowerCase().includes(inputValue.toLowerCase())
+                    }
+                    listStyle={{ 
+                      width: '48%', 
+                      height: 500,
+                      backgroundColor: 'white',
+                      borderRadius: '6px',
+                      border: '1px solid #d9d9d9'
+                    }}
+                    render={(item) => (
+                      <div style={{ padding: '8px 0' }}>
+                        <div style={{ fontWeight: 600, color: '#1890ff' }}>
+                          📖 {item.bookId}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#8c8c8c', marginTop: '2px' }}>
+                          📦 Box: {item.boxId} • {item.fuelType === 'PETROL' ? '⛽' : '🚛'} {item.fuelType}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+                          💧 {item.couponAmount}L × {item.numberOfCoupons} coupons = ZWG {item.value.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#bfbfbf', marginTop: '2px' }}>
+                          Serial: {item.firstCouponId} → {item.lastCouponId}
+                        </div>
+                      </div>
+                    )}
+                    titles={[
+                      <span key="available">
+                        📚 Available Books ({availableBooks.length})
+                      </span>, 
+                      <span key="selected">
+                        ✅ Selected Books ({selectedBooks.length})
+                      </span>
+                    ]}
+                    operations={['Add →', '← Remove']}
+                  />
+                </div>
+
+                {/* Selection Summary */}
+                {selectedBooks.length > 0 && (
+                  <Card 
+                    size="small" 
+                    title={
+                      <Space>
+                        <CheckOutlined style={{ color: '#52c41a' }} />
+                        <Text strong>Dispatch Summary</Text>
+                      </Space>
+                    }
+                    style={{ marginTop: 24 }}
                   >
-                    {dispatchType === 'PAGE' ? 'Next: Pages Details' : 'Next: Books Details'}
-                  </Button>
-                </Space>
+                    <Row gutter={16}>
+                      <Col xs={12} sm={6}>
+                        <Statistic
+                          title="Selected Books"
+                          value={selectedBooks.length}
+                          prefix={<BookOutlined style={{ color: '#1890ff' }} />}
+                          valueStyle={{ color: '#1890ff' }}
+                        />
+                      </Col>
+                      <Col xs={12} sm={6}>
+                        <Statistic
+                          title="Total Coupons"
+                          value={availableBooks
+                            .filter(book => selectedBooks.includes(book.key))
+                            .reduce((sum, book) => sum + (dispatchType === 'PAGE' ? Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons) : book.numberOfCoupons), 0)
+                          }
+                          valueStyle={{ color: '#fa8c16' }}
+                        />
+                      </Col>
+                      <Col xs={12} sm={6}>
+                        <Statistic
+                          title="Total Value"
+                          value={availableBooks
+                            .filter(book => selectedBooks.includes(book.key))
+                            .reduce((sum, book) => {
+                              if (dispatchType === 'PAGE') {
+                                const cnt = Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons);
+                                const unit = (book.value / Math.max(book.numberOfCoupons, 1)) || 0;
+                                return sum + cnt * unit;
+                              }
+                              return sum + book.value;
+                            }, 0)
+                          }
+                          formatter={(value) => `ZWG ${value?.toLocaleString()}`}
+                          valueStyle={{ color: '#52c41a' }}
+                        />
+                      </Col>
+                      <Col xs={12} sm={6}>
+                        <Statistic
+                          title="Avg. Value/Book"
+                          value={selectedBooks.length > 0 ? (
+                            availableBooks
+                              .filter(book => selectedBooks.includes(book.key))
+                              .reduce((sum, book) => sum + book.value, 0) / selectedBooks.length
+                          ) : 0}
+                          formatter={(value) => `ZWG ${value?.toLocaleString()}`}
+                          valueStyle={{ color: '#722ed1' }}
+                        />
+                      </Col>
+                    </Row>
+                  </Card>
+                )}
+
+                {/* Action Buttons */}
+                <div style={{ 
+                  textAlign: 'right', 
+                  marginTop: 32,
+                  paddingTop: 16,
+                  borderTop: '1px solid #f0f0f0'
+                }}>
+                  <Space size={16}>
+                    <Button 
+                      onClick={() => setCurrentStep(0)}
+                      size="large"
+                      style={{ minWidth: '120px' }}
+                    >
+                      ← Previous
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="large"
+                      onClick={() => setCurrentStep(2)}
+                      disabled={selectedBooks.length === 0}
+                      style={{ minWidth: '180px' }}
+                    >
+                      {dispatchType === 'PAGE' ? 'Next: Pages Details' : 'Next: Books Details'} →
+                    </Button>
+                  </Space>
+                </div>
               </div>
-            </>
-          )}
+            )}
 
       {currentStep === 2 && (
             <>
@@ -1725,6 +2050,7 @@ const BookDispatchManagement: FC = () => {
             </>
           )}
         </Form>
+        </div>
       </Modal>
 
       {/* View Dispatch Details Modal */}
