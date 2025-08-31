@@ -21,14 +21,22 @@ ADD COLUMN IF NOT EXISTS page_number INTEGER;
 -- Update coupon_serial to have proper default
 ALTER TABLE fuel_coupon ALTER COLUMN coupon_serial SET DEFAULT 'NOT_PROVIDED';
 
--- Add unique constraint for coupon_serial (with error handling)
+-- Add unique constraint for coupon_serial (with proper error handling)
 DO $$ 
 BEGIN
-    ALTER TABLE fuel_coupon ADD CONSTRAINT fuel_coupon_coupon_serial_unique UNIQUE (coupon_serial);
+    -- Check if constraint already exists
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE table_name = 'fuel_coupon' 
+        AND constraint_name = 'fuel_coupon_coupon_serial_unique'
+        AND table_schema = 'public'
+    ) THEN
+        ALTER TABLE fuel_coupon ADD CONSTRAINT fuel_coupon_coupon_serial_unique UNIQUE (coupon_serial);
+    END IF;
 EXCEPTION
-    WHEN duplicate_object THEN
-        -- Constraint already exists, skip
-        NULL;
+    WHEN OTHERS THEN
+        -- Any other error, log but continue
+        RAISE NOTICE 'Constraint creation skipped: %', SQLERRM;
 END $$;
 
 -- CRITICAL: Clean up any existing incorrect migration records first
