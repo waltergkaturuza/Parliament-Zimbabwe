@@ -29,10 +29,11 @@ echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "Creating migrations if needed..."
-python manage.py makemigrations --noinput
+# REMOVED: python manage.py makemigrations --noinput
+# Never run makemigrations in production - migrations should be committed to git
 
 echo "Running database migrations..."
-python manage.py migrate
+python manage.py migrate --noinput
 
 echo "Creating admin superuser..."
 python manage.py create_admin
