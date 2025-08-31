@@ -634,14 +634,39 @@ class Box(ArchivableModel):
         help_text="Litres per coupon (5L, 10L, 20L, or 50L)"
     )
     
-    # Coupon Serial Number Validation (REQUIRED)
+    # Coupon Serial Number Validation (SINGLE SOURCE OF TRUTH)
+    first_coupon_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        validators=[validate_petrotrade_serial],
+        help_text="First coupon serial in the box (e.g., PU006H1355101)"
+    )
+    last_coupon_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        validators=[validate_petrotrade_serial],
+        help_text="Last coupon serial in the box (e.g., PU006H1356100)"
+    )
+    total_books = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Total number of books that will be generated for this box"
+    )
+    
+    # Legacy fields for backward compatibility
     first_coupon_number = models.CharField(
         max_length=50,
-        help_text="First coupon number in the box (e.g., PU006GH355101)"
+        blank=True,
+        null=True,
+        help_text="DEPRECATED: Use first_coupon_serial instead"
     )
     last_coupon_number = models.CharField(
         max_length=50,
-        help_text="Last coupon number in the box (e.g., PU006GH355200)"
+        blank=True,
+        null=True,
+        help_text="DEPRECATED: Use last_coupon_serial instead"
     )
     
     # Box Structure Information
@@ -1390,13 +1415,40 @@ class Book(ArchivableModel):
         max_length=50,
         help_text="Book number within the box (e.g., Book 1, Book 2, etc.)"
     )
+    first_coupon_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        validators=[validate_petrotrade_serial],
+        help_text="First coupon serial in this book (e.g., PU006H1355101)"
+    )
+    last_coupon_serial = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        validators=[validate_petrotrade_serial],
+        help_text="Last coupon serial in this book (e.g., PU006H1355200)"
+    )
+    # Legacy fields for backward compatibility
     first_coupon_number = models.CharField(
         max_length=50,
-        help_text="First coupon number in this book (e.g., PU00GH355101)"
+        blank=True,
+        null=True,
+        help_text="DEPRECATED: Use first_coupon_serial instead"
     )
     last_coupon_number = models.CharField(
         max_length=50,
-        help_text="Last coupon number in this book (e.g., PU00GH355110)"
+        blank=True,
+        null=True,
+        help_text="DEPRECATED: Use last_coupon_number instead"
+    )
+    total_coupons = models.IntegerField(
+        default=0,
+        help_text="Total number of coupons in this book"
+    )
+    is_generated = models.BooleanField(
+        default=False,
+        help_text="Whether this book was generated via the centralized service"
     )
     is_assigned = models.BooleanField(
         default=False,
@@ -2517,19 +2569,41 @@ class Coupon(ArchivableModel):
         blank=True,
         help_text="The page this coupon belongs to"
     )
-    coupon_number = models.CharField(
+    coupon_serial = models.CharField(
         max_length=50,
         unique=True,
         db_index=True,
         validators=[validate_petrotrade_serial],
-        help_text="Unique coupon number (e.g., PU006H355101 - PetroTrade format)"
+        help_text="Unique coupon serial (e.g., PU006H1355101 - PetroTrade format)"
+    )
+    page_number = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Page number within the book (1-based)"
+    )
+    fuel_type = models.CharField(
+        max_length=10,
+        default='DIESEL',
+        help_text="Type of fuel (PETROL/DIESEL)"
+    )
+    coupon_value = models.IntegerField(
+        default=20,
+        help_text="Fuel denomination in litres"
+    )
+    # Legacy fields for backward compatibility
+    coupon_number = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="DEPRECATED: Use coupon_serial instead"
     )
     serial_number = models.CharField(
         max_length=50,
         unique=True,
         null=True,
         blank=True,
-        help_text="Additional serial number if different from coupon_number"
+        help_text="DEPRECATED: Additional serial number"
     )
     barcode = models.TextField(
         blank=True,

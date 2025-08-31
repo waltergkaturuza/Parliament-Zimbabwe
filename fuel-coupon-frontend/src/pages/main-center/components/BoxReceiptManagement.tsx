@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/api/index';
+import { bookGenerationAPI } from '@/api/bookGeneration';
+import CentralizedBookGenerator from '@/components/CentralizedBookGenerator';
 import {
   Card,
   Table,
@@ -52,6 +54,7 @@ import {
   AlertOutlined,
   DownloadOutlined,
   ExportOutlined,
+  BookOutlined,
   ImportOutlined,
   FolderOutlined,
   FolderOpenOutlined,
@@ -205,6 +208,10 @@ const BoxReceiptManagement: FC = () => {
   // Print/Download state
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [selectedBoxForPrint, setSelectedBoxForPrint] = useState<BoxReceipt | null>(null);
+  
+  // Centralized Book Generation state
+  const [isGenerationModalVisible, setIsGenerationModalVisible] = useState(false);
+  const [selectedBoxForGeneration, setSelectedBoxForGeneration] = useState<BoxReceipt | null>(null);
   
   // Book state (needed for calculations)
   const [verifiedBooks, setVerifiedBooks] = useState<number[]>([]);
@@ -1707,6 +1714,19 @@ const BoxReceiptManagement: FC = () => {
     message.info(`Viewing details for Box ${box.boxId}`);
   };
 
+  const handleGenerateBooks = (box: BoxReceipt) => {
+    setSelectedBoxForGeneration(box);
+    setIsGenerationModalVisible(true);
+  };
+
+  const handleGenerationSuccess = () => {
+    setIsGenerationModalVisible(false);
+    setSelectedBoxForGeneration(null);
+    message.success('Books generated successfully!');
+    // Refresh data to show updated generation status
+    fetchBoxReceipts();
+  };
+
   const toggleArchivedView = () => {
     setShowArchived(!showArchived);
     if (!showArchived) {
@@ -1867,6 +1887,20 @@ const BoxReceiptManagement: FC = () => {
                   loading={loading}
                 />
               </Popconfirm>
+            </Tooltip>
+          )}
+
+          {(record.status === 'RECEIVED' || record.status === 'VERIFIED') && (
+            <Tooltip title="Generate Books (Centralized)">
+              <Button
+                size="small"
+                icon={<BookOutlined />}
+                onClick={() => {
+                  setSelectedBoxForGeneration(record);
+                  setIsGenerationModalVisible(true);
+                }}
+                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', color: 'white' }}
+              />
             </Tooltip>
           )}
           
@@ -3008,6 +3042,16 @@ const BoxReceiptManagement: FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Centralized Book Generation Modal */}
+      {selectedBoxForGeneration && (
+        <CentralizedBookGenerator
+          visible={isGenerationModalVisible}
+          onClose={() => setIsGenerationModalVisible(false)}
+          boxId={selectedBoxForGeneration.boxId}
+          onSuccess={handleGenerationSuccess}
+        />
+      )}
     </div>
   );
 };

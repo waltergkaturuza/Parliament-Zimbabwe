@@ -39,6 +39,7 @@ from .serializers import (
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
     FuelRequirementConfigurationSerializer, ProgramSerializer, ProgramWriteSerializer
 )
+from .services.book_generation import BookGenerationService, BookGenerationSerializer
 from .permissions import (
     # Role-based permissions
     SuperUserPermission, AdminPermission, MainCenterPermission, SubCenterPermission,
@@ -1400,6 +1401,94 @@ class BoxViewSet(viewsets.ModelViewSet):
             }
         })
 
+    # === BOX BOOK GENERATION (SINGLE SOURCE OF TRUTH) ===
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def generate_books(self, request, pk=None):
+        """
+        Generate books and coupons for this box
+        
+        This is the SINGLE SOURCE OF TRUTH for book generation
+        All book generation MUST go through this centralized service
+        
+        POST /api/boxes/{id}/generate_books/
+        {
+            "first_serial": "PU006H1355101",
+            "last_serial": "PU006H1356100", 
+            "books_per_box": 10,
+            "coupons_per_book": 100,
+            "force": false
+        }
+        """
+        box = self.get_object()
+        
+        try:
+            # Prepare data for the service
+            generation_data = {
+                'box_id': box.id,
+                'first_serial': request.data.get('first_serial'),
+                'last_serial': request.data.get('last_serial'),
+                'books_per_box': request.data.get('books_per_box', 10),
+                'coupons_per_book': request.data.get('coupons_per_book', 100),
+                'force': request.data.get('force', False)
+            }
+            
+            # Validate input
+            serializer = BookGenerationSerializer(data=generation_data)
+            if not serializer.is_valid():
+                return Response({
+                    'success': False,
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            
+            # Call the centralized service
+            result = BookGenerationService.generate_books_and_coupons(
+                box_id=validated_data['box_id'],
+                first_serial=validated_data['first_serial'],
+                last_serial=validated_data['last_serial'],
+                books_per_box=validated_data['books_per_box'],
+                coupons_per_book=validated_data['coupons_per_book'],
+                force=validated_data['force']
+            )
+            
+            if result['success']:
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            logger.error(f'Error generating books for box {box.id}: {e}', exc_info=True)
+            return Response({
+                'success': False,
+                'message': 'Internal server error',
+                'errors': [str(e)]
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def generation_status(self, request, pk=None):
+        """
+        Get the book generation status for this box
+        
+        GET /api/boxes/{id}/generation_status/
+        """
+        box = self.get_object()
+        
+        try:
+            status_result = BookGenerationService.get_box_generation_status(box.id)
+            
+            if 'error' in status_result:
+                return Response(status_result, status=status.HTTP_404_NOT_FOUND)
+            
+            return Response(status_result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f'Error getting generation status for box {box.id}: {e}', exc_info=True)
+            return Response({
+                'error': f'Status check failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class BookViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Book management with sequential allocation"""
@@ -1984,6 +2073,137 @@ class BookViewSet(viewsets.ModelViewSet):
             status = coupon['status']
             status_counts[status] = status_counts.get(status, 0) + 1
         return status_counts
+
+    # === BOOK GENERATION ENDPOINTS (SINGLE SOURCE OF TRUTH) ===
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def generate_books_for_box(self, request):
+        """
+        Generate books and coupons for a box
+        
+        This is the SINGLE SOURCE OF TRUTH for book generation
+        Frontend should ONLY use this endpoint, never generate books locally
+        
+        POST /api/books/generate_books_for_box/
+        {
+            "box_id": 1,
+            "first_serial": "PU006H1355101", 
+            "last_serial": "PU006H1356100",
+            "books_per_box": 10,
+            "coupons_per_book": 100,
+            "force": false
+        }
+        """
+        try:
+            serializer = BookGenerationSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response({
+                    'success': False,
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            
+            # Call the centralized service
+            result = BookGenerationService.generate_books_and_coupons(
+                box_id=validated_data['box_id'],
+                first_serial=validated_data['first_serial'],
+                last_serial=validated_data['last_serial'],
+                books_per_box=validated_data['books_per_box'],
+                coupons_per_book=validated_data['coupons_per_book'],
+                force=validated_data['force']
+            )
+            
+            if result['success']:
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            logger.error(f'Error in generate_books_for_box: {e}', exc_info=True)
+            return Response({
+                'success': False,
+                'message': 'Internal server error',
+                'errors': [str(e)]
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def validate_generation_request(self, request):
+        """
+        Validate a book generation request without actually generating
+        
+        POST /api/books/validate_generation_request/
+        {
+            "box_id": 1,
+            "first_serial": "PU006H1355101",
+            "last_serial": "PU006H1356100", 
+            "books_per_box": 10,
+            "coupons_per_book": 100,
+            "force": false
+        }
+        """
+        try:
+            serializer = BookGenerationSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response({
+                    'valid': False,
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            
+            # Validate the request
+            validation_result = BookGenerationService.validate_generation_request(
+                box_id=validated_data['box_id'],
+                first_serial=validated_data['first_serial'],
+                last_serial=validated_data['last_serial'],
+                books_per_box=validated_data['books_per_box'],
+                coupons_per_book=validated_data['coupons_per_book'],
+                force=validated_data['force']
+            )
+            
+            return Response(validation_result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f'Error in validate_generation_request: {e}', exc_info=True)
+            return Response({
+                'valid': False,
+                'errors': [f'Validation error: {str(e)}']
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def box_generation_status(self, request):
+        """
+        Get the generation status of a box
+        
+        GET /api/books/box_generation_status/?box_id=1
+        """
+        try:
+            box_id = request.query_params.get('box_id')
+            if not box_id:
+                return Response({
+                    'error': 'box_id parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                box_id = int(box_id)
+            except ValueError:
+                return Response({
+                    'error': 'box_id must be a valid integer'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            status_result = BookGenerationService.get_box_generation_status(box_id)
+            
+            if 'error' in status_result:
+                return Response(status_result, status=status.HTTP_404_NOT_FOUND)
+            
+            return Response(status_result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f'Error in box_generation_status: {e}', exc_info=True)
+            return Response({
+                'error': f'Status check failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):

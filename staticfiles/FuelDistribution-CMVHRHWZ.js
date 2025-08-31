@@ -1,0 +1,1 @@
+import{j as i}from"./main-vvkX5VFh.js";import"./vendor-CmG9Jq57.js";import"./antd-B7O_wDO7.js";function e(){return i.jsxs("div",{children:[i.jsx("h1",{children:"Fuel Distribution"}),i.jsx("p",{children:"Manage fuel distribution to sub-centers and beneficiaries"})]})}export{e as default};
