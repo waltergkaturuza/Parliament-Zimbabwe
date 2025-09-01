@@ -263,9 +263,9 @@ const router = createBrowserRouter(
         <Route path="subcenters" element={<Suspense fallback={<LoadingSpinner />}><SubCenterSettings /></Suspense>} />
         <Route path="subcenter-management" element={<Suspense fallback={<LoadingSpinner />}><SubCenterManagement /></Suspense>} />
         <Route path="political-parties" element={
-          <SubCenterRoute>
+          <ProtectedRoute allowedRoles={['SUB_CENTER', 'MAIN_CENTER']}>
             <Suspense fallback={<LoadingSpinner />}><SubCenterPoliticalPartiesPage /></Suspense>
-          </SubCenterRoute>
+          </ProtectedRoute>
         } />
         <Route path="settings" element={<Suspense fallback={<LoadingSpinner />}><SystemSettings /></Suspense>} />
         <Route path="audit-logs" element={<Suspense fallback={<LoadingSpinner />}><AuditLogs /></Suspense>} />

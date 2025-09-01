@@ -10,6 +10,7 @@ from .models import (
     CouponDistribution, AuditLog, SystemAlert, SessionAttendance,
     Program, FuelRequirementConfiguration
 )
+from .models_political_parties import PoliticalParty
 from django import forms
 from django.db import models
 
@@ -530,30 +531,128 @@ class BeneficiaryProfileAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+# Political Party Admin
+@admin.register(PoliticalParty)
+class PoliticalPartyAdmin(admin.ModelAdmin):
+    list_display = [
+        'short_name', 'name', 'status', 'party_type', 'is_parliamentary_party', 
+        'is_government_party', 'member_count', 'founded_year', 'display_order'
+    ]
+    list_filter = ['status', 'party_type', 'is_parliamentary_party', 'is_government_party']
+    search_fields = ['name', 'short_name', 'abbreviation', 'leader_name']
+    ordering = ['display_order', 'short_name']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'short_name', 'abbreviation', 'description')
+        }),
+        ('Party Details', {
+            'fields': ('party_type', 'status', 'founded_year', 'headquarters_address')
+        }),
+        ('Leadership', {
+            'fields': ('leader_name', 'leader_title', 'contact_email', 'contact_phone', 'website')
+        }),
+        ('Parliamentary Status', {
+            'fields': ('is_parliamentary_party', 'is_government_party', 'parliamentary_seats', 'senate_seats')
+        }),
+        ('Visual Settings', {
+            'fields': ('primary_color', 'secondary_color', 'logo_url', 'display_order')
+        }),
+        ('Membership', {
+            'fields': ('total_members', 'active_members'),
+            'description': 'Member counts are calculated automatically from beneficiary profiles.'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    readonly_fields = ['created_at', 'updated_at', 'total_members', 'active_members']
+    
+    def member_count(self, obj):
+        """Display total member count"""
+        return f"{obj.total_members} total, {obj.active_members} active"
+    member_count.short_description = "Members"
+    
+    def get_readonly_fields(self, request, obj=None):
+        readonly = ['created_at', 'updated_at', 'total_members', 'active_members']
+        # Prevent changing short_name after creation to maintain data integrity
+        if obj:
+            readonly.append('short_name')
+        return readonly
+
+    actions = ['make_active', 'make_inactive', 'mark_as_government_party']
+    
+    def make_active(self, request, queryset):
+        queryset.update(status='ACTIVE')
+        self.message_user(request, f"{queryset.count()} parties marked as active.")
+    make_active.short_description = "Mark selected parties as active"
+    
+    def make_inactive(self, request, queryset):
+        queryset.update(status='INACTIVE')
+        self.message_user(request, f"{queryset.count()} parties marked as inactive.")
+    make_inactive.short_description = "Mark selected parties as inactive"
+    
+    def mark_as_government_party(self, request, queryset):
+        # First remove government status from all parties
+        PoliticalParty.objects.update(is_government_party=False)
+        # Then set it for selected parties (should be only one)
+        updated = queryset.update(is_government_party=True)
+        if updated > 1:
+            self.message_user(request, "Warning: Multiple parties marked as government party!", level='WARNING')
+        else:
+            self.message_user(request, f"{updated} party marked as government party.")
+    mark_as_government_party.short_description = "Set as government party"
+
+
+# Enhanced Beneficiary Category Admin
 @admin.register(BeneficiaryCategory)
 class BeneficiaryCategoryAdmin(admin.ModelAdmin):
-    """Admin interface for managing beneficiary categories"""
-    list_display = ['name', 'description', 'monthly_entitlement_litres', 'category_multiplier', 'is_active']
+    list_display = [
+        'name', 'monthly_entitlement_litres', 'category_multiplier', 
+        'is_active', 'beneficiary_count'
+    ]
     list_filter = ['is_active']
     search_fields = ['name', 'description']
     ordering = ['name']
     
     fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'description', 'is_active'),
-            'description': 'Category identification and status'
+        ('Category Information', {
+            'fields': ('name', 'description')
         }),
-        ('Fuel Entitlements', {
+        ('Fuel Allocation', {
             'fields': ('monthly_entitlement_litres', 'category_multiplier'),
-            'description': 'Default fuel allocations for this category'
+            'description': 'Set default fuel entitlements and multipliers for this category.'
         }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Statistics', {
+            'fields': ('beneficiary_count',),
+            'classes': ('collapse',),
+            'description': 'Automatically calculated statistics.'
+        })
     )
     
-    def get_readonly_fields(self, request, obj=None):
-        # Make name read-only after creation to prevent accidental changes
-        if obj:  # Editing existing object
-            return ['name']
-        return []
+    readonly_fields = ['beneficiary_count']
+    
+    def beneficiary_count(self, obj):
+        """Count of beneficiaries in this category"""
+        return BeneficiaryProfile.objects.filter(category=obj).count()
+    beneficiary_count.short_description = "Beneficiaries"
+    
+    actions = ['activate_categories', 'deactivate_categories']
+    
+    def activate_categories(self, request, queryset):
+        queryset.update(is_active=True)
+        self.message_user(request, f"{queryset.count()} categories activated.")
+    activate_categories.short_description = "Activate selected categories"
+    
+    def deactivate_categories(self, request, queryset):
+        queryset.update(is_active=False)
+        self.message_user(request, f"{queryset.count()} categories deactivated.")
+    deactivate_categories.short_description = "Deactivate selected categories"
 
 
 # Admin Site Customization
