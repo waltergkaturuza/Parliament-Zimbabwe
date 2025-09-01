@@ -286,6 +286,12 @@ const UnifiedLayout: React.FC = () => {
           path: '/dashboard/constituencies',
         },
         {
+          key: 'political-parties',
+          icon: <BankOutlined />,
+          label: 'Political Parties',
+          path: '/dashboard/political-parties',
+        },
+        {
           key: 'fuel-allocations',
           icon: <CarOutlined />,
           label: 'Fuel Allocations',
