@@ -106,7 +106,7 @@ try:
         
         # New Parliament-specific ViewSets
         BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
-        ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
+        PoliticalPartyViewSet, ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
         FuelEntitlementViewSet, ProgramViewSet,
         
         # Subcenter management ViewSets
@@ -203,6 +203,7 @@ _maybe_register('CouponAllocationViewSet', r'allocations', 'allocation')
 _maybe_register('BeneficiaryCategoryViewSet', r'beneficiary-categories', 'beneficiary-category')
 _maybe_register('ConstituencyViewSet', r'constituencies', 'constituency')
 _maybe_register('VehicleCategoryViewSet', r'vehicle-categories', 'vehicle-category')
+_maybe_register('PoliticalPartyViewSet', r'political-parties', 'political-party')
 _maybe_register('ParliamentSessionViewSet', r'parliament-sessions', 'parliament-session')
 _maybe_register('SessionAttendanceViewSet', r'session-attendances', 'session-attendance')
 _maybe_register('BeneficiaryProfileViewSet', r'beneficiary-profiles', 'beneficiary-profile')

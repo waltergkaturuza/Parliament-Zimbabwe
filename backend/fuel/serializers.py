@@ -51,7 +51,7 @@ try:
     from .models import (
         User, SubCenter, Box, Book, Coupon,
         FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
-        BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
+        BeneficiaryCategory, Constituency, VehicleCategory, PoliticalParty, ParliamentSession,
         BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, CouponHandover, SystemAlert, FuelEntitlement,
         PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
         FuelRequirementConfiguration, Program, HarmonizedBeneficiaryProfile,
@@ -63,7 +63,7 @@ except Exception:
     from .models import (
         User, SubCenter, Box, Book, Coupon,
         FuelData, FuelTransaction, CouponDistribution, SubCenterOfficer,
-        BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
+        BeneficiaryCategory, Constituency, VehicleCategory, PoliticalParty, ParliamentSession,
         BeneficiaryProfile, AuditLog, BookDispatch, CouponAllocation, CouponHandover, SystemAlert, FuelEntitlement,
         PoolVehicle, Driver, VehicleAssignment, BookPage, SessionAttendance,
         FuelRequirementConfiguration, Program,
@@ -1513,6 +1513,19 @@ class VehicleCategorySerializer(serializers.ModelSerializer):
         model = VehicleCategory
         fields = '__all__'
         read_only_fields = ('created', 'modified')
+
+
+class PoliticalPartySerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PoliticalParty
+        fields = '__all__'
+        read_only_fields = ('created', 'modified')
+    
+    def get_member_count(self, obj):
+        """Get the count of beneficiaries affiliated with this party"""
+        return obj.member_count
 
 
 class ParliamentSessionSerializer(serializers.ModelSerializer):

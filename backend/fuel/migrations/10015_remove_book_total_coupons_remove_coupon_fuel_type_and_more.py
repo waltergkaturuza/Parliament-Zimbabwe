@@ -10,10 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Only update the coupon_serial field to have a proper default for PostgreSQL
-        migrations.AlterField(
-            model_name='coupon',
-            name='coupon_serial',
-            field=models.CharField(blank=True, default='NOT_PROVIDED', help_text='Unique coupon serial (e.g., PU006H1355101 - PetroTrade format)', max_length=50),
-        ),
+        # No-op migration - field already exists with correct configuration
+        # This migration was originally trying to alter fields that were already properly configured
     ]

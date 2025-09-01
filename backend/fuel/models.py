@@ -2976,6 +2976,47 @@ class VehicleCategory(TimeStampedModel):
         return self.name
 
 
+class PoliticalParty(TimeStampedModel):
+    """
+    Political parties in Zimbabwe Parliament
+    """
+    name = models.CharField(max_length=200, unique=True)
+    abbreviation = models.CharField(
+        max_length=20, 
+        unique=True,
+        help_text="Party abbreviation (e.g., ZANU-PF, MDC, CCC)"
+    )
+    description = models.TextField(blank=True)
+    founded_date = models.DateField(null=True, blank=True)
+    leader_name = models.CharField(max_length=200, blank=True)
+    party_color = models.CharField(
+        max_length=7,
+        blank=True,
+        help_text="Party color in hex format (e.g., #FF0000)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether the party is currently active in Parliament"
+    )
+    website = models.URLField(blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    address = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name = "Political Party"
+        verbose_name_plural = "Political Parties"
+        ordering = ['name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.abbreviation})"
+    
+    @property
+    def member_count(self):
+        """Count of beneficiaries affiliated with this party"""
+        return self.beneficiaryprofile_set.count()
+
+
 class Program(TimeStampedModel):
     """
     Parliamentary programs and events that require fuel allocations
@@ -3566,9 +3607,11 @@ class BeneficiaryProfile(TimeStampedModel):
     )
     
     # Political Information (Added for parliament operations)
-    party_affiliation = models.CharField(
-        max_length=100, 
-        blank=True, 
+    political_party = models.ForeignKey(
+        'PoliticalParty',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         help_text="Political party affiliation"
     )
     

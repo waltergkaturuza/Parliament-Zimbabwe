@@ -5,7 +5,7 @@ from decimal import Decimal
 from .models import (
     User, SubCenter, SubCenterOfficer, PoolVehicle, Driver, VehicleAssignment,
     Box, Book, BookPage, Coupon, FuelData, FuelTransaction,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession,
+    BeneficiaryCategory, Constituency, VehicleCategory, PoliticalParty, ParliamentSession,
     BeneficiaryProfile, BookDispatch, CouponAllocation, FuelEntitlement,
     CouponDistribution, AuditLog, SystemAlert, SessionAttendance,
     FuelRequirementConfiguration, Program
@@ -450,7 +450,7 @@ class ConstituencyAdmin(admin.ModelAdmin):
 # BeneficiaryProfile Admin
 @admin.register(BeneficiaryProfile)
 class BeneficiaryProfileAdmin(admin.ModelAdmin):
-    list_display = ['get_full_name', 'employee_id', 'category', 'constituency', 'party_affiliation', 'status', 'monthly_entitlement_litres']
+    list_display = ['get_full_name', 'employee_id', 'category', 'constituency', 'political_party', 'status', 'monthly_entitlement_litres']
     list_filter = ['status', 'category', 'is_active_beneficiary', 'vehicle_category']
     search_fields = ['user__first_name', 'user__last_name', 'employee_id', 'vehicle_registration']
     raw_id_fields = ['user', 'category', 'constituency', 'vehicle_category']
@@ -463,7 +463,7 @@ class BeneficiaryProfileAdmin(admin.ModelAdmin):
             'fields': ('category', 'constituency', 'vehicle_category')
         }),
         ('Position Details', {
-            'fields': ('position', 'department', 'office_location', 'party_affiliation')
+            'fields': ('position', 'department', 'office_location', 'political_party')
         }),
         ('Fuel Allocation', {
             'fields': ('monthly_entitlement_litres', 'base_allocation', 'category_multiplier', 'engine_multiplier')
@@ -483,6 +483,55 @@ class BeneficiaryProfileAdmin(admin.ModelAdmin):
     def get_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}"
     get_full_name.short_description = 'Beneficiary Name'
+
+
+@admin.register(PoliticalParty)
+class PoliticalPartyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'abbreviation', 'leader_name', 'is_active', 'member_count', 'founded_date']
+    list_filter = ['is_active', 'founded_date']
+    search_fields = ['name', 'abbreviation', 'leader_name']
+    ordering = ['name']
+    readonly_fields = ['created', 'modified']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'abbreviation', 'description')
+        }),
+        ('Leadership', {
+            'fields': ('leader_name', 'founded_date')
+        }),
+        ('Contact Information', {
+            'fields': ('website', 'email', 'phone', 'address')
+        }),
+        ('Display Settings', {
+            'fields': ('party_color', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created', 'modified'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def member_count(self, obj):
+        return obj.member_count
+    member_count.short_description = 'Members'
+
+
+@admin.register(BeneficiaryCategory)
+class BeneficiaryCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'monthly_entitlement_litres', 'category_multiplier', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name', 'description']
+    ordering = ['name']
+
+
+@admin.register(VehicleCategory)
+class VehicleCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'fuel_multiplier', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name', 'description']
+    ordering = ['name']
+
 
 # Admin Site Customization
 admin.site.site_header = "Fuel Coupon Management System"

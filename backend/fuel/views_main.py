@@ -22,7 +22,7 @@ import logging
 from .models import (
     Coupon, SubCenter, Book, Box,
     User as UserModel, FuelData, CouponDistribution, FuelTransaction, SubCenterOfficer,
-    BeneficiaryCategory, Constituency, VehicleCategory, ParliamentSession, SessionAttendance,
+    BeneficiaryCategory, Constituency, VehicleCategory, PoliticalParty, ParliamentSession, SessionAttendance,
     BeneficiaryProfile, AuditLog, SystemAlert, BookDispatch, CouponAllocation, FuelEntitlement,
     PoolVehicle, Driver, VehicleAssignment, FuelRequirementConfiguration, Program, CouponHandover
 )
@@ -31,7 +31,7 @@ from .serializers import (
     BookSerializer, BoxSerializer, UserSerializer,
     UserRegistrationSerializer,
     FuelStatsSerializer, FuelTransactionSerializer, SimpleUserSerializer, SubCenterOfficerSerializer,
-    BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer,
+    BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer, PoliticalPartySerializer,
     ParliamentSessionSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
     BulkCouponAllocationSerializer,
     BookDispatchSerializer, CouponAllocationSerializer,
@@ -2821,6 +2821,56 @@ class VehicleCategoryViewSet(viewsets.ModelViewSet):
                                  (MainCenterPermission | AuditorPermission,), 
                                  {})
         return [IsAuthenticated(), combined_permission()]
+
+
+class PoliticalPartyViewSet(viewsets.ModelViewSet):
+    queryset = PoliticalParty.objects.all()
+    serializer_class = PoliticalPartySerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['name', 'abbreviation', 'leader_name']
+    ordering_fields = ['name', 'abbreviation', 'founded_date']
+    ordering = ['name']
+    
+    def get_permissions(self):
+        """Role-based permissions for political party management
+        
+        - Read access: All authenticated users
+        - Write access: Main Center or Auditor roles only
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
+    
+    @action(detail=False, methods=['get'])
+    def active_parties(self, request):
+        """Get only active political parties"""
+        active_parties = self.queryset.filter(is_active=True)
+        serializer = self.get_serializer(active_parties, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get political party statistics"""
+        total_parties = self.queryset.count()
+        active_parties = self.queryset.filter(is_active=True).count()
+        
+        # Get party membership counts
+        party_stats = []
+        for party in self.queryset.filter(is_active=True):
+            party_stats.append({
+                'id': party.id,
+                'name': party.name,
+                'abbreviation': party.abbreviation,
+                'member_count': party.member_count,
+                'color': party.party_color
+            })
+        
+        return Response({
+            'total_parties': total_parties,
+            'active_parties': active_parties,
+            'inactive_parties': total_parties - active_parties,
+            'party_membership': party_stats
+        })
 
 
 class ParliamentSessionViewSet(viewsets.ModelViewSet):
