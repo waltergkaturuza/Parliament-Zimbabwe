@@ -81,8 +81,8 @@ try:
         
         # New Parliament-specific ViewSets
         BeneficiaryCategoryViewSet, ConstituencyViewSet, VehicleCategoryViewSet,
-        ParliamentSessionViewSet, SessionAttendanceViewSet, BeneficiaryProfileViewSet,
-        FuelEntitlementViewSet, ProgramViewSet,
+        PoliticalPartyViewSet, ParliamentSessionViewSet, SessionAttendanceViewSet, 
+        BeneficiaryProfileViewSet, FuelEntitlementViewSet, ProgramViewSet,
         
         # Subcenter management ViewSets
         PoolVehicleViewSet, DriverViewSet, VehicleAssignmentViewSet,
