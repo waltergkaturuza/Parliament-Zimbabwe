@@ -39,22 +39,8 @@ class Migration(migrations.Migration):
                 'ordering': ['name'],
             },
         ),
-        migrations.RemoveField(
-            model_name='beneficiaryprofile',
-            name='party_affiliation',
-        ),
-        migrations.RemoveField(
-            model_name='book',
-            name='total_coupons',
-        ),
-        migrations.RemoveField(
-            model_name='coupon',
-            name='fuel_type',
-        ),
-        migrations.RemoveField(
-            model_name='coupon',
-            name='is_used',
-        ),
+        # RemoveField operations removed to prevent migration conflicts
+        # These fields should have been removed by earlier migrations
         migrations.AlterField(
             model_name='book',
             name='first_coupon_number',
