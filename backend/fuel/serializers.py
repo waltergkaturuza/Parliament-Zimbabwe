@@ -1,7 +1,7 @@
 # fuel/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
-from django.db import models
+from django.db import models, IntegrityError, connection
 from django.utils import timezone
 from decimal import Decimal
 
@@ -1988,17 +1988,12 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create a new beneficiary with associated user"""
-        from django.contrib.auth import get_user_model
-        from .models import BeneficiaryCategory, Constituency, VehicleCategory
-        from decimal import Decimal
         import time
-        
+
         # Debug: Print incoming data
         print("=== BENEFICIARY SERIALIZER CREATE ===")
         print("Validated data:", validated_data)
-        
-        User = get_user_model()
-        
+
         # Extract user data if provided
         user_data = validated_data.pop('user', {})
         # Try to get an explicit user_id (from serializer field) or from raw payload
@@ -2016,23 +2011,23 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             except Exception:
                 explicit_user_id = None
         print("User data:", user_data)
-        
+
         # Extract foreign key IDs
         category_id = validated_data.pop('category', None)
         constituency_id = validated_data.pop('constituency', None)
         vehicle_category_id = validated_data.pop('vehicle_category', None)
-        
+
         print("Category ID:", category_id)
         print("Constituency ID:", constituency_id)
         print("Vehicle Category ID:", vehicle_category_id)
-        
+
         # Create or reuse user
         if explicit_user_id:
             # Reuse existing user by ID
             try:
                 user = User.objects.get(id=explicit_user_id)
             except User.DoesNotExist:
-                raise serializers.ValidationError({ 'user_id': 'Specified user does not exist' })
+                raise serializers.ValidationError({'user_id': 'Specified user does not exist'})
             # Ensure role is BENEFICIARY for access to beneficiary features
             if getattr(user, 'role', None) != 'BENEFICIARY':
                 try:
@@ -2041,22 +2036,65 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 except Exception:
                     pass
         elif user_data:
-            # Generate unique username
-            base_username = user_data.get('email', '').split('@')[0] or validated_data.get('employee_id', 'user')
-            username = base_username
-            counter = 1
-            while User.objects.filter(username=username).exists():
-                username = f"{base_username}_{counter}"
-                counter += 1
-            
-            user_data['username'] = username
-            user_data.setdefault('role', 'BENEFICIARY')
-            
-            # Handle password - set a default if not provided
-            if 'password' not in user_data:
-                user_data['password'] = 'TempPass123!'  # Should be changed on first login
-            
-            user = User.objects.create_user(**user_data)
+            # Try to reuse existing user by id/email/username if present
+            lookup_user = None
+            try:
+                if 'id' in user_data and user_data['id']:
+                    lookup_user = User.objects.filter(id=user_data['id']).first()
+                if not lookup_user and user_data.get('email'):
+                    lookup_user = User.objects.filter(email__iexact=user_data['email']).first()
+                if not lookup_user and user_data.get('username'):
+                    lookup_user = User.objects.filter(username__iexact=user_data['username']).first()
+            except Exception:
+                lookup_user = None
+
+            if lookup_user:
+                user = lookup_user
+                # Optionally update basic fields
+                changed = False
+                for f in ['first_name', 'last_name', 'phone', 'full_address']:
+                    if f in user_data and getattr(user, f, None) != user_data[f]:
+                        setattr(user, f, user_data[f])
+                        changed = True
+                if getattr(user, 'role', None) != 'BENEFICIARY':
+                    user.role = 'BENEFICIARY'
+                    changed = True
+                if changed:
+                    try:
+                        user.save()
+                    except Exception:
+                        pass
+            else:
+                # Generate unique username and create a new user
+                base_username = user_data.get('email', '').split('@')[0] or validated_data.get('employee_id', 'user')
+                username = base_username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}_{counter}"
+                    counter += 1
+
+                user_data['username'] = username
+                user_data.setdefault('role', 'BENEFICIARY')
+
+                # Handle password - set a default if not provided
+                if 'password' not in user_data:
+                    user_data['password'] = 'TempPass123!'
+
+                try:
+                    user = User.objects.create_user(**user_data)
+                except IntegrityError as ie:
+                    # Likely duplicate email/username; reuse existing by email if possible
+                    reused = User.objects.filter(email__iexact=user_data.get('email', '')).first()
+                    if reused:
+                        user = reused
+                        if getattr(user, 'role', None) != 'BENEFICIARY':
+                            try:
+                                user.role = 'BENEFICIARY'
+                                user.save(update_fields=['role'])
+                            except Exception:
+                                pass
+                    else:
+                        raise serializers.ValidationError({'user': f'Could not create user: {str(ie)}'})
         else:
             # Create a minimal user with required fields when no user reference/data provided
             employee_id = validated_data.get('employee_id', f"user_{int(time.time())}")
@@ -2069,12 +2107,12 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             user = User.objects.create_user(
                 username=username,
                 role='BENEFICIARY',
-                password='TempPass123!'  # Should be changed on first login
+                password='TempPass123!'
             )
-        
+
         # Set user in validated_data
         validated_data['user'] = user
-        
+
         # Set foreign key relationships - Category is REQUIRED
         if category_id:
             try:
@@ -2095,12 +2133,12 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 validated_data['category'] = category
         else:
             # If no category provided, create a default one
-            category, created = BeneficiaryCategory.objects.get_or_create(
+            category, _created = BeneficiaryCategory.objects.get_or_create(
                 name='ADMINISTRATIVE_STAFF',
                 defaults={'description': 'Administrative Staff'}
             )
             validated_data['category'] = category
-        
+
         if constituency_id:
             try:
                 if isinstance(constituency_id, str):
@@ -2116,35 +2154,40 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                         province="Auto-created"
                     )
                     validated_data['constituency'] = constituency
-        
+
         if vehicle_category_id:
             try:
                 vehicle_category = VehicleCategory.objects.get(id=vehicle_category_id)
                 validated_data['vehicle_category'] = vehicle_category
             except VehicleCategory.DoesNotExist:
                 pass
-        
+
         # Set default values for fields not in frontend
         validated_data.setdefault('engine_multiplier', Decimal('1.0'))
-        
+
         # Ensure monthly_entitlement_litres is properly formatted
         if 'monthly_entitlement_litres' in validated_data:
             validated_data['monthly_entitlement_litres'] = Decimal(str(validated_data['monthly_entitlement_litres'])).quantize(Decimal('0.01'))
-        
-        # Party field is now handled automatically via source='party_affiliation'
-        
+
         # Handle employee_id - convert empty string to None for unique constraint
         if 'employee_id' in validated_data and not validated_data['employee_id']:
             validated_data['employee_id'] = None
-        
+
         # Ensure status defaults to ACTIVE
         if 'status' not in validated_data:
             validated_data['status'] = 'ACTIVE'
-        
-        # Create the beneficiary profile
+
+        # Create the beneficiary profile (idempotent POST)
         print("Final validated_data before creation:", validated_data)
+        existing = BeneficiaryProfile.objects.filter(user=user).first()
+        if existing:
+            for k, v in validated_data.items():
+                if k != 'user':
+                    setattr(existing, k, v)
+            existing.save()
+            return existing
+
         beneficiary = BeneficiaryProfile.objects.create(**validated_data)
-        
         print("Beneficiary created successfully:", beneficiary)
         return beneficiary
     
@@ -2328,7 +2371,6 @@ class SystemAlertSerializer(serializers.ModelSerializer):
         
         # Check if database has new fields
         try:
-            from django.db import connection
             with connection.cursor() as cursor:
                 cursor.execute("SELECT priority FROM fuel_systemalert LIMIT 1;")
             has_new_fields = True
