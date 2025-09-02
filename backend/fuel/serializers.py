@@ -1535,6 +1535,7 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
     organizer_details = SimpleUserSerializer(source='organizer', read_only=True)
     managing_subcenter_details = SubCenterSerializer(source='managing_subcenter', read_only=True)
     program_details = serializers.SerializerMethodField()
+    program_label = serializers.SerializerMethodField()
     def validate(self, data):
         """Normalize and validate incoming data for parliament sessions.
 
@@ -1586,8 +1587,9 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
     assigned_attendees_details = serializers.SerializerMethodField()
     # Keep output as PKRelatedField (read-only) but accept flexible input via `assigned_attendees_input`
     assigned_attendees = serializers.PrimaryKeyRelatedField(
-    many=True,
-    queryset=BeneficiaryProfile.objects.all()
+        many=True,
+        read_only=True,
+        required=False
     )
     assigned_attendees_input = serializers.ListField(
         child=serializers.CharField(),
@@ -1604,7 +1606,7 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
             'description', 'venue', 'is_active', 'is_mandatory',
             'organizer', 'organizer_details', 'organizer_name',
             'managing_subcenter', 'managing_subcenter_details', 'managing_subcenter_name',
-            'program', 'program_details',
+            'program', 'program_details', 'program_label',
             'fuel_top_up_litres', 'fuel_top_up_percentage', 'expected_attendance',
             'attendance_tracked', 'attendance_count','assigned_attendees_input',
             'assigned_attendees', 'assigned_attendees_details',
@@ -1617,6 +1619,11 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
             'session_type_display', 'organizer_name', 'managing_subcenter_name',
             'duration_days', 'status'
         ]
+        extra_kwargs = {
+            'managing_subcenter': {'required': False, 'allow_null': True},
+            'program': {'required': False, 'allow_null': True},
+            'organizer': {'required': False, 'allow_null': True},
+        }
     
     def get_attendance_count(self, obj):
         # Get attendance count from programs related to this session
@@ -1671,6 +1678,14 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
             'end_date': program.end_date.isoformat() if getattr(program, 'end_date', None) else None,
             'status': prog_status
         }
+
+    def get_program_label(self, obj):
+        try:
+            if obj.program:
+                return getattr(obj.program, 'title', None)
+        except Exception:
+            pass
+        return None
     
     def get_duration_days(self, obj):
         """Calculate session duration in days"""
