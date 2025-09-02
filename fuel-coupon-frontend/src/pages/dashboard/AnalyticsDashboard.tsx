@@ -115,10 +115,6 @@ const AnalyticsDashboard = () => {
           fetchAnalyticsData(startDate, endDate),
           fetchComplianceData()
         ]);
-
-        // Debug logging
-        console.log('Dashboard Stats - Analytics Data:', analyticsData);
-        console.log('Dashboard Stats - Compliance Data:', complianceData);
         
         return {
           totalCoupons: analyticsData.operational_summary.total_coupons_issued || 0,
@@ -161,11 +157,6 @@ const AnalyticsDashboard = () => {
           fetchConsumptionTrend(startDate, endDate),
           fetchTopBeneficiaries()
         ]);
-
-        // Debug logging
-        console.log('Analytics API Response:', analyticsData);
-        console.log('Consumption Data:', consumptionData);
-        console.log('Top Beneficiaries:', topBeneficiaries);
 
         // Process daily data for usage trend
         const usageTrend = analyticsData.daily_data.map(day => ({
@@ -238,9 +229,6 @@ const AnalyticsDashboard = () => {
         const startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
         
         const analyticsData = await fetchAnalyticsData(startDate, endDate);
-        
-        // Debug logging
-        console.log('Recent Activity - Analytics Data:', analyticsData);
         
         const activities: RecentActivity[] = [];
         
