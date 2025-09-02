@@ -1,7 +1,22 @@
 // src/utils/analytics.ts - API service for analytics data
 import fetchWithAuth from './fetchWithAuth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// Use same API base URL logic as main API
+const API_BASE_URL = (() => {
+  // Production: Use environment variable for backend URL
+  const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
+  if (fromEnv) {
+    return fromEnv;
+  }
+  
+  // Development: Use Vite proxy
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
+  
+  // Fallback for production: Use correct Render backend URL
+  return 'https://parliament-zimbabwe.onrender.com';
+})();
 
 export interface AnalyticsData {
   date_range: {
