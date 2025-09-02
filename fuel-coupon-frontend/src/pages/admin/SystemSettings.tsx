@@ -49,15 +49,15 @@ const SystemSettings: FC = () => {
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<SystemConfig>({
     general: {
-      systemName: 'Parliament Fuel Coupon System',
-      systemDescription: 'Digital fuel coupon management system for Parliament of Zimbabwe',
+      systemName: '',
+      systemDescription: '',
       maintenanceMode: false,
       allowRegistration: true,
       defaultUserRole: 'beneficiary'
     },
     fuel: {
-      defaultPetrolPrice: 1.80,
-      defaultDieselPrice: 1.65,
+      defaultPetrolPrice: 0,
+      defaultDieselPrice: 0,
       autoCalculateCosts: true,
       currency: 'USD',
       priceUpdateNotifications: true
@@ -91,46 +91,110 @@ const SystemSettings: FC = () => {
     try {
       setLoading(true);
       
-      // Mock API call - replace with actual endpoint
-      // const response = await apiRequest('get', '/api/system-settings/');
+      // Real API call to load system settings
+      const response = await apiClient.get('/admin/system-settings/');
+      const settingsData = response.data;
       
-      // For now, use default config and set form values
+      const loadedConfig: SystemConfig = {
+        general: {
+          systemName: settingsData.general?.system_name || 'Parliament Fuel Coupon System',
+          systemDescription: settingsData.general?.system_description || 'Digital fuel coupon management system for Parliament of Zimbabwe',
+          maintenanceMode: settingsData.general?.maintenance_mode || false,
+          allowRegistration: settingsData.general?.allow_registration || true,
+          defaultUserRole: settingsData.general?.default_user_role || 'beneficiary'
+        },
+        fuel: {
+          defaultPetrolPrice: settingsData.fuel?.default_petrol_price || 1.80,
+          defaultDieselPrice: settingsData.fuel?.default_diesel_price || 1.65,
+          autoCalculateCosts: settingsData.fuel?.auto_calculate_costs !== false,
+          currency: settingsData.fuel?.currency || 'USD',
+          priceUpdateNotifications: settingsData.fuel?.price_update_notifications !== false
+        },
+        security: {
+          sessionTimeout: settingsData.security?.session_timeout || 60,
+          passwordMinLength: settingsData.security?.password_min_length || 8,
+          requirePasswordSpecialChars: settingsData.security?.require_password_special_chars !== false,
+          maxLoginAttempts: settingsData.security?.max_login_attempts || 5,
+          enableTwoFactorAuth: settingsData.security?.enable_two_factor_auth || false
+        },
+        notifications: {
+          emailNotifications: settingsData.notifications?.email_notifications !== false,
+          smsNotifications: settingsData.notifications?.sms_notifications || false,
+          lowStockThreshold: settingsData.notifications?.low_stock_threshold || 20,
+          reportingSchedule: settingsData.notifications?.reporting_schedule || 'weekly'
+        },
+        backup: {
+          autoBackup: settingsData.backup?.auto_backup !== false,
+          backupFrequency: settingsData.backup?.backup_frequency || 'daily',
+          retentionPeriod: settingsData.backup?.retention_period || 30
+        }
+      };
+      
+      setConfig(loadedConfig);
+      
+      // Set form values with loaded config
       form.setFieldsValue({
         // General
+        systemName: loadedConfig.general.systemName,
+        systemDescription: loadedConfig.general.systemDescription,
+        maintenanceMode: loadedConfig.general.maintenanceMode,
+        allowRegistration: loadedConfig.general.allowRegistration,
+        defaultUserRole: loadedConfig.general.defaultUserRole,
+        
+        // Fuel
+        defaultPetrolPrice: loadedConfig.fuel.defaultPetrolPrice,
+        defaultDieselPrice: loadedConfig.fuel.defaultDieselPrice,
+        autoCalculateCosts: loadedConfig.fuel.autoCalculateCosts,
+        currency: loadedConfig.fuel.currency,
+        priceUpdateNotifications: loadedConfig.fuel.priceUpdateNotifications,
+        
+        // Security
+        sessionTimeout: loadedConfig.security.sessionTimeout,
+        passwordMinLength: loadedConfig.security.passwordMinLength,
+        requirePasswordSpecialChars: loadedConfig.security.requirePasswordSpecialChars,
+        maxLoginAttempts: loadedConfig.security.maxLoginAttempts,
+        enableTwoFactorAuth: loadedConfig.security.enableTwoFactorAuth,
+        
+        // Notifications
+        emailNotifications: loadedConfig.notifications.emailNotifications,
+        smsNotifications: loadedConfig.notifications.smsNotifications,
+        lowStockThreshold: loadedConfig.notifications.lowStockThreshold,
+        reportingSchedule: loadedConfig.notifications.reportingSchedule,
+        
+        // Backup
+        autoBackup: loadedConfig.backup.autoBackup,
+        backupFrequency: loadedConfig.backup.backupFrequency,
+        retentionPeriod: loadedConfig.backup.retentionPeriod
+      });
+    } catch (error) {
+      console.error('Error loading system settings:', error);
+      message.error('Failed to load system settings');
+      
+      // Use default config on error and set form values
+      form.setFieldsValue({
         systemName: config.general.systemName,
         systemDescription: config.general.systemDescription,
         maintenanceMode: config.general.maintenanceMode,
         allowRegistration: config.general.allowRegistration,
         defaultUserRole: config.general.defaultUserRole,
-        
-        // Fuel
         defaultPetrolPrice: config.fuel.defaultPetrolPrice,
         defaultDieselPrice: config.fuel.defaultDieselPrice,
         autoCalculateCosts: config.fuel.autoCalculateCosts,
         currency: config.fuel.currency,
         priceUpdateNotifications: config.fuel.priceUpdateNotifications,
-        
-        // Security
         sessionTimeout: config.security.sessionTimeout,
         passwordMinLength: config.security.passwordMinLength,
         requirePasswordSpecialChars: config.security.requirePasswordSpecialChars,
         maxLoginAttempts: config.security.maxLoginAttempts,
         enableTwoFactorAuth: config.security.enableTwoFactorAuth,
-        
-        // Notifications
         emailNotifications: config.notifications.emailNotifications,
         smsNotifications: config.notifications.smsNotifications,
         lowStockThreshold: config.notifications.lowStockThreshold,
         reportingSchedule: config.notifications.reportingSchedule,
-        
-        // Backup
         autoBackup: config.backup.autoBackup,
         backupFrequency: config.backup.backupFrequency,
         retentionPeriod: config.backup.retentionPeriod
       });
-    } catch (error) {
-      console.error('Error loading system settings:', error);
-      message.error('Failed to load system settings');
     } finally {
       setLoading(false);
     }
@@ -175,8 +239,41 @@ const SystemSettings: FC = () => {
         }
       };
 
-      // Mock API call - replace with actual endpoint
-      // await apiRequest('put', '/api/system-settings/', newConfig);
+      // Real API call to update system settings
+      await apiClient.put('/admin/system-settings/', {
+        general: {
+          system_name: newConfig.general.systemName,
+          system_description: newConfig.general.systemDescription,
+          maintenance_mode: newConfig.general.maintenanceMode,
+          allow_registration: newConfig.general.allowRegistration,
+          default_user_role: newConfig.general.defaultUserRole
+        },
+        fuel: {
+          default_petrol_price: newConfig.fuel.defaultPetrolPrice,
+          default_diesel_price: newConfig.fuel.defaultDieselPrice,
+          auto_calculate_costs: newConfig.fuel.autoCalculateCosts,
+          currency: newConfig.fuel.currency,
+          price_update_notifications: newConfig.fuel.priceUpdateNotifications
+        },
+        security: {
+          session_timeout: newConfig.security.sessionTimeout,
+          password_min_length: newConfig.security.passwordMinLength,
+          require_password_special_chars: newConfig.security.requirePasswordSpecialChars,
+          max_login_attempts: newConfig.security.maxLoginAttempts,
+          enable_two_factor_auth: newConfig.security.enableTwoFactorAuth
+        },
+        notifications: {
+          email_notifications: newConfig.notifications.emailNotifications,
+          sms_notifications: newConfig.notifications.smsNotifications,
+          low_stock_threshold: newConfig.notifications.lowStockThreshold,
+          reporting_schedule: newConfig.notifications.reportingSchedule
+        },
+        backup: {
+          auto_backup: newConfig.backup.autoBackup,
+          backup_frequency: newConfig.backup.backupFrequency,
+          retention_period: newConfig.backup.retentionPeriod
+        }
+      });
 
       setConfig(newConfig);
       message.success('System settings updated successfully');
@@ -190,12 +287,32 @@ const SystemSettings: FC = () => {
 
   const performBackup = async () => {
     try {
-      // Mock backup functionality
-      message.loading('Creating backup...', 2);
-      setTimeout(() => {
-        message.success('System backup created successfully');
-      }, 2000);
+      message.loading('Creating backup...', 0);
+      
+      // Real API call to create backup
+      const response = await apiClient.post('/admin/backup/create/');
+      
+      if (response.data.backup_file) {
+        // Download the backup file
+        const downloadResponse = await apiClient.get(`/admin/backup/download/${response.data.backup_id}/`, {
+          responseType: 'blob'
+        });
+        
+        const url = window.URL.createObjectURL(new Blob([downloadResponse.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', response.data.backup_file);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }
+      
+      message.destroy();
+      message.success('System backup created and downloaded successfully');
     } catch (error) {
+      message.destroy();
+      console.error('Error creating backup:', error);
       message.error('Failed to create backup');
     }
   };

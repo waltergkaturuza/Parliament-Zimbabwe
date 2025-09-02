@@ -37,74 +37,13 @@ import {
   DownloadOutlined,
   UploadOutlined
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
+import apiClient from '@/api/index';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-
-// Mock data - replace with actual API calls
-const mockSubCenters = [
-  { id: 1, name: 'Harare Central', code: 'HAR001', location: 'Harare', manager: 'John Doe', capacity: 500, currentStock: 15000 },
-  { id: 2, name: 'Bulawayo North', code: 'BUL001', location: 'Bulawayo', manager: 'Jane Smith', capacity: 300, currentStock: 8500 },
-  { id: 3, name: 'Mutare East', code: 'MUT001', location: 'Mutare', manager: 'Peter Jones', capacity: 200, currentStock: 4200 },
-  { id: 4, name: 'Gweru Central', code: 'GWE001', location: 'Gweru', manager: 'Mary Wilson', capacity: 250, currentStock: 6800 }
-];
-
-const mockDistributions = [
-  {
-    id: 1,
-    subCenter: 'Harare Central',
-    fuelType: 'PETROL',
-    amount: 5000,
-    date: '2025-09-01',
-    status: 'DELIVERED',
-    driver: 'Robert Brown',
-    vehicle: 'ZBD 123 GP'
-  },
-  {
-    id: 2,
-    subCenter: 'Bulawayo North',
-    fuelType: 'DIESEL',
-    amount: 3000,
-    date: '2025-09-02',
-    status: 'IN_TRANSIT',
-    driver: 'Susan Green',
-    vehicle: 'ZBF 456 GP'
-  },
-  {
-    id: 3,
-    subCenter: 'Mutare East',
-    fuelType: 'PETROL',
-    amount: 2000,
-    date: '2025-09-02',
-    status: 'PENDING',
-    driver: null,
-    vehicle: null
-  }
-];
-
-const mockBeneficiaries = [
-  {
-    id: 1,
-    name: 'Hon. Member A',
-    category: 'MP',
-    constituency: 'Harare East',
-    monthlyAllocation: 400,
-    usedThisMonth: 320,
-    lastAllocation: '2025-08-30'
-  },
-  {
-    id: 2,
-    name: 'Sen. Member B',
-    category: 'SENATOR',
-    constituency: 'Bulawayo',
-    monthlyAllocation: 350,
-    usedThisMonth: 280,
-    lastAllocation: '2025-08-28'
-  }
-];
 
 export default function FuelDistribution() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -113,21 +52,56 @@ export default function FuelDistribution() {
   const [form] = Form.useForm();
   const [allocateForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('distributions');
+  const queryClient = useQueryClient();
 
-  // Mock queries - replace with actual API calls
+  // Real API queries to replace mock data
   const { data: subCenters, isLoading: loadingSubCenters } = useQuery({
-    queryKey: ['subCenters'],
-    queryFn: () => Promise.resolve(mockSubCenters)
+    queryKey: ['subcenters'],
+    queryFn: async () => {
+      const response = await apiClient.get('/subcenters/');
+      return response.data.results || response.data;
+    }
   });
 
   const { data: distributions, isLoading: loadingDistributions } = useQuery({
     queryKey: ['distributions'],
-    queryFn: () => Promise.resolve(mockDistributions)
+    queryFn: async () => {
+      const response = await apiClient.get('/distributions/');
+      return response.data.results || response.data;
+    }
   });
 
   const { data: beneficiaries, isLoading: loadingBeneficiaries } = useQuery({
     queryKey: ['beneficiaries'],
-    queryFn: () => Promise.resolve(mockBeneficiaries)
+    queryFn: async () => {
+      const response = await apiClient.get('/beneficiaries/');
+      return response.data.results || response.data;
+    }
+  });
+
+  // Mutations for creating distributions and allocations
+  const createDistributionMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/distributions/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['distributions'] });
+      setCreateModalVisible(false);
+      form.resetFields();
+    }
+  });
+
+  const allocateBeneficiaryMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/beneficiary-allocations/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      setAllocateModalVisible(false);
+      allocateForm.resetFields();
+    }
   });
 
   const getStatusColor = (status: string) => {
@@ -383,10 +357,7 @@ export default function FuelDistribution() {
 
   const handleCreateDistribution = async (values: any) => {
     try {
-      console.log('Creating distribution:', values);
-      // Add API call here
-      setCreateModalVisible(false);
-      form.resetFields();
+      await createDistributionMutation.mutateAsync(values);
     } catch (error) {
       console.error('Error creating distribution:', error);
     }
@@ -394,10 +365,7 @@ export default function FuelDistribution() {
 
   const handleAllocateToBeneficiary = async (values: any) => {
     try {
-      console.log('Allocating to beneficiary:', values);
-      // Add API call here
-      setAllocateModalVisible(false);
-      allocateForm.resetFields();
+      await allocateBeneficiaryMutation.mutateAsync(values);
     } catch (error) {
       console.error('Error allocating to beneficiary:', error);
     }

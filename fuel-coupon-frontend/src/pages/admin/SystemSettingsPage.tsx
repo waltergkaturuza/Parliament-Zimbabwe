@@ -37,6 +37,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { adminService } from '@/api/admin';
+import apiClient from '@/api/index';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -80,33 +81,36 @@ const SystemSettingsPage: React.FC = () => {
   const { data: settings, isLoading } = useQuery({
     queryKey: ['system-settings'],
     queryFn: async () => {
-      // Mock data for now - replace with actual API call
+      // Real API call to get system settings
+      const response = await apiClient.get('/admin/system-settings/');
+      const data = response.data;
+      
       return {
         general: {
-          system_name: 'Parliament of Zimbabwe Fuel Coupon System',
-          maintenance_mode: false,
-          timezone: 'Africa/Harare',
-          default_language: 'en'
+          system_name: data.general?.system_name || 'Parliament of Zimbabwe Fuel Coupon System',
+          maintenance_mode: data.general?.maintenance_mode || false,
+          timezone: data.general?.timezone || 'Africa/Harare',
+          default_language: data.general?.default_language || 'en'
         },
         fuel: {
-          petrol_price_usd: 1.42,
-          diesel_price_usd: 1.38,
-          usd_to_zwg_rate: 27.50,
-          price_update_frequency: 24
+          petrol_price_usd: data.fuel?.petrol_price_usd || 1.42,
+          diesel_price_usd: data.fuel?.diesel_price_usd || 1.38,
+          usd_to_zwg_rate: data.fuel?.usd_to_zwg_rate || 27.50,
+          price_update_frequency: data.fuel?.price_update_frequency || 24
         },
         notifications: {
-          email_enabled: true,
-          sms_enabled: false,
+          email_enabled: data.notifications?.email_enabled !== false,
+          sms_enabled: data.notifications?.sms_enabled || false,
           alert_thresholds: {
-            low_stock: 100,
-            critical_stock: 50
+            low_stock: data.notifications?.alert_thresholds?.low_stock || 100,
+            critical_stock: data.notifications?.alert_thresholds?.critical_stock || 50
           }
         },
         security: {
-          session_timeout: 30,
-          max_login_attempts: 5,
-          password_expiry_days: 90,
-          require_2fa: false
+          session_timeout: data.security?.session_timeout || 30,
+          max_login_attempts: data.security?.max_login_attempts || 5,
+          password_expiry_days: data.security?.password_expiry_days || 90,
+          require_2fa: data.security?.require_2fa || false
         }
       } as SystemSettings;
     }
@@ -115,15 +119,16 @@ const SystemSettingsPage: React.FC = () => {
   // Update settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async (values: Partial<SystemSettings>) => {
-      // Mock API call - replace with actual endpoint
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return values;
+      // Real API call to update settings
+      const response = await apiClient.put('/admin/system-settings/', values);
+      return response.data;
     },
     onSuccess: () => {
       message.success('Settings updated successfully');
       queryClient.invalidateQueries({ queryKey: ['system-settings'] });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Error updating settings:', error);
       message.error('Failed to update settings');
     }
   });
