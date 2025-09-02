@@ -1,5 +1,6 @@
 from django.urls import path, include
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -10,6 +11,7 @@ def get_view_function(view_name):
 
 def lazy_view(view_name):
     """Return a function-based view that resolves target on first request."""
+    @csrf_exempt
     def _view(request, *args, **kwargs):
         try:
             from . import views_main
@@ -26,6 +28,7 @@ def lazy_api_view(view_name):
     """Return a function-based view that resolves a target from api_views at request time.
     This avoids importing heavy views_main when only lightweight api_views is needed.
     """
+    @csrf_exempt
     def _view(request, *args, **kwargs):
         try:
             from . import api_views
@@ -40,6 +43,7 @@ def lazy_api_view(view_name):
 
 def lazy_class_view(class_name):
     """Wrap a class-based view by resolving .as_view() at request time."""
+    @csrf_exempt
     def _view(request, *args, **kwargs):
         try:
             from . import views_main
@@ -57,6 +61,7 @@ def lazy_viewset_action(viewset_name, actions):
     """Wrap a ViewSet action by resolving class and .as_view(actions) at request time.
     Tries views_main first, then falls back to api_views to avoid import coupling issues.
     """
+    @csrf_exempt
     def _view(request, *args, **kwargs):
         try:
             try:
