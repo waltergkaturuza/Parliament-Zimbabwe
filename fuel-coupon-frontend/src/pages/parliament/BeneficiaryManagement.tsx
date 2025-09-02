@@ -61,51 +61,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import BeneficiaryService from '@/api/beneficiaries';
+import BeneficiaryService, { type Beneficiary } from '@/api/beneficiaries';
 import apiClient from '@/api';
 
 const { Search } = Input;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { TabPane } = Tabs;
-
-interface Beneficiary {
-  id: string;
-  parliamentaryId: string;
-  name: string;
-  title: string;
-  category: 'MP' | 'SENATOR' | 'STAFF' | 'OFFICIAL';
-  constituency?: string;
-  party?: string;
-  phoneNumber: string;
-  email: string;
-  address: string;
-  dateOfBirth: string;
-  nationalId: string;
-  profilePhoto?: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  entitlements: {
-    monthlyAllocation: number;
-    maxPerTransaction: number;
-    vehicleCount: number;
-  };
-  fuelUsage: {
-    currentMonth: number;
-    lastMonth: number;
-    yearToDate: number;
-    totalUsed: number;
-  };
-  vehicles: Array<{
-    id: string;
-    registration: string;
-    make: string;
-    model: string;
-    year: number;
-    fuelType: 'PETROL' | 'DIESEL';
-  }>;
-  lastActivity: string;
-  createdAt: string;
-}
 
 interface BeneficiaryFilters {
   search?: string;
@@ -277,26 +239,20 @@ const BeneficiaryManagement = () => {
       employeeId: beneficiary.parliamentaryId,
       email: beneficiary.email,
       phoneNumber: beneficiary.phoneNumber,
-      category: beneficiary.category?.name || beneficiary.category,
+      category: typeof beneficiary.category === 'object' ? beneficiary.category.name : beneficiary.category,
       position: beneficiary.title,
-      department: beneficiary.department,
       party: beneficiary.party,
-      constituency: beneficiary.constituency?.name || beneficiary.constituency,
-      officeLocation: beneficiary.officeLocation,
+      constituency: typeof beneficiary.constituency === 'object' ? beneficiary.constituency.name : beneficiary.constituency,
       // Vehicle information
       vehicleMake: beneficiary.vehicles?.[0]?.make,
       vehicleModel: beneficiary.vehicles?.[0]?.model,
       vehicleYear: beneficiary.vehicles?.[0]?.year,
       vehicleRegistration: beneficiary.vehicles?.[0]?.registration,
-      engineSize: beneficiary.vehicles?.[0]?.engineSize,
       fuelType: beneficiary.vehicles?.[0]?.fuelType || 'DIESEL',
       // Administrative
       status: beneficiary.status,
-      isActiveBeneficiary: beneficiary.isActiveBeneficiary,
       // Entitlements
       monthlyEntitlement: beneficiary.entitlements?.monthlyAllocation,
-      baseAllocation: beneficiary.allocationProfile?.baseAllocation,
-      currentBalance: beneficiary.fuelUsage?.currentBalance,
     });
     setIsEditModalOpen(true);
   };
@@ -376,7 +332,7 @@ const BeneficiaryManagement = () => {
       render: (category: any) => {
         // Handle both object format {name: "STAFF"} and string format "STAFF"
         const categoryName = category?.name || category || 'N/A';
-  const displayName = (categoryName || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const displayName = (categoryName || '').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
         return (
           <Tag color={getCategoryColor(categoryName)}>{displayName}</Tag>
         );
@@ -787,8 +743,8 @@ const BeneficiaryManagement = () => {
                         {selectedBeneficiary.title} {selectedBeneficiary.name}
                       </Title>
                       <div className="flex items-center gap-4 mb-4">
-                        <Tag color={getCategoryColor(selectedBeneficiary.category)}>
-                          {selectedBeneficiary.category}
+                        <Tag color={getCategoryColor(typeof selectedBeneficiary.category === 'object' ? selectedBeneficiary.category.name : selectedBeneficiary.category)}>
+                          {typeof selectedBeneficiary.category === 'object' ? selectedBeneficiary.category.name : selectedBeneficiary.category}
                         </Tag>
                         <Tag color={getStatusColor(selectedBeneficiary.status)}>
                           {selectedBeneficiary.status}
@@ -812,7 +768,7 @@ const BeneficiaryManagement = () => {
                         </Descriptions.Item>
                         {selectedBeneficiary.constituency && (
                           <Descriptions.Item label="Constituency">
-                            {selectedBeneficiary.constituency}
+                            {typeof selectedBeneficiary.constituency === 'object' ? selectedBeneficiary.constituency.name : selectedBeneficiary.constituency}
                           </Descriptions.Item>
                         )}
                         <Descriptions.Item label="Date of Birth">
@@ -1006,7 +962,7 @@ const BeneficiaryManagement = () => {
                       optionFilterProp="children"
                       style={{ fontSize: '16px', minHeight: '40px' }}
                       filterOption={(input, option) =>
-                        (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
                       }
                       onChange={(userId) => {
                         if (userId) {
@@ -1128,7 +1084,7 @@ const BeneficiaryManagement = () => {
                       size="large"
                       style={{ fontSize: '16px', minHeight: '40px' }}
                       filterOption={(input, option) =>
-                        option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        (option?.children?.toString()?.toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0 || false
                       }
                     >
                       {beneficiaryCategories.map((category: any) => (
@@ -1202,7 +1158,7 @@ const BeneficiaryManagement = () => {
                       style={{ fontSize: '16px', minHeight: '40px' }}
                       optionFilterProp="children"
                       filterOption={(input, option) =>
-                        (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
                       }
                     >
                       {politicalParties.map((party: any) => (
@@ -1472,7 +1428,7 @@ const BeneficiaryManagement = () => {
                       allowClear
                       loading={categoriesLoading}
                       filterOption={(input, option) =>
-                        option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        (option?.children?.toString()?.toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
                       }
                     >
                       {beneficiaryCategories.map((category: any) => (
@@ -1542,7 +1498,7 @@ const BeneficiaryManagement = () => {
                       showSearch
                       optionFilterProp="children"
                       filterOption={(input, option) =>
-                        (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
                       }
                     >
                       {politicalParties.map((party: any) => (

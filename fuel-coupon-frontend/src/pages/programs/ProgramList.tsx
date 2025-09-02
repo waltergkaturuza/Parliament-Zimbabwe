@@ -64,86 +64,7 @@ const ProgramList = () => {
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [form] = Form.useForm();
 
-  // Mock data for demonstration
-  useEffect(() => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setPrograms([
-        {
-          id: '1',
-          title: 'Parliamentary Orientation Workshop',
-          program_type: 'WORKSHOP',
-          scheduled_date: '2024-07-15T09:00:00Z',
-          end_date: '2024-07-15T17:00:00Z',
-          description: 'Comprehensive workshop on parliamentary procedures and fuel coupon allocation',
-          location: 'Parliament Main Hall',
-          organizer: {
-            id: '1',
-            username: 'john.doe',
-            first_name: 'John',
-            last_name: 'Doe'
-          },
-          is_active: true,
-          sub_center: {
-            id: '1',
-            name: 'Central Harare'
-          },
-          attendees_count: 45,
-          completion_percentage: 85,
-          created: '2024-07-01T10:00:00Z',
-          modified: '2024-07-10T14:30:00Z'
-        },
-        {
-          id: '2',
-          title: 'Constituency Visit Program',
-          program_type: 'CONSTITUENCY',
-          scheduled_date: '2024-07-20T08:00:00Z',
-          end_date: '2024-07-20T16:00:00Z',
-          description: 'MPs visiting their constituencies for community engagement',
-          location: 'Various Constituencies',
-          organizer: {
-            id: '2',
-            username: 'jane.smith',
-            first_name: 'Jane',
-            last_name: 'Smith'
-          },
-          is_active: true,
-          sub_center: {
-            id: '2',
-            name: 'Chitungwiza'
-          },
-          attendees_count: 120,
-          completion_percentage: 100,
-          created: '2024-07-05T09:00:00Z',
-          modified: '2024-07-18T11:15:00Z'
-        },
-        {
-          id: '3',
-          title: 'Parliamentary Committee Session',
-          program_type: 'COMMITTEE',
-          scheduled_date: '2024-07-25T14:00:00Z',
-          end_date: '2024-07-25T16:00:00Z',
-          description: 'Finance Committee session on fuel allocation budget review',
-          location: 'Committee Room A',
-          organizer: {
-            id: '3',
-            username: 'mike.wilson',
-            first_name: 'Mike',
-            last_name: 'Wilson'
-          },
-          is_active: true,
-          attendees_count: 30,
-          completion_percentage: 60,
-          created: '2024-07-12T16:00:00Z',
-          modified: '2024-07-22T10:45:00Z'
-        }
-      ]);
-      setLoading(false);
-    }, 1000);
-  }, []);
-
-  const programTypeColors = {
+    const programTypeColors = {
     SESSION: '#1890ff',
     COMMITTEE: '#52c41a', 
     WORKSHOP: '#fa8c16',
@@ -215,9 +136,9 @@ const ProgramList = () => {
             {getStatusTag(record)}
           </div>
           <Text type="secondary" className="text-xs">
-            {record.description.length > 60 
+            {(record.description && record.description.length > 60) 
               ? `${record.description.substring(0, 60)}...`
-              : record.description
+              : (record.description || 'No description')
             }
           </Text>
         </div>

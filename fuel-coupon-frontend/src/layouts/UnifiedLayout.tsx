@@ -298,6 +298,12 @@ const UnifiedLayout: React.FC = () => {
           path: '/dashboard/fuel-allocations',
         },
         {
+          key: 'fuel-entitlements',
+          icon: <FileTextOutlined />,
+          label: 'Fuel Entitlements',
+          path: '/dashboard/fuel-entitlements',
+        },
+        {
           key: 'dynamic-allocations',
           icon: <CalculatorOutlined />,
           label: 'Dynamic Allocations',
@@ -548,6 +554,7 @@ const UnifiedLayout: React.FC = () => {
     if (path.includes('/local-inventory')) return ['local-inventory'];
     if (path.includes('/subcenter-inventory')) return ['subcenter-inventory'];
     if (path.includes('/fuel-allocations')) return ['fuel-allocations'];
+    if (path.includes('/fuel-entitlements')) return ['fuel-entitlements'];
     if (path.includes('/dynamic-allocations')) return ['dynamic-allocations'];
     if (path.includes('/analytics')) return ['usage-analytics'];
     

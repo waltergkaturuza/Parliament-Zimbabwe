@@ -5102,15 +5102,15 @@ class FuelEntitlement(TimeStampedModel):
         ('CANCELLED', 'Cancelled'),
     ]
 
-    entitlement_type = models.CharField(max_length=20, choices=ENTITLEMENT_TYPES, help_text='Type of entitlement')
-    litres_entitled = models.DecimalField(max_digits=8, decimal_places=2, help_text='Amount of fuel entitled in litres')
+    entitlement_type = models.CharField(max_length=20, choices=ENTITLEMENT_TYPES, default='MONTHLY', help_text='Type of entitlement')
+    litres_entitled = models.DecimalField(max_digits=8, decimal_places=2, default=200, help_text='Amount of fuel entitled in litres')
     litres_allocated = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text='Amount of fuel actually allocated/given')
-    period_start = models.DateField(help_text='Start date of entitlement period')
-    period_end = models.DateField(help_text='End date of entitlement period')
+    period_start = models.DateField(null=True, blank=True, help_text='Start date of entitlement period')
+    period_end = models.DateField(null=True, blank=True, help_text='End date of entitlement period')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     approved_date = models.DateTimeField(blank=True, null=True, help_text='Date when entitlement was approved')
     notes = models.TextField(blank=True, help_text='Additional notes about this entitlement')
-    justification = models.TextField(help_text='Justification for this entitlement')
+    justification = models.TextField(blank=True, default='', help_text='Justification for this entitlement')
 
     approved_by = models.ForeignKey(
         User,

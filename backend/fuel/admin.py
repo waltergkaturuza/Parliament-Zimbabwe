@@ -581,6 +581,43 @@ class VehicleCategoryAdmin(admin.ModelAdmin):
     ordering = ['name']
 
 
+@admin.register(ParliamentSession)
+class ParliamentSessionAdmin(admin.ModelAdmin):
+    list_display = ['title', 'session_type', 'start_date', 'end_date', 'start_time', 'end_time', 'venue', 'is_active', 'is_mandatory']
+    list_filter = ['session_type', 'is_active', 'is_mandatory', 'start_date', 'managing_subcenter']
+    search_fields = ['title', 'description', 'venue']
+    ordering = ['-start_date', '-start_time']
+    date_hierarchy = 'start_date'
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('title', 'session_type', 'description', 'venue')
+        }),
+        ('Schedule', {
+            'fields': ('start_date', 'end_date', 'start_time', 'end_time')
+        }),
+        ('Management', {
+            'fields': ('organizer', 'managing_subcenter', 'program')
+        }),
+        ('Configuration', {
+            'fields': ('is_active', 'is_mandatory', 'expected_attendance', 'attendance_tracked')
+        }),
+        ('Fuel Allocation', {
+            'fields': ('fuel_top_up_litres', 'fuel_top_up_percentage'),
+            'classes': ('collapse',)
+        }),
+        ('Attendees', {
+            'fields': ('assigned_attendees',),
+            'classes': ('collapse',)
+        })
+    )
+    
+    filter_horizontal = ['assigned_attendees']
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('organizer', 'managing_subcenter', 'program')
+
+
 # Admin Site Customization
 admin.site.site_header = "Fuel Coupon Management System"
 admin.site.site_title = "FCMS Administration"

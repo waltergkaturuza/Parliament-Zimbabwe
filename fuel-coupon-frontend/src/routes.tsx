@@ -71,6 +71,7 @@ const ProgramsPage = lazy(() => import('@/pages/parliament/ProgramsPage'));
 const AttendanceTracking = lazy(() => import('@/pages/parliament/AttendanceTracking'));
 const ConstituencyManagement = lazy(() => import('@/pages/parliament/ConstituencyManagement'));
 const FuelAllocations = lazy(() => import('@/pages/fuel/FuelAllocations'));
+const FuelEntitlements = lazy(() => import('@/pages/fuel/FuelEntitlements'));
 
 // Beneficiary pages
 const MySessionsPage = lazy(() => import('@/pages/beneficiary/MySessionsPage'));
@@ -225,6 +226,7 @@ const router = createBrowserRouter(
         <Route path="attendance" element={<Suspense fallback={<LoadingSpinner />}><AttendanceTracking /></Suspense>} />
         <Route path="constituencies" element={<Suspense fallback={<LoadingSpinner />}><ConstituencyManagement /></Suspense>} />
         <Route path="fuel-allocations" element={<Suspense fallback={<LoadingSpinner />}><FuelAllocations /></Suspense>} />
+        <Route path="fuel-entitlements" element={<Suspense fallback={<LoadingSpinner />}><FuelEntitlements /></Suspense>} />
         <Route path="dynamic-allocations" element={<Suspense fallback={<LoadingSpinner />}><DynamicAllocations /></Suspense>} />
         
         {/* Coupon Routes */}
