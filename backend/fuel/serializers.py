@@ -1784,7 +1784,8 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     # Related objects - custom fields that handle both read and write
     category = CategoryField(required=False)
     constituency = ConstituencyField(required=False) 
-    party = serializers.CharField(required=False, allow_blank=True, source='party_affiliation')
+    # Party display: show PoliticalParty name/abbr if set; fallback to legacy string
+    party = serializers.SerializerMethodField()
     
     # Structured data for frontend
     contactInfo = serializers.SerializerMethodField()
@@ -1864,6 +1865,16 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     def get_profilePhoto(self, obj):
         """Get profile photo from user object"""
         return obj.user.profile_picture if obj.user else ""
+
+    def get_party(self, obj):
+        """Prefer PoliticalParty (name or abbreviation), fallback to legacy string field"""
+        try:
+            if hasattr(obj, 'political_party') and obj.political_party:
+                return obj.political_party.abbreviation or obj.political_party.name
+        except Exception:
+            pass
+        # Fallback legacy value
+        return getattr(obj, 'party_affiliation', '') or ''
     
     def get_status(self, obj):
         """Get beneficiary status"""
@@ -2016,6 +2027,9 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         constituency_id = validated_data.pop('constituency', None)
         vehicle_category_id = validated_data.pop('vehicle_category', None)
         party_value = validated_data.pop('party_affiliation', None)
+        if party_value in (None, ''):
+            # Accept raw 'party' from request payload when not bound via serializer field
+            party_value = raw.get('party')
 
         print("Category ID:", category_id)
         print("Constituency ID:", constituency_id)
@@ -2234,6 +2248,8 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         
         # Handle party (source party_affiliation) mapping to PoliticalParty FK
         party_value = validated_data.pop('party_affiliation', None)
+        if party_value in (None, ''):
+            party_value = getattr(self, 'initial_data', {}).get('party') if hasattr(self, 'initial_data') else None
         if party_value not in (None, ""):
             try:
                 party_obj = None
