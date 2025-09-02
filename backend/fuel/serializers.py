@@ -1630,8 +1630,8 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
         # Production DB may be missing the related column if migrations weren't applied.
         try:
             return obj.fuel_entitlements.filter(status__in=['ALLOCATED', 'PARTIALLY_ALLOCATED']).count()
-        except Exception:
-            # If the relation or column is missing (ProgrammingError) return 0 to avoid 500s.
+        except (models.DatabaseError, models.ProgrammingError):
+            # If the relation or column is missing or other DB error occurs, return 0 to avoid 500s.
             return 0
     
     def get_total_fuel_allocated(self, obj):
@@ -1643,7 +1643,7 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
                 total=models.Sum('litres_allocated')
             )['total']
             return total or 0
-        except Exception:
+        except (models.DatabaseError, models.ProgrammingError):
             # If the relation/column doesn't exist yet in the DB, return 0 instead of 500
             return 0
     
@@ -2003,7 +2003,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 allocated_date__gte=current_month,
                 status__in=['ALLOCATED', 'USED']
             ).aggregate(total=models.Sum('litres'))['total'] or 0
-        except Exception:
+        except (models.DatabaseError, models.ProgrammingError):
             return 0
     
     def get_pending_entitlements(self, obj):
@@ -2018,7 +2018,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             if hasattr(obj.user, 'fuelentitlement_set'):
                 return obj.user.fuelentitlement_set.count()
             return 0
-        except Exception:
+        except (models.DatabaseError, models.ProgrammingError):
             # If the underlying column is missing or DB errors occur, return 0 and avoid 500
             return 0
     
