@@ -3097,7 +3097,7 @@ class DynamicAllocationSerializer(serializers.ModelSerializer):
     
     beneficiary_name = serializers.CharField(source='beneficiary.get_full_name', read_only=True)
     constituency_name = serializers.CharField(source='beneficiary.constituency.name', read_only=True)
-    session_name = serializers.CharField(source='session.name', read_only=True)
+    session_name = serializers.CharField(source='session.title', read_only=True)
     rule_name = serializers.CharField(source='allocation_rule.rule_name', read_only=True)
     
     class Meta:
