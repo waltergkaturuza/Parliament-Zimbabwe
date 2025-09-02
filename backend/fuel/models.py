@@ -3614,6 +3614,13 @@ class BeneficiaryProfile(TimeStampedModel):
         blank=True,
         help_text="Political party affiliation"
     )
+    # Compatibility string field for legacy/DB schema
+    party_affiliation = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Political party affiliation (legacy string field)"
+    )
     
     # Status field for beneficiary management
     status = models.CharField(
