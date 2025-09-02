@@ -1,0 +1,48 @@
+# Commands to run in Render.com shell to fix migration issues
+# Copy and paste these commands one by one into the Render shell
+
+# 1. Check current migration status
+python manage.py showmigrations fuel
+
+# 2. Try to apply the safe migration
+python manage.py migrate fuel 10020_safe_add_fields
+
+# 3. If step 2 fails with "column already exists", fake apply it
+python manage.py migrate fuel 10020_safe_add_fields --fake
+
+# 4. Apply any remaining migrations
+python manage.py migrate
+
+# 5. Check final migration status
+python manage.py showmigrations fuel
+
+# 6. Collect static files (important for admin interface)
+python manage.py collectstatic --noinput
+
+# 7. Test database connection
+python -c "
+import os
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+from fuel.models import *
+print('Database connection test:')
+print(f'FuelEntitlement records: {FuelEntitlement.objects.count()}')
+print(f'ParliamentSession records: {ParliamentSession.objects.count()}')
+print('✅ Database test completed')
+"
+
+# 8. Test admin imports
+python -c "
+import os
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+from fuel.admin import *
+print('✅ Admin imports successful')
+"
+
+# Alternative: If all else fails, you can reset and reapply migrations
+# WARNING: Only use this if you're sure about your data
+# python manage.py migrate fuel zero
+# python manage.py migrate fuel
