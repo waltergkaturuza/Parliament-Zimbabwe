@@ -574,7 +574,7 @@ const PoliticalPartiesManagement: React.FC = () => {
       {/* Create/Edit Modal */}
       <Modal
         title={
-          <Space>
+          <Space style={{ fontSize: '20px', fontWeight: 'bold' }}>
             <BankOutlined />
             {editingParty ? 'Edit Political Party' : 'Create Political Party'}
           </Space>
@@ -585,7 +585,7 @@ const PoliticalPartiesManagement: React.FC = () => {
           form.resetFields();
         }}
         onOk={() => form.submit()}
-        width={800}
+        width={1200}
         confirmLoading={loading}
       >
         <Form
@@ -597,19 +597,19 @@ const PoliticalPartiesManagement: React.FC = () => {
             <Col xs={24} md={12}>
               <Form.Item
                 name="name"
-                label="Full Party Name"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Full Party Name</span>}
                 rules={[{ required: true, message: 'Please enter party name' }]}
               >
-                <Input placeholder="e.g., Zimbabwe African National Union - Patriotic Front" />
+                <Input placeholder="e.g., Zimbabwe African National Union - Patriotic Front" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item
                 name="short_name"
-                label="Short Name/Acronym"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Short Name/Acronym</span>}
                 rules={[{ required: true, message: 'Please enter short name' }]}
               >
-                <Input placeholder="e.g., ZANU-PF" />
+                <Input placeholder="e.g., ZANU-PF" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
               </Form.Item>
             </Col>
           </Row>
@@ -618,10 +618,10 @@ const PoliticalPartiesManagement: React.FC = () => {
             <Col xs={24} md={8}>
               <Form.Item
                 name="party_type"
-                label="Party Type"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Party Type</span>}
                 rules={[{ required: true, message: 'Please select party type' }]}
               >
-                <Select placeholder="Select party type">
+                <Select placeholder="Select party type" size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
                   <Option value="POLITICAL">Political Party</Option>
                   <Option value="COALITION">Coalition</Option>
                   <Option value="ALLIANCE">Alliance</Option>
@@ -633,10 +633,10 @@ const PoliticalPartiesManagement: React.FC = () => {
             <Col xs={24} md={8}>
               <Form.Item
                 name="status"
-                label="Status"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Status</span>}
                 rules={[{ required: true, message: 'Please select status' }]}
               >
-                <Select placeholder="Select status">
+                <Select placeholder="Select status" size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
                   <Option value="ACTIVE">Active</Option>
                   <Option value="INACTIVE">Inactive</Option>
                   <Option value="SUSPENDED">Suspended</Option>
@@ -646,7 +646,7 @@ const PoliticalPartiesManagement: React.FC = () => {
             <Col xs={24} md={8}>
               <Form.Item
                 name="display_order"
-                label="Display Order"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Display Order</span>}
                 initialValue={100}
               >
                 <InputNumber min={1} max={999} style={{ width: '100%' }} />

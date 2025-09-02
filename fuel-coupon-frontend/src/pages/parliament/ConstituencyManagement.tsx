@@ -388,7 +388,7 @@ const ConstituencyManagement: React.FC = () => {
 
       {/* Create Modal */}
       <Modal
-        title="Add New Constituency"
+        title={<span style={{ fontSize: '20px', fontWeight: 'bold' }}>Add New Constituency</span>}
         open={isCreateModalOpen}
         onCancel={() => {
           setIsCreateModalOpen(false);
@@ -396,7 +396,7 @@ const ConstituencyManagement: React.FC = () => {
           setSelectedProvince('');
         }}
         footer={null}
-        width={600}
+        width={900}
         destroyOnHidden
       >
         <Form
@@ -408,20 +408,22 @@ const ConstituencyManagement: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="name"
-                label="Constituency Name"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Constituency Name</span>}
                 rules={[{ required: true, message: 'Please enter constituency name' }]}
               >
-                <Input placeholder="Enter constituency name" />
+                <Input placeholder="Enter constituency name" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="province"
-                label="Province"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Province</span>}
                 rules={[{ required: true, message: 'Please select province' }]}
               >
                 <Select
                   placeholder="Select province"
+                  size="large"
+                  style={{ fontSize: '16px', minHeight: '40px' }}
                   onChange={(value) => {
                     setSelectedProvince(value);
                     form.setFieldValue('district', undefined);
@@ -439,12 +441,14 @@ const ConstituencyManagement: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="district"
-                label="District (Optional)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>District (Optional)</span>}
               >
                 <Select
                   placeholder="Select district"
                   disabled={!selectedProvince}
                   allowClear
+                  size="large"
+                  style={{ fontSize: '16px', minHeight: '40px' }}
                 >
                   {selectedProvince && ZIMBABWE_PROVINCES[selectedProvince as keyof typeof ZIMBABWE_PROVINCES]?.map(district => (
                     <Option key={district} value={district}>{district}</Option>
@@ -455,7 +459,7 @@ const ConstituencyManagement: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="distance_from_parliament_km"
-                label="Distance from Parliament (km)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Distance from Parliament (km)</span>}
                 rules={[{ required: true, message: 'Please enter distance' }]}
                 initialValue={0}
               >
@@ -463,7 +467,8 @@ const ConstituencyManagement: React.FC = () => {
                   min={0}
                   max={1000}
                   placeholder="Distance in km"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                 />
               </Form.Item>
             </Col>
@@ -473,12 +478,13 @@ const ConstituencyManagement: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="population"
-                label="Population (Optional)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Population (Optional)</span>}
               >
                 <InputNumber
                   min={0}
                   placeholder="Estimated population"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   formatter={(value) => (value ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
                   // @ts-ignore AntD typing expects (string|undefined)=>number but is too strict in our setup
                   parser={(value: any) => {
@@ -493,7 +499,7 @@ const ConstituencyManagement: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="is_active"
-                label="Status"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Status</span>}
                 valuePropName="checked"
                 initialValue={true}
               >

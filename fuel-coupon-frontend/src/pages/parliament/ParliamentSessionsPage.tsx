@@ -549,14 +549,14 @@ const ParliamentSessionsPage: FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal
-        title={editingSession ? 'Edit Parliament Session' : 'Create Parliament Session'}
+        title={<span style={{ fontSize: '20px', fontWeight: 'bold' }}>{editingSession ? 'Edit Parliament Session' : 'Create Parliament Session'}</span>}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
           form.resetFields();
         }}
         footer={null}
-        width={900}
+        width={1400}
         centered
       >
         <Form
@@ -578,18 +578,18 @@ const ParliamentSessionsPage: FC = () => {
         >
           <Form.Item
             name="title"
-            label="Session Title"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Session Title</span>}
             rules={[{ required: true, message: 'Please enter session title' }]}
           >
-            <Input placeholder="Enter session title" />
+            <Input placeholder="Enter session title" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
           </Form.Item>
 
           <Form.Item
             name="session_type"
-            label="Session Type"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Session Type</span>}
             rules={[{ required: true, message: 'Please select session type' }]}
           >
-            <Select placeholder="Select session type">
+            <Select placeholder="Select session type" size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
               <Option value="REGULAR">Regular Session</Option>
               <Option value="SPECIAL">Special Session</Option>
               <Option value="COMMITTEE">Committee Session</Option>
@@ -602,24 +602,26 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="start_date"
-                label="Start Date"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Start Date</span>}
                 rules={[{ required: true, message: 'Please select start date' }]}
               >
                 <DatePicker
                   format="YYYY-MM-DD"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="end_date"
-                label="End Date"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>End Date</span>}
                 rules={[{ required: true, message: 'Please select end date' }]}
               >
                 <DatePicker
                   format="YYYY-MM-DD"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                 />
               </Form.Item>
             </Col>
@@ -629,12 +631,13 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="start_time"
-                label="Start Time"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Start Time</span>}
                 rules={[{ required: true, message: 'Please select start time' }]}
               >
                 <TimePicker
                   format="HH:mm"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   placeholder="Select start time"
                 />
               </Form.Item>
@@ -642,12 +645,13 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="end_time"
-                label="End Time"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>End Time</span>}
                 rules={[{ required: true, message: 'Please select end time' }]}
               >
                 <TimePicker
                   format="HH:mm"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   placeholder="Select end time"
                 />
               </Form.Item>
@@ -656,16 +660,16 @@ const ParliamentSessionsPage: FC = () => {
 
           <Form.Item
             name="venue"
-            label="Venue"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Venue</span>}
           >
-            <Input placeholder="Enter venue (default: Parliament Building)" />
+            <Input placeholder="Enter venue (default: Parliament Building)" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
           </Form.Item>
 
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="organizer"
-                label="Session Organizer"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Session Organizer</span>}
                 tooltip="Officer responsible for organizing this parliament session"
               >
                 <Select
@@ -673,6 +677,8 @@ const ParliamentSessionsPage: FC = () => {
                   loading={usersLoading}
                   allowClear
                   showSearch
+                  size="large"
+                  style={{ fontSize: '16px', minHeight: '40px' }}
                   optionFilterProp="children"
                   filterOption={(input, option) =>
                     (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
@@ -689,7 +695,7 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="managing_subcenter"
-                label="Managing SubCenter"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Managing SubCenter</span>}
                 tooltip="SubCenter responsible for managing this session (optional)"
               >
                 <Select
@@ -697,6 +703,8 @@ const ParliamentSessionsPage: FC = () => {
                   loading={subcentersLoading}
                   allowClear
                   showSearch
+                  size="large"
+                  style={{ fontSize: '16px', minHeight: '40px' }}
                   optionFilterProp="children"
                   filterOption={(input, option) =>
                     (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
@@ -714,7 +722,7 @@ const ParliamentSessionsPage: FC = () => {
 
           <Form.Item
             name="program"
-            label="Related Program"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Related Program</span>}
             tooltip="Program this session belongs to (optional)"
           >
             <Select
@@ -722,6 +730,8 @@ const ParliamentSessionsPage: FC = () => {
               loading={programsLoading}
               allowClear
               showSearch
+              size="large"
+              style={{ fontSize: '16px', minHeight: '40px' }}
               optionFilterProp="children"
               filterOption={(input, option) =>
                 (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
@@ -737,11 +747,12 @@ const ParliamentSessionsPage: FC = () => {
 
           <Form.Item
             name="description"
-            label="Description"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Description</span>}
           >
             <Input.TextArea
               rows={3}
               placeholder="Describe the purpose and agenda of this session"
+              style={{ fontSize: '16px' }}
             />
           </Form.Item>
 
@@ -749,14 +760,15 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="fuel_top_up_litres"
-                label="Fuel Top-up (Litres)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Fuel Top-up (Litres)</span>}
                 tooltip="Additional fuel litres for session attendees"
               >
                 <InputNumber
                   min={0}
                   max={1000}
                   step={5}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   placeholder="Enter additional fuel litres"
                 />
               </Form.Item>
@@ -764,14 +776,15 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="fuel_top_up_percentage"
-                label="Fuel Top-up (%)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Fuel Top-up (%)</span>}
                 tooltip="Percentage-based fuel increase for attendees"
               >
                 <InputNumber
                   min={0}
                   max={100}
                   step={5}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   placeholder="Enter percentage increase"
                 />
               </Form.Item>
@@ -782,13 +795,14 @@ const ParliamentSessionsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="expected_attendance"
-                label="Expected Attendance"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Expected Attendance</span>}
                 tooltip="Expected number of attendees"
               >
                 <InputNumber
                   min={0}
                   max={500}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   placeholder="Number of expected attendees"
                 />
               </Form.Item>

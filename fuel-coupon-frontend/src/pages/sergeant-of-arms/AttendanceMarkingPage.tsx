@@ -566,14 +566,14 @@ const AttendanceMarkingPage: React.FC = () => {
 
       {/* Attendance Marking Modal */}
       <Modal
-        title={`Mark Attendance - ${selectedMember?.member_details.first_name} ${selectedMember?.member_details.last_name}`}
+        title={<span style={{ fontSize: '20px', fontWeight: 'bold' }}>{`Mark Attendance - ${selectedMember?.member_details.first_name} ${selectedMember?.member_details.last_name}`}</span>}
         open={markingModalVisible}
         onCancel={() => {
           setMarkingModalVisible(false);
           setSelectedMember(null);
         }}
         footer={null}
-        width={600}
+        width={900}
       >
         {selectedMember && (
           <AttendanceMarkingForm

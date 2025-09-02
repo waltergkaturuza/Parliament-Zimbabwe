@@ -551,6 +551,36 @@ const BeneficiaryManagement = () => {
 
   return (
     <div className="space-y-6">
+      <style>
+        {`
+          .beneficiaries-table .ant-table-thead > tr > th {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            background: #fafafa !important;
+          }
+          .beneficiaries-table .ant-table-tbody > tr > td {
+            font-size: 16px !important;
+            padding: 16px !important;
+          }
+          .beneficiaries-table .ant-table-tbody > tr > td .ant-typography {
+            font-size: 16px !important;
+          }
+          .beneficiaries-table .ant-table-tbody > tr > td .font-semibold {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+          }
+          .beneficiaries-table .ant-table-tbody > tr > td .text-sm {
+            font-size: 14px !important;
+          }
+          .beneficiaries-table .ant-tag {
+            font-size: 14px !important;
+            padding: 4px 8px !important;
+          }
+          .beneficiaries-table .ant-btn {
+            font-size: 14px !important;
+          }
+        `}
+      </style>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -723,6 +753,13 @@ const BeneficiaryManagement = () => {
               `${range[0]}-${range[1]} of ${total} beneficiaries`,
           }}
           scroll={{ x: 1400 }}
+          className="beneficiaries-table"
+          style={{
+            '--table-font-size': '16px',
+            '--table-header-font-size': '16px',
+            '--table-header-font-weight': '600',
+          } as React.CSSProperties & { [key: string]: any }}
+          size="large"
         />
       </Card>
 
@@ -878,7 +915,7 @@ const BeneficiaryManagement = () => {
 
       {/* Create Beneficiary Modal - Harmonized with Backend */}
       <Modal
-        title="Add New Beneficiary"
+        title={<span style={{ fontSize: '20px', fontWeight: 'bold' }}>Add New Beneficiary</span>}
         open={isCreateModalOpen}
         onCancel={() => {
           setIsCreateModalOpen(false);
@@ -886,8 +923,10 @@ const BeneficiaryManagement = () => {
         }}
         onOk={() => createForm.submit()}
         confirmLoading={isLoading}
-        width={1200}
+        width={1600}
         destroyOnHidden
+        style={{ fontSize: '16px' }}
+        bodyStyle={{ fontSize: '16px' }}
       >
         <Form
           form={createForm}
@@ -949,15 +988,15 @@ const BeneficiaryManagement = () => {
             }
           }}
         >
-          <div className="space-y-4">
+          <div className="space-y-4" style={{ fontSize: '16px' }}>
             {/* System User Selection */}
-            <Card size="small" title="System User Selection">
+            <Card size="small" title={<span style={{ fontSize: '18px', fontWeight: 'bold' }}>System User Selection</span>}>
               <Row gutter={16}>
                 <Col span={24}>
                   <Form.Item
                     name="systemUser"
-                    label="Link to Existing System User (Optional)"
-                    help="Select an existing system user with BENEFICIARY role to auto-populate information"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>Link to Existing System User (Optional)</span>}
+                    help={<span style={{ fontSize: '14px' }}>Select an existing system user with BENEFICIARY role to auto-populate information</span>}
                   >
                     <Select
                       placeholder="Select a system user or leave blank to create new"
@@ -965,6 +1004,7 @@ const BeneficiaryManagement = () => {
                       showSearch
                       loading={usersLoading}
                       optionFilterProp="children"
+                      style={{ fontSize: '16px', minHeight: '40px' }}
                       filterOption={(input, option) =>
                         (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
                       }
@@ -997,42 +1037,42 @@ const BeneficiaryManagement = () => {
             </Card>
 
             {/* Personal Information */}
-            <Card size="small" title="Personal Information">
+            <Card size="small" title={<span style={{ fontSize: '18px', fontWeight: 'bold' }}>Personal Information</span>}>
               <Row gutter={16}>
                 <Col span={6}>
                   <Form.Item
                     name="firstName"
-                    label="First Name"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>First Name</span>}
                     rules={[{ required: true, message: 'Please enter first name' }]}
                   >
-                    <Input placeholder="Enter first name" />
+                    <Input placeholder="Enter first name" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
                   <Form.Item
                     name="lastName"
-                    label="Last Name"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>Last Name</span>}
                     rules={[{ required: true, message: 'Please enter last name' }]}
                   >
-                    <Input placeholder="Enter last name" />
+                    <Input placeholder="Enter last name" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
                   <Form.Item
                     name="employeeId"
-                    label="Employee/Parliamentary ID"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>Employee/Parliamentary ID</span>}
                     rules={[{ required: false, message: 'Please enter ID' }]}
                   >
-                    <Input placeholder="Auto-generated if left empty" />
+                    <Input placeholder="Auto-generated if left empty" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
                   <Form.Item
                     name="nationalId"
-                    label="National ID"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>National ID</span>}
                     rules={[{ required: true, message: 'Please enter national ID' }]}
                   >
-                    <Input placeholder="Enter national ID" />
+                    <Input placeholder="Enter national ID" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -1041,43 +1081,43 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="email"
-                    label="Email"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>Email</span>}
                     rules={[
                       { required: true, message: 'Please enter email' },
                       { type: 'email', message: 'Please enter valid email' }
                     ]}
                   >
-                    <Input placeholder="Enter email address" />
+                    <Input placeholder="Enter email address" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item
                     name="phoneNumber"
-                    label="Phone Number"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>Phone Number</span>}
                     rules={[{ required: true, message: 'Please enter phone number' }]}
                   >
-                    <Input placeholder="Enter phone number" />
+                    <Input placeholder="Enter phone number" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item
                     name="address"
-                    label="Address"
+                    label={<span style={{ fontSize: '16px', fontWeight: '600' }}>Address</span>}
                     rules={[{ required: true, message: 'Please enter address' }]}
                   >
-                    <Input.TextArea rows={1} placeholder="Enter full address" />
+                    <Input.TextArea rows={2} placeholder="Enter full address" style={{ fontSize: '16px' }} />
                   </Form.Item>
                 </Col>
               </Row>
             </Card>
 
             {/* Role & Position */}
-            <Card size="small" title="Role & Position">
+            <Card size="small" title="Role & Position" headStyle={{ fontSize: '16px', fontWeight: 600 }}>
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item
                     name="category"
-                    label="Parliamentary Position (Optional)"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Parliamentary Position (Optional)</span>}
                     help="Leave blank if position will be assigned later"
                   >
                     <Select 
@@ -1085,6 +1125,8 @@ const BeneficiaryManagement = () => {
                       showSearch 
                       allowClear
                       loading={categoriesLoading}
+                      size="large"
+                      style={{ fontSize: '16px', minHeight: '40px' }}
                       filterOption={(input, option) =>
                         option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0
                       }
@@ -1105,18 +1147,18 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="position"
-                    label="Position"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Position</span>}
                     rules={[{ required: true, message: 'Please enter position' }]}
                   >
-                    <Input placeholder="Enter position/title" />
+                    <Input placeholder="Enter position/title" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item
                     name="department"
-                    label="Department"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Department</span>}
                   >
-                    <Input placeholder="Enter department" />
+                    <Input placeholder="Enter department" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -1125,11 +1167,13 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="constituency"
-                    label="Constituency"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Constituency</span>}
                   >
                     <Select 
                       placeholder="Select constituency" 
                       showSearch
+                      size="large"
+                      style={{ fontSize: '16px', minHeight: '40px' }}
                       filterOption={(input, option) =>
                         (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
                       }
@@ -1147,13 +1191,15 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="party"
-                    label="Political Party"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Political Party</span>}
                   >
                     <Select 
                       placeholder="Select party" 
                       allowClear
                       loading={partiesLoading}
                       showSearch
+                      size="large"
+                      style={{ fontSize: '16px', minHeight: '40px' }}
                       optionFilterProp="children"
                       filterOption={(input, option) =>
                         (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
@@ -1170,51 +1216,51 @@ const BeneficiaryManagement = () => {
                 <Col span={8}>
                   <Form.Item
                     name="officeLocation"
-                    label="Office Location"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Office Location</span>}
                   >
-                    <Input placeholder="Enter office location" />
+                    <Input placeholder="Enter office location" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
               </Row>
             </Card>
 
             {/* Vehicle Information */}
-            <Card size="small" title="Vehicle Information">
+            <Card size="small" title="Vehicle Information" headStyle={{ fontSize: '16px', fontWeight: 600 }}>
               <Row gutter={16}>
                 <Col span={6}>
                   <Form.Item
                     name="vehicleMake"
-                    label="Vehicle Make"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Vehicle Make</span>}
                     rules={[{ required: true, message: 'Please enter vehicle make' }]}
                   >
-                    <Input placeholder="e.g., Toyota, Mercedes" />
+                    <Input placeholder="e.g., Toyota, Mercedes" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
                   <Form.Item
                     name="vehicleModel"
-                    label="Vehicle Model"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Vehicle Model</span>}
                     rules={[{ required: true, message: 'Please enter vehicle model' }]}
                   >
-                    <Input placeholder="e.g., Prado, C-Class" />
+                    <Input placeholder="e.g., Prado, C-Class" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
                   <Form.Item
                     name="vehicleYear"
-                    label="Year"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Year</span>}
                     rules={[{ required: true, message: 'Please enter year' }]}
                   >
-                    <Input placeholder="e.g., 2020" type="number" />
+                    <Input placeholder="e.g., 2020" type="number" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
                   <Form.Item
                     name="fuelType"
-                    label="Fuel Type"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Fuel Type</span>}
                     rules={[{ required: true, message: 'Please select fuel type' }]}
                   >
-                    <Select placeholder="Select fuel type">
+                    <Select placeholder="Select fuel type" size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
                       <Select.Option value="PETROL">Petrol</Select.Option>
                       <Select.Option value="DIESEL">Diesel</Select.Option>
                     </Select>
@@ -1226,53 +1272,53 @@ const BeneficiaryManagement = () => {
                 <Col span={12}>
                   <Form.Item
                     name="engineSize"
-                    label="Engine Size"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Engine Size</span>}
                     rules={[{ required: true, message: 'Please enter engine size' }]}
                   >
-                    <Input placeholder="e.g., 2.0L, 3.0L V6" />
+                    <Input placeholder="e.g., 2.0L, 3.0L V6" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item
                     name="vehicleRegistration"
-                    label="Registration Number"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Registration Number</span>}
                     rules={[{ required: true, message: 'Please enter registration' }]}
                   >
-                    <Input placeholder="Enter registration number" />
+                    <Input placeholder="Enter registration number" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
               </Row>
             </Card>
 
             {/* Fuel Allocation */}
-            <Card size="small" title="Fuel Allocation">
+            <Card size="small" title="Fuel Allocation" headStyle={{ fontSize: '16px', fontWeight: 600 }}>
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item
                     name="monthlyEntitlement"
-                    label="Monthly Entitlement (Litres)"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Monthly Entitlement (Litres)</span>}
                     rules={[{ required: true, message: 'Please enter monthly entitlement' }]}
                     initialValue={300}
                   >
-                    <Input type="number" placeholder="Enter litres" />
+                    <Input type="number" placeholder="Enter litres" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item
                     name="baseAllocation"
-                    label="Base Allocation (Litres)"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Base Allocation (Litres)</span>}
                     initialValue={200}
                   >
-                    <Input type="number" placeholder="Base allocation" />
+                    <Input type="number" placeholder="Base allocation" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item
                     name="categoryMultiplier"
-                    label="Category Multiplier"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Category Multiplier</span>}
                     initialValue={1.0}
                   >
-                    <Input type="number" step="0.1" placeholder="e.g., 1.5" />
+                    <Input type="number" step="0.1" placeholder="e.g., 1.5" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
                   </Form.Item>
                 </Col>
               </Row>

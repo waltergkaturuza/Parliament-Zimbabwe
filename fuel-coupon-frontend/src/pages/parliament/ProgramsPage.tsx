@@ -496,14 +496,14 @@ const ProgramsPage: FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal
-        title={editingProgram ? 'Edit Program' : 'Create Program'}
+        title={<span style={{ fontSize: '20px', fontWeight: 'bold' }}>{editingProgram ? 'Edit Program' : 'Create Program'}</span>}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
           form.resetFields();
         }}
         footer={null}
-        width={700}
+        width={1000}
       >
         <Form
           form={form}
@@ -515,18 +515,18 @@ const ProgramsPage: FC = () => {
         >
           <Form.Item
             name="title"
-            label="Program Title"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Program Title</span>}
             rules={[{ required: true, message: 'Please enter program title' }]}
           >
-            <Input placeholder="Enter program title" />
+            <Input placeholder="Enter program title" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
           </Form.Item>
 
           <Form.Item
             name="program_type"
-            label="Program Type"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Program Type</span>}
             rules={[{ required: true, message: 'Please select program type' }]}
           >
-            <Select placeholder="Select program type">
+            <Select placeholder="Select program type" size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
               <Option value="SESSION">Parliament Session</Option>
               <Option value="COMMITTEE">Committee Meeting</Option>
               <Option value="WORKSHOP">Workshop/Training</Option>
@@ -550,25 +550,27 @@ const ProgramsPage: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="scheduled_date"
-                label="Start Date & Time"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Start Date & Time</span>}
                 rules={[{ required: true, message: 'Please select start date' }]}
               >
                 <DatePicker
                   showTime
                   format="YYYY-MM-DD HH:mm"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="end_date"
-                label="End Date & Time (Optional)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>End Date & Time (Optional)</span>}
               >
                 <DatePicker
                   showTime
                   format="YYYY-MM-DD HH:mm"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                 />
               </Form.Item>
             </Col>
@@ -576,18 +578,19 @@ const ProgramsPage: FC = () => {
 
           <Form.Item
             name="location"
-            label="Location"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Location</span>}
           >
-            <Input placeholder="Enter program location" />
+            <Input placeholder="Enter program location" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
           </Form.Item>
 
           <Form.Item
             name="description"
-            label="Description"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Description</span>}
           >
             <TextArea
               rows={3}
               placeholder="Enter program description"
+              style={{ fontSize: '16px' }}
             />
           </Form.Item>
 

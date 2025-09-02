@@ -322,7 +322,7 @@ const FuelAllocations: FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal
-        title={editingEntitlement ? 'Edit Fuel Entitlement' : 'Create Fuel Entitlement'}
+        title={<span style={{ fontSize: '20px', fontWeight: 'bold' }}>{editingEntitlement ? 'Edit Fuel Entitlement' : 'Create Fuel Entitlement'}</span>}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
@@ -330,7 +330,7 @@ const FuelAllocations: FC = () => {
           form.resetFields();
         }}
         footer={null}
-        width={600}
+        width={900}
       >
         <Form
           form={form}
@@ -340,10 +340,10 @@ const FuelAllocations: FC = () => {
         >
           <Form.Item
             name="beneficiary"
-            label="Beneficiary"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Beneficiary</span>}
             rules={[{ required: true, message: 'Please select beneficiary' }]}
           >
-            <Select placeholder="Select beneficiary" showSearch>
+            <Select placeholder="Select beneficiary" showSearch size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
               {beneficiaries.map((beneficiary) => (
                 <Option key={beneficiary.id} value={beneficiary.id}>
                   {beneficiary.user?.first_name} {beneficiary.user?.last_name} - {beneficiary.constituency?.name}
@@ -354,10 +354,10 @@ const FuelAllocations: FC = () => {
 
           <Form.Item
             name="vehicle_category"
-            label="Vehicle Category"
+            label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Vehicle Category</span>}
             rules={[{ required: true, message: 'Please select vehicle category' }]}
           >
-            <Select placeholder="Select vehicle category">
+            <Select placeholder="Select vehicle category" size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
               {vehicleCategories.map((category) => (
                 <Option key={category.id} value={category.id}>
                   {category.name} - {category.description}
@@ -370,11 +370,12 @@ const FuelAllocations: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="monthly_allocation"
-                label="Monthly Allocation (Liters)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Monthly Allocation (Liters)</span>}
                 rules={[{ required: true, message: 'Please enter monthly allocation' }]}
               >
                 <InputNumber
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   min={0}
                   placeholder="e.g., 200"
                 />
@@ -383,11 +384,12 @@ const FuelAllocations: FC = () => {
             <Col span={12}>
               <Form.Item
                 name="yearly_allocation"
-                label="Yearly Allocation (Liters)"
+                label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Yearly Allocation (Liters)</span>}
                 rules={[{ required: true, message: 'Please enter yearly allocation' }]}
               >
                 <InputNumber
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px', minHeight: '40px' }}
+                  size="large"
                   min={0}
                   placeholder="e.g., 2400"
                 />
