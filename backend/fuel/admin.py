@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from decimal import Decimal
@@ -523,6 +523,54 @@ class BeneficiaryCategoryAdmin(admin.ModelAdmin):
     list_filter = ['is_active']
     search_fields = ['name', 'description']
     ordering = ['name']
+    actions = ['load_default_categories']
+
+    def load_default_categories(self, request, queryset):
+        """Admin action to create a standard set of beneficiary categories"""
+        defaults = [
+            {
+                'name': 'Member of Parliament',
+                'description': 'Elected Members of Parliament',
+                'monthly_entitlement_litres': 200,
+                'category_multiplier': 1.50,
+            },
+            {
+                'name': 'Senator',
+                'description': 'Members of the Senate',
+                'monthly_entitlement_litres': 180,
+                'category_multiplier': 1.40,
+            },
+            {
+                'name': 'Staff',
+                'description': 'Parliament administrative staff',
+                'monthly_entitlement_litres': 80,
+                'category_multiplier': 1.00,
+            },
+            {
+                'name': 'Driver',
+                'description': 'Official Parliament drivers',
+                'monthly_entitlement_litres': 60,
+                'category_multiplier': 0.80,
+            },
+        ]
+
+        created_count = 0
+        from .models import BeneficiaryCategory
+        for data in defaults:
+            obj, created = BeneficiaryCategory.objects.get_or_create(
+                name=data['name'],
+                defaults=data,
+            )
+            if created:
+                created_count += 1
+
+        self.message_user(
+            request,
+            f"Default categories loaded. Created {created_count} new categories; existing ones left unchanged.",
+            level=messages.INFO
+        )
+
+    load_default_categories.short_description = 'Load default categories (MP, Senator, Staff, Driver)'
 
 
 @admin.register(VehicleCategory)

@@ -2766,6 +2766,53 @@ class BeneficiaryCategoryViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
 
+    @action(detail=False, methods=['post'])
+    def load_defaults(self, request):
+        """Create default beneficiary categories (idempotent).
+        Requires Main Center or Auditor permissions.
+        """
+        defaults = [
+            {
+                'name': 'Member of Parliament',
+                'description': 'Elected Members of Parliament',
+                'monthly_entitlement_litres': 200,
+                'category_multiplier': 1.50,
+            },
+            {
+                'name': 'Senator',
+                'description': 'Members of the Senate',
+                'monthly_entitlement_litres': 180,
+                'category_multiplier': 1.40,
+            },
+            {
+                'name': 'Staff',
+                'description': 'Parliament administrative staff',
+                'monthly_entitlement_litres': 80,
+                'category_multiplier': 1.00,
+            },
+            {
+                'name': 'Driver',
+                'description': 'Official Parliament drivers',
+                'monthly_entitlement_litres': 60,
+                'category_multiplier': 0.80,
+            },
+        ]
+
+        from .models import BeneficiaryCategory
+        created = 0
+        for data in defaults:
+            obj, was_created = BeneficiaryCategory.objects.get_or_create(
+                name=data['name'],
+                defaults=data,
+            )
+            created += 1 if was_created else 0
+
+        return Response({
+            'status': 'ok',
+            'created': created,
+            'total': BeneficiaryCategory.objects.count(),
+        })
+
 
 class ConstituencyViewSet(viewsets.ModelViewSet):
     queryset = Constituency.objects.all()
