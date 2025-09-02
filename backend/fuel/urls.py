@@ -354,6 +354,14 @@ urlpatterns = [
     path('beneficiaries/stats/', lazy_viewset_action('BeneficiaryProfileViewSet', {
         'get': 'stats'
     }), name='beneficiaries-stats'),
+
+    # Political parties explicit action routes (router fallback)
+    path('political-parties/active_parties/', lazy_viewset_action('PoliticalPartyViewSet', {
+        'get': 'active_parties'
+    }), name='political-parties-active'),
+    path('political-parties/statistics/', lazy_viewset_action('PoliticalPartyViewSet', {
+        'get': 'statistics'
+    }), name='political-parties-statistics'),
     
     # Beneficiaries "me" endpoints for authenticated user dashboard
     path('beneficiaries/me/dashboard/', lazy_viewset_action('BeneficiaryDashboardAPIViewSet', {

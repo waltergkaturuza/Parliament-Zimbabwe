@@ -2863,11 +2863,11 @@ class VehicleCategoryViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        # For write operations, require either MainCenter or Auditor permission
-        combined_permission = type('MainCenterOrAuditorPermission', 
-                                 (MainCenterPermission | AuditorPermission,), 
-                                 {})
-        return [IsAuthenticated(), combined_permission()]
+        # For write operations, require either Main Center or Auditor role
+        class MainCenterOrAuditorPermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return getattr(request.user, 'role', None) in ['MAIN_CENTER', 'AUDITOR', 'SUPERUSER']
+        return [IsAuthenticated(), MainCenterOrAuditorPermission()]
 
 
 class PoliticalPartyViewSet(viewsets.ModelViewSet):
@@ -2880,13 +2880,15 @@ class PoliticalPartyViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Role-based permissions for political party management
-        
-        - Read access: All authenticated users
+        - Read access: All authenticated users (list, retrieve, active_parties, statistics)
         - Write access: Main Center or Auditor roles only
         """
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'active_parties', 'statistics']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
+        class MainCenterOrAuditorPermission(permissions.BasePermission):
+            def has_permission(self, request, view):
+                return getattr(request.user, 'role', None) in ['MAIN_CENTER', 'AUDITOR', 'SUPERUSER']
+        return [IsAuthenticated(), MainCenterOrAuditorPermission()]
     
     @action(detail=False, methods=['get'])
     def active_parties(self, request):
@@ -2897,8 +2899,12 @@ class PoliticalPartyViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Exception as e:
             # Fail-safe if migrations aren't applied in production yet
-            from django.db.utils import ProgrammingError, OperationalError
-            if isinstance(e, (ProgrammingError, OperationalError)) and 'politicalparty' in str(e).lower():
+            try:
+                from django.db.utils import ProgrammingError, OperationalError, DatabaseError
+                db_errors = (ProgrammingError, OperationalError, DatabaseError)
+            except Exception:
+                db_errors = tuple()
+            if isinstance(e, db_errors):
                 return Response([], status=status.HTTP_200_OK)
             raise
     
@@ -2927,8 +2933,12 @@ class PoliticalPartyViewSet(viewsets.ModelViewSet):
                 'party_membership': party_stats
             })
         except Exception as e:
-            from django.db.utils import ProgrammingError, OperationalError
-            if isinstance(e, (ProgrammingError, OperationalError)) and 'politicalparty' in str(e).lower():
+            try:
+                from django.db.utils import ProgrammingError, OperationalError, DatabaseError
+                db_errors = (ProgrammingError, OperationalError, DatabaseError)
+            except Exception:
+                db_errors = tuple()
+            if isinstance(e, db_errors):
                 # Safe defaults if migration/table not present yet
                 return Response({
                     'total_parties': 0,
