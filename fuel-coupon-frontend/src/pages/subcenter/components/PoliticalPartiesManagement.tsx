@@ -277,7 +277,7 @@ const PoliticalPartiesManagement: React.FC = () => {
       key: 'party_type',
       render: (type: string) => (
         <Tag color={getPartyTypeColor(type)}>
-          {type.replace('_', ' ')}
+          {(type || '').replace('_', ' ')}
         </Tag>
       ),
     },

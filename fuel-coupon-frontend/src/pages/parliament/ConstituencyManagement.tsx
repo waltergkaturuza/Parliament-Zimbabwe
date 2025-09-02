@@ -489,7 +489,7 @@ const ConstituencyManagement: React.FC = () => {
                   // @ts-ignore AntD typing expects (string|undefined)=>number but is too strict in our setup
                   parser={(value: any) => {
                     if (!value) return 0;
-                    const cleaned = String(value).replace(/\$\s?|,/g, '');
+                    const cleaned = String(value || '').replace(/\$\s?|,/g, '');
                     const n = Number.parseInt(cleaned, 10);
                     return Number.isNaN(n) ? 0 : n;
                   }}

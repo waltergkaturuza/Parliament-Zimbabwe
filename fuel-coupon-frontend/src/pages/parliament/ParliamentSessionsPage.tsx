@@ -915,8 +915,8 @@ const ParliamentSessionsPage: FC = () => {
               {viewingSession.title}
             </Descriptions.Item>
             <Descriptions.Item label="Type">
-              <Tag color="blue">
-                {viewingSession.session_type?.replace('_', ' ')}
+                <Tag color="blue">
+                {(viewingSession.session_type || '').replace('_', ' ')}
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Status">

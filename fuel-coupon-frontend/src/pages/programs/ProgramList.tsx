@@ -233,7 +233,7 @@ const ProgramList = () => {
           color={programTypeColors[type as keyof typeof programTypeColors]}
           icon={programTypeIcons[type as keyof typeof programTypeIcons]}
         >
-          {type.replace('_', ' ')}
+          {(type || '').replace('_', ' ')}
         </Tag>
       ),
       filters: [

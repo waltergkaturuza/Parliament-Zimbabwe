@@ -531,79 +531,8 @@ class BeneficiaryProfileAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-# Political Party Admin
-@admin.register(PoliticalParty)
-class PoliticalPartyAdmin(admin.ModelAdmin):
-    list_display = [
-        'short_name', 'name', 'status', 'party_type', 'is_parliamentary_party', 
-        'is_government_party', 'member_count', 'founded_year', 'display_order'
-    ]
-    list_filter = ['status', 'party_type', 'is_parliamentary_party', 'is_government_party']
-    search_fields = ['name', 'short_name', 'abbreviation', 'leader_name']
-    ordering = ['display_order', 'short_name']
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'short_name', 'abbreviation', 'description')
-        }),
-        ('Party Details', {
-            'fields': ('party_type', 'status', 'founded_year', 'headquarters_address')
-        }),
-        ('Leadership', {
-            'fields': ('leader_name', 'leader_title', 'contact_email', 'contact_phone', 'website')
-        }),
-        ('Parliamentary Status', {
-            'fields': ('is_parliamentary_party', 'is_government_party', 'parliamentary_seats', 'senate_seats')
-        }),
-        ('Visual Settings', {
-            'fields': ('primary_color', 'secondary_color', 'logo_url', 'display_order')
-        }),
-        ('Membership', {
-            'fields': ('total_members', 'active_members'),
-            'description': 'Member counts are calculated automatically from beneficiary profiles.'
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        })
-    )
-    
-    readonly_fields = ['created_at', 'updated_at', 'total_members', 'active_members']
-    
-    def member_count(self, obj):
-        """Display total member count"""
-        return f"{obj.total_members} total, {obj.active_members} active"
-    member_count.short_description = "Members"
-    
-    def get_readonly_fields(self, request, obj=None):
-        readonly = ['created_at', 'updated_at', 'total_members', 'active_members']
-        # Prevent changing short_name after creation to maintain data integrity
-        if obj:
-            readonly.append('short_name')
-        return readonly
-
-    actions = ['make_active', 'make_inactive', 'mark_as_government_party']
-    
-    def make_active(self, request, queryset):
-        queryset.update(status='ACTIVE')
-        self.message_user(request, f"{queryset.count()} parties marked as active.")
-    make_active.short_description = "Mark selected parties as active"
-    
-    def make_inactive(self, request, queryset):
-        queryset.update(status='INACTIVE')
-        self.message_user(request, f"{queryset.count()} parties marked as inactive.")
-    make_inactive.short_description = "Mark selected parties as inactive"
-    
-    def mark_as_government_party(self, request, queryset):
-        # First remove government status from all parties
-        PoliticalParty.objects.update(is_government_party=False)
-        # Then set it for selected parties (should be only one)
-        updated = queryset.update(is_government_party=True)
-        if updated > 1:
-            self.message_user(request, "Warning: Multiple parties marked as government party!", level='WARNING')
-        else:
-            self.message_user(request, f"{updated} party marked as government party.")
-    mark_as_government_party.short_description = "Set as government party"
+# PoliticalPartyAdmin registration removed here to avoid duplicate admin registration
+# The authoritative admin registration lives in backend/fuel/admin.py
 
 
 # Enhanced Beneficiary Category Admin

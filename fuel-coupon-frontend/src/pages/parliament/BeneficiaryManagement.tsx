@@ -324,7 +324,7 @@ const BeneficiaryManagement = () => {
                 const categoryName = (record as any)?.category?.name || (record as any)?.category || 'N/A';
                 return (
                   <Tag color={getCategoryColor(categoryName)}>
-                    {String(categoryName).replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                    {String(categoryName || '').replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
                   </Tag>
                 );
               })()}
@@ -376,7 +376,7 @@ const BeneficiaryManagement = () => {
       render: (category: any) => {
         // Handle both object format {name: "STAFF"} and string format "STAFF"
         const categoryName = category?.name || category || 'N/A';
-        const displayName = categoryName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const displayName = (categoryName || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         return (
           <Tag color={getCategoryColor(categoryName)}>{displayName}</Tag>
         );

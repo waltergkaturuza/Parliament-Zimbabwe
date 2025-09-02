@@ -294,9 +294,9 @@ const ProgramsPage: FC = () => {
         <div>
           <Text strong>{text}</Text>
           <br />
-          <Tag color={getProgramTypeColor(record.program_type)} className="mt-1">
-            {record.program_type?.replace('_', ' ')}
-          </Tag>
+            <Tag color={getProgramTypeColor(record.program_type)} className="mt-1">
+            {(record.program_type || '').replace('_', ' ')}
+            </Tag>
         </div>
       ),
     },
@@ -334,8 +334,8 @@ const ProgramsPage: FC = () => {
         record.organizer_details ? (
           <div>
             <UserOutlined /> {record.organizer_details.first_name} {record.organizer_details.last_name}
-            <div className="text-xs text-gray-500">
-              {record.organizer_details.role?.replace('_', ' ')}
+              <div className="text-xs text-gray-500">
+              {(record.organizer_details.role || '').replace('_', ' ')}
             </div>
           </div>
         ) : record.organizer ? (
