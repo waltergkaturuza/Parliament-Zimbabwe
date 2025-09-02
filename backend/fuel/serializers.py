@@ -1987,7 +1987,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         return value or None  # Convert empty string to None
     
     def create(self, validated_data):
-        """Create a new beneficiary with associated user"""
+        """Create a new beneficiary with associated user (idempotent)."""
         import time
 
         # Debug: Print incoming data
@@ -1995,11 +1995,10 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         print("Validated data:", validated_data)
 
         # Extract user data if provided
-        user_data = validated_data.pop('user', {})
+        user_data = validated_data.pop('user', {}) or {}
         # Try to get an explicit user_id (from serializer field) or from raw payload
         explicit_user_id = validated_data.pop('user_id', None)
         raw = getattr(self, 'initial_data', {}) or {}
-        # Support multiple ways to reference an existing user
         if explicit_user_id is None:
             try:
                 if isinstance(raw.get('user'), (int, str)):
@@ -2012,23 +2011,23 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 explicit_user_id = None
         print("User data:", user_data)
 
-        # Extract foreign key IDs
+        # Extract foreign key IDs and party
         category_id = validated_data.pop('category', None)
         constituency_id = validated_data.pop('constituency', None)
         vehicle_category_id = validated_data.pop('vehicle_category', None)
+        party_value = validated_data.pop('party_affiliation', None)
 
         print("Category ID:", category_id)
         print("Constituency ID:", constituency_id)
         print("Vehicle Category ID:", vehicle_category_id)
+        print("Party value:", party_value)
 
         # Create or reuse user
-        if explicit_user_id:
-            # Reuse existing user by ID
+        if explicit_user_id is not None:
             try:
                 user = User.objects.get(id=explicit_user_id)
             except User.DoesNotExist:
                 raise serializers.ValidationError({'user_id': 'Specified user does not exist'})
-            # Ensure role is BENEFICIARY for access to beneficiary features
             if getattr(user, 'role', None) != 'BENEFICIARY':
                 try:
                     user.role = 'BENEFICIARY'
@@ -2036,7 +2035,6 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 except Exception:
                     pass
         elif user_data:
-            # Try to reuse existing user by id/email/username if present
             lookup_user = None
             try:
                 if 'id' in user_data and user_data['id']:
@@ -2050,7 +2048,6 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
 
             if lookup_user:
                 user = lookup_user
-                # Optionally update basic fields
                 changed = False
                 for f in ['first_name', 'last_name', 'phone', 'full_address']:
                     if f in user_data and getattr(user, f, None) != user_data[f]:
@@ -2065,25 +2062,19 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                     except Exception:
                         pass
             else:
-                # Generate unique username and create a new user
                 base_username = user_data.get('email', '').split('@')[0] or validated_data.get('employee_id', 'user')
                 username = base_username
                 counter = 1
                 while User.objects.filter(username=username).exists():
                     username = f"{base_username}_{counter}"
                     counter += 1
-
                 user_data['username'] = username
                 user_data.setdefault('role', 'BENEFICIARY')
-
-                # Handle password - set a default if not provided
                 if 'password' not in user_data:
                     user_data['password'] = 'TempPass123!'
-
                 try:
                     user = User.objects.create_user(**user_data)
                 except IntegrityError as ie:
-                    # Likely duplicate email/username; reuse existing by email if possible
                     reused = User.objects.filter(email__iexact=user_data.get('email', '')).first()
                     if reused:
                         user = reused
@@ -2096,35 +2087,29 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                     else:
                         raise serializers.ValidationError({'user': f'Could not create user: {str(ie)}'})
         else:
-            # Create a minimal user with required fields when no user reference/data provided
             employee_id = validated_data.get('employee_id', f"user_{int(time.time())}")
             username = employee_id
             counter = 1
             while User.objects.filter(username=username).exists():
                 username = f"{employee_id}_{counter}"
                 counter += 1
-
             user = User.objects.create_user(
                 username=username,
                 role='BENEFICIARY',
                 password='TempPass123!'
             )
 
-        # Set user in validated_data
         validated_data['user'] = user
 
-        # Set foreign key relationships - Category is REQUIRED
+        # Category (required)
         if category_id:
             try:
                 if isinstance(category_id, str):
-                    # If it's a string like 'MP', find by name
                     category = BeneficiaryCategory.objects.get(name=category_id)
                 else:
-                    # If it's an ID, find by ID
                     category = BeneficiaryCategory.objects.get(id=category_id)
                 validated_data['category'] = category
             except BeneficiaryCategory.DoesNotExist:
-                # Create the category if it doesn't exist
                 category_name = category_id if isinstance(category_id, str) else str(category_id)
                 category = BeneficiaryCategory.objects.create(
                     name=category_name,
@@ -2132,13 +2117,13 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 )
                 validated_data['category'] = category
         else:
-            # If no category provided, create a default one
             category, _created = BeneficiaryCategory.objects.get_or_create(
                 name='ADMINISTRATIVE_STAFF',
                 defaults={'description': 'Administrative Staff'}
             )
             validated_data['category'] = category
 
+        # Constituency
         if constituency_id:
             try:
                 if isinstance(constituency_id, str):
@@ -2147,7 +2132,6 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                     constituency = Constituency.objects.get(id=constituency_id)
                 validated_data['constituency'] = constituency
             except Constituency.DoesNotExist:
-                # Create the constituency if it doesn't exist
                 if isinstance(constituency_id, str):
                     constituency = Constituency.objects.create(
                         name=constituency_id,
@@ -2155,6 +2139,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                     )
                     validated_data['constituency'] = constituency
 
+        # Vehicle category
         if vehicle_category_id:
             try:
                 vehicle_category = VehicleCategory.objects.get(id=vehicle_category_id)
@@ -2162,22 +2147,33 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             except VehicleCategory.DoesNotExist:
                 pass
 
-        # Set default values for fields not in frontend
-        validated_data.setdefault('engine_multiplier', Decimal('1.0'))
+        # Map party to PoliticalParty FK
+        if party_value not in (None, ""):
+            try:
+                party_obj = None
+                if isinstance(party_value, int) or (isinstance(party_value, str) and party_value.isdigit()):
+                    party_obj = PoliticalParty.objects.filter(id=int(party_value)).first()
+                else:
+                    s = str(party_value).strip()
+                    party_obj = (
+                        PoliticalParty.objects.filter(name__iexact=s).first()
+                        or PoliticalParty.objects.filter(abbreviation__iexact=s).first()
+                    )
+                if party_obj:
+                    validated_data['political_party'] = party_obj
+            except Exception:
+                pass
 
-        # Ensure monthly_entitlement_litres is properly formatted
+        # Defaults and normalization
+        validated_data.setdefault('engine_multiplier', Decimal('1.0'))
         if 'monthly_entitlement_litres' in validated_data:
             validated_data['monthly_entitlement_litres'] = Decimal(str(validated_data['monthly_entitlement_litres'])).quantize(Decimal('0.01'))
-
-        # Handle employee_id - convert empty string to None for unique constraint
         if 'employee_id' in validated_data and not validated_data['employee_id']:
             validated_data['employee_id'] = None
-
-        # Ensure status defaults to ACTIVE
         if 'status' not in validated_data:
             validated_data['status'] = 'ACTIVE'
 
-        # Create the beneficiary profile (idempotent POST)
+        # Idempotent create/update
         print("Final validated_data before creation:", validated_data)
         existing = BeneficiaryProfile.objects.filter(user=user).first()
         if existing:
@@ -2236,7 +2232,23 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             except Constituency.DoesNotExist:
                 print(f"Warning: Constituency '{constituency_id}' not found, skipping update")
         
-        # Party field is now handled automatically via source='party_affiliation'
+        # Handle party (source party_affiliation) mapping to PoliticalParty FK
+        party_value = validated_data.pop('party_affiliation', None)
+        if party_value not in (None, ""):
+            try:
+                party_obj = None
+                if isinstance(party_value, (int,)) or (isinstance(party_value, str) and party_value.isdigit()):
+                    party_obj = PoliticalParty.objects.filter(id=int(party_value)).first()
+                else:
+                    s = str(party_value).strip()
+                    party_obj = (
+                        PoliticalParty.objects.filter(name__iexact=s).first()
+                        or PoliticalParty.objects.filter(abbreviation__iexact=s).first()
+                    )
+                if party_obj:
+                    validated_data['political_party'] = party_obj
+            except Exception:
+                pass
         
         # Update the instance
         for attr, value in validated_data.items():
