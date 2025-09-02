@@ -1626,17 +1626,26 @@ class ParliamentSessionSerializer(serializers.ModelSerializer):
         }
     
     def get_attendance_count(self, obj):
-        # Get attendance count from programs related to this session
-        # Since there's no direct relationship, we'll check fuel entitlements for this session
-        return obj.fuel_entitlements.filter(status__in=['ALLOCATED', 'PARTIALLY_ALLOCATED']).count()
+        # Get attendance count from fuel entitlements for this session.
+        # Production DB may be missing the related column if migrations weren't applied.
+        try:
+            return obj.fuel_entitlements.filter(status__in=['ALLOCATED', 'PARTIALLY_ALLOCATED']).count()
+        except Exception:
+            # If the relation or column is missing (ProgrammingError) return 0 to avoid 500s.
+            return 0
     
     def get_total_fuel_allocated(self, obj):
         # Get total fuel allocated from entitlements for this session
-        return obj.fuel_entitlements.filter(
-            status__in=['ALLOCATED', 'PARTIALLY_ALLOCATED']
-        ).aggregate(
-            total=models.Sum('litres_allocated')
-        )['total'] or 0
+        try:
+            total = obj.fuel_entitlements.filter(
+                status__in=['ALLOCATED', 'PARTIALLY_ALLOCATED']
+            ).aggregate(
+                total=models.Sum('litres_allocated')
+            )['total']
+            return total or 0
+        except Exception:
+            # If the relation/column doesn't exist yet in the DB, return 0 instead of 500
+            return 0
     
     def get_managing_subcenter_details(self, obj):
         if obj.managing_subcenter:
@@ -1989,15 +1998,29 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     def get_total_allocated_this_month(self, obj):
         from datetime import datetime
         current_month = datetime.now().replace(day=1)
-        return obj.user.allocated_coupons.filter(
-            allocated_date__gte=current_month,
-            status__in=['ALLOCATED', 'USED']
-        ).aggregate(total=models.Sum('litres'))['total'] or 0
+        try:
+            return obj.user.allocated_coupons.filter(
+                allocated_date__gte=current_month,
+                status__in=['ALLOCATED', 'USED']
+            ).aggregate(total=models.Sum('litres'))['total'] or 0
+        except Exception:
+            return 0
     
     def get_pending_entitlements(self, obj):
-        if obj.user:
-            return obj.user.fuelentitlement_set.count()
-        return 0
+        # Support both the legacy manager name and the explicit related_name.
+        if not obj.user:
+            return 0
+        try:
+            # Prefer related_name 'fuel_entitlements' if present
+            if hasattr(obj.user, 'fuel_entitlements'):
+                return obj.user.fuel_entitlements.count()
+            # Fallback to default related manager name
+            if hasattr(obj.user, 'fuelentitlement_set'):
+                return obj.user.fuelentitlement_set.count()
+            return 0
+        except Exception:
+            # If the underlying column is missing or DB errors occur, return 0 and avoid 500
+            return 0
     
     def validate_employee_id(self, value):
         """Validate employee_id to ensure uniqueness"""
