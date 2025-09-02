@@ -110,7 +110,7 @@ def recent_activity(request):
                 activities.append({
                     'type': 'session',
                     'title': 'Parliament Session Started',
-                    'description': f'{session.name} - {session.session_type}',
+                    'description': f'{session.title} - {session.session_type}',
                     'time': session.start_date,
                     'icon_type': 'bank'
                 })
