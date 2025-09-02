@@ -11,6 +11,7 @@ from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
 from fuel.urls import lazy_api_view  # reuse lazy resolver for function-based views
+from fuel.cors_test_views import cors_bypass_login  # root-level login mapping
 from .health_check import health_check, simple_health
 from api.views import health_check as api_health_check
 
@@ -242,6 +243,11 @@ urlpatterns = [
     path('health/simple/', simple_health, name='simple-health'),  # Simple health check
     path('cors-test/', cors_test_view, name='cors-test'),  # CORS test endpoint
     path('admin/', admin.site.urls),
+
+    # Root-level login aliases to support clients calling /login without /api prefix
+    # This uses the CSRF-free login used by the API under /api/v1/login/
+    path('login/', cors_bypass_login, name='login-root'),
+    path('auth/login/', cors_bypass_login, name='auth-login-root'),
 
     # IMPORTANT: Include fuel API routes before any generic 'api/' includes to avoid shadowing
     path('api/v1/', include('fuel.urls')),

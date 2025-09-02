@@ -2844,33 +2844,52 @@ class PoliticalPartyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def active_parties(self, request):
         """Get only active political parties"""
-        active_parties = self.queryset.filter(is_active=True)
-        serializer = self.get_serializer(active_parties, many=True)
-        return Response(serializer.data)
+        try:
+            active_parties = self.queryset.filter(is_active=True)
+            serializer = self.get_serializer(active_parties, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            # Fail-safe if migrations aren't applied in production yet
+            from django.db.utils import ProgrammingError, OperationalError
+            if isinstance(e, (ProgrammingError, OperationalError)) and 'politicalparty' in str(e).lower():
+                return Response([], status=status.HTTP_200_OK)
+            raise
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Get political party statistics"""
-        total_parties = self.queryset.count()
-        active_parties = self.queryset.filter(is_active=True).count()
-        
-        # Get party membership counts
-        party_stats = []
-        for party in self.queryset.filter(is_active=True):
-            party_stats.append({
-                'id': party.id,
-                'name': party.name,
-                'abbreviation': party.abbreviation,
-                'member_count': party.member_count,
-                'color': party.party_color
+        try:
+            total_parties = self.queryset.count()
+            active_parties = self.queryset.filter(is_active=True).count()
+
+            # Get party membership counts
+            party_stats = []
+            for party in self.queryset.filter(is_active=True):
+                party_stats.append({
+                    'id': party.id,
+                    'name': party.name,
+                    'abbreviation': party.abbreviation,
+                    'member_count': party.member_count,
+                    'color': party.party_color
+                })
+
+            return Response({
+                'total_parties': total_parties,
+                'active_parties': active_parties,
+                'inactive_parties': total_parties - active_parties,
+                'party_membership': party_stats
             })
-        
-        return Response({
-            'total_parties': total_parties,
-            'active_parties': active_parties,
-            'inactive_parties': total_parties - active_parties,
-            'party_membership': party_stats
-        })
+        except Exception as e:
+            from django.db.utils import ProgrammingError, OperationalError
+            if isinstance(e, (ProgrammingError, OperationalError)) and 'politicalparty' in str(e).lower():
+                # Safe defaults if migration/table not present yet
+                return Response({
+                    'total_parties': 0,
+                    'active_parties': 0,
+                    'inactive_parties': 0,
+                    'party_membership': []
+                }, status=status.HTTP_200_OK)
+            raise
 
 
 class ParliamentSessionViewSet(viewsets.ModelViewSet):
