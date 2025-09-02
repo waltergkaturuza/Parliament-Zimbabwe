@@ -5040,12 +5040,79 @@ class CouponAllocation(TimeStampedModel):
 
 
 class FuelEntitlement(TimeStampedModel):
-    """Temporary stub for FuelEntitlement model"""
-    beneficiary = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    entitlement_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
+    """Fuel entitlement records for beneficiaries.
+
+    Restored to match historical schema and serializer expectations.
+    """
+    ENTITLEMENT_TYPES = [
+        ('MONTHLY', 'Monthly Entitlement'),
+        ('SESSION', 'Parliament Session'),
+        ('COMMITTEE', 'Committee Meeting'),
+        ('SPECIAL_EVENT', 'Special Event'),
+        ('TRAVEL_ALLOWANCE', 'Travel Allowance'),
+        ('EMERGENCY', 'Emergency Allocation'),
+        ('CONSTITUENCY_WORK', 'Constituency Work'),
+    ]
+
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('ALLOCATED', 'Allocated'),
+        ('PARTIALLY_ALLOCATED', 'Partially Allocated'),
+        ('EXPIRED', 'Expired'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+
+    entitlement_type = models.CharField(max_length=20, choices=ENTITLEMENT_TYPES, help_text='Type of entitlement')
+    litres_entitled = models.DecimalField(max_digits=8, decimal_places=2, help_text='Amount of fuel entitled in litres')
+    litres_allocated = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text='Amount of fuel actually allocated/given')
+    period_start = models.DateField(help_text='Start date of entitlement period')
+    period_end = models.DateField(help_text='End date of entitlement period')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    approved_date = models.DateTimeField(blank=True, null=True, help_text='Date when entitlement was approved')
+    notes = models.TextField(blank=True, help_text='Additional notes about this entitlement')
+    justification = models.TextField(help_text='Justification for this entitlement')
+
+    approved_by = models.ForeignKey(
+        User,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='entitlements_approved',
+        help_text='User who approved this entitlement'
+    )
+
+    beneficiary = models.ForeignKey(
+        User,
+        limit_choices_to={'role': 'BENEFICIARY'},
+        on_delete=models.CASCADE,
+        related_name='fuel_entitlements',
+        help_text='Parliament member or staff entitled to fuel'
+    )
+
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='entitlements_created',
+        help_text='User who created this entitlement record'
+    )
+
+    session = models.ForeignKey(
+        'ParliamentSession',
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='fuel_entitlements',
+        help_text='Related parliament session (if applicable)'
+    )
+
     class Meta:
         db_table = 'fuel_fuelentitlement'
+        verbose_name = 'Fuel Entitlement'
+        verbose_name_plural = 'Fuel Entitlements'
+        ordering = ['-created']
 
 
 class FuelData(TimeStampedModel):
