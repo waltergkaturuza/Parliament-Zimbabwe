@@ -198,10 +198,10 @@ const BookDispatchManagement: FC = () => {
       // Try production endpoints in priority order
       let response;
       const endpoints = [
-        '/fuel/books/available_for_dispatch/',  // Primary production endpoint
-        '/books/available_for_dispatch/',       // Secondary endpoint
-        '/fuel/books/',                         // Fallback with filtering
-        '/books/'                               // Last resort
+        '/books/available_for_dispatch/',       // Primary production endpoint (corrected)
+        '/fuel/books/available_for_dispatch/',  // Legacy endpoint with /fuel/ prefix
+        '/books/',                              // Fallback with filtering
+        '/fuel/books/'                          // Legacy fallback
       ];
 
       for (const endpoint of endpoints) {
@@ -287,10 +287,10 @@ const BookDispatchManagement: FC = () => {
     try {
       // Try production endpoints in order
       const endpoints = [
-        '/fuel/boxes/',     // Primary production endpoint
-        '/boxes/',          // Secondary endpoint  
-        '/fuel/box/',       // Alternative endpoint
-        '/box/'             // Last resort
+        '/boxes/',          // Primary production endpoint (corrected)
+        '/fuel/boxes/',     // Legacy endpoint with /fuel/ prefix
+        '/box/',            // Alternative endpoint
+        '/fuel/box/'        // Legacy alternative
       ];
       
       let response;
@@ -348,10 +348,10 @@ const BookDispatchManagement: FC = () => {
     try {
       // Try production endpoints in order
       const endpoints = [
-        '/fuel/subcenters/',    // Primary production endpoint
-        '/subcenters/',         // Secondary endpoint
-        '/fuel/sub-centers/',   // Alternative format
-        '/sub-centers/'         // Legacy endpoint
+        '/subcenters/',         // Primary production endpoint (corrected)
+        '/fuel/subcenters/',    // Legacy endpoint with /fuel/ prefix
+        '/sub-centers/',        // Alternative format
+        '/fuel/sub-centers/'    // Legacy alternative
       ];
       
       let data = [];
