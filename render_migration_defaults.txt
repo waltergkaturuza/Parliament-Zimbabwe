@@ -1,0 +1,74 @@
+# Production Migration Defaults for Render Shell
+# Copy and paste these responses when Django asks for defaults
+
+# When Django asks: "It is impossible to add a non-nullable field 'coupon_serial' to coupon without specifying a default"
+# Select option: 1
+# Default value: ""
+
+# When Django asks for default for 'coupon_value' field:
+# Default value: 20
+
+# When Django asks for default for 'page_number' field:
+# Default value: 1
+
+# When Django asks for default for 'approved_date' field:
+# Default value: timezone.now
+
+# When Django asks for default for 'created_by' field:
+# Default value: None
+
+# When Django asks for default for 'entitlement_type' field:
+# Default value: "MONTHLY"
+
+# When Django asks for default for 'justification' field:
+# Default value: ""
+
+# When Django asks for default for 'litres_allocated' field:
+# Default value: 0.0
+
+# When Django asks for default for 'litres_entitled' field:
+# Default value: 0.0
+
+# When Django asks for default for 'notes' field:
+# Default value: ""
+
+# When Django asks for default for 'period_end' field:
+# Default value: timezone.now
+
+# When Django asks for default for 'period_start' field:
+# Default value: timezone.now
+
+# When Django asks for default for 'session' field:
+# Default value: None
+
+# When Django asks for default for 'status' field:
+# Default value: "DRAFT"
+
+COMPLETE COMMAND SEQUENCE FOR RENDER SHELL:
+==========================================
+
+# Step 1: Try makemigrations (it will ask for defaults)
+python manage.py makemigrations
+
+# When prompted, enter:
+# Option: 1
+# Default for coupon_serial: ""
+# Default for coupon_value: 20  
+# Default for page_number: 1
+# Default for approved_date: timezone.now
+# Default for created_by: None
+# Default for entitlement_type: "MONTHLY"
+# Default for justification: ""
+# Default for litres_allocated: 0.0
+# Default for litres_entitled: 0.0
+# Default for notes: ""
+# Default for period_end: timezone.now
+# Default for period_start: timezone.now
+# Default for session: None
+# Default for status: "DRAFT"
+
+# Step 2: Apply the migrations
+python manage.py migrate
+
+# Step 3: Verify completion
+python manage.py showmigrations fuel
