@@ -116,9 +116,9 @@ const BeneficiaryManagement = () => {
   const { data: constituenciesData, isLoading: constituenciesLoading } = useQuery({
     queryKey: ['constituencies'],
     queryFn: async () => {
-      const response = await apiClient.get('/constituencies/?page_size=100');
+      // Fetch all constituencies with large page_size
+      const response = await apiClient.get('/constituencies/?page_size=1000');
       const data = response.data;
-      // Handle both paginated response and direct array
       return Array.isArray(data) ? data : (data.results || []);
     },
   });
@@ -149,9 +149,9 @@ const BeneficiaryManagement = () => {
   const { data: beneficiaryCategoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['beneficiary-categories'],
     queryFn: async () => {
-      const response = await apiClient.get('/beneficiary-categories/');
+      // Fetch all categories with large page_size
+      const response = await apiClient.get('/beneficiary-categories/?page_size=1000');
       const data = response.data;
-      // Handle both paginated response and direct array
       return Array.isArray(data) ? data : (data.results || []);
     },
   });
@@ -179,8 +179,12 @@ const BeneficiaryManagement = () => {
   }));
 
   const categoryOptions = beneficiaryCategories.map((c: any) => ({
-    label: (c.name || c).toString().replace(/_/g, ' ').replace(/\b\w/g, (s: string) => s.toUpperCase()),
+    label: (c.name || c)
+      .toString()
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (s: string) => s.toUpperCase()),
     value: c.name || c,
+    searchable: (c.name || c).toString().toLowerCase(),
   }));
 
   // Extract beneficiaries from response
@@ -651,32 +655,16 @@ const BeneficiaryManagement = () => {
             style={{ width: 200 }}
             allowClear
             showSearch
+            optionFilterProp="label"
+            filterOption={(input, option) => {
+              if (!option) return false;
+              // Match on label, value, and lowercase
+              const label = (option.label || '').toString().toLowerCase();
+              const value = (option.value || '').toString().toLowerCase();
+              return label.includes(input.toLowerCase()) || value.includes(input.toLowerCase());
+            }}
             onChange={(value) => setFilters({ ...filters, category: value })}
-            options={[
-              { label: 'Speaker of National Assembly', value: 'SPEAKER_NATIONAL_ASSEMBLY' },
-              { label: 'Deputy Speaker', value: 'DEPUTY_SPEAKER' },
-              { label: 'Members of Parliament', value: 'MP' },
-              { label: 'Women Quota MPs', value: 'WOMEN_QUOTA_MP' },
-              { label: 'Youth Quota MPs', value: 'YOUTH_QUOTA_MP' },
-              { label: 'Ministers', value: 'MINISTER' },
-              { label: 'Deputy Ministers', value: 'DEPUTY_MINISTER' },
-              { label: 'Chief Whips', value: 'CHIEF_WHIP' },
-              { label: 'Portfolio Committee Members', value: 'PORTFOLIO_COMMITTEE_MEMBER' },
-              { label: 'Clerk of Parliament', value: 'CLERK_OF_PARLIAMENT' },
-              { label: 'Sergeant-at-Arms', value: 'SERGEANT_AT_ARMS' },
-              { label: 'Legal Advisors', value: 'LEGAL_ADVISOR' },
-              { label: 'Hansard Staff', value: 'HANSARD_STAFF' },
-              { label: 'Research Officers', value: 'RESEARCH_OFFICER' },
-              { label: 'Administrative Staff', value: 'ADMINISTRATIVE_STAFF' },
-              { label: 'Senators', value: 'SENATOR' },
-              { label: 'President of Senate', value: 'PRESIDENT_OF_SENATE' },
-              { label: 'Deputy President of Senate', value: 'DEPUTY_PRESIDENT_OF_SENATE' },
-              { label: 'Traditional Chiefs (Senators)', value: 'TRADITIONAL_CHIEF_SENATOR' },
-              { label: 'Disability Representatives (Senate)', value: 'DISABILITY_REPRESENTATIVE_SENATE' },
-              { label: 'Parliamentary Legal Committee', value: 'PARLIAMENTARY_LEGAL_COMMITTEE' },
-              { label: 'Public Accounts Committee', value: 'PUBLIC_ACCOUNTS_COMMITTEE' },
-              { label: 'Committee Chairpersons', value: 'COMMITTEE_CHAIRPERSON' },
-            ]}
+            options={categoryOptions}
           />
           <Select
             placeholder="Status"

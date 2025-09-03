@@ -62,56 +62,7 @@ const BeneficiaryAllocationPage: FC = () => {
   const [activeTab, setActiveTab] = useState('management');
   const [loading, setLoading] = useState(false);
 
-  // Sample allocation history
-  const [allocationHistory, setAllocationHistory] = useState<AllocationSummary[]>([
-    {
-      id: 'ALLOC001',
-      date: '2024-08-09',
-      sessionName: 'Morning Parliamentary Session',
-      programName: 'Budget Review Committee',
-      beneficiariesCount: 15,
-      totalCoupons: 150,
-      totalLitres: 750,
-      totalValue: 135000,
-      status: 'COMPLETED',
-      allocatedBy: 'Peter Ncube',
-    },
-    {
-      id: 'ALLOC002',
-      date: '2024-08-09',
-      sessionName: 'Committee Site Visit',
-      programName: 'Infrastructure Development',
-      beneficiariesCount: 8,
-      totalCoupons: 120,
-      totalLitres: 600,
-      totalValue: 108000,
-      status: 'COMPLETED',
-      allocatedBy: 'Susan Moyo',
-    },
-    {
-      id: 'ALLOC003',
-      date: '2024-08-09',
-      sessionName: 'Emergency Session',
-      programName: 'Crisis Response Committee',
-      beneficiariesCount: 12,
-      totalCoupons: 60,
-      totalLitres: 300,
-      totalValue: 54000,
-      status: 'IN_PROGRESS',
-      allocatedBy: 'Michael Khumalo',
-    },
-  ]);
-
-  // System statistics
-  const [systemStats, setSystemStats] = useState<SystemStats>({
-    totalBeneficiaries: 45,
-    activeBeneficiaries: 42,
-    totalAllocationsToday: 3,
-    totalLitresToday: 1650,
-    pendingAllocations: 1,
-    systemBalance: 8450,
-  });
-
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'COMPLETED': return 'success';

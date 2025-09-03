@@ -21,7 +21,8 @@ import {
   List,
   Avatar,
   Badge,
-  Tooltip
+  Tooltip,
+  message
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -49,6 +50,8 @@ export default function FuelDistribution() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [allocateModalVisible, setAllocateModalVisible] = useState(false);
   const [selectedSubCenter, setSelectedSubCenter] = useState(null);
+  const [selectedConstituency, setSelectedConstituency] = useState(null);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<any>(null);
   const [form] = Form.useForm();
   const [allocateForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('distributions');
@@ -80,22 +83,36 @@ export default function FuelDistribution() {
   const { data: constituencies, isLoading: loadingConstituencies } = useQuery({
     queryKey: ['constituencies'],
     queryFn: async () => {
-      const response = await apiClient.get('/constituencies/');
+      // Fetch all constituencies with large page_size to ensure we get all options
+      const response = await apiClient.get('/constituencies/?page_size=1000');
       return response.data.results || response.data;
     }
   });
 
-  // Beneficiaries with pagination
-  const { data: beneficiaries, isLoading: loadingBeneficiaries } = useQuery({
+  // Fetch all beneficiaries for dropdowns and validation (not paginated)
+  const { data: allBeneficiaries, isLoading: loadingAllBeneficiaries } = useQuery({
+    queryKey: ['all-beneficiaries'],
+    queryFn: async () => {
+      // Fetch all beneficiaries with large page_size to ensure we get all options
+      const response = await apiClient.get('/beneficiaries/?page_size=10000');
+      return response.data.results || response.data;
+    }
+  });
+
+  // Beneficiaries with pagination for table display
+  const { data: beneficiariesResponse, isLoading: loadingBeneficiaries } = useQuery({
     queryKey: ['beneficiaries', beneficiaryPage, beneficiaryPageSize],
     queryFn: async () => {
       const response = await apiClient.get('/beneficiaries/', {
         params: { page: beneficiaryPage, page_size: beneficiaryPageSize }
       });
       setBeneficiaryTotal(response.data.count || (response.data.results ? response.data.results.length : 0));
-      return response.data.results || response.data;
+      return response.data;
     }
   });
+
+  // Extract paginated beneficiaries for table display
+  const beneficiaries = beneficiariesResponse?.results || beneficiariesResponse;
 
   // Mutations for creating distributions and allocations
   const createDistributionMutation = useMutation({
@@ -105,7 +122,10 @@ export default function FuelDistribution() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['distributions'] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      queryClient.invalidateQueries({ queryKey: ['all-beneficiaries'] });
       setCreateModalVisible(false);
+      setSelectedBeneficiary(null);
       form.resetFields();
     }
   });
@@ -117,6 +137,7 @@ export default function FuelDistribution() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      queryClient.invalidateQueries({ queryKey: ['all-beneficiaries'] });
       setAllocateModalVisible(false);
       allocateForm.resetFields();
     }
@@ -222,53 +243,55 @@ export default function FuelDistribution() {
 
   const subCenterColumns = [
     {
-      title: 'Sub Center',
-      key: 'center',
+      title: 'Beneficiary',
+      key: 'beneficiary',
       render: (record: any) => (
         <div className="flex items-center gap-3">
-          <Avatar icon={<EnvironmentOutlined />} />
+          <Avatar icon={<UserOutlined />} />
           <div>
             <Text strong>{record.name}</Text>
-            <div className="text-xs text-gray-500">{record.code}</div>
+            <div className="text-xs text-gray-500">{record.category || 'Unknown Category'}</div>
+            {record.constituency && (
+              <div className="text-xs text-blue-500">{record.constituency}</div>
+            )}
           </div>
         </div>
       )
     },
     {
       title: 'Location',
-      dataIndex: 'location',
-      key: 'location'
+      dataIndex: 'constituency',
+      key: 'constituency',
+      render: (constituency: string) => constituency || <Text type="secondary">No Constituency</Text>
     },
     {
-      title: 'Manager',
-      dataIndex: 'manager',
-      key: 'manager',
-      render: (manager: string) => (
-        <div className="flex items-center gap-2">
-          <Avatar icon={<UserOutlined />} size="small" />
-          {manager}
-        </div>
+      title: 'Category',
+      dataIndex: 'category',
+      key: 'category',
+      render: (category: string) => (
+        <Tag color="blue">{category || 'Unknown'}</Tag>
       )
     },
     {
-      title: 'Capacity',
-      dataIndex: 'capacity',
-      key: 'capacity',
-      render: (capacity: number) => `${capacity} beneficiaries`
+      title: 'Monthly Allocation',
+      dataIndex: 'monthlyAllocation',
+      key: 'monthlyAllocation',
+      render: (allocation: number) => `${allocation || 0}L`
     },
     {
-      title: 'Current Stock',
-      dataIndex: 'currentStock',
-      key: 'currentStock',
-      render: (stock: number, record: any) => {
-        const percentage = (stock / (record.capacity * 100)) * 100;
+      title: 'Usage This Month',
+      key: 'usage',
+      render: (record: any) => {
+        const used = record.usedThisMonth || 0;
+        const total = record.monthlyAllocation || 0;
+        const percentage = total > 0 ? (used / total) * 100 : 0;
         return (
           <div>
-            <Text strong>{stock.toLocaleString()}L</Text>
+            <Text>{used}L / {total}L</Text>
             <Progress 
-              percent={Math.min(percentage, 100)} 
+              percent={percentage} 
               size="small" 
-              status={percentage > 70 ? 'success' : percentage > 30 ? 'normal' : 'exception'}
+              status={percentage > 90 ? 'exception' : percentage > 70 ? 'normal' : 'success'}
               showInfo={false}
             />
           </div>
@@ -289,17 +312,13 @@ export default function FuelDistribution() {
               setCreateModalVisible(true);
             }}
           >
-            Distribute
+            Allocate
           </Button>
           <Button 
             size="small" 
-            icon={<UserOutlined />}
-            onClick={() => {
-              setSelectedSubCenter(record);
-              setAllocateModalVisible(true);
-            }}
+            icon={<DownloadOutlined />}
           >
-            Allocate
+            History
           </Button>
         </Space>
       )
@@ -368,24 +387,83 @@ export default function FuelDistribution() {
     }
   ];
 
-  const totalStock = subCenters?.reduce((sum: number, center: any) => sum + center.currentStock, 0) || 0;
-  const totalCapacity = subCenters?.reduce((sum: number, center: any) => sum + (center.capacity * 100), 0) || 0;
+  const totalBeneficiaries = allBeneficiaries?.length || 0;
+  const totalMonthlyAllocation = allBeneficiaries?.reduce((sum: number, beneficiary: any) => sum + (beneficiary.monthlyAllocation || 0), 0) || 0;
   const activeDistributions = distributions?.filter((d: any) => d.status === 'IN_TRANSIT').length || 0;
   const pendingDistributions = distributions?.filter((d: any) => d.status === 'PENDING').length || 0;
 
+  // Helper functions for allocation validation
+  const getRemainingAllocation = (beneficiary: any) => {
+    if (!beneficiary) return 0;
+    const used = beneficiary.usedThisMonth || 0;
+    const total = beneficiary.monthlyAllocation || 0;
+    return Math.max(0, total - used);
+  };
+
+  const validateAllocationAmount = (amount: number, beneficiary: any) => {
+    if (!beneficiary || !amount) return true;
+    const remaining = getRemainingAllocation(beneficiary);
+    return amount <= remaining;
+  };
+
+  const getAllocationWarningMessage = (amount: number, beneficiary: any) => {
+    if (!beneficiary || !amount) return '';
+    const remaining = getRemainingAllocation(beneficiary);
+    if (amount > remaining) {
+      return `Amount exceeds remaining allocation! Maximum available: ${remaining}L`;
+    }
+    if (amount > remaining * 0.8) {
+      return `Warning: This will use ${((amount / beneficiary.monthlyAllocation) * 100).toFixed(1)}% of monthly allocation`;
+    }
+    return '';
+  };
+
+  const handleBeneficiarySelect = (beneficiaryId: string) => {
+    const beneficiary = allBeneficiaries?.find((b: any) => b.id === beneficiaryId);
+    setSelectedBeneficiary(beneficiary);
+    
+    // Reset amount field when beneficiary changes
+    form.setFieldsValue({ amount: undefined });
+  };
+
   const handleCreateDistribution = async (values: any) => {
     try {
+      // Validate allocation before submitting
+      if (selectedBeneficiary && !validateAllocationAmount(values.amount, selectedBeneficiary)) {
+        const remaining = getRemainingAllocation(selectedBeneficiary);
+        message.error(`Amount exceeds beneficiary's remaining allocation of ${remaining}L`);
+        return;
+      }
+      
       await createDistributionMutation.mutateAsync(values);
-    } catch (error) {
+      message.success('Fuel allocation created successfully!');
+    } catch (error: any) {
       console.error('Error creating distribution:', error);
+      message.error(error.message || 'Failed to create fuel allocation');
     }
   };
 
   const handleAllocateToBeneficiary = async (values: any) => {
     try {
+      // Validate each selected beneficiary's remaining allocation
+      const selectedBeneficiaryList = allBeneficiaries?.filter((b: any) => values.beneficiaries.includes(b.id)) || [];
+      const invalidAllocations = selectedBeneficiaryList.filter((beneficiary: any) => 
+        !validateAllocationAmount(values.amountPerBeneficiary, beneficiary)
+      );
+      
+      if (invalidAllocations.length > 0) {
+        const beneficiaryNames = invalidAllocations.map((b: any) => 
+          `${b.name} (${getRemainingAllocation(b)}L remaining)`
+        ).join(', ');
+        message.error(`Amount exceeds remaining allocation for: ${beneficiaryNames}`);
+        return;
+      }
+      
       await allocateBeneficiaryMutation.mutateAsync(values);
-    } catch (error) {
+      message.success('Bulk fuel allocation created successfully!');
+    } catch (error: any) {
       console.error('Error allocating to beneficiary:', error);
+      message.error(error.message || 'Failed to create bulk allocation');
     }
   };
 
@@ -405,25 +483,47 @@ export default function FuelDistribution() {
           dataSource={distributions}
           loading={loadingDistributions}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          pagination={{ 
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} distributions`,
+            pageSizeOptions: ['10', '20', '50', '100']
+          }}
         />
       )
     },
     {
-      key: 'subcenters',
+      key: 'beneficiaries-list',
       label: (
         <span>
-          <EnvironmentOutlined />
-          Sub Centers
+          <UserOutlined />
+          Beneficiaries
         </span>
       ),
       children: (
         <Table
           columns={subCenterColumns}
-          dataSource={subCenters}
-          loading={loadingSubCenters}
+          dataSource={beneficiaries}
+          loading={loadingBeneficiaries}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: beneficiaryPage,
+            pageSize: beneficiaryPageSize,
+            total: beneficiaryTotal,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} beneficiaries`,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onChange: (page, pageSize) => {
+              setBeneficiaryPage(page);
+              setBeneficiaryPageSize(pageSize || 10);
+            },
+            onShowSizeChange: (current, size) => {
+              setBeneficiaryPage(1); // Reset to first page when changing page size
+              setBeneficiaryPageSize(size);
+            }
+          }}
         />
       )
     },
@@ -447,9 +547,15 @@ export default function FuelDistribution() {
             total: beneficiaryTotal,
             showSizeChanger: true,
             showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} beneficiaries`,
+            pageSizeOptions: ['10', '20', '50', '100'],
             onChange: (page, pageSize) => {
               setBeneficiaryPage(page);
               setBeneficiaryPageSize(pageSize || 10);
+            },
+            onShowSizeChange: (current, size) => {
+              setBeneficiaryPage(1); // Reset to first page when changing page size
+              setBeneficiaryPageSize(size);
             }
           }}
         />
@@ -487,10 +593,9 @@ export default function FuelDistribution() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Total Fuel Stock"
-              value={totalStock}
-              suffix="L"
-              prefix={<ThunderboltOutlined className="text-blue-600" />}
+              title="Total Beneficiaries"
+              value={totalBeneficiaries}
+              prefix={<UserOutlined className="text-blue-600" />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -518,10 +623,10 @@ export default function FuelDistribution() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Storage Utilization"
-              value={Math.round((totalStock / totalCapacity) * 100)}
-              suffix="%"
-              prefix={<EnvironmentOutlined className="text-purple-600" />}
+              title="Total Monthly Allocation"
+              value={totalMonthlyAllocation}
+              suffix="L"
+              prefix={<ThunderboltOutlined className="text-purple-600" />}
               valueStyle={{ color: '#722ed1' }}
             />
           </Card>
@@ -540,9 +645,13 @@ export default function FuelDistribution() {
 
       {/* Create Distribution Modal */}
       <Modal
-        title="Create New Distribution"
+        title="Allocate Fuel to Beneficiary"
         open={createModalVisible}
-        onCancel={() => setCreateModalVisible(false)}
+        onCancel={() => {
+          setCreateModalVisible(false);
+          setSelectedBeneficiary(null);
+          form.resetFields();
+        }}
         onOk={() => form.submit()}
         width={600}
       >
@@ -554,14 +663,31 @@ export default function FuelDistribution() {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="subCenter"
-                label="Sub Center"
-                rules={[{ required: true, message: 'Please select a sub center' }]}
+                name="beneficiary"
+                label="Beneficiary"
+                rules={[{ required: true, message: 'Please select a beneficiary' }]}
               >
-                <Select placeholder="Select sub center">
-                  {subCenters?.map((center: any) => (
-                    <Option key={center.id} value={center.id}>
-                      {center.name} ({center.code})
+                <Select 
+                  placeholder="Select beneficiary"
+                  showSearch
+                  optionFilterProp="children"
+                  onChange={handleBeneficiarySelect}
+                  filterOption={(input, option) => {
+                    if (!option) return false;
+                    const label = option.children?.toString().toLowerCase() || '';
+                    return label.includes(input.toLowerCase());
+                  }}
+                >
+                  {allBeneficiaries
+                    ?.filter((beneficiary: any) => {
+                      // If no constituency is selected, show all beneficiaries
+                      if (!selectedConstituency) return true;
+                      // If constituency is selected, only show beneficiaries from that constituency
+                      return beneficiary.constituency === selectedConstituency;
+                    })
+                    ?.map((beneficiary: any) => (
+                    <Option key={beneficiary.id} value={beneficiary.id}>
+                      {beneficiary.name} {beneficiary.constituency ? `(${beneficiary.constituency})` : '(No Constituency)'} - {getRemainingAllocation(beneficiary)}L remaining
                     </Option>
                   ))}
                 </Select>
@@ -580,18 +706,77 @@ export default function FuelDistribution() {
               </Form.Item>
             </Col>
           </Row>
+          
+          {/* Beneficiary Allocation Summary */}
+          {selectedBeneficiary && (
+            <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Statistic
+                    title="Monthly Allocation"
+                    value={selectedBeneficiary.monthlyAllocation || 0}
+                    suffix="L"
+                    valueStyle={{ fontSize: '16px', color: '#52c41a' }}
+                  />
+                </Col>
+                <Col span={8}>
+                  <Statistic
+                    title="Used This Month"
+                    value={selectedBeneficiary.usedThisMonth || 0}
+                    suffix="L"
+                    valueStyle={{ fontSize: '16px', color: '#fa8c16' }}
+                  />
+                </Col>
+                <Col span={8}>
+                  <Statistic
+                    title="Remaining"
+                    value={getRemainingAllocation(selectedBeneficiary)}
+                    suffix="L"
+                    valueStyle={{ 
+                      fontSize: '16px', 
+                      color: getRemainingAllocation(selectedBeneficiary) > 0 ? '#1890ff' : '#ff4d4f' 
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Progress 
+                percent={((selectedBeneficiary.usedThisMonth || 0) / (selectedBeneficiary.monthlyAllocation || 1)) * 100}
+                status={getRemainingAllocation(selectedBeneficiary) <= 0 ? 'exception' : 'normal'}
+                strokeColor={getRemainingAllocation(selectedBeneficiary) <= 0 ? '#ff4d4f' : '#52c41a'}
+                style={{ marginTop: 8 }}
+              />
+            </Card>
+          )}
+          
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="amount"
                 label="Amount (Litres)"
-                rules={[{ required: true, message: 'Please enter amount' }]}
+                rules={[
+                  { required: true, message: 'Please enter amount' },
+                  {
+                    validator: async (_, value) => {
+                      if (!value || !selectedBeneficiary) return;
+                      if (!validateAllocationAmount(value, selectedBeneficiary)) {
+                        throw new Error(`Amount exceeds remaining allocation of ${getRemainingAllocation(selectedBeneficiary)}L`);
+                      }
+                    }
+                  }
+                ]}
+                help={selectedBeneficiary && form.getFieldValue('amount') ? getAllocationWarningMessage(form.getFieldValue('amount'), selectedBeneficiary) : 
+                      selectedBeneficiary ? `Remaining allocation: ${getRemainingAllocation(selectedBeneficiary)}L` : ''}
+                validateStatus={selectedBeneficiary && form.getFieldValue('amount') && !validateAllocationAmount(form.getFieldValue('amount'), selectedBeneficiary) ? 'error' : ''}
               >
                 <InputNumber
                   min={1}
-                  max={10000}
+                  max={selectedBeneficiary ? getRemainingAllocation(selectedBeneficiary) : 10000}
                   placeholder="Enter amount in litres"
                   style={{ width: '100%' }}
+                  onChange={() => {
+                    // Trigger re-render to update validation message
+                    form.validateFields(['amount']);
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -607,10 +792,22 @@ export default function FuelDistribution() {
           </Row>
           <Form.Item
             name="constituency"
-            label="Constituency"
-            rules={[{ required: true, message: 'Please select a constituency' }]}
+            label="Constituency (Optional)"
+            help="Leave blank to include all beneficiaries, or select to filter by constituency"
           >
-            <Select placeholder="Select constituency" loading={loadingConstituencies} allowClear showSearch>
+            <Select 
+              placeholder="Select constituency (optional)" 
+              loading={loadingConstituencies} 
+              allowClear 
+              showSearch
+              optionFilterProp="children"
+              onChange={(value) => setSelectedConstituency(value)}
+              filterOption={(input, option) => {
+                if (!option) return false;
+                const label = option.children?.toString().toLowerCase() || '';
+                return label.includes(input.toLowerCase());
+              }}
+            >
               {constituencies?.map((c: any) => (
                 <Option key={c.id} value={c.id}>{c.name}</Option>
               ))}
@@ -651,9 +848,9 @@ export default function FuelDistribution() {
                 (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
               }
             >
-              {beneficiaries?.map((beneficiary: any) => (
+              {allBeneficiaries?.map((beneficiary: any) => (
                 <Option key={beneficiary.id} value={beneficiary.id}>
-                  {beneficiary.name} ({beneficiary.category})
+                  {beneficiary.name} ({beneficiary.category}) - {getRemainingAllocation(beneficiary)}L remaining
                 </Option>
               ))}
             </Select>
