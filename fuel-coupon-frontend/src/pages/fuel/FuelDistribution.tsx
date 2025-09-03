@@ -71,10 +71,28 @@ export default function FuelDistribution() {
     }
   });
 
-  const { data: beneficiaries, isLoading: loadingBeneficiaries } = useQuery({
-    queryKey: ['beneficiaries'],
+  // Pagination state for beneficiaries
+  const [beneficiaryPage, setBeneficiaryPage] = useState(1);
+  const [beneficiaryPageSize, setBeneficiaryPageSize] = useState(10);
+  const [beneficiaryTotal, setBeneficiaryTotal] = useState(0);
+
+  // Fetch all constituencies for Select field
+  const { data: constituencies, isLoading: loadingConstituencies } = useQuery({
+    queryKey: ['constituencies'],
     queryFn: async () => {
-      const response = await apiClient.get('/beneficiaries/');
+      const response = await apiClient.get('/constituencies/');
+      return response.data.results || response.data;
+    }
+  });
+
+  // Beneficiaries with pagination
+  const { data: beneficiaries, isLoading: loadingBeneficiaries } = useQuery({
+    queryKey: ['beneficiaries', beneficiaryPage, beneficiaryPageSize],
+    queryFn: async () => {
+      const response = await apiClient.get('/beneficiaries/', {
+        params: { page: beneficiaryPage, page_size: beneficiaryPageSize }
+      });
+      setBeneficiaryTotal(response.data.count || (response.data.results ? response.data.results.length : 0));
       return response.data.results || response.data;
     }
   });
@@ -423,7 +441,17 @@ export default function FuelDistribution() {
           dataSource={beneficiaries}
           loading={loadingBeneficiaries}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: beneficiaryPage,
+            pageSize: beneficiaryPageSize,
+            total: beneficiaryTotal,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            onChange: (page, pageSize) => {
+              setBeneficiaryPage(page);
+              setBeneficiaryPageSize(pageSize || 10);
+            }
+          }}
         />
       )
     }
@@ -577,6 +605,17 @@ export default function FuelDistribution() {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item
+            name="constituency"
+            label="Constituency"
+            rules={[{ required: true, message: 'Please select a constituency' }]}
+          >
+            <Select placeholder="Select constituency" loading={loadingConstituencies} allowClear showSearch>
+              {constituencies?.map((c: any) => (
+                <Option key={c.id} value={c.id}>{c.name}</Option>
+              ))}
+            </Select>
+          </Form.Item>
           <Form.Item
             name="notes"
             label="Notes"

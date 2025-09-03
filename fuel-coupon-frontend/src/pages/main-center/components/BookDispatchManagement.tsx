@@ -195,30 +195,60 @@ const BookDispatchManagement: FC = () => {
         params.box_code = selectedBoxCode;
       }
 
-      // Use the correct production endpoint
-      console.log(`📚 Loading books from: /books/available_for_dispatch/`);
-      const response = await apiClient.get('/books/available_for_dispatch/', { params });
+      // Try production endpoints in priority order
+      let response;
+      const endpoints = [
+        '/books/available_for_dispatch/',       // Primary production endpoint (corrected)
+        '/fuel/books/available_for_dispatch/',  // Legacy endpoint with /fuel/ prefix
+        '/books/',                              // Fallback with filtering
+        '/fuel/books/'                          // Legacy fallback
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`📚 Attempting to load books from: ${endpoint}`);
+          
+          const requestParams = endpoint.includes('/fuel/books/') && !endpoint.includes('available_for_dispatch') 
+            ? { ...params, is_verified: true, status: 'AVAILABLE' }
+            : params;
+            
+          response = await apiClient.get(endpoint, { params: requestParams });
+          
+          if (response.data && (response.data.results || response.data.length > 0 || Array.isArray(response.data))) {
+            console.log(`✅ Successfully loaded books from: ${endpoint}`);
+            break;
+          }
+        } catch (error) {
+          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          continue;
+        }
+      }
+
+      if (!response) {
+        throw new Error('All book endpoints failed');
+      }
 
       const payload = response.data || {};
-      const data = payload.results || [];
+      const data = payload.results || payload || [];
       
       console.log('📚 Raw books data:', data.length, 'books loaded');
 
-      const mapped: AvailableBook[] = data.map((b: any) => ({
-        key: String(b.id),
-        bookId: String(b.bookCode),
-        boxId: String(b.boxId),
-        fuelType: b.fuelType as 'PETROL' | 'DIESEL',
-        couponAmount: b.denomination as 5 | 20,
-        firstCouponId: String(b.firstCouponNumber),
-        lastCouponId: String(b.lastCouponNumber),
-        numberOfCoupons: Number(b.numberOfCoupons),
-        value: Number(b.estimatedValue),
-        pricePerLitre: Number(b.pricePerLitre),
+      const mapped: AvailableBook[] = (Array.isArray(data) ? data : []).map((b: any) => ({
+        key: String(b.id ?? b.bookId ?? b.bookCode ?? Math.random()),
+        bookId: String(b.bookCode ?? b.bookId ?? b.book_id ?? b.id ?? ''),
+        boxId: String(b.boxId ?? b.box_code ?? b.boxCode ?? 'Unknown'),
+        fuelType: (String(b.fuelType || b.fuel_type || '').toUpperCase() === 'PETROL' ? 'PETROL' : 'DIESEL') as 'PETROL' | 'DIESEL',
+        couponAmount: (b.denomination ?? b.coupon_amount ?? 20) as 5 | 20,
+        firstCouponId: String(b.firstCouponNumber ?? b.first_coupon_number ?? b.first_coupon_serial ?? ''),
+        lastCouponId: String(b.lastCouponNumber ?? b.last_coupon_number ?? b.last_coupon_serial ?? ''),
+        numberOfCoupons: Number(b.numberOfCoupons ?? b.number_of_coupons ?? b.total_coupons ?? 100),
+        value: Number(b.estimatedValue ?? b.estimated_value ?? b.value ?? (Number(b.numberOfCoupons ?? 100) * Number(b.denomination ?? 20))),
+        pricePerLitre: Number(b.pricePerLitre ?? b.price_per_litre ?? 1.50),
         status: 'AVAILABLE',
-        createdAt: b.generatedAt,
-        isGenerated: false,
-        verifiedAt: b.boxReceiveDate,
+        // Additional metadata for enhanced display
+        createdAt: b.created_at ?? b.createdAt,
+        isGenerated: Boolean(b.is_generated ?? b.isGenerated ?? false),
+        verifiedAt: b.verified_at ?? b.verifiedAt,
       }));
 
       console.log('📊 Books summary:', {
