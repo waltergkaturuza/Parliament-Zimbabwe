@@ -1,5 +1,5 @@
 // src/pages/parliament/BeneficiaryManagement.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Table,
   Card,
@@ -61,7 +61,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import BeneficiaryService, { type Beneficiary } from '@/api/beneficiaries';
+import BeneficiaryService, { type Beneficiary, type BeneficiaryListResponse } from '@/api/beneficiaries';
 import apiClient from '@/api';
 
 const { Search } = Input;
@@ -90,17 +90,26 @@ const BeneficiaryManagement = () => {
   const [editForm] = Form.useForm();
   const queryClient = useQueryClient();
 
-  // Fetch beneficiaries data
-  const { data: beneficiariesResponse, isLoading, refetch } = useQuery({
-    queryKey: ['beneficiaries', filters],
+  // Pagination for beneficiaries
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalBeneficiaries, setTotalBeneficiaries] = useState<number>(0);
+
+  // Fetch beneficiaries data (server-side pagination)
+  const { data: beneficiariesResponse, isLoading, refetch } = useQuery<BeneficiaryListResponse>({
+    queryKey: ['beneficiaries', filters, page, pageSize],
     queryFn: async () => {
       const params: any = {};
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       if (filters.category) params.category = filters.category;
-      
+      if (filters.party) params.party = filters.party;
+      params.page = page;
+      params.page_size = pageSize;
+
       return await BeneficiaryService.getBeneficiaries(params);
-    }
+    },
+    placeholderData: (previousData) => previousData,
   });
 
   // Fetch constituencies for dropdowns
@@ -153,8 +162,36 @@ const BeneficiaryManagement = () => {
   const systemUsers = systemUsersData || [];
   const beneficiaryCategories = beneficiaryCategoriesData || [];
 
+  // Prepare Select options (label/value) to allow optionFilterProp searches
+  const constituencyOptions = constituencies.map((c: any) => ({
+    label: c.province ? `${c.name} (${c.province})` : c.name,
+    value: c.id || c.name,
+  }));
+
+  const partyOptions = politicalParties.map((p: any) => ({
+    label: p.short_name ? `${p.short_name} - ${p.name}` : (p.name || p),
+    value: p.short_name || p.name || p,
+  }));
+
+  const userOptions = systemUsers.map((u: any) => ({
+    label: `${u.username} - ${u.first_name || ''} ${u.last_name || ''}`.trim(),
+    value: u.id,
+  }));
+
+  const categoryOptions = beneficiaryCategories.map((c: any) => ({
+    label: (c.name || c).toString().replace(/_/g, ' ').replace(/\b\w/g, (s: string) => s.toUpperCase()),
+    value: c.name || c,
+  }));
+
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
+
+  // Update total when server returns a count
+  useEffect(() => {
+    if (!beneficiariesResponse) return;
+    const possibleTotal = (beneficiariesResponse as any)?.count || (beneficiariesResponse as any)?.total || (beneficiariesResponse as any)?.meta?.total || 0;
+    setTotalBeneficiaries(possibleTotal);
+  }, [beneficiariesResponse]);
 
   // Mutations for CRUD operations
   const activateBeneficiaryMutation = useMutation({
@@ -573,7 +610,7 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Active MPs"
-              value={beneficiaries?.filter(b => b.category === 'MP' && b.status === 'ACTIVE').length || 0}
+              value={beneficiaries?.filter((b: any) => b.category === 'MP' && b.status === 'ACTIVE').length || 0}
               valueStyle={{ color: '#1890ff' }}
               prefix={<UserOutlined />}
             />
@@ -583,7 +620,7 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Total Vehicles"
-              value={beneficiaries?.reduce((sum, b) => sum + b.vehicles.length, 0) || 0}
+              value={beneficiaries?.reduce((sum: number, b: any) => sum + b.vehicles.length, 0) || 0}
               valueStyle={{ color: '#52c41a' }}
               prefix={<CarOutlined />}
             />
@@ -593,7 +630,7 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Monthly Allocations"
-              value={beneficiaries?.reduce((sum, b) => sum + b.entitlements.monthlyAllocation, 0) || 0}
+              value={beneficiaries?.reduce((sum: number, b: any) => sum + b.entitlements.monthlyAllocation, 0) || 0}
               prefix="$"
               valueStyle={{ color: '#722ed1' }}
             />
@@ -703,10 +740,16 @@ const BeneficiaryManagement = () => {
           rowSelection={rowSelection}
           loading={isLoading}
           pagination={{
+            current: page,
+            pageSize: pageSize,
+            total: totalBeneficiaries || ((beneficiariesResponse as any)?.count || 0),
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => 
-              `${range[0]}-${range[1]} of ${total} beneficiaries`,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} beneficiaries`,
+            onChange: (nextPage: number, nextPageSize?: number) => {
+              setPage(nextPage);
+              if (nextPageSize && nextPageSize !== pageSize) setPageSize(nextPageSize);
+            }
           }}
           scroll={{ x: 1400 }}
           className="beneficiaries-table"
@@ -959,11 +1002,9 @@ const BeneficiaryManagement = () => {
                       allowClear
                       showSearch
                       loading={usersLoading}
-                      optionFilterProp="children"
+                      optionFilterProp="label"
                       style={{ fontSize: '16px', minHeight: '40px' }}
-                      filterOption={(input, option) =>
-                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                      }
+                      options={userOptions}
                       onChange={(userId) => {
                         if (userId) {
                           const selectedUser = systemUsers.find((user: any) => user.id === userId);
@@ -980,13 +1021,7 @@ const BeneficiaryManagement = () => {
                           }
                         }
                       }}
-                    >
-                      {systemUsers.map((user: any) => (
-                        <Select.Option key={user.id} value={user.id}>
-                          {user.username} - {user.first_name} {user.last_name} ({user.email})
-                        </Select.Option>
-                      ))}
-                    </Select>
+                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -1076,28 +1111,16 @@ const BeneficiaryManagement = () => {
                     label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Parliamentary Position (Optional)</span>}
                     help="Leave blank if position will be assigned later"
                   >
-                    <Select 
-                      placeholder="Select parliamentary position (optional)" 
-                      showSearch 
+                    <Select
+                      placeholder="Select parliamentary position (optional)"
+                      showSearch
                       allowClear
                       loading={categoriesLoading}
                       size="large"
                       style={{ fontSize: '16px', minHeight: '40px' }}
-                      filterOption={(input, option) =>
-                        (option?.children?.toString()?.toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0 || false
-                      }
-                    >
-                      {beneficiaryCategories.map((category: any) => (
-                        <Select.Option key={category.id} value={category.id}>
-                          {category.name}
-                          {category.description && (
-                            <span style={{ color: '#666', fontSize: '12px' }}>
-                              {' '}({category.description})
-                            </span>
-                          )}
-                        </Select.Option>
-                      ))}
-                    </Select>
+                      optionFilterProp="label"
+                      options={categoryOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -1125,23 +1148,16 @@ const BeneficiaryManagement = () => {
                     name="constituency"
                     label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Constituency</span>}
                   >
-                    <Select 
-                      placeholder="Select constituency" 
+                    <Select
+                      placeholder="Select constituency"
                       showSearch
                       size="large"
                       style={{ fontSize: '16px', minHeight: '40px' }}
-                      filterOption={(input, option) =>
-                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                      }
+                      optionFilterProp="label"
                       loading={constituenciesLoading}
                       notFoundContent={constituenciesLoading ? 'Loading...' : 'No constituencies found'}
-                    >
-                      {constituencies?.map((constituency: any) => (
-                        <Select.Option key={constituency.id} value={constituency.name}>
-                          {constituency.name} ({constituency.province})
-                        </Select.Option>
-                      ))}
-                    </Select>
+                      options={constituencyOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -1149,24 +1165,16 @@ const BeneficiaryManagement = () => {
                     name="party"
                     label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Political Party</span>}
                   >
-                    <Select 
-                      placeholder="Select party" 
+                    <Select
+                      placeholder="Select party"
                       allowClear
                       loading={partiesLoading}
                       showSearch
                       size="large"
                       style={{ fontSize: '16px', minHeight: '40px' }}
-                      optionFilterProp="children"
-                      filterOption={(input, option) =>
-                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                      }
-                    >
-                      {politicalParties.map((party: any) => (
-                        <Select.Option key={party.id} value={party.short_name}>
-                          {party.short_name} - {party.name}
-                        </Select.Option>
-                      ))}
-                    </Select>
+                      optionFilterProp="label"
+                      options={partyOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -1422,26 +1430,14 @@ const BeneficiaryManagement = () => {
                     label="Parliamentary Position (Optional)"
                     help="Leave blank if position will be assigned later"
                   >
-                    <Select 
-                      placeholder="Select parliamentary position (optional)" 
-                      showSearch 
+                    <Select
+                      placeholder="Select parliamentary position (optional)"
+                      showSearch
                       allowClear
                       loading={categoriesLoading}
-                      filterOption={(input, option) =>
-                        (option?.children?.toString()?.toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
-                      }
-                    >
-                      {beneficiaryCategories.map((category: any) => (
-                        <Select.Option key={category.id} value={category.id}>
-                          {category.name}
-                          {category.description && (
-                            <span style={{ color: '#666', fontSize: '12px' }}>
-                              {' '}({category.description})
-                            </span>
-                          )}
-                        </Select.Option>
-                      ))}
-                    </Select>
+                      optionFilterProp="label"
+                      options={categoryOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -1469,21 +1465,14 @@ const BeneficiaryManagement = () => {
                     name="constituency"
                     label="Constituency"
                   >
-                    <Select 
-                      placeholder="Select constituency" 
+                    <Select
+                      placeholder="Select constituency"
                       showSearch
-                      filterOption={(input, option) =>
-                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                      }
+                      optionFilterProp="label"
                       loading={constituenciesLoading}
                       notFoundContent={constituenciesLoading ? 'Loading...' : 'No constituencies found'}
-                    >
-                      {constituencies?.map((constituency: any) => (
-                        <Select.Option key={constituency.id} value={constituency.name}>
-                          {constituency.name} ({constituency.province})
-                        </Select.Option>
-                      ))}
-                    </Select>
+                      options={constituencyOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -1491,22 +1480,14 @@ const BeneficiaryManagement = () => {
                     name="party"
                     label="Political Party"
                   >
-                    <Select 
-                      placeholder="Select party" 
+                    <Select
+                      placeholder="Select party"
                       allowClear
                       loading={partiesLoading}
                       showSearch
-                      optionFilterProp="children"
-                      filterOption={(input, option) =>
-                        (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                      }
-                    >
-                      {politicalParties.map((party: any) => (
-                        <Select.Option key={party.id} value={party.short_name}>
-                          {party.short_name} - {party.name}
-                        </Select.Option>
-                      ))}
-                    </Select>
+                      optionFilterProp="label"
+                      options={partyOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
