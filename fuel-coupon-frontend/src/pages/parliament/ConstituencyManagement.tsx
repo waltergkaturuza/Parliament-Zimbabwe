@@ -64,10 +64,10 @@ interface ConstituencyFormData {
 const ZIMBABWE_PROVINCES = {
   'Harare': ['Harare', 'Chitungwiza', 'Epworth'],
   'Bulawayo': ['Bulawayo'],
-  'Manicaland': ['Mutare', 'Makoni', 'Chipinge', 'Chimanimani', 'Buhera', 'Nyanga', 'Mutasa'],
+  'Manicaland': ['Mutare','Mutare Rural', 'Makoni', 'Mutare Urban', 'Chipinge', 'Rusape', 'Chimanimani', 'Buhera', 'Nyanga', 'Mutasa'],
   'Mashonaland Central': ['Bindura', 'Mazowe', 'Mt Darwin', 'Guruve', 'Mbire', 'Rushinga', 'Shamva'],
   'Mashonaland East': ['Marondera', 'Murehwa', 'Mutoko', 'Seke', 'Goromonzi', 'Wedza (Hwedza)', 'Chikomba', 'Uzumba-Maramba-Pfungwe (UMP)'],
-  'Mashonaland West': ['Chinhoyi', 'Chegutu', 'Hurungwe', 'Zvimba', 'Makonde', 'Kariba', 'Sanyati', 'Mhondoro-Ngezi'],
+  'Mashonaland West': ['Chinhoyi', 'Chegutu', 'Hurungwe', 'Zvimba', 'Makonde', 'Kariba', 'Kadoma','Sanyati', 'Mhondoro-Ngezi'],
   'Masvingo': ['Masvingo', 'Chivi', 'Mwenezi', 'Gutu', 'Bikita', 'Zaka', 'Chiredzi'],
   'Midlands': ['Gweru', 'Kwekwe', 'Mvuma (Chirumhanzu)', 'Shurugwi', 'Zvishavane', 'Gokwe North', 'Gokwe South', 'Mberengwa'],
   'Matabeleland North': ['Lupane', 'Hwange', 'Binga', 'Bubi', 'Nkayi', 'Tsholotsho', 'Umguza'],
