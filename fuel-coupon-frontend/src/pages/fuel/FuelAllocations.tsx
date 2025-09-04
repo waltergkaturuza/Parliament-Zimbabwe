@@ -344,11 +344,17 @@ const FuelAllocations: FC = () => {
             rules={[{ required: true, message: 'Please select beneficiary' }]}
           >
             <Select placeholder="Select beneficiary" showSearch size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
-              {beneficiaries.map((beneficiary) => (
-                <Option key={beneficiary.id} value={beneficiary.id}>
-                  {beneficiary.user?.first_name} {beneficiary.user?.last_name} - {beneficiary.constituency?.name}
-                </Option>
-              ))}
+              {beneficiaries.map((beneficiary) => {
+                const displayName = beneficiary.user
+                  ? `${beneficiary.user.first_name || ''} ${beneficiary.user.last_name || ''}`.trim()
+                  : (beneficiary.constituency?.name || 'Unknown Name');
+
+                return (
+                  <Option key={beneficiary.id} value={beneficiary.id}>
+                    {displayName}
+                  </Option>
+                );
+              })}
             </Select>
           </Form.Item>
 
