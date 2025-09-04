@@ -241,7 +241,40 @@ const BookDispatchManagementEnhanced: FC = () => {
 
   const loadAvailableBooks = async () => {
     try {
-      const response = await apiClient.get('/books/available-for-dispatch/');
+      // Try multiple endpoints with fallback
+      const endpoints = [
+        '/books/available-for-dispatch/',
+        '/books/'
+      ];
+      
+      let response;
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`📚 Attempting to load books from: ${endpoint}`);
+          const params = endpoint.includes('available-for-dispatch') 
+            ? {} 
+            : { is_verified: true, status: 'AVAILABLE' };
+          
+          response = await apiClient.get(endpoint, { params });
+          
+          if (response.data && (response.data.results || response.data.length > 0 || Array.isArray(response.data))) {
+            console.log(`✅ Successfully loaded books from: ${endpoint}`);
+            break;
+          }
+        } catch (error: any) {
+          if (error.response?.status !== 404) {
+            console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          }
+          continue;
+        }
+      }
+      
+      if (!response) {
+        console.log('All book endpoints failed, using empty array');
+        setAvailableBooks([]);
+        return;
+      }
+      
       const booksData = response.data.results || response.data || [];
       console.log('Loaded available books:', booksData.length, 'items');
       setAvailableBooks(booksData);

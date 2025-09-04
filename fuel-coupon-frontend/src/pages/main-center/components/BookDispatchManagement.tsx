@@ -195,20 +195,18 @@ const BookDispatchManagement: FC = () => {
         params.box_code = selectedBoxCode;
       }
 
-      // Try production endpoints in priority order
+      // Try production endpoints in priority order (removed problematic /fuel/ endpoints)
       let response;
       const endpoints = [
-        '/books/available_for_dispatch/',       // Primary production endpoint (corrected)
-        '/fuel/books/available_for_dispatch/',  // Legacy endpoint with /fuel/ prefix
+        '/books/available-for-dispatch/',       // Primary production endpoint
         '/books/',                              // Fallback with filtering
-        '/fuel/books/'                          // Legacy fallback
       ];
 
       for (const endpoint of endpoints) {
         try {
           console.log(`📚 Attempting to load books from: ${endpoint}`);
           
-          const requestParams = endpoint.includes('/fuel/books/') && !endpoint.includes('available_for_dispatch') 
+          const requestParams = endpoint.includes('/books/') && !endpoint.includes('available-for-dispatch') 
             ? { ...params, is_verified: true, status: 'AVAILABLE' }
             : params;
             
@@ -218,8 +216,10 @@ const BookDispatchManagement: FC = () => {
             console.log(`✅ Successfully loaded books from: ${endpoint}`);
             break;
           }
-        } catch (error) {
-          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+        } catch (error: any) {
+          if (error.response?.status !== 404) {
+            console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          }
           continue;
         }
       }
@@ -285,12 +285,10 @@ const BookDispatchManagement: FC = () => {
 
   const loadBoxes = async () => {
     try {
-      // Try production endpoints in order
+      // Try production endpoints in order (removed problematic /fuel/ endpoints)
       const endpoints = [
-        '/boxes/',          // Primary production endpoint (corrected)
-        '/fuel/boxes/',     // Legacy endpoint with /fuel/ prefix
+        '/boxes/',          // Primary production endpoint
         '/box/',            // Alternative endpoint
-        '/fuel/box/'        // Legacy alternative
       ];
       
       let response;
@@ -310,8 +308,10 @@ const BookDispatchManagement: FC = () => {
             console.log(`✅ Successfully loaded boxes from: ${endpoint}`);
             break;
           }
-        } catch (error) {
-          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+        } catch (error: any) {
+          if (error.response?.status !== 404) {
+            console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          }
           continue;
         }
       }
@@ -346,12 +346,10 @@ const BookDispatchManagement: FC = () => {
 
   const loadSubCenters = async () => {
     try {
-      // Try production endpoints in order
+      // Try production endpoints in order (removed problematic /fuel/ endpoints)
       const endpoints = [
-        '/subcenters/',         // Primary production endpoint (corrected)
-        '/fuel/subcenters/',    // Legacy endpoint with /fuel/ prefix
+        '/subcenters/',         // Primary production endpoint
         '/sub-centers/',        // Alternative format
-        '/fuel/sub-centers/'    // Legacy alternative
       ];
       
       let data = [];
@@ -372,8 +370,10 @@ const BookDispatchManagement: FC = () => {
             data = results;
             break;
           }
-        } catch (error) {
-          console.warn(`❌ Failed to load from ${endpoint}:`, error);
+        } catch (error: any) {
+          if (error.response?.status !== 404) {
+            console.warn(`❌ Failed to load from ${endpoint}:`, error);
+          }
           continue;
         }
       }
