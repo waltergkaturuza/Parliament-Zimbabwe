@@ -93,10 +93,13 @@ export default function FuelDistribution() {
   const { data: allBeneficiaries, isLoading: loadingAllBeneficiaries } = useQuery({
     queryKey: ['all-beneficiaries'],
     queryFn: async () => {
-      // Fetch all beneficiaries with large page_size to ensure we get all options
-      const response = await apiClient.get('/beneficiaries/?page_size=10000');
+      // Fetch all beneficiaries with no pagination to ensure we get all 300+ beneficiaries
+      const response = await apiClient.get('/beneficiaries/?page_size=1000');
+      console.log('All beneficiaries fetched:', response.data);
       return response.data.results || response.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    retry: 2
   });
 
   // Beneficiaries with pagination for table display
@@ -420,6 +423,7 @@ export default function FuelDistribution() {
 
   const handleBeneficiarySelect = (beneficiaryId: string) => {
     const beneficiary = allBeneficiaries?.find((b: any) => b.id === beneficiaryId);
+    console.log('Selected beneficiary:', beneficiary);
     setSelectedBeneficiary(beneficiary);
     
     // Reset amount field when beneficiary changes
@@ -683,13 +687,24 @@ export default function FuelDistribution() {
                       // If no constituency is selected, show all beneficiaries
                       if (!selectedConstituency) return true;
                       // If constituency is selected, only show beneficiaries from that constituency
-                      return beneficiary.constituency === selectedConstituency;
+                      const beneficiaryConstituency = typeof beneficiary.constituency === 'object' 
+                        ? beneficiary.constituency?.name 
+                        : beneficiary.constituency;
+                      return beneficiaryConstituency === selectedConstituency;
                     })
-                    ?.map((beneficiary: any) => (
-                    <Option key={beneficiary.id} value={beneficiary.id}>
-                      {beneficiary.name} {beneficiary.constituency ? `(${beneficiary.constituency})` : '(No Constituency)'} - {getRemainingAllocation(beneficiary)}L remaining
-                    </Option>
-                  ))}
+                    ?.map((beneficiary: any) => {
+                      // Ensure we display the actual beneficiary name, not constituency
+                      const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                      const constituencyName = typeof beneficiary.constituency === 'object' 
+                        ? beneficiary.constituency?.name 
+                        : beneficiary.constituency || 'No Constituency';
+                      
+                      return (
+                        <Option key={beneficiary.id} value={beneficiary.id}>
+                          {displayName} ({constituencyName}) - {getRemainingAllocation(beneficiary)}L remaining
+                        </Option>
+                      );
+                    })}
                 </Select>
               </Form.Item>
             </Col>
@@ -848,11 +863,19 @@ export default function FuelDistribution() {
                 (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
               }
             >
-              {allBeneficiaries?.map((beneficiary: any) => (
-                <Option key={beneficiary.id} value={beneficiary.id}>
-                  {beneficiary.name} ({beneficiary.category}) - {getRemainingAllocation(beneficiary)}L remaining
-                </Option>
-              ))}
+              {allBeneficiaries?.map((beneficiary: any) => {
+                // Ensure we display the actual beneficiary name, not constituency
+                const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                const categoryName = typeof beneficiary.category === 'object' 
+                  ? beneficiary.category?.name 
+                  : beneficiary.category || 'No Category';
+                
+                return (
+                  <Option key={beneficiary.id} value={beneficiary.id}>
+                    {displayName} ({categoryName}) - {getRemainingAllocation(beneficiary)}L remaining
+                  </Option>
+                );
+              })}
             </Select>
           </Form.Item>
           <Row gutter={16}>
