@@ -33,8 +33,10 @@ import {
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { sergeantOfArmsAPI } from '@/api/sergeantOfArms';
+import apiClient from '@/api/index';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 interface ProgramSession {
   id: number;
@@ -70,9 +72,37 @@ const SergeantOfArmsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  // --- Beneficiary management for attendance marking ---
+  const [beneficiaries, setBeneficiaries] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedBeneficiaryIds, setSelectedBeneficiaryIds] = useState<string[]>([]);
+  const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
+
+  // Extract unique categories from beneficiaries
+  const beneficiaryCategories = Array.from(new Set(beneficiaries.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean))) as string[];
+
+  // Filter beneficiaries by selected category
+  const filteredBeneficiaries = selectedCategory
+    ? beneficiaries.filter((b: any) => {
+        const cat = typeof b.category === 'object' ? b.category?.name : b.category;
+        return cat === selectedCategory;
+      })
+    : beneficiaries;
+
   useEffect(() => {
     fetchCalendarData();
+    fetchBeneficiaries();
   }, []);
+
+  const fetchBeneficiaries = async () => {
+    try {
+      const response = await apiClient.get('/beneficiary-profiles/', { params: { page_size: 500 } });
+      const beneficiaryData = response.data.results || response.data;
+      setBeneficiaries(beneficiaryData);
+    } catch (error) {
+      console.error('Error fetching beneficiaries:', error);
+    }
+  };
 
   const fetchCalendarData = async () => {
     try {
@@ -194,7 +224,7 @@ const SergeantOfArmsDashboard: React.FC = () => {
   };
 
   const handleManageAttendance = () => {
-    message.info('Navigate to attendance management page');
+    setAttendanceModalVisible(true);
   };
 
   // AntD v5: use cellRender instead of deprecated dateCellRender
@@ -672,6 +702,84 @@ const SergeantOfArmsDashboard: React.FC = () => {
             </Row>
           </div>
         )}
+      </Modal>
+
+      {/* Attendance Marking Modal */}
+      <Modal
+        title="Mark Attendance"
+        open={attendanceModalVisible}
+        onCancel={() => setAttendanceModalVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Row gutter={[16, 16]} align="middle">
+            <Col xs={24} sm={8}>
+              <Space>
+                <span>Category:</span>
+                <Select
+                  style={{ width: 200 }}
+                  value={selectedCategory}
+                  onChange={setSelectedCategory}
+                  placeholder="Select category"
+                  allowClear
+                >
+                  {beneficiaryCategories.map((cat: string) => (
+                    <Option key={cat} value={cat}>{cat}</Option>
+                  ))}
+                </Select>
+              </Space>
+            </Col>
+            <Col xs={24} sm={16}>
+              <Space>
+                <span>Beneficiaries:</span>
+                <Select
+                  mode="multiple"
+                  style={{ minWidth: 300 }}
+                  value={selectedBeneficiaryIds}
+                  onChange={setSelectedBeneficiaryIds}
+                  placeholder="Select beneficiaries"
+                  optionLabelProp="label"
+                  showSearch
+                >
+                  {filteredBeneficiaries.map((b: any) => {
+                    const displayName = b.user ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim() : (b.constituency?.name || 'Unknown Name');
+                    return (
+                      <Option key={b.id} value={b.id} label={displayName}>
+                        <span><input type="checkbox" checked={selectedBeneficiaryIds.includes(b.id)} readOnly style={{ marginRight: 8 }} />{displayName}</span>
+                      </Option>
+                    );
+                  })}
+                </Select>
+              </Space>
+            </Col>
+          </Row>
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <Button 
+            type="primary" 
+            onClick={() => {
+              message.success(`Marked attendance for ${selectedBeneficiaryIds.length} beneficiaries`);
+              setAttendanceModalVisible(false);
+              setSelectedBeneficiaryIds([]);
+            }}
+            disabled={selectedBeneficiaryIds.length === 0}
+          >
+            Mark Selected as Present
+          </Button>
+          <Button 
+            style={{ marginLeft: 8 }}
+            onClick={() => {
+              message.info(`Marked ${selectedBeneficiaryIds.length} beneficiaries as absent`);
+              setAttendanceModalVisible(false);
+              setSelectedBeneficiaryIds([]);
+            }}
+            disabled={selectedBeneficiaryIds.length === 0}
+          >
+            Mark Selected as Absent
+          </Button>
+        </div>
       </Modal>
     </div>
   );

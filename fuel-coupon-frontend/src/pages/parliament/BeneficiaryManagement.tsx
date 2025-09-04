@@ -159,7 +159,7 @@ const BeneficiaryManagement = () => {
   const { data: politicalPartiesData, isLoading: partiesLoading } = useQuery({
     queryKey: ['political-parties-active'],
     queryFn: async () => {
-      const response = await apiClient.get('/political-parties/active_parties/');
+      const response = await apiClient.get('/political-parties/active_parties/', { params: { page_size: 1000 } });
       const data = response.data;
       // Handle both paginated response and direct array
       return Array.isArray(data) ? data : (data.results || []);

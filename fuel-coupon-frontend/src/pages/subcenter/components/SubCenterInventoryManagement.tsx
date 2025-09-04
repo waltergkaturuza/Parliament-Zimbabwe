@@ -167,16 +167,6 @@ const SubCenterInventoryManagement: FC = () => {
   // Form for allocation
   const [allocationForm] = Form.useForm();
 
-  // Beneficiary search filter
-  const [beneficiarySearch, setBeneficiarySearch] = useState<string>('');
-
-  // Filter beneficiaries based on search term
-  const filteredBeneficiaries = beneficiaries.filter(beneficiary =>
-    beneficiary.name.toLowerCase().includes(beneficiarySearch.toLowerCase()) ||
-    beneficiary.memberId.toLowerCase().includes(beneficiarySearch.toLowerCase()) ||
-    beneficiary.position.toLowerCase().includes(beneficiarySearch.toLowerCase())
-  );
-
   useEffect(() => {
     loadInventoryData();
     loadBeneficiaries();
@@ -186,69 +176,20 @@ const SubCenterInventoryManagement: FC = () => {
   const loadInventoryData = async () => {
     setLoading(true);
     try {
-      // Load books received by this subcenter from multiple sources
-      // 1. Books received from dispatches
-      // 2. Books from distributions 
-      const [booksResp, dispatchesResp] = await Promise.all([
-        apiClient.get('/books/received/').catch(() => ({ data: { results: [] } })),
-        apiClient.get('/dispatches/').catch(() => ({ data: { results: [] } }))
-      ]);
+      // Simulate incoming books from main center dispatches
+      // Load books received by this subcenter from API
+      const response = await apiClient.get('/books/received/');
+      const booksData = response.data.results || response.data || [];
 
-      const booksData = booksResp.data.results || booksResp.data || [];
-      const dispatchesData = dispatchesResp.data.results || dispatchesResp.data || [];
-
-      // Process books from both sources
-      const processedBooks: IncomingBook[] = [];
-
-      // Process books from dispatches (fuel from main center)
-      dispatchesData.forEach((dispatch: any) => {
-        if (dispatch.books && Array.isArray(dispatch.books)) {
-          dispatch.books.forEach((book: any) => {
-            const pages = generateCouponPages(
-              book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-${book.id}-000001`,
-              book.total_coupons || 20,
-              String(book.id)
-            );
-
-            processedBooks.push({
-              id: String(book.id),
-              bookId: `BOOK${String(book.id).padStart(3, '0')}`,
-              bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
-              boxId: book.box?.box_code || `FCB-2024-${String(book.box_id || book.id).padStart(4, '0')}`,
-              fuelType: (book.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
-              couponAmount: (book.coupon_amount || (book.fuel_type === 'PETROL' ? 20 : 5)) as 5 | 20,
-              firstCouponSerial: book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000001`,
-              lastCouponSerial: book.last_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000020`,
-              totalCoupons: book.total_coupons || 20,
-              couponsAllocated: book.coupons_allocated || 0,
-              couponsRemaining: (book.total_coupons || 20) - (book.coupons_allocated || 0),
-              totalValue: book.total_value || ((book.total_coupons || 20) * (book.coupon_amount || 20) * (book.fuel_type === 'PETROL' ? 37.95 : 36.00)),
-              valueAllocated: book.value_allocated || 0,
-              valueRemaining: (book.total_value || 0) - (book.value_allocated || 0),
-              receivedDate: dispatch.dispatch_date ? dayjs(dispatch.dispatch_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-              receivedTime: dispatch.dispatch_time || dayjs().format('HH:mm'),
-              receivedBy: dispatch.received_by?.full_name || dispatch.received_by_name || 'System User',
-              dispatchId: dispatch.dispatch_id || `DSP-${String(dispatch.id).padStart(6, '0')}`,
-              fromMainCenter: 'Parliament Main Center',
-              status: book.status || 'RECEIVED',
-              pages,
-            });
-          });
-        }
-      });
-
-      // Process existing books data
-      booksData.forEach((book: any) => {
-        // Skip if already added from dispatches
-        if (processedBooks.find(pb => pb.id === String(book.id))) return;
-
+      const processedBooks: IncomingBook[] = booksData.map((book: any) => {
+        // Calculate coupon pages for this book
         const pages = generateCouponPages(
           book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-${book.id}-000001`,
           book.total_coupons || 20,
           String(book.id)
         );
 
-        processedBooks.push({
+        return {
           id: String(book.id),
           bookId: `BOOK${String(book.id).padStart(3, '0')}`,
           bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
@@ -270,7 +211,7 @@ const SubCenterInventoryManagement: FC = () => {
           fromMainCenter: 'Parliament Main Center',
           status: book.status || 'RECEIVED',
           pages,
-        });
+        };
       });
 
       setIncomingBooks(processedBooks);
@@ -318,7 +259,7 @@ const SubCenterInventoryManagement: FC = () => {
   const loadBeneficiaries = async () => {
     try {
       const response = await apiClient.get('/beneficiaries/', {
-        params: { page_size: 500 }  // Fetch all beneficiaries
+        params: { page_size: 100 }
       });
       
       const beneficiariesData = response.data.results || response.data || [];
@@ -835,6 +776,7 @@ const SubCenterInventoryManagement: FC = () => {
                           {page.couponSerial}
                         </Text>
                         <Tag 
+                          size="small" 
                           color={getStatusColor(page.status)}
                         >
                           {page.status}
@@ -888,19 +830,9 @@ const SubCenterInventoryManagement: FC = () => {
             name="beneficiaryId"
             rules={[{ required: true, message: 'Please select a beneficiary' }]}
           >
-            <Select 
-              placeholder="Select beneficiary" 
-              showSearch
-              filterOption={(input, option) => {
-                const beneficiary = filteredBeneficiaries.find(b => b.id === option?.value);
-                if (!beneficiary) return false;
-                return beneficiary.name.toLowerCase().includes(input.toLowerCase()) ||
-                       beneficiary.memberId.toLowerCase().includes(input.toLowerCase()) ||
-                       beneficiary.position.toLowerCase().includes(input.toLowerCase());
-              }}
-            >
-              {filteredBeneficiaries.map(beneficiary => {
-                const displayName = beneficiary.name || 'Unknown Name';
+            <Select placeholder="Select beneficiary">
+              {beneficiaries.map(beneficiary => {
+                const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
                 return (
                   <Option key={beneficiary.id} value={beneficiary.id}>
                     <Space direction="vertical" size={0}>

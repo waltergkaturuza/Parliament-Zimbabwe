@@ -134,7 +134,7 @@ const AllocationHistory: React.FC = () => {
     if (dates && dates[0] && dates[1]) {
       setFilters(prev => ({
         ...prev,
-        dateRange: [dates[0]!.format('YYYY-MM-DD'), dates[1]!.format('YYYY-MM-DD')]
+        dateRange: [dates[0].format('YYYY-MM-DD'), dates[1].format('YYYY-MM-DD')]
       }));
     } else {
       setFilters(prev => ({ ...prev, dateRange: null }));
@@ -203,12 +203,12 @@ const AllocationHistory: React.FC = () => {
       key: 'beneficiary',
       width: 200,
       render: (_, record) => {
-        const beneficiary = beneficiaries.find(b => b.id === record.beneficiary);
+        const beneficiary = beneficiaries.find(b => b.id === record.beneficiary_id);
         return (
           <Space direction="vertical" size="small">
-            <strong>{beneficiary?.constituency_name || record.beneficiary_name || 'Unknown'}</strong>
-            <Tag color="blue">
-              {beneficiary?.constituency_name || record.constituency_name || 'Unknown'}
+            <strong>{beneficiary?.name || 'Unknown'}</strong>
+            <Tag color="blue" size="small">
+              {beneficiary?.constituency_name || 'Unknown'}
             </Tag>
           </Space>
         );
@@ -219,11 +219,11 @@ const AllocationHistory: React.FC = () => {
       key: 'session',
       width: 150,
       render: (_, record) => {
-        const session = sessions.find(s => s.id === record.session);
+        const session = sessions.find(s => s.id === record.parliament_session_id);
         return (
           <Space direction="vertical" size="small">
             <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>
-              {session?.name || record.session_name || 'Unknown'}
+              {session?.name || 'Unknown'}
             </Text>
             <Text style={{ fontSize: '11px', color: '#666' }}>
               {session?.start_date} - {session?.end_date}
@@ -239,10 +239,10 @@ const AllocationHistory: React.FC = () => {
       render: (_, record) => (
         <Space direction="vertical" size="small">
           <Text style={{ fontSize: '12px' }}>
-            {record.calculation_details?.engine_capacity_cc || 0}cc
+            {record.engine_capacity_cc}cc
           </Text>
           <Text style={{ fontSize: '11px', color: '#666' }}>
-            {record.calculation_details?.distance_from_parliament_km || 0}km
+            {record.distance_from_parliament_km}km
           </Text>
         </Space>
       )
@@ -254,10 +254,10 @@ const AllocationHistory: React.FC = () => {
       render: (_, record) => (
         <Space direction="vertical" size="small">
           <Text style={{ fontSize: '12px' }}>
-            Base: {record.calculated_allocation_litres?.toFixed(2) || '0.00'}L
+            Base: {record.base_allocation_litres.toFixed(2)}L
           </Text>
           <Text style={{ fontSize: '11px', color: '#666' }}>
-            Factor: {record.calculation_details?.engine_constant || 0}
+            Factor: {record.engine_constant}
           </Text>
         </Space>
       )
@@ -272,7 +272,7 @@ const AllocationHistory: React.FC = () => {
             {record.final_allocation_litres.toFixed(2)}L
           </Text>
           <Text strong style={{ color: '#52c41a', fontSize: '12px' }}>
-            ${record.calculated_allocation_usd?.toFixed(2) || '0.00'}
+            ${record.final_allocation_usd.toFixed(2)}
           </Text>
         </Space>
       )
@@ -288,9 +288,9 @@ const AllocationHistory: React.FC = () => {
           }>
             {record.is_committed ? 'Committed' : 'Pending'}
           </Tag>
-          {record.committed_date && (
+          {record.committed_at && (
             <Text style={{ fontSize: '10px', color: '#666' }}>
-              {dayjs(record.committed_date).format('MMM DD')}
+              {dayjs(record.committed_at).format('MMM DD')}
             </Text>
           )}
         </Space>
@@ -317,7 +317,7 @@ const AllocationHistory: React.FC = () => {
   // Calculate summary statistics
   const calculateSummary = () => {
     const totalLitres = allocations.reduce((sum, alloc) => sum + alloc.final_allocation_litres, 0);
-    const totalUSD = allocations.reduce((sum, alloc) => sum + (alloc.calculated_allocation_usd || 0), 0);
+    const totalUSD = allocations.reduce((sum, alloc) => sum + alloc.final_allocation_usd, 0);
     const committedCount = allocations.filter(alloc => alloc.is_committed).length;
     
     return { totalLitres, totalUSD, committedCount };
@@ -435,7 +435,7 @@ const AllocationHistory: React.FC = () => {
               style={{ width: '100%' }}
             >
               {beneficiaries.map(beneficiary => {
-                const displayName = beneficiary.constituency_name || 'Unknown Name';
+                const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
                 return (
                   <Option key={beneficiary.id} value={beneficiary.id}>
                     {displayName}
@@ -501,28 +501,28 @@ const AllocationHistory: React.FC = () => {
               {selectedAllocation.id}
             </Descriptions.Item>
             <Descriptions.Item label="Beneficiary">
-              {beneficiaries.find(b => b.id === selectedAllocation.beneficiary)?.constituency_name || selectedAllocation.beneficiary_name || 'Unknown'}
+              {beneficiaries.find(b => b.id === selectedAllocation.beneficiary_id)?.name || 'Unknown'}
             </Descriptions.Item>
             <Descriptions.Item label="Constituency">
-              {beneficiaries.find(b => b.id === selectedAllocation.beneficiary)?.constituency_name || selectedAllocation.constituency_name || 'Unknown'}
+              {beneficiaries.find(b => b.id === selectedAllocation.beneficiary_id)?.constituency_name || 'Unknown'}
             </Descriptions.Item>
             <Descriptions.Item label="Parliament Session">
-              {sessions.find(s => s.id === selectedAllocation.session)?.name || selectedAllocation.session_name || 'Unknown'}
+              {sessions.find(s => s.id === selectedAllocation.parliament_session_id)?.name || 'Unknown'}
             </Descriptions.Item>
             <Descriptions.Item label="Rule">
-              {selectedAllocation.rule_name}
+              {selectedAllocation.fuel_allocation_rule_name}
             </Descriptions.Item>
             <Descriptions.Item label="Engine Capacity">
-              {selectedAllocation.calculation_details?.engine_capacity_cc || 0}cc
+              {selectedAllocation.engine_capacity_cc}cc
             </Descriptions.Item>
             <Descriptions.Item label="Distance">
-              {selectedAllocation.calculation_details?.distance_from_parliament_km || 0}km
+              {selectedAllocation.distance_from_parliament_km}km
             </Descriptions.Item>
             <Descriptions.Item label="Engine Constant">
-              {selectedAllocation.calculation_details?.engine_constant || 0}
+              {selectedAllocation.engine_constant}
             </Descriptions.Item>
             <Descriptions.Item label="Base Allocation">
-              {selectedAllocation.calculated_allocation_litres?.toFixed(2) || '0.00'}L
+              {selectedAllocation.base_allocation_litres.toFixed(2)}L
             </Descriptions.Item>
             <Descriptions.Item label="Final Allocation">
               <strong style={{ color: '#1890ff' }}>
@@ -531,7 +531,7 @@ const AllocationHistory: React.FC = () => {
             </Descriptions.Item>
             <Descriptions.Item label="USD Value">
               <strong style={{ color: '#52c41a' }}>
-                ${selectedAllocation.calculated_allocation_usd?.toFixed(2) || '0.00'}
+                ${selectedAllocation.final_allocation_usd.toFixed(2)}
               </strong>
             </Descriptions.Item>
             <Descriptions.Item label="Status">
@@ -542,16 +542,16 @@ const AllocationHistory: React.FC = () => {
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Created">
-              {dayjs(selectedAllocation.created_date).format('MMMM DD, YYYY HH:mm')}
+              {dayjs(selectedAllocation.created_at).format('MMMM DD, YYYY HH:mm')}
             </Descriptions.Item>
-            {selectedAllocation.committed_date && (
+            {selectedAllocation.committed_at && (
               <Descriptions.Item label="Committed">
-                {dayjs(selectedAllocation.committed_date).format('MMMM DD, YYYY HH:mm')}
+                {dayjs(selectedAllocation.committed_at).format('MMMM DD, YYYY HH:mm')}
               </Descriptions.Item>
             )}
-            {selectedAllocation.committed_by && (
+            {selectedAllocation.committed_by_name && (
               <Descriptions.Item label="Committed By" span={2}>
-                {selectedAllocation.committed_by}
+                {selectedAllocation.committed_by_name}
               </Descriptions.Item>
             )}
           </Descriptions>

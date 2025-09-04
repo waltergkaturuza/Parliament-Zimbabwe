@@ -66,30 +66,24 @@ const HandoverManagement: FC = () => {
     try {
       setLoading(true);
       // For sub-center users, backend filters /dispatches/ to to_center=current user's subcenter
-      // Also fetch from /coupon-distributions/ to get fuel dispatched from main center
-      const [dispatchesResp, distributionsResp] = await Promise.all([
-        apiClient.get('/dispatches/').catch(() => ({ data: { results: [] } })),
-        apiClient.get('/coupon-distributions/').catch(() => ({ data: { results: [] } }))
-      ]);
-
-      const dispatchRows = Array.isArray(dispatchesResp.data?.results) ? dispatchesResp.data.results : (Array.isArray(dispatchesResp.data) ? dispatchesResp.data : []);
-      const distributionRows = Array.isArray(distributionsResp.data?.results) ? distributionsResp.data.results : (Array.isArray(distributionsResp.data) ? distributionsResp.data : []);
+      const resp = await apiClient.get('/dispatches/');
+      const rows = Array.isArray(resp.data?.results) ? resp.data.results : (Array.isArray(resp.data) ? resp.data : []);
 
       // Normalize mixed backend shapes: serializer snake_case vs create() camelCase
-      const normalize = (d: any, isDistribution: boolean = false): HandoverRecord => {
+      const normalize = (d: any): HandoverRecord => {
         const id = String(d.id ?? d.dispatchId ?? d.dispatch_id ?? '');
-        const toCenter = d.to_center?.name ?? d.subCenterName ?? d.subcenter_name ?? d.destination?.name ?? '';
-        const fromCenter = d.from_center?.name ?? d.fromCenter ?? (isDistribution ? 'Parliament Main Center' : 'Main Center');
-        const created = d.dispatch_date ?? d.dispatched_date ?? d.dispatchedDate ?? d.created ?? d.created_date ?? new Date().toISOString();
+        const toCenter = d.to_center?.name ?? d.subCenterName ?? d.subcenter_name ?? '';
+        const fromCenter = d.from_center?.name ?? d.fromCenter ?? 'Main Center';
+        const created = d.dispatch_date ?? d.dispatched_date ?? d.dispatchedDate ?? d.created ?? new Date().toISOString();
         // Count books/coupons from payload if present; fall back to totals
         const books = Array.isArray(d.books) ? d.books : [];
-        const bookCount = Number(d.total_books ?? d.totalBooks ?? books.length ?? d.book_count ?? 0);
-        const couponCount = Number(d.total_coupons ?? d.totalCoupons ?? books.reduce((s: number, b: any) => s + Number(b.numberOfCoupons || b.coupon_count || 0), 0) ?? d.coupon_count ?? 0);
-        const fuelType = (books[0]?.fuelType ?? d.fuel_type ?? 'DIESEL') as 'PETROL' | 'DIESEL';
+        const bookCount = Number(d.total_books ?? d.totalBooks ?? books.length ?? 0);
+        const couponCount = Number(d.total_coupons ?? d.totalCoupons ?? books.reduce((s: number, b: any) => s + Number(b.numberOfCoupons || 0), 0));
+        const fuelType = (books[0]?.fuelType ?? 'DIESEL') as 'PETROL' | 'DIESEL';
         const status = (d.status ?? 'DISPATCHED') as HandoverRecord['status'];
         return {
           id,
-          handoverNumber: (d.dispatchId ?? d.dispatch_id ?? `${isDistribution ? 'DIST' : 'DSP'}-${id}`).toString(),
+          handoverNumber: (d.dispatchId ?? d.dispatch_id ?? `DSP-${id}`).toString(),
           fromCenter,
           toCenter,
           bookCount,
@@ -100,16 +94,9 @@ const HandoverManagement: FC = () => {
         };
       };
 
-      // Combine dispatches and distributions
-      const allRows = [
-        ...dispatchRows.map((d: any) => normalize(d, false)),
-        ...distributionRows.map((d: any) => normalize(d, true))
-      ];
-
-      const mapped: HandoverRecord[] = allRows
-        .filter((h: HandoverRecord) => ['DISPATCHED', 'PENDING', 'RECEIVED', 'CONFIRMED', 'IN_TRANSIT'].includes(h.status))
-        .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()); // Sort by newest first
-      
+      const mapped: HandoverRecord[] = rows
+        .map(normalize)
+        .filter((h: HandoverRecord) => ['DISPATCHED', 'PENDING', 'RECEIVED', 'CONFIRMED'].includes(h.status));
       setHandovers(mapped);
       setLoading(false);
     } catch (error) {

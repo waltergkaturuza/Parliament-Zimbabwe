@@ -222,18 +222,10 @@ const BookDispatchManagementEnhanced: FC = () => {
     try {
       setLoading(true);
       const response = await apiClient.get('/dispatches/');
-      const dispatchData = response.data.results || response.data || [];
-      console.log('Loaded dispatches:', dispatchData.length, 'items');
-      setDispatches(dispatchData);
-    } catch (error: any) {
+      setDispatches(response.data.results || response.data);
+    } catch (error) {
+      message.error('Failed to load dispatches');
       console.error('Error loading dispatches:', error);
-      if (error.response?.status === 404) {
-        console.log('Dispatches endpoint not found, using empty array');
-        setDispatches([]);
-      } else {
-        message.error('Failed to load dispatches');
-        // Don't clear existing data on error
-      }
     } finally {
       setLoading(false);
     }
@@ -241,68 +233,21 @@ const BookDispatchManagementEnhanced: FC = () => {
 
   const loadAvailableBooks = async () => {
     try {
-      // Try multiple endpoints with fallback
-      const endpoints = [
-        '/books/available-for-dispatch/',
-        '/books/'
-      ];
-      
-      let response;
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`📚 Attempting to load books from: ${endpoint}`);
-          const params = endpoint.includes('available-for-dispatch') 
-            ? {} 
-            : { is_verified: true, status: 'AVAILABLE' };
-          
-          response = await apiClient.get(endpoint, { params });
-          
-          if (response.data && (response.data.results || response.data.length > 0 || Array.isArray(response.data))) {
-            console.log(`✅ Successfully loaded books from: ${endpoint}`);
-            break;
-          }
-        } catch (error: any) {
-          if (error.response?.status !== 404) {
-            console.warn(`❌ Failed to load from ${endpoint}:`, error);
-          }
-          continue;
-        }
-      }
-      
-      if (!response) {
-        console.log('All book endpoints failed, using empty array');
-        setAvailableBooks([]);
-        return;
-      }
-      
-      const booksData = response.data.results || response.data || [];
-      console.log('Loaded available books:', booksData.length, 'items');
-      setAvailableBooks(booksData);
-    } catch (error: any) {
+      const response = await apiClient.get('/books/available-for-dispatch/');
+      setAvailableBooks(response.data.results || response.data);
+    } catch (error) {
+      message.error('Failed to load available books');
       console.error('Error loading books:', error);
-      if (error.response?.status === 404) {
-        console.log('Books endpoint not found, using empty array');
-        setAvailableBooks([]);
-      } else {
-        message.error('Failed to load available books');
-      }
     }
   };
 
   const loadSubcenters = async () => {
     try {
       const response = await apiClient.get('/subcenters/');
-      const subcentersData = response.data.results || response.data || [];
-      console.log('Loaded subcenters:', subcentersData.length, 'items');
-      setSubcenters(subcentersData);
-    } catch (error: any) {
+      setSubcenters(response.data.results || response.data);
+    } catch (error) {
+      message.error('Failed to load subcenters');
       console.error('Error loading subcenters:', error);
-      if (error.response?.status === 404) {
-        console.log('Subcenters endpoint not found, using empty array');
-        setSubcenters([]);
-      } else {
-        message.error('Failed to load subcenters');
-      }
     }
   };
 
@@ -1215,16 +1160,7 @@ const BookDispatchManagementEnhanced: FC = () => {
       </Row>
 
       {/* Dispatches Table */}
-      <Card title={`Recent Dispatches (${dispatches.length} items)`}>
-        {dispatches.length === 0 && !loading && (
-          <Alert
-            message="No Dispatches Found"
-            description="No dispatch records are available. This could be because the backend endpoint is not accessible or no dispatches have been created yet."
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )}
+      <Card title="Recent Dispatches">
         <Table
           dataSource={dispatches}
           columns={dispatchColumns}

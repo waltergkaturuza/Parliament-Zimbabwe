@@ -117,8 +117,9 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
 
       const request: AllocationCalculationRequest = {
         beneficiary_id: values.beneficiary_id,
-        session_id: values.parliament_session_id,
-        allocation_rule_id: values.fuel_allocation_rule_id
+        parliament_session_id: values.parliament_session_id,
+        fuel_allocation_rule_id: values.fuel_allocation_rule_id,
+        fuel_price_id: values.fuel_price_id
       };
 
       const result = await dynamicAllocationApi.dynamicAllocations.calculate(request);
@@ -140,9 +141,12 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
       setCalculating(true);
 
       const request: AllocationPreviewRequest = {
-        beneficiary_ids: values.beneficiary_ids || [],
-        session_id: values.parliament_session_id,
-        allocation_rule_id: values.fuel_allocation_rule_id
+        parliament_session_id: values.parliament_session_id,
+        fuel_allocation_rule_id: values.fuel_allocation_rule_id,
+        fuel_price_id: values.fuel_price_id,
+        beneficiary_ids: values.beneficiary_ids || undefined,
+        constituency_id: values.constituency_id || undefined,
+        category_id: values.category_id || undefined
       };
 
       const results = await dynamicAllocationApi.dynamicAllocations.preview(request);
@@ -317,7 +321,7 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
                 >
                   {rules.map(rule => (
                     <Option key={rule.id} value={rule.id}>
-                      {rule.rule_name} - {rule.description}
+                      {rule.name} - {rule.description}
                     </Option>
                   ))}
                 </Select>
@@ -338,8 +342,8 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
                 >
                   {prices.map(price => (
                     <Option key={price.id} value={price.id}>
-                      {price.fuel_type} - ${price.price_usd_per_litre}/L
-                      {price.is_current && <Tag color="green" style={{ marginLeft: '8px' }}>Active</Tag>}
+                      {price.fuel_type} - ${price.price_per_litre_usd}/L
+                      {price.is_active && <Tag color="green" style={{ marginLeft: '8px' }}>Active</Tag>}
                     </Option>
                   ))}
                 </Select>
@@ -363,7 +367,7 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
                     }
                   >
                     {beneficiaries.map(beneficiary => {
-                      const displayName = beneficiary.constituency_name || 'Unknown Name';
+                      const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
                       return (
                         <Option key={beneficiary.id} value={beneficiary.id}>
                           <Space>
@@ -396,7 +400,7 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
                       maxTagCount={3}
                     >
                       {beneficiaries.map(beneficiary => {
-                        const displayName = beneficiary.constituency_name || 'Unknown Name';
+                        const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
                         return (
                           <Option key={beneficiary.id} value={beneficiary.id}>
                             {displayName} - {beneficiary.constituency_name}

@@ -66,23 +66,12 @@ export default function FuelDistribution() {
     }
   });
 
-  const { data: distributions, isLoading: loadingDistributions, error: distributionsError } = useQuery({
+  const { data: distributions, isLoading: loadingDistributions } = useQuery({
     queryKey: ['distributions'],
     queryFn: async () => {
-      try {
-        const response = await apiClient.get('/coupon-distributions/');
-        return response.data.results || response.data;
-      } catch (error: any) {
-        console.error('Failed to load distributions:', error);
-        if (error.response?.status === 404) {
-          // Return empty array if endpoint doesn't exist
-          return [];
-        }
-        throw error;
-      }
-    },
-    retry: false, // Don't retry on 404 errors
-    refetchOnWindowFocus: false,
+      const response = await apiClient.get('/distributions/');
+      return response.data.results || response.data;
+    }
   });
 
   // Pagination state for beneficiaries
@@ -140,7 +129,7 @@ export default function FuelDistribution() {
   // Mutations for creating distributions and allocations
   const createDistributionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiClient.post('/coupon-distributions/', data);
+      const response = await apiClient.post('/distributions/', data);
       return response.data;
     },
     onSuccess: () => {
