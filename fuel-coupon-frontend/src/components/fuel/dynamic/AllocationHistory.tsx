@@ -434,11 +434,14 @@ const AllocationHistory: React.FC = () => {
               optionFilterProp="children"
               style={{ width: '100%' }}
             >
-              {beneficiaries.map(beneficiary => (
-                <Option key={beneficiary.id} value={beneficiary.id}>
-                  {beneficiary.name}
-                </Option>
-              ))}
+              {beneficiaries.map(beneficiary => {
+                const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                return (
+                  <Option key={beneficiary.id} value={beneficiary.id}>
+                    {displayName}
+                  </Option>
+                );
+              })}
             </Select>
           </Col>
           <Col xs={24} sm={8} md={4}>

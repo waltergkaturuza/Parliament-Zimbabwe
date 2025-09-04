@@ -95,7 +95,16 @@ export default function FuelDistribution() {
     queryFn: async () => {
       // Fetch all beneficiaries with no pagination to ensure we get all 300+ beneficiaries
       const response = await apiClient.get('/beneficiaries/?page_size=1000');
-      console.log('All beneficiaries fetched:', response.data);
+      console.log('All beneficiaries API response:', response.data);
+      console.log('Total beneficiaries count:', response.data.count || response.data?.results?.length || 0);
+      console.log('First 3 beneficiaries sample:', response.data.results?.slice(0, 3).map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        first_name: b.first_name,
+        last_name: b.last_name,
+        constituency: b.constituency,
+        category: b.category
+      })));
       return response.data.results || response.data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes cache
@@ -248,18 +257,27 @@ export default function FuelDistribution() {
     {
       title: 'Beneficiary',
       key: 'beneficiary',
-      render: (record: any) => (
-        <div className="flex items-center gap-3">
-          <Avatar icon={<UserOutlined />} />
-          <div>
-            <Text strong>{record.name}</Text>
-            <div className="text-xs text-gray-500">{record.category || 'Unknown Category'}</div>
-            {record.constituency && (
-              <div className="text-xs text-blue-500">{record.constituency}</div>
-            )}
+      render: (record: any) => {
+        // Ensure we display the actual beneficiary name, not constituency
+        const displayName = record.name || `${record.first_name || ''} ${record.last_name || ''}`.trim() || 'Unknown Name';
+        const categoryName = typeof record.category === 'object' 
+          ? record.category?.name 
+          : record.category || 'Unknown Category';
+        const constituencyName = typeof record.constituency === 'object' 
+          ? record.constituency?.name 
+          : record.constituency || 'No Constituency';
+        
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar icon={<UserOutlined />} />
+            <div>
+              <Text strong>{displayName}</Text>
+              <div className="text-xs text-gray-500">{categoryName}</div>
+              <div className="text-xs text-blue-500">{constituencyName}</div>
+            </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     {
       title: 'Location',
@@ -332,18 +350,29 @@ export default function FuelDistribution() {
     {
       title: 'Beneficiary',
       key: 'beneficiary',
-      render: (record: any) => (
-        <div className="flex items-center gap-3">
-          <Avatar icon={<UserOutlined />} />
-          <div>
-            <Text strong>{record.name}</Text>
-            <div className="flex items-center gap-2 mt-1">
-              <Tag color="blue">{record.category}</Tag>
-              <Text type="secondary" className="text-xs">{record.constituency}</Text>
+      render: (record: any) => {
+        // Ensure we display the actual beneficiary name, not constituency
+        const displayName = record.name || `${record.first_name || ''} ${record.last_name || ''}`.trim() || 'Unknown Name';
+        const categoryName = typeof record.category === 'object' 
+          ? record.category?.name 
+          : record.category || 'Unknown Category';
+        const constituencyName = typeof record.constituency === 'object' 
+          ? record.constituency?.name 
+          : record.constituency || 'No Constituency';
+        
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar icon={<UserOutlined />} />
+            <div>
+              <Text strong>{displayName}</Text>
+              <div className="flex items-center gap-2 mt-1">
+                <Tag color="blue">{categoryName}</Tag>
+                <Text type="secondary" className="text-xs">{constituencyName}</Text>
+              </div>
             </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     {
       title: 'Monthly Allocation',

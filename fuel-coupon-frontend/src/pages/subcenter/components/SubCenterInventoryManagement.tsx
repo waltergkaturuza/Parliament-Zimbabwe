@@ -831,16 +831,19 @@ const SubCenterInventoryManagement: FC = () => {
             rules={[{ required: true, message: 'Please select a beneficiary' }]}
           >
             <Select placeholder="Select beneficiary">
-              {beneficiaries.map(beneficiary => (
-                <Option key={beneficiary.id} value={beneficiary.id}>
-                  <Space direction="vertical" size={0}>
-                    <Text strong>{beneficiary.name}</Text>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {beneficiary.position} - {beneficiary.department}
-                    </Text>
-                  </Space>
-                </Option>
-              ))}
+              {beneficiaries.map(beneficiary => {
+                const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                return (
+                  <Option key={beneficiary.id} value={beneficiary.id}>
+                    <Space direction="vertical" size={0}>
+                      <Text strong>{displayName}</Text>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {beneficiary.position} - {beneficiary.department}
+                      </Text>
+                    </Space>
+                  </Option>
+                );
+              })}
             </Select>
           </Form.Item>
 

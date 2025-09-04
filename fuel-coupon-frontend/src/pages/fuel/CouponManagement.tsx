@@ -318,11 +318,12 @@ const CouponManagement = () => {
         if (!record.beneficiary) {
           return <Text type="secondary">Unassigned</Text>;
         }
+        const displayName = record.beneficiary.name || `${record.beneficiary.first_name || ''} ${record.beneficiary.last_name || ''}`.trim() || 'Unknown Name';
         return (
           <div className="flex items-center gap-2">
-            <Avatar size="small" icon={<div>{record.beneficiary.name.charAt(0)}</div>} />
+            <Avatar size="small" icon={<div>{displayName.charAt(0)}</div>} />
             <div>
-              <div>{record.beneficiary.name}</div>
+              <div>{displayName}</div>
               <Tag>{record.beneficiary.category}</Tag>
             </div>
           </div>
@@ -677,11 +678,18 @@ const CouponManagement = () => {
               <>
                 <Divider>Beneficiary Information</Divider>
                 <div className="flex items-center gap-4">
-                  <Avatar size="large">{selectedCoupon.beneficiary.name.charAt(0)}</Avatar>
-                  <div>
-                    <div><Text strong>{selectedCoupon.beneficiary.name}</Text></div>
-                    <Tag>{selectedCoupon.beneficiary.category}</Tag>
-                  </div>
+                  {(() => {
+                    const displayName = selectedCoupon.beneficiary.name || `${selectedCoupon.beneficiary.first_name || ''} ${selectedCoupon.beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                    return (
+                      <>
+                        <Avatar size="large">{displayName.charAt(0)}</Avatar>
+                        <div>
+                          <div><Text strong>{displayName}</Text></div>
+                          <Tag>{selectedCoupon.beneficiary.category}</Tag>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </>
             )}

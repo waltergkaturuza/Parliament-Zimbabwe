@@ -366,16 +366,19 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
                       option?.children?.toString().toLowerCase().includes(input.toLowerCase()) ?? false
                     }
                   >
-                    {beneficiaries.map(beneficiary => (
-                      <Option key={beneficiary.id} value={beneficiary.id}>
-                        <Space>
-                          <UserOutlined />
-                          {beneficiary.name}
-                          <Tag color="blue">{beneficiary.constituency_name}</Tag>
-                          <Tag color="green">{beneficiary.engine_capacity_cc}cc</Tag>
-                        </Space>
-                      </Option>
-                    ))}
+                    {beneficiaries.map(beneficiary => {
+                      const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                      return (
+                        <Option key={beneficiary.id} value={beneficiary.id}>
+                          <Space>
+                            <UserOutlined />
+                            {displayName}
+                            <Tag color="blue">{beneficiary.constituency_name}</Tag>
+                            <Tag color="green">{beneficiary.engine_capacity_cc}cc</Tag>
+                          </Space>
+                        </Option>
+                      );
+                    })}
                   </Select>
                 </Form.Item>
               </Col>
@@ -396,11 +399,14 @@ const AllocationCalculator: React.FC<AllocationCalculatorProps> = ({
                       optionFilterProp="children"
                       maxTagCount={3}
                     >
-                      {beneficiaries.map(beneficiary => (
-                        <Option key={beneficiary.id} value={beneficiary.id}>
-                          {beneficiary.name} - {beneficiary.constituency_name}
-                        </Option>
-                      ))}
+                      {beneficiaries.map(beneficiary => {
+                        const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                        return (
+                          <Option key={beneficiary.id} value={beneficiary.id}>
+                            {displayName} - {beneficiary.constituency_name}
+                          </Option>
+                        );
+                      })}
                     </Select>
                   </Form.Item>
                 </Col>
