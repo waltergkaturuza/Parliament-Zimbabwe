@@ -164,12 +164,14 @@ const BeneficiaryManagement = () => {
   const { data: beneficiaryCategoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['beneficiary-categories'],
     queryFn: async () => {
-      // Fetch all categories with large page_size
-      const response = await apiClient.get('/beneficiary-categories/?page_size=1000');
+      // Fetch all categories with large page_size to ensure we get all 22 categories
+      const response = await apiClient.get('/beneficiary-categories/?page_size=100');
       console.log('All beneficiary categories:', response.data);
       const data = response.data;
       return Array.isArray(data) ? data : (data.results || []);
     },
+    staleTime: 0, // Disable cache temporarily to ensure fresh data
+    gcTime: 0, // Updated property name in newer versions of react-query
   });
 
   // Fetch unique categories from all beneficiaries for better filtering
@@ -244,7 +246,7 @@ const BeneficiaryManagement = () => {
   const constituencies = constituenciesData || [];
   const politicalParties = politicalPartiesData || [];
   const systemUsers = systemUsersData || [];
-  const beneficiaryCategories = beneficiaryCategoriesData || [];
+  const beneficiaryCategories = Array.isArray(beneficiaryCategoriesData) ? beneficiaryCategoriesData : [];
   const vehicleMakes = vehicleMakesData || [];
   
   // Use unique data from database for better filtering options
@@ -262,8 +264,7 @@ const BeneficiaryManagement = () => {
   // Debug logging for vehicle makes
   console.log('Vehicle Makes Debug:', {
     vehicleMakesCount: vehicleMakes?.length,
-    vehicleMakesData: vehicleMakesData,
-    vehicleMakeOptions: vehicleMakeOptions?.length
+    vehicleMakesData: vehicleMakesData
   });
 
   // Prepare Select options (label/value) to allow optionFilterProp searches
@@ -312,6 +313,16 @@ const BeneficiaryManagement = () => {
     label: make.name || make,
     value: make.name || make.code || make,
   }));
+
+  // Debug logging after options are created
+  console.log('Final Options Debug:', {
+    categoryOptionsCount: categoryOptions?.length,
+    vehicleMakeOptionsCount: vehicleMakeOptions?.length,
+    beneficiaryCategoriesCount: beneficiaryCategories?.length,
+    uniqueCategoriesCount: uniqueCategories?.length,
+    categoryOptionsSample: categoryOptions?.slice(0, 15),
+    allCategoryOptions: categoryOptions
+  });
 
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
@@ -509,17 +520,10 @@ const BeneficiaryManagement = () => {
       dataIndex: 'category',
       key: 'category',
       width: 200,
-      filters: [
-        { text: 'Speaker of National Assembly', value: 'SPEAKER_NATIONAL_ASSEMBLY' },
-        { text: 'Deputy Speaker', value: 'DEPUTY_SPEAKER' },
-        { text: 'Members of Parliament', value: 'MP' },
-        { text: 'Women Quota MPs', value: 'WOMEN_QUOTA_MP' },
-        { text: 'Youth Quota MPs', value: 'YOUTH_QUOTA_MP' },
-        { text: 'Ministers', value: 'MINISTER' },
-        { text: 'Deputy Ministers', value: 'DEPUTY_MINISTER' },
-        { text: 'Senators', value: 'SENATOR' },
-        { text: 'Administrative Staff', value: 'ADMINISTRATIVE_STAFF' },
-      ],
+      filters: categoryOptions.map((option: any) => ({
+        text: option.label,
+        value: option.value
+      })),
       render: (category: any) => {
         // Handle both object format {name: "STAFF"} and string format "STAFF"
         const categoryName = category?.name || category || 'N/A';
