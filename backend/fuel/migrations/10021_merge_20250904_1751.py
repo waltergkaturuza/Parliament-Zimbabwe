@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('fuel', '10013_comprehensive_dispatch_tracking_models'),
+        ('fuel', '10013_add_books_relationship'),
         ('fuel', '10020_safe_add_fields'),
     ]
 
