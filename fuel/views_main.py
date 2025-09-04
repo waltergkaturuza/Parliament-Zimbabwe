@@ -1587,10 +1587,11 @@ class BookViewSet(viewsets.ModelViewSet):
                 # No dispatches relation on Book in this schema; proceed without this filter
                 pass
             
-            # Add query parameters for filtering
-            fuel_type = request.query_params.get('fuel_type')
-            denomination = request.query_params.get('denomination')
-            subcenter = request.query_params.get('subcenter')
+            # Add query parameters for filtering - use safe attribute access
+            query_params = getattr(request, 'query_params', getattr(request, 'GET', {}))
+            fuel_type = query_params.get('fuel_type')
+            denomination = query_params.get('denomination')
+            subcenter = query_params.get('subcenter')
             
             if fuel_type:
                 available_books = available_books.filter(box__fuel_type=fuel_type)
@@ -1608,7 +1609,7 @@ class BookViewSet(viewsets.ModelViewSet):
                     coupon_count = coupon_count() if callable(coupon_count) else coupon_count
                 except Exception:
                     coupon_count = None
-
+                
                 if not coupon_count:
                     coupon_count = book.initial_coupon_count or getattr(book.box, 'coupons_per_book', 100)
 
@@ -1672,9 +1673,7 @@ class BookViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({
                 'error': f'Failed to load available books: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
     def validate_dispatch_selection(self, request):
         """
         Validate a selection of books for dispatch
@@ -2845,10 +2844,10 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         """Get books available for dispatch"""
         try:
             # Get books that are received but not yet dispatched
+            # Note: Local model doesn't have dispatches relationship yet
             available_books = Book.objects.filter(
                 box__is_received=True,
-                is_assigned=False,
-                dispatches__isnull=True
+                is_assigned=False
             ).select_related('box').order_by('-generated_at')
             
             books_data = []
@@ -2908,8 +2907,7 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 selected_books = Book.objects.filter(
                     id__in=book_ids,
                     box__is_received=True,
-                    is_assigned=False,
-                    dispatches__isnull=True
+                    is_assigned=False
                 ).select_related('box')
                 
                 if not selected_books.exists():

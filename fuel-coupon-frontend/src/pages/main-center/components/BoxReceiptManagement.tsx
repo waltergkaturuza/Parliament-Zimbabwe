@@ -1237,7 +1237,13 @@ const BoxReceiptManagement: FC = () => {
           </div>
           <div class="summary">
             <p><strong>Total Boxes:</strong> ${boxReceipts.length}</p>
-            <p><strong>Total Value:</strong> $${boxReceipts.reduce((sum, box) => sum + (box.monetaryValueUSD || 0), 0).toLocaleString()}</p>
+            <p><strong>Total Value:</strong> $${boxReceipts.reduce((sum, box) => {
+              // Ensure monetaryValueUSD is parsed as a number to prevent string concatenation
+              const value = typeof box.monetaryValueUSD === 'string' 
+                ? parseFloat(box.monetaryValueUSD) || 0 
+                : (box.monetaryValueUSD || 0);
+              return sum + value;
+            }, 0).toLocaleString()}</p>
           </div>
           <table>
             <thead>
@@ -2156,7 +2162,13 @@ const BoxReceiptManagement: FC = () => {
               <Card size="small">
                 <Statistic
                   title="Total Value (USD)"
-                  value={boxReceipts.reduce((sum, box) => sum + (box.monetaryValueUSD || 0), 0)}
+                  value={boxReceipts.reduce((sum, box) => {
+                    // Ensure monetaryValueUSD is parsed as a number to prevent string concatenation
+                    const value = typeof box.monetaryValueUSD === 'string' 
+                      ? parseFloat(box.monetaryValueUSD) || 0 
+                      : (box.monetaryValueUSD || 0);
+                    return sum + value;
+                  }, 0)}
                   prefix={<DollarOutlined />}
                   formatter={(value) => `$${(value || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
                   valueStyle={{ color: '#52c41a' }}
@@ -2362,7 +2374,12 @@ const BoxReceiptManagement: FC = () => {
                   <Card size="small">
                     <Statistic
                       title="Total Books Generated"
-                      value={boxReceipts.reduce((sum, box) => sum + (box.numberOfBooks || 0), 0)}
+                      value={boxReceipts.reduce((sum, box) => {
+                        const value = typeof box.numberOfBooks === 'string' 
+                          ? parseInt(box.numberOfBooks, 10) || 0 
+                          : (box.numberOfBooks || 0);
+                        return sum + value;
+                      }, 0)}
                       prefix={<FileTextOutlined />}
                     />
                   </Card>
@@ -2371,7 +2388,12 @@ const BoxReceiptManagement: FC = () => {
                   <Card size="small">
                     <Statistic
                       title="Total Coupons Available"
-                      value={boxReceipts.reduce((sum, box) => sum + (box.totalCoupons || 0), 0)}
+                      value={boxReceipts.reduce((sum, box) => {
+                        const value = typeof box.totalCoupons === 'string' 
+                          ? parseInt(box.totalCoupons, 10) || 0 
+                          : (box.totalCoupons || 0);
+                        return sum + value;
+                      }, 0)}
                       prefix={<BarcodeOutlined />}
                     />
                   </Card>
@@ -2380,7 +2402,12 @@ const BoxReceiptManagement: FC = () => {
                   <Card size="small">
                     <Statistic
                       title="Total Fuel Volume"
-                      value={boxReceipts.reduce((sum, box) => sum + (box.totalLitres || 0), 0)}
+                      value={boxReceipts.reduce((sum, box) => {
+                        const value = typeof box.totalLitres === 'string' 
+                          ? parseFloat(box.totalLitres) || 0 
+                          : (box.totalLitres || 0);
+                        return sum + value;
+                      }, 0)}
                       prefix={<CarOutlined />}
                       suffix="L"
                     />
