@@ -213,11 +213,39 @@ const BeneficiaryManagement = () => {
     enabled: !!allBeneficiaries?.length,
   });
 
+  // Fetch vehicle makes from backend
+  const { data: vehicleMakesData, isLoading: vehicleMakesLoading } = useQuery({
+    queryKey: ['vehicle-makes'],
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get('/vehicle-makes/');
+        console.log('Vehicle makes from API:', response.data);
+        return response.data;
+      } catch (error) {
+        // Fallback: return hardcoded vehicle makes based on database
+        console.log('Using fallback vehicle makes');
+        return [
+          { name: 'BMW', code: 'BMW' },
+          { name: 'FORD', code: 'FORD' },
+          { name: 'ISUZU', code: 'ISUZU' },
+          { name: 'JAGUAR', code: 'JAGUAR' },
+          { name: 'JEEP', code: 'JEEP' },
+          { name: 'LAND ROVER', code: 'LAND_ROVER' },
+          { name: 'MERCEDES BENZ', code: 'MERCEDES_BENZ' },
+          { name: 'RANGE ROVER', code: 'RANGE_ROVER' },
+          { name: 'TOYOTA', code: 'TOYOTA' },
+        ];
+      }
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes cache
+  });
+
   // Ensure constituencies, parties, users, and categories are always arrays
   const constituencies = constituenciesData || [];
   const politicalParties = politicalPartiesData || [];
   const systemUsers = systemUsersData || [];
   const beneficiaryCategories = beneficiaryCategoriesData || [];
+  const vehicleMakes = vehicleMakesData || [];
   
   // Use unique data from database for better filtering options
   const uniqueCategories = uniqueCategoriesData || [];
@@ -229,6 +257,13 @@ const BeneficiaryManagement = () => {
     uniqueCategories: uniqueCategories?.length,
     beneficiaryCategoriesData: beneficiaryCategoriesData,
     uniqueCategoriesData: uniqueCategoriesData
+  });
+
+  // Debug logging for vehicle makes
+  console.log('Vehicle Makes Debug:', {
+    vehicleMakesCount: vehicleMakes?.length,
+    vehicleMakesData: vehicleMakesData,
+    vehicleMakeOptions: vehicleMakeOptions?.length
   });
 
   // Prepare Select options (label/value) to allow optionFilterProp searches
@@ -271,6 +306,12 @@ const BeneficiaryManagement = () => {
         searchable: (c.name || c).toString().toLowerCase(),
       }))
     : [];
+
+  // Vehicle makes options
+  const vehicleMakeOptions = vehicleMakes.map((make: any) => ({
+    label: make.name || make,
+    value: make.name || make.code || make,
+  }));
 
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
@@ -1334,9 +1375,23 @@ const BeneficiaryManagement = () => {
                   <Form.Item
                     name="vehicleMake"
                     label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Vehicle Make</span>}
-                    rules={[{ required: true, message: 'Please enter vehicle make' }]}
+                    rules={[{ required: true, message: 'Please select vehicle make' }]}
                   >
-                    <Input placeholder="e.g., Toyota, Mercedes" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
+                    <Select 
+                      placeholder="Select vehicle make" 
+                      showSearch
+                      allowClear
+                      loading={vehicleMakesLoading}
+                      size="large" 
+                      style={{ fontSize: '16px', minHeight: '40px' }}
+                      optionFilterProp="label"
+                      filterOption={(input, option) => {
+                        if (!option) return false;
+                        const label = (option.label || '').toString().toLowerCase();
+                        return label.includes(input.toLowerCase());
+                      }}
+                      options={vehicleMakeOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
@@ -1648,7 +1703,19 @@ const BeneficiaryManagement = () => {
                     name="vehicleMake"
                     label="Vehicle Make"
                   >
-                    <Input placeholder="e.g., Toyota, Mercedes" />
+                    <Select 
+                      placeholder="Select vehicle make" 
+                      showSearch
+                      allowClear
+                      loading={vehicleMakesLoading}
+                      optionFilterProp="label"
+                      filterOption={(input, option) => {
+                        if (!option) return false;
+                        const label = (option.label || '').toString().toLowerCase();
+                        return label.includes(input.toLowerCase());
+                      }}
+                      options={vehicleMakeOptions}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
