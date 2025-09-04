@@ -69,7 +69,7 @@ export default function FuelDistribution() {
   const { data: distributions, isLoading: loadingDistributions } = useQuery({
     queryKey: ['distributions'],
     queryFn: async () => {
-      const response = await apiClient.get('/distributions/');
+      const response = await apiClient.get('/coupon-distributions/');
       return response.data.results || response.data;
     }
   });
@@ -129,7 +129,7 @@ export default function FuelDistribution() {
   // Mutations for creating distributions and allocations
   const createDistributionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiClient.post('/distributions/', data);
+      const response = await apiClient.post('/coupon-distributions/', data);
       return response.data;
     },
     onSuccess: () => {
