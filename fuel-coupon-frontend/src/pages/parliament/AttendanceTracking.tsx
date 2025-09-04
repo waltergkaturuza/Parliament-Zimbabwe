@@ -356,35 +356,40 @@ const AttendanceTracking: FC = () => {
             Quick Attendance Marking for {selectedDate.format('DD/MM/YYYY')}
           </Title>
           <Row gutter={[16, 16]}>
-            {beneficiaries.slice(0, 6).map((beneficiary) => (
-              <Col xs={24} sm={12} md={8} lg={6} key={beneficiary.id}>
-                <Card size="small">
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                      {beneficiary.user?.first_name} {beneficiary.user?.last_name}
+            {beneficiaries.map((beneficiary) => {
+              const displayName = beneficiary.user
+                ? `${beneficiary.user.first_name || ''} ${beneficiary.user.last_name || ''}`.trim()
+                : (beneficiary.constituency?.name || 'Unknown Name');
+              return (
+                <Col xs={24} sm={12} md={8} lg={6} key={beneficiary.id}>
+                  <Card size="small">
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                        {displayName}
+                      </div>
+                      <Space>
+                        <Button
+                          size="small"
+                          type="primary"
+                          icon={<CheckCircleOutlined />}
+                          onClick={() => markAttendance(beneficiary.id, 'present')}
+                        >
+                          Present
+                        </Button>
+                        <Button
+                          size="small"
+                          danger
+                          icon={<CloseCircleOutlined />}
+                          onClick={() => markAttendance(beneficiary.id, 'absent')}
+                        >
+                          Absent
+                        </Button>
+                      </Space>
                     </div>
-                    <Space>
-                      <Button
-                        size="small"
-                        type="primary"
-                        icon={<CheckCircleOutlined />}
-                        onClick={() => markAttendance(beneficiary.id, 'present')}
-                      >
-                        Present
-                      </Button>
-                      <Button
-                        size="small"
-                        danger
-                        icon={<CloseCircleOutlined />}
-                        onClick={() => markAttendance(beneficiary.id, 'absent')}
-                      >
-                        Absent
-                      </Button>
-                    </Space>
-                  </div>
-                </Card>
-              </Col>
-            ))}
+                  </Card>
+                </Col>
+              );
+            })}
           </Row>
         </Card>
       )}
@@ -447,11 +452,16 @@ const AttendanceTracking: FC = () => {
             rules={[{ required: true, message: 'Please select beneficiary' }]}
           >
             <Select placeholder="Select beneficiary" showSearch>
-              {beneficiaries.map((beneficiary) => (
-                <Option key={beneficiary.id} value={beneficiary.id}>
-                  {beneficiary.user?.first_name} {beneficiary.user?.last_name} - {beneficiary.constituency?.name}
-                </Option>
-              ))}
+              {beneficiaries.map((beneficiary) => {
+                const displayName = beneficiary.user
+                  ? `${beneficiary.user.first_name || ''} ${beneficiary.user.last_name || ''}`.trim()
+                  : (beneficiary.constituency?.name || 'Unknown Name');
+                return (
+                  <Option key={beneficiary.id} value={beneficiary.id}>
+                    {displayName}
+                  </Option>
+                );
+              })}
             </Select>
           </Form.Item>
 
