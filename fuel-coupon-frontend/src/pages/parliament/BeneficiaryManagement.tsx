@@ -112,6 +112,21 @@ const BeneficiaryManagement = () => {
     placeholderData: (previousData) => previousData,
   });
 
+  // Fetch ALL beneficiaries for statistics (no pagination)
+  const { data: allBeneficiariesResponse, isLoading: statsLoading } = useQuery({
+    queryKey: ['all-beneficiaries-stats'],
+    queryFn: async () => {
+      const response = await apiClient.get('/beneficiaries/?page_size=1000'); // Get all for statistics
+      console.log('All beneficiaries for stats:', response.data);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    retry: 2
+  });
+
+  // Get all beneficiaries for statistics calculations
+  const allBeneficiaries = allBeneficiariesResponse?.results || allBeneficiariesResponse || [];
+
   // Fetch constituencies for dropdowns
   const { data: constituenciesData, isLoading: constituenciesLoading } = useQuery({
     queryKey: ['constituencies'],
@@ -151,9 +166,51 @@ const BeneficiaryManagement = () => {
     queryFn: async () => {
       // Fetch all categories with large page_size
       const response = await apiClient.get('/beneficiary-categories/?page_size=1000');
+      console.log('All beneficiary categories:', response.data);
       const data = response.data;
       return Array.isArray(data) ? data : (data.results || []);
     },
+  });
+
+  // Fetch unique categories from all beneficiaries for better filtering
+  const { data: uniqueCategoriesData } = useQuery({
+    queryKey: ['unique-beneficiary-categories'],
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get('/beneficiaries/unique-categories/');
+        return response.data.categories || [];
+      } catch (error) {
+        // Fallback: extract unique categories from all beneficiaries
+        console.log('Extracting unique categories from beneficiaries data');
+        const categories = new Set();
+        allBeneficiaries?.forEach((b: any) => {
+          const category = typeof b.category === 'object' ? b.category?.name : b.category;
+          if (category) categories.add(category);
+        });
+        return Array.from(categories).map(cat => ({ name: cat, id: cat }));
+      }
+    },
+    enabled: !!allBeneficiaries?.length,
+  });
+
+  // Fetch unique parties for better filtering
+  const { data: uniquePartiesData } = useQuery({
+    queryKey: ['unique-political-parties'],
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get('/beneficiaries/unique-parties/');
+        return response.data.parties || [];
+      } catch (error) {
+        // Fallback: extract unique parties from all beneficiaries
+        console.log('Extracting unique parties from beneficiaries data');
+        const parties = new Set();
+        allBeneficiaries?.forEach((b: any) => {
+          if (b.party) parties.add(b.party);
+        });
+        return Array.from(parties).map(party => ({ name: party, short_name: party }));
+      }
+    },
+    enabled: !!allBeneficiaries?.length,
   });
 
   // Ensure constituencies, parties, users, and categories are always arrays
@@ -161,6 +218,10 @@ const BeneficiaryManagement = () => {
   const politicalParties = politicalPartiesData || [];
   const systemUsers = systemUsersData || [];
   const beneficiaryCategories = beneficiaryCategoriesData || [];
+  
+  // Use unique data from database for better filtering options
+  const uniqueCategories = uniqueCategoriesData || [];
+  const uniqueParties = uniquePartiesData || [];
 
   // Prepare Select options (label/value) to allow optionFilterProp searches
   const constituencyOptions = constituencies.map((c: any) => ({
@@ -168,24 +229,38 @@ const BeneficiaryManagement = () => {
     value: c.id || c.name,
   }));
 
-  const partyOptions = politicalParties.map((p: any) => ({
-    label: p.short_name ? `${p.short_name} - ${p.name}` : (p.name || p),
-    value: p.short_name || p.name || p,
-  }));
+  const partyOptions = uniqueParties.length > 0 
+    ? uniqueParties.map((p: any) => ({
+        label: p.short_name ? `${p.short_name} - ${p.name}` : (p.name || p),
+        value: p.short_name || p.name || p,
+      }))
+    : politicalParties.map((p: any) => ({
+        label: p.short_name ? `${p.short_name} - ${p.name}` : (p.name || p),
+        value: p.short_name || p.name || p,
+      }));
 
   const userOptions = systemUsers.map((u: any) => ({
     label: `${u.username} - ${u.first_name || ''} ${u.last_name || ''}`.trim(),
     value: u.id,
   }));
 
-  const categoryOptions = beneficiaryCategories.map((c: any) => ({
-    label: (c.name || c)
-      .toString()
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (s: string) => s.toUpperCase()),
-    value: c.name || c,
-    searchable: (c.name || c).toString().toLowerCase(),
-  }));
+  const categoryOptions = uniqueCategories.length > 0
+    ? uniqueCategories.map((c: any) => ({
+        label: (c.name || c)
+          .toString()
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (s: string) => s.toUpperCase()),
+        value: c.name || c,
+        searchable: (c.name || c).toString().toLowerCase(),
+      }))
+    : beneficiaryCategories.map((c: any) => ({
+        label: (c.name || c)
+          .toString()
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (s: string) => s.toUpperCase()),
+        value: c.name || c,
+        searchable: (c.name || c).toString().toLowerCase(),
+      }));
 
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
@@ -196,6 +271,15 @@ const BeneficiaryManagement = () => {
     const possibleTotal = (beneficiariesResponse as any)?.count || (beneficiariesResponse as any)?.total || (beneficiariesResponse as any)?.meta?.total || 0;
     setTotalBeneficiaries(possibleTotal);
   }, [beneficiariesResponse]);
+
+  // Also update total from all beneficiaries response for more accurate count
+  useEffect(() => {
+    if (!allBeneficiariesResponse) return;
+    const allTotal = allBeneficiariesResponse?.count || allBeneficiaries?.length || 0;
+    if (allTotal > totalBeneficiaries) {
+      setTotalBeneficiaries(allTotal);
+    }
+  }, [allBeneficiariesResponse, allBeneficiaries, totalBeneficiaries]);
 
   // Mutations for CRUD operations
   const activateBeneficiaryMutation = useMutation({
@@ -605,8 +689,9 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Total Beneficiaries"
-              value={beneficiaries?.length || 0}
+              value={allBeneficiariesResponse?.count || allBeneficiaries?.length || 0}
               prefix={<TeamOutlined />}
+              loading={statsLoading}
             />
           </Card>
         </Col>
@@ -614,9 +699,13 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Active MPs"
-              value={beneficiaries?.filter((b: any) => b.category === 'MP' && b.status === 'ACTIVE').length || 0}
+              value={allBeneficiaries?.filter((b: any) => {
+                const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                return (category === 'MP' || category === 'MEMBER_OF_PARLIAMENT') && b.status === 'ACTIVE';
+              }).length || 0}
               valueStyle={{ color: '#1890ff' }}
               prefix={<UserOutlined />}
+              loading={statsLoading}
             />
           </Card>
         </Col>
@@ -624,9 +713,13 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Total Vehicles"
-              value={beneficiaries?.reduce((sum: number, b: any) => sum + b.vehicles.length, 0) || 0}
+              value={allBeneficiaries?.reduce((sum: number, b: any) => {
+                const vehicles = b.vehicles || [];
+                return sum + vehicles.length;
+              }, 0) || 0}
               valueStyle={{ color: '#52c41a' }}
               prefix={<CarOutlined />}
+              loading={statsLoading}
             />
           </Card>
         </Col>
@@ -634,9 +727,13 @@ const BeneficiaryManagement = () => {
           <Card>
             <Statistic
               title="Monthly Allocations"
-              value={beneficiaries?.reduce((sum: number, b: any) => sum + b.entitlements.monthlyAllocation, 0) || 0}
-              prefix="$"
+              value={allBeneficiaries?.reduce((sum: number, b: any) => {
+                const allocation = b.entitlements?.monthlyAllocation || b.monthlyAllocation || 0;
+                return sum + allocation;
+              }, 0) || 0}
+              suffix="L"
               valueStyle={{ color: '#722ed1' }}
+              loading={statsLoading}
             />
           </Card>
         </Col>
