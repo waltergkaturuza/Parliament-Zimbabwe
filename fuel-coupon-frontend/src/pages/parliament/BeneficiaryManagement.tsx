@@ -164,14 +164,13 @@ const BeneficiaryManagement = () => {
   const { data: beneficiaryCategoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['beneficiary-categories'],
     queryFn: async () => {
-      // Fetch all categories with large page_size to ensure we get all 22 categories
-      const response = await apiClient.get('/beneficiary-categories/?page_size=100');
+      // Fetch all categories with very large page_size to ensure we get all categories
+      const response = await apiClient.get('/beneficiary-categories/?page_size=1000');
       console.log('All beneficiary categories:', response.data);
       const data = response.data;
       return Array.isArray(data) ? data : (data.results || []);
     },
-    staleTime: 0, // Disable cache temporarily to ensure fresh data
-    gcTime: 0, // Updated property name in newer versions of react-query
+    // allow React Query to cache default; keep default staleTime to avoid unnecessary re-fetches
   });
 
   // Fetch unique categories from all beneficiaries for better filtering
@@ -236,6 +235,16 @@ const BeneficiaryManagement = () => {
           { name: 'MERCEDES BENZ', code: 'MERCEDES_BENZ' },
           { name: 'RANGE ROVER', code: 'RANGE_ROVER' },
           { name: 'TOYOTA', code: 'TOYOTA' },
+          { name: 'NISSAN', code: 'NISSAN' },
+          { name: 'SUBARU', code: 'SUBARU' },
+          { name: 'VOLKSWAGEN', code: 'VOLKSWAGEN' },
+          { name: 'HONDA', code: 'HONDA' },
+          { name: 'MAZDA', code: 'MAZDA' },
+          { name: 'MITSUBISHI', code: 'MITSUBISHI' },
+          { name: 'PEUGEOT', code: 'PEUGEOT' },
+          { name: 'VOLVO', code: 'VOLVO' },
+          { name: 'MAHINDRA', code: 'MAHINDRA' },
+          { name: 'JMC', code: 'JMC' },
         ];
       }
     },
@@ -288,25 +297,34 @@ const BeneficiaryManagement = () => {
     value: u.id,
   }));
 
-  const categoryOptions = beneficiaryCategories.length > 0
-    ? beneficiaryCategories.map((c: any) => ({
-        label: (c.name || c)
-          .toString()
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (s: string) => s.toUpperCase()),
-        value: c.name || c,
-        searchable: (c.name || c).toString().toLowerCase(),
-      }))
-    : uniqueCategories.length > 0
-    ? uniqueCategories.map((c: any) => ({
-        label: (c.name || c)
-          .toString()
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (s: string) => s.toUpperCase()),
-        value: c.name || c,
-        searchable: (c.name || c).toString().toLowerCase(),
-      }))
-    : [];
+  // Merge beneficiaryCategories and uniqueCategories, dedupe by name, and build options
+  const allCategoryCandidates = [
+    ...(Array.isArray(beneficiaryCategories) ? beneficiaryCategories : []),
+    ...(Array.isArray(uniqueCategories) ? uniqueCategories : []),
+  ];
+
+  const categoryMap = new Map<string, any>();
+  allCategoryCandidates.forEach((c: any) => {
+    const name = (typeof c === 'string' ? c : (c?.name || c))?.toString();
+    if (!name) return;
+    const key = name.trim().toUpperCase();
+    if (!categoryMap.has(key)) {
+      categoryMap.set(key, { name, raw: c });
+    }
+  });
+
+  const categoryOptions = Array.from(categoryMap.values()).map((entry: any) => {
+    const name = entry.name;
+    const label = name
+      .toString()
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (s: string) => s.toUpperCase());
+    return {
+      label,
+      value: name,
+      searchable: name.toString().toLowerCase(),
+    };
+  }).sort((a: any, b: any) => a.label.localeCompare(b.label));
 
   // Vehicle makes options
   const vehicleMakeOptions = vehicleMakes.map((make: any) => ({
