@@ -31,6 +31,8 @@ import {
   message,
   notification,
 } from 'antd';
+
+const { Option } = Select;
 import {
   PlusOutlined,
   SearchOutlined,
@@ -90,6 +92,10 @@ const BeneficiaryManagement = () => {
   const [editForm] = Form.useForm();
   const queryClient = useQueryClient();
 
+  // --- Category filter and multi-select logic ---
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedBeneficiaryIds, setSelectedBeneficiaryIds] = useState<string[]>([]);
+
   // Pagination for beneficiaries
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -126,6 +132,17 @@ const BeneficiaryManagement = () => {
 
   // Get all beneficiaries for statistics calculations
   const allBeneficiaries = allBeneficiariesResponse?.results || allBeneficiariesResponse || [];
+
+  // Extract unique categories from all beneficiaries for filter
+  const beneficiaryFilterCategories = Array.from(new Set(allBeneficiaries.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean))) as string[];
+
+  // Filter beneficiaries by selected category
+  const filteredBeneficiaries = selectedCategory
+    ? allBeneficiaries.filter((b: any) => {
+        const cat = typeof b.category === 'object' ? b.category?.name : b.category;
+        return cat === selectedCategory;
+      })
+    : allBeneficiaries;
 
   // Fetch constituencies for dropdowns
   const { data: constituenciesData, isLoading: constituenciesLoading } = useQuery({
@@ -178,13 +195,17 @@ const BeneficiaryManagement = () => {
     queryKey: ['unique-beneficiary-categories'],
     queryFn: async () => {
       try {
+        // Try the endpoint first, but expect it might not exist
         const response = await apiClient.get('/beneficiaries/unique-categories/');
         return response.data.categories || [];
-      } catch (error) {
+      } catch (error: any) {
         // Fallback: extract unique categories from all beneficiaries
-        console.log('Extracting unique categories from beneficiaries data');
+        console.log('API endpoint not available, extracting unique categories from beneficiaries data');
+        if (!allBeneficiaries?.length) {
+          return [];
+        }
         const categories = new Set();
-        allBeneficiaries?.forEach((b: any) => {
+        allBeneficiaries.forEach((b: any) => {
           const category = typeof b.category === 'object' ? b.category?.name : b.category;
           if (category) categories.add(category);
         });
@@ -192,6 +213,8 @@ const BeneficiaryManagement = () => {
       }
     },
     enabled: !!allBeneficiaries?.length,
+    retry: false, // Don't retry on 404 errors
+    refetchOnWindowFocus: false,
   });
 
   // Fetch unique parties for better filtering
@@ -199,19 +222,25 @@ const BeneficiaryManagement = () => {
     queryKey: ['unique-political-parties'],
     queryFn: async () => {
       try {
+        // Try the endpoint first, but expect it might not exist
         const response = await apiClient.get('/beneficiaries/unique-parties/');
         return response.data.parties || [];
-      } catch (error) {
+      } catch (error: any) {
         // Fallback: extract unique parties from all beneficiaries
-        console.log('Extracting unique parties from beneficiaries data');
+        console.log('API endpoint not available, extracting unique parties from beneficiaries data');
+        if (!allBeneficiaries?.length) {
+          return [];
+        }
         const parties = new Set();
-        allBeneficiaries?.forEach((b: any) => {
+        allBeneficiaries.forEach((b: any) => {
           if (b.party) parties.add(b.party);
         });
-        return Array.from(parties).map(party => ({ name: party, short_name: party }));
+        return Array.from(parties).map(party => ({ name: party, id: party }));
       }
     },
     enabled: !!allBeneficiaries?.length,
+    retry: false, // Don't retry on 404 errors
+    refetchOnWindowFocus: false,
   });
 
   // Fetch vehicle makes from backend
@@ -222,9 +251,9 @@ const BeneficiaryManagement = () => {
         const response = await apiClient.get('/vehicle-makes/');
         console.log('Vehicle makes from API:', response.data);
         return response.data;
-      } catch (error) {
+      } catch (error: any) {
         // Fallback: return hardcoded vehicle makes based on database
-        console.log('Using fallback vehicle makes');
+        console.log('API endpoint not available, using fallback vehicle makes');
         return [
           { name: 'BMW', code: 'BMW' },
           { name: 'FORD', code: 'FORD' },
@@ -248,6 +277,8 @@ const BeneficiaryManagement = () => {
         ];
       }
     },
+    retry: false, // Don't retry on 404 errors
+    refetchOnWindowFocus: false,
     staleTime: 10 * 60 * 1000, // 10 minutes cache
   });
 
@@ -775,6 +806,47 @@ const BeneficiaryManagement = () => {
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={6}>
           <Card>
+        <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={8}>
+            <Space>
+              <span>Category:</span>
+              <Select
+                style={{ width: 200 }}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                placeholder="Select category"
+                allowClear
+              >
+                {beneficiaryFilterCategories.map((cat: string) => (
+                  <Option key={cat} value={cat}>{cat}</Option>
+                ))}
+              </Select>
+            </Space>
+          </Col>
+          <Col xs={24} sm={16}>
+            <Space>
+              <span>Beneficiaries:</span>
+              <Select
+                mode="multiple"
+                style={{ minWidth: 300 }}
+                value={selectedBeneficiaryIds}
+                onChange={setSelectedBeneficiaryIds}
+                placeholder="Select beneficiaries"
+                optionLabelProp="label"
+                showSearch
+              >
+                {filteredBeneficiaries.map((b: any) => {
+                  const displayName = b.user ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim() : (b.constituency?.name || 'Unknown Name');
+                  return (
+                    <Option key={b.id} value={b.id} label={displayName}>
+                      <span><input type="checkbox" checked={selectedBeneficiaryIds.includes(b.id)} readOnly style={{ marginRight: 8 }} />{displayName}</span>
+                    </Option>
+                  );
+                })}
+              </Select>
+            </Space>
+          </Col>
+        </Row>
             <Statistic
               title="Total Beneficiaries"
               value={allBeneficiariesResponse?.count || allBeneficiaries?.length || 0}

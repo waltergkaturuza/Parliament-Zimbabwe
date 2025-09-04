@@ -66,12 +66,23 @@ export default function FuelDistribution() {
     }
   });
 
-  const { data: distributions, isLoading: loadingDistributions } = useQuery({
+  const { data: distributions, isLoading: loadingDistributions, error: distributionsError } = useQuery({
     queryKey: ['distributions'],
     queryFn: async () => {
-      const response = await apiClient.get('/coupon-distributions/');
-      return response.data.results || response.data;
-    }
+      try {
+        const response = await apiClient.get('/coupon-distributions/');
+        return response.data.results || response.data;
+      } catch (error: any) {
+        console.error('Failed to load distributions:', error);
+        if (error.response?.status === 404) {
+          // Return empty array if endpoint doesn't exist
+          return [];
+        }
+        throw error;
+      }
+    },
+    retry: false, // Don't retry on 404 errors
+    refetchOnWindowFocus: false,
   });
 
   // Pagination state for beneficiaries

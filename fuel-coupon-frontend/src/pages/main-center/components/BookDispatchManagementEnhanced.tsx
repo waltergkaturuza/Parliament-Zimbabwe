@@ -222,10 +222,18 @@ const BookDispatchManagementEnhanced: FC = () => {
     try {
       setLoading(true);
       const response = await apiClient.get('/dispatches/');
-      setDispatches(response.data.results || response.data);
-    } catch (error) {
-      message.error('Failed to load dispatches');
+      const dispatchData = response.data.results || response.data || [];
+      console.log('Loaded dispatches:', dispatchData.length, 'items');
+      setDispatches(dispatchData);
+    } catch (error: any) {
       console.error('Error loading dispatches:', error);
+      if (error.response?.status === 404) {
+        console.log('Dispatches endpoint not found, using empty array');
+        setDispatches([]);
+      } else {
+        message.error('Failed to load dispatches');
+        // Don't clear existing data on error
+      }
     } finally {
       setLoading(false);
     }
@@ -234,20 +242,34 @@ const BookDispatchManagementEnhanced: FC = () => {
   const loadAvailableBooks = async () => {
     try {
       const response = await apiClient.get('/books/available-for-dispatch/');
-      setAvailableBooks(response.data.results || response.data);
-    } catch (error) {
-      message.error('Failed to load available books');
+      const booksData = response.data.results || response.data || [];
+      console.log('Loaded available books:', booksData.length, 'items');
+      setAvailableBooks(booksData);
+    } catch (error: any) {
       console.error('Error loading books:', error);
+      if (error.response?.status === 404) {
+        console.log('Books endpoint not found, using empty array');
+        setAvailableBooks([]);
+      } else {
+        message.error('Failed to load available books');
+      }
     }
   };
 
   const loadSubcenters = async () => {
     try {
       const response = await apiClient.get('/subcenters/');
-      setSubcenters(response.data.results || response.data);
-    } catch (error) {
-      message.error('Failed to load subcenters');
+      const subcentersData = response.data.results || response.data || [];
+      console.log('Loaded subcenters:', subcentersData.length, 'items');
+      setSubcenters(subcentersData);
+    } catch (error: any) {
       console.error('Error loading subcenters:', error);
+      if (error.response?.status === 404) {
+        console.log('Subcenters endpoint not found, using empty array');
+        setSubcenters([]);
+      } else {
+        message.error('Failed to load subcenters');
+      }
     }
   };
 
@@ -1160,7 +1182,16 @@ const BookDispatchManagementEnhanced: FC = () => {
       </Row>
 
       {/* Dispatches Table */}
-      <Card title="Recent Dispatches">
+      <Card title={`Recent Dispatches (${dispatches.length} items)`}>
+        {dispatches.length === 0 && !loading && (
+          <Alert
+            message="No Dispatches Found"
+            description="No dispatch records are available. This could be because the backend endpoint is not accessible or no dispatches have been created yet."
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Table
           dataSource={dispatches}
           columns={dispatchColumns}
