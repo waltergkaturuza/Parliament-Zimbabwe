@@ -195,17 +195,13 @@ const BeneficiaryManagement = () => {
     queryKey: ['unique-beneficiary-categories'],
     queryFn: async () => {
       try {
-        // Try the endpoint first, but expect it might not exist
         const response = await apiClient.get('/beneficiaries/unique-categories/');
         return response.data.categories || [];
-      } catch (error: any) {
+      } catch (error) {
         // Fallback: extract unique categories from all beneficiaries
-        console.log('API endpoint not available, extracting unique categories from beneficiaries data');
-        if (!allBeneficiaries?.length) {
-          return [];
-        }
+        console.log('Extracting unique categories from beneficiaries data');
         const categories = new Set();
-        allBeneficiaries.forEach((b: any) => {
+        allBeneficiaries?.forEach((b: any) => {
           const category = typeof b.category === 'object' ? b.category?.name : b.category;
           if (category) categories.add(category);
         });
@@ -213,8 +209,6 @@ const BeneficiaryManagement = () => {
       }
     },
     enabled: !!allBeneficiaries?.length,
-    retry: false, // Don't retry on 404 errors
-    refetchOnWindowFocus: false,
   });
 
   // Fetch unique parties for better filtering
@@ -222,25 +216,19 @@ const BeneficiaryManagement = () => {
     queryKey: ['unique-political-parties'],
     queryFn: async () => {
       try {
-        // Try the endpoint first, but expect it might not exist
         const response = await apiClient.get('/beneficiaries/unique-parties/');
         return response.data.parties || [];
-      } catch (error: any) {
+      } catch (error) {
         // Fallback: extract unique parties from all beneficiaries
-        console.log('API endpoint not available, extracting unique parties from beneficiaries data');
-        if (!allBeneficiaries?.length) {
-          return [];
-        }
+        console.log('Extracting unique parties from beneficiaries data');
         const parties = new Set();
-        allBeneficiaries.forEach((b: any) => {
+        allBeneficiaries?.forEach((b: any) => {
           if (b.party) parties.add(b.party);
         });
-        return Array.from(parties).map(party => ({ name: party, id: party }));
+        return Array.from(parties).map(party => ({ name: party, short_name: party }));
       }
     },
     enabled: !!allBeneficiaries?.length,
-    retry: false, // Don't retry on 404 errors
-    refetchOnWindowFocus: false,
   });
 
   // Fetch vehicle makes from backend
@@ -251,9 +239,9 @@ const BeneficiaryManagement = () => {
         const response = await apiClient.get('/vehicle-makes/');
         console.log('Vehicle makes from API:', response.data);
         return response.data;
-      } catch (error: any) {
+      } catch (error) {
         // Fallback: return hardcoded vehicle makes based on database
-        console.log('API endpoint not available, using fallback vehicle makes');
+        console.log('Using fallback vehicle makes');
         return [
           { name: 'BMW', code: 'BMW' },
           { name: 'FORD', code: 'FORD' },
@@ -277,8 +265,6 @@ const BeneficiaryManagement = () => {
         ];
       }
     },
-    retry: false, // Don't retry on 404 errors
-    refetchOnWindowFocus: false,
     staleTime: 10 * 60 * 1000, // 10 minutes cache
   });
 

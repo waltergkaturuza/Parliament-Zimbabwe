@@ -17,6 +17,20 @@ interface AllocationStats {
 }
 
 const FuelAllocations: FC = () => {
+  // --- Category filter and multi-select logic ---
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedBeneficiaryIds, setSelectedBeneficiaryIds] = useState<string[]>([]);
+
+  // Extract unique categories from beneficiaries
+  const beneficiaryCategories = Array.from(new Set(beneficiaries.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean)));
+
+  // Filter beneficiaries by selected category
+  const filteredBeneficiaries = selectedCategory
+    ? beneficiaries.filter((b: any) => {
+        const cat = typeof b.category === 'object' ? b.category?.name : b.category;
+        return cat === selectedCategory;
+      })
+    : beneficiaries;
   const [loading, setLoading] = useState(true);
   const [entitlements, setEntitlements] = useState<FuelEntitlement[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryProfile[]>([]);
@@ -248,6 +262,47 @@ const FuelAllocations: FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24} sm={12} md={6}>
           <Card>
+        <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={8}>
+            <Space>
+              <span>Category:</span>
+              <Select
+                style={{ width: 200 }}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                placeholder="Select category"
+                allowClear
+              >
+                {beneficiaryCategories.map((cat) => (
+                  <Option key={cat} value={cat}>{cat}</Option>
+                ))}
+              </Select>
+            </Space>
+          </Col>
+          <Col xs={24} sm={16}>
+            <Space>
+              <span>Beneficiaries:</span>
+              <Select
+                mode="multiple"
+                style={{ minWidth: 300 }}
+                value={selectedBeneficiaryIds}
+                onChange={setSelectedBeneficiaryIds}
+                placeholder="Select beneficiaries"
+                optionLabelProp="label"
+                showSearch
+              >
+                {filteredBeneficiaries.map((b: any) => {
+                  const displayName = b.user ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim() : (b.constituency?.name || 'Unknown Name');
+                  return (
+                    <Option key={b.id} value={b.id} label={displayName}>
+                      <span><input type="checkbox" checked={selectedBeneficiaryIds.includes(b.id)} readOnly style={{ marginRight: 8 }} />{displayName}</span>
+                    </Option>
+                  );
+                })}
+              </Select>
+            </Space>
+          </Col>
+        </Row>
             <Statistic
               title="Total Entitlements"
               value={stats.totalEntitlements}

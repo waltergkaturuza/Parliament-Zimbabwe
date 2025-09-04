@@ -64,6 +64,10 @@ interface FuelEntitlementsPageProps {}
 const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
   // State management
   const [loading, setLoading] = useState(true);
+
+  // --- Category filter and multi-select logic ---
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedBeneficiaryIds, setSelectedBeneficiaryIds] = useState<string[]>([]);
   const [entitlements, setEntitlements] = useState<FuelEntitlement[]>([]);
   const [stats, setStats] = useState<FuelEntitlementStats>({
     total_entitlements: 0,
