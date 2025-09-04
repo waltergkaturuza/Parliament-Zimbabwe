@@ -223,6 +223,14 @@ const BeneficiaryManagement = () => {
   const uniqueCategories = uniqueCategoriesData || [];
   const uniqueParties = uniquePartiesData || [];
 
+  // Debug logging for categories
+  console.log('Categories Debug:', {
+    beneficiaryCategories: beneficiaryCategories?.length,
+    uniqueCategories: uniqueCategories?.length,
+    beneficiaryCategoriesData: beneficiaryCategoriesData,
+    uniqueCategoriesData: uniqueCategoriesData
+  });
+
   // Prepare Select options (label/value) to allow optionFilterProp searches
   const constituencyOptions = constituencies.map((c: any) => ({
     label: c.province ? `${c.name} (${c.province})` : c.name,
@@ -244,7 +252,16 @@ const BeneficiaryManagement = () => {
     value: u.id,
   }));
 
-  const categoryOptions = uniqueCategories.length > 0
+  const categoryOptions = beneficiaryCategories.length > 0
+    ? beneficiaryCategories.map((c: any) => ({
+        label: (c.name || c)
+          .toString()
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (s: string) => s.toUpperCase()),
+        value: c.name || c,
+        searchable: (c.name || c).toString().toLowerCase(),
+      }))
+    : uniqueCategories.length > 0
     ? uniqueCategories.map((c: any) => ({
         label: (c.name || c)
           .toString()
@@ -253,14 +270,7 @@ const BeneficiaryManagement = () => {
         value: c.name || c,
         searchable: (c.name || c).toString().toLowerCase(),
       }))
-    : beneficiaryCategories.map((c: any) => ({
-        label: (c.name || c)
-          .toString()
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (s: string) => s.toUpperCase()),
-        value: c.name || c,
-        searchable: (c.name || c).toString().toLowerCase(),
-      }));
+    : [];
 
   // Extract beneficiaries from response
   const beneficiaries = beneficiariesResponse?.results || [];
@@ -280,6 +290,21 @@ const BeneficiaryManagement = () => {
       setTotalBeneficiaries(allTotal);
     }
   }, [allBeneficiariesResponse, allBeneficiaries, totalBeneficiaries]);
+
+  // Debug logging for statistics and categories
+  useEffect(() => {
+    console.log('Statistics Debug:', {
+      allBeneficiariesCount: allBeneficiaries?.length,
+      allBeneficiariesResponse: allBeneficiariesResponse?.count,
+      sampleBeneficiaryCategories: allBeneficiaries?.slice(0, 5)?.map((b: any) => ({
+        category: typeof b.category === 'object' ? b.category?.name : b.category,
+        status: b.status,
+        vehicles: b.vehicles?.length
+      })),
+      categoryOptionsCount: categoryOptions?.length,
+      categoryOptions: categoryOptions?.slice(0, 10)
+    });
+  }, [allBeneficiaries, allBeneficiariesResponse, categoryOptions]);
 
   // Mutations for CRUD operations
   const activateBeneficiaryMutation = useMutation({
@@ -701,7 +726,27 @@ const BeneficiaryManagement = () => {
               title="Active MPs"
               value={allBeneficiaries?.filter((b: any) => {
                 const category = typeof b.category === 'object' ? b.category?.name : b.category;
-                return (category === 'MP' || category === 'MEMBER_OF_PARLIAMENT') && b.status === 'ACTIVE';
+                // Include all MP-related categories from the complete list
+                const mpCategories = [
+                  'MEMBER OF PARLIAMENT',
+                  'MEMBER_OF_PARLIAMENT', 
+                  'MP',
+                  'MINISTER',
+                  'DEPUTY MINISTER',
+                  'ASSISTANT MINISTER',
+                  'CHIEF WHIP',
+                  'DEPUTY CHIEF WHIP',
+                  'SPEAKER',
+                  'DEPUTY SPEAKER',
+                  'COMMITTEE CHAIRPERSON',
+                  'PARLIAMENTARY COMMITTEE MEMBER',
+                  'OPPOSITION LEADER',
+                  'DEPUTY OPPOSITION LEADER',
+                  'BACKBENCHER',
+                  'SENATOR',
+                  'DEPUTY SENATOR'
+                ];
+                return mpCategories.includes(category) && b.status === 'ACTIVE';
               }).length || 0}
               valueStyle={{ color: '#1890ff' }}
               prefix={<UserOutlined />}
@@ -715,7 +760,9 @@ const BeneficiaryManagement = () => {
               title="Total Vehicles"
               value={allBeneficiaries?.reduce((sum: number, b: any) => {
                 const vehicles = b.vehicles || [];
-                return sum + vehicles.length;
+                // Handle both array and number formats
+                const vehicleCount = Array.isArray(vehicles) ? vehicles.length : (typeof vehicles === 'number' ? vehicles : 0);
+                return sum + vehicleCount;
               }, 0) || 0}
               valueStyle={{ color: '#52c41a' }}
               prefix={<CarOutlined />}
@@ -728,8 +775,15 @@ const BeneficiaryManagement = () => {
             <Statistic
               title="Monthly Allocations"
               value={allBeneficiaries?.reduce((sum: number, b: any) => {
-                const allocation = b.entitlements?.monthlyAllocation || b.monthlyAllocation || 0;
-                return sum + allocation;
+                // Handle multiple possible allocation field names and nested structures
+                const allocation = b.entitlements?.monthlyAllocation || 
+                                 b.entitlements?.monthly_allocation ||
+                                 b.monthlyAllocation || 
+                                 b.monthly_allocation ||
+                                 b.allocation ||
+                                 0;
+                const numericAllocation = typeof allocation === 'number' ? allocation : parseFloat(allocation) || 0;
+                return sum + numericAllocation;
               }, 0) || 0}
               suffix="L"
               valueStyle={{ color: '#722ed1' }}
