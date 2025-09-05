@@ -1572,10 +1572,16 @@ class BookViewSet(viewsets.ModelViewSet):
         Get books available for dispatch - enhanced for intelligent generator
         """
         try:
-            # Base queryset: Books that are in received boxes and not assigned to beneficiaries
+            # Base queryset: Books that are in received AND verified boxes, and books themselves are verified
+            # Only books that have completed the full verification process are available for dispatch
             available_books = Book.objects.filter(
+                # Box must be received and verified
                 box__is_received=True,
+                box__status__in=['VERIFIED', 'RECEIVED'],  # Box verification status
+                # Book must not be assigned to beneficiaries yet
                 is_assigned=False,
+                # Book must be verified (if verification field exists)
+                is_verified=True,
             ).select_related('box', 'box__assigned_to').order_by('-generated_at')
 
             # If historical M2M relation 'dispatches' exists, exclude previously dispatched
@@ -1592,6 +1598,7 @@ class BookViewSet(viewsets.ModelViewSet):
             fuel_type = query_params.get('fuel_type')
             denomination = query_params.get('denomination')
             subcenter = query_params.get('subcenter')
+            box_code = query_params.get('box_code')  # Add box filtering
             
             if fuel_type:
                 available_books = available_books.filter(box__fuel_type=fuel_type)
@@ -1599,6 +1606,8 @@ class BookViewSet(viewsets.ModelViewSet):
                 available_books = available_books.filter(box__denomination=denomination)
             if subcenter:
                 available_books = available_books.filter(box__assigned_to_id=subcenter)
+            if box_code:
+                available_books = available_books.filter(box__box_code=box_code)
             
             # Prepare enhanced book data for intelligent generator
             books_data = []
@@ -1620,6 +1629,12 @@ class BookViewSet(viewsets.ModelViewSet):
                     'bookId': book.id,
                     'bookCode': book.book_code or f"BOOK-{book.id}",
                     'boxId': book.box.box_code,
+                    'boxInfo': {
+                        'id': book.box.id,
+                        'code': book.box.box_code,
+                        'supplier': getattr(book.box, 'supplier', 'Unknown'),
+                        'receivedDate': book.box.received_at.isoformat() if book.box.received_at else None,
+                    },
                     'fuelType': book.box.fuel_type,
                     'denomination': book.box.denomination,
                     'firstCouponNumber': getattr(book, 'first_coupon_number', None),
@@ -1630,7 +1645,23 @@ class BookViewSet(viewsets.ModelViewSet):
                     'generatedAt': book.generated_at.isoformat() if book.generated_at else None,
                     'boxReceiveDate': book.box.received_at.isoformat() if book.box.received_at else None,
                     'isSelected': False,
-                    'status': 'AVAILABLE_FOR_DISPATCH'
+                    'status': 'AVAILABLE_FOR_DISPATCH',
+                    # Enhanced metadata for intelligent dispatch
+                    'serialRange': f"{getattr(book, 'first_coupon_number', 'N/A')}-{getattr(book, 'last_coupon_number', 'N/A')}",
+                    'bookNumber': getattr(book, 'book_number', None),
+                    'isVerified': getattr(book, 'is_verified', False),
+                    'verifiedAt': book.verified_at.isoformat() if hasattr(book, 'verified_at') and book.verified_at else None,
+                    'verifiedBy': book.verified_by.get_full_name() if hasattr(book, 'verified_by') and book.verified_by else None,
+                    'verificationNotes': getattr(book, 'verification_notes', None),
+                    # Box verification info
+                    'boxVerificationStatus': {
+                        'isReceived': book.box.is_received,
+                        'receivedAt': book.box.received_at.isoformat() if book.box.received_at else None,
+                        'status': getattr(book.box, 'status', 'UNKNOWN'),
+                        'verifiedAt': book.box.verified_at.isoformat() if hasattr(book.box, 'verified_at') and book.box.verified_at else None,
+                    },
+                    # Coupon pages for verification (assuming 10 coupons per page)
+                    'couponPages': self._generate_coupon_pages_info(book, coupon_count),
                 })
             
             # Summary statistics
@@ -1654,20 +1685,39 @@ class BookViewSet(viewsets.ModelViewSet):
                 summary_by_type[key]['coupon_count'] += book['numberOfCoupons']
                 summary_by_type[key]['total_value'] += book['estimatedValue']
             
+            # Add verification statistics for transparency
+            total_boxes_in_system = Box.objects.filter(is_received=True).count()
+            total_books_in_system = Book.objects.filter(box__is_received=True).count()
+            unverified_books = Book.objects.filter(
+                box__is_received=True, 
+                is_assigned=False, 
+                is_verified=False
+            ).count()
+            
             return Response({
                 'results': books_data,
                 'summary': {
                     'total_books': total_books,
                     'total_coupons': total_coupons,
                     'total_value': total_value,
-                    'by_type': list(summary_by_type.values())
+                    'by_type': list(summary_by_type.values()),
+                    # Verification transparency
+                    'verification_status': {
+                        'verified_and_available': total_books,
+                        'unverified_books': unverified_books,
+                        'total_books_in_system': total_books_in_system,
+                        'total_boxes_in_system': total_boxes_in_system,
+                        'verification_required': 'Books must be received and verified before dispatch'
+                    }
                 },
                 'filters_applied': {
                     'fuel_type': fuel_type,
                     'denomination': denomination,
-                    'subcenter': subcenter
+                    'subcenter': subcenter,
+                    'box_code': box_code
                 },
-                'message': f'Found {total_books} books available for dispatch'
+                'message': f'Found {total_books} verified books ready for dispatch' + 
+                          (f' (Note: {unverified_books} books need verification)' if unverified_books > 0 else '')
             })
             
         except Exception as e:
@@ -1970,6 +2020,50 @@ class BookViewSet(viewsets.ModelViewSet):
             status = coupon['status']
             status_counts[status] = status_counts.get(status, 0) + 1
         return status_counts
+    
+    def _generate_coupon_pages_info(self, book, coupon_count):
+        """Generate coupon page information for verification"""
+        pages = []
+        coupons_per_page = 10  # Standard coupons per page
+        
+        if not hasattr(book, 'first_coupon_number') or not book.first_coupon_number:
+            return pages
+            
+        try:
+            # Parse the first coupon number to generate page ranges
+            first_coupon = book.first_coupon_number
+            prefix = first_coupon[:-6]  # Everything except last 6 digits
+            start_num = int(first_coupon[-6:])  # Last 6 digits as number
+            
+            num_pages = (coupon_count + coupons_per_page - 1) // coupons_per_page  # Ceiling division
+            
+            for page_num in range(num_pages):
+                page_start = start_num + (page_num * coupons_per_page)
+                page_end = min(start_num + ((page_num + 1) * coupons_per_page) - 1, start_num + coupon_count - 1)
+                
+                page_start_serial = f"{prefix}{str(page_start).zfill(6)}"
+                page_end_serial = f"{prefix}{str(page_end).zfill(6)}"
+                
+                pages.append({
+                    'pageNumber': page_num + 1,
+                    'firstCoupon': page_start_serial,
+                    'lastCoupon': page_end_serial,
+                    'couponsInPage': page_end - page_start + 1,
+                    'pageValue': (page_end - page_start + 1) * (book.box.denomination or 0)
+                })
+                
+        except (ValueError, IndexError) as e:
+            # If serial parsing fails, create simple page info
+            for page_num in range((coupon_count + coupons_per_page - 1) // coupons_per_page):
+                pages.append({
+                    'pageNumber': page_num + 1,
+                    'firstCoupon': f"Page {page_num + 1} Start",
+                    'lastCoupon': f"Page {page_num + 1} End",
+                    'couponsInPage': min(coupons_per_page, coupon_count - (page_num * coupons_per_page)),
+                    'pageValue': min(coupons_per_page, coupon_count - (page_num * coupons_per_page)) * (book.box.denomination or 0)
+                })
+        
+        return pages
 
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):
@@ -2843,11 +2937,15 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
     def available_books(self, request):
         """Get books available for dispatch"""
         try:
-            # Get books that are received but not yet dispatched
-            # Note: Local model doesn't have dispatches relationship yet
+            # Get books that are received, verified, and not yet dispatched
+            # Only verified books can be dispatched
             available_books = Book.objects.filter(
+                # Box must be received and verified
                 box__is_received=True,
-                is_assigned=False
+                box__status__in=['VERIFIED', 'RECEIVED'],
+                # Book must not be assigned and must be verified
+                is_assigned=False,
+                is_verified=True,
             ).select_related('box').order_by('-generated_at')
             
             books_data = []

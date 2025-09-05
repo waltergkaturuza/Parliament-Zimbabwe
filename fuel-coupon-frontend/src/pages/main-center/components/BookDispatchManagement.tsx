@@ -112,6 +112,26 @@ interface AvailableBook {
   value: number;
   pricePerLitre: number;
   status: 'VERIFIED' | 'AVAILABLE';
+  // Enhanced metadata from backend
+  serialRange?: string;
+  bookNumber?: number;
+  isVerified?: boolean;
+  verifiedAt?: string;
+  couponPages?: CouponPage[];
+  boxInfo?: {
+    id: number;
+    code: string;
+    supplier?: string;
+    receivedDate?: string;
+  };
+}
+
+interface CouponPage {
+  pageNumber: number;
+  firstCoupon: string;
+  lastCoupon: string;
+  couponsInPage: number;
+  pageValue: number;
 }
 
 interface SubCenter {
@@ -245,6 +265,18 @@ const BookDispatchManagement: FC = () => {
         value: Number(b.estimatedValue ?? b.estimated_value ?? b.value ?? (Number(b.numberOfCoupons ?? 100) * Number(b.denomination ?? 20))),
         pricePerLitre: Number(b.pricePerLitre ?? b.price_per_litre ?? 1.50),
         status: 'AVAILABLE',
+        // Enhanced metadata from backend
+        serialRange: String(b.serialRange ?? `${b.firstCouponNumber ?? 'N/A'}-${b.lastCouponNumber ?? 'N/A'}`),
+        bookNumber: Number(b.bookNumber ?? b.book_number),
+        isVerified: Boolean(b.isVerified ?? b.is_verified ?? false),
+        verifiedAt: b.verifiedAt ?? b.verified_at,
+        couponPages: Array.isArray(b.couponPages) ? b.couponPages : [],
+        boxInfo: b.boxInfo ? {
+          id: b.boxInfo.id,
+          code: b.boxInfo.code,
+          supplier: b.boxInfo.supplier,
+          receivedDate: b.boxInfo.receivedDate
+        } : undefined,
         // Additional metadata for enhanced display
         createdAt: b.created_at ?? b.createdAt,
         isGenerated: Boolean(b.is_generated ?? b.isGenerated ?? false),
@@ -263,15 +295,43 @@ const BookDispatchManagement: FC = () => {
 
       setAvailableBooks(mapped);
 
-      // Success feedback with stats
+      // Success feedback with intelligent information
       if (mapped.length > 0) {
         const totalCoupons = mapped.reduce((sum, b) => sum + b.numberOfCoupons, 0);
         const totalValue = mapped.reduce((sum, b) => sum + b.value, 0);
-        message.success(
-          `✅ Loaded ${mapped.length} books with ${totalCoupons.toLocaleString()} coupons (ZWG ${totalValue.toLocaleString()} total value)`
-        );
+        
+        // Intelligent box-specific messaging
+        if (selectedBoxCode) {
+          const boxBooks = mapped.filter(b => b.boxId === selectedBoxCode);
+          message.success(
+            `📦 Box ${selectedBoxCode}: Found ${boxBooks.length} books with ${totalCoupons.toLocaleString()} coupons (ZWG ${totalValue.toLocaleString()} total value)`
+          );
+          
+          // Show additional box insights
+          if (boxBooks.length > 0) {
+            const firstBook = boxBooks[0];
+            const lastBook = boxBooks[boxBooks.length - 1];
+            console.log(`📋 Box ${selectedBoxCode} Summary:`, {
+              'First Book': `${firstBook.bookId} (${firstBook.firstCouponId}-${firstBook.lastCouponId})`,
+              'Last Book': `${lastBook.bookId} (${lastBook.firstCouponId}-${lastBook.lastCouponId})`,
+              'Fuel Type': firstBook.fuelType,
+              'Denomination': `${firstBook.couponAmount}L`,
+              'Total Books': boxBooks.length,
+              'Total Coupons': totalCoupons,
+              'Estimated Value': `ZWG ${totalValue.toLocaleString()}`
+            });
+          }
+        } else {
+          message.success(
+            `✅ Loaded ${mapped.length} books from all boxes with ${totalCoupons.toLocaleString()} coupons (ZWG ${totalValue.toLocaleString()} total value)`
+          );
+        }
       } else {
-        message.warning('⚠️ No available books found. Check filters or verify books first.');
+        if (selectedBoxCode) {
+          message.warning(`📦 Box ${selectedBoxCode}: No available books found. All books may be already dispatched.`);
+        } else {
+          message.warning('⚠️ No available books found in any box. Check filters or verify books first.');
+        }
       }
 
     } catch (error) {
@@ -1667,7 +1727,16 @@ const BookDispatchManagement: FC = () => {
                         allowClear
                         placeholder="All Boxes"
                         value={selectedBoxCode}
-                        onChange={(val) => setSelectedBoxCode(val)}
+                        onChange={(val) => {
+                          setSelectedBoxCode(val);
+                          if (val) {
+                            // Intelligent loading: automatically show all books in the selected box
+                            message.info(`🔍 Loading all books in box ${val}...`);
+                            // The loadAvailableBooks will be called by useEffect when selectedBoxCode changes
+                          } else {
+                            message.info('📚 Showing all available books from all boxes');
+                          }
+                        }}
                         style={{ width: '100%', marginTop: 4 }}
                         size="large"
                       >
@@ -1784,18 +1853,44 @@ const BookDispatchManagement: FC = () => {
                     }}
                     render={(item) => (
                       <div style={{ padding: '8px 0' }}>
-                        <div style={{ fontWeight: 600, color: '#1890ff' }}>
-                          📖 {item.bookId}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '4px'
+                        }}>
+                          <div style={{ fontWeight: 600, color: '#1890ff' }}>
+                            📖 {item.bookId}
+                          </div>
+                          <Button 
+                            type="link" 
+                            size="small"
+                            icon={<EyeOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBookForDetails(item);
+                              setBookDetailsModalVisible(true);
+                            }}
+                            title="View book details and coupon pages"
+                          >
+                            Details
+                          </Button>
                         </div>
                         <div style={{ fontSize: '12px', color: '#8c8c8c', marginTop: '2px' }}>
-                          📦 Box: {item.boxId} • {item.fuelType === 'PETROL' ? '⛽' : '🚛'} {item.fuelType}
+                          📦 Box: <strong>{item.boxId}</strong> • {item.fuelType === 'PETROL' ? '⛽' : '🚛'} <strong>{item.fuelType}</strong>
                         </div>
                         <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
-                          💧 {item.couponAmount}L × {item.numberOfCoupons} coupons = ZWG {item.value.toLocaleString()}
+                          💧 <strong>{item.couponAmount}L</strong> × <strong>{item.numberOfCoupons}</strong> coupons = <strong style={{ color: '#52c41a' }}>ZWG {item.value.toLocaleString()}</strong>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#bfbfbf', marginTop: '2px' }}>
-                          Serial: {item.firstCouponId} → {item.lastCouponId}
+                        <div style={{ fontSize: '11px', color: '#1890ff', marginTop: '4px', fontFamily: 'monospace' }}>
+                          🎫 <strong>{item.firstCouponId}</strong> → <strong>{item.lastCouponId}</strong>
                         </div>
+                        {/* Show box info if available */}
+                        {selectedBoxCode && (
+                          <div style={{ fontSize: '10px', color: '#fa8c16', marginTop: '2px' }}>
+                            📋 Smart Selection: Box {selectedBoxCode}
+                          </div>
+                        )}
                       </div>
                     )}
                     titles={[
@@ -2317,50 +2412,145 @@ const BookDispatchManagement: FC = () => {
           <div>
             <Descriptions bordered column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Book ID">{selectedBookForDetails.bookId}</Descriptions.Item>
-              <Descriptions.Item label="Box ID">{selectedBookForDetails.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Box ID">
+                <Tag color="blue">{selectedBookForDetails.boxId}</Tag>
+                {selectedBoxCode && (
+                  <Tag color="orange" style={{ marginLeft: 8 }}>📋 Smart Selected</Tag>
+                )}
+              </Descriptions.Item>
               <Descriptions.Item label="Fuel Type">
                 <Tag color={selectedBookForDetails.fuelType === 'PETROL' ? 'blue' : 'green'}>
-                  {selectedBookForDetails.fuelType}
+                  {selectedBookForDetails.fuelType === 'PETROL' ? '⛽ PETROL' : '🚛 DIESEL'}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Coupon Amount">{selectedBookForDetails.couponAmount}L</Descriptions.Item>
-              <Descriptions.Item label="Total Coupons">{selectedBookForDetails.numberOfCoupons}</Descriptions.Item>
-              <Descriptions.Item label="Total Value">ZWG {selectedBookForDetails.value.toLocaleString()}</Descriptions.Item>
-              <Descriptions.Item label="First Coupon">{selectedBookForDetails.firstCouponId}</Descriptions.Item>
-              <Descriptions.Item label="Last Coupon">{selectedBookForDetails.lastCouponId}</Descriptions.Item>
+              <Descriptions.Item label="Coupon Amount">{selectedBookForDetails.couponAmount}L per coupon</Descriptions.Item>
+              <Descriptions.Item label="Total Coupons">
+                <Badge count={selectedBookForDetails.numberOfCoupons} showZero style={{ backgroundColor: '#52c41a' }} />
+              </Descriptions.Item>
+              <Descriptions.Item label="Total Value">
+                <Text strong style={{ color: '#52c41a' }}>ZWG {selectedBookForDetails.value.toLocaleString()}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Serial Range">
+                <Text code style={{ color: '#1890ff' }}>
+                  {selectedBookForDetails.serialRange || `${selectedBookForDetails.firstCouponId} → ${selectedBookForDetails.lastCouponId}`}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Verification Status">
+                {selectedBookForDetails.isVerified ? (
+                  <Tag color="green" icon={<CheckOutlined />}>Verified</Tag>
+                ) : (
+                  <Tag color="orange" icon={<ClockCircleOutlined />}>Pending Verification</Tag>
+                )}
+              </Descriptions.Item>
             </Descriptions>
 
-            <Divider>All Coupon Serials in this Book</Divider>
+            {/* Show Box Information if available */}
+            {selectedBookForDetails.boxInfo && (
+              <>
+                <Divider>📦 Box Information</Divider>
+                <Descriptions bordered column={3} size="small" style={{ marginBottom: 16 }}>
+                  <Descriptions.Item label="Box Code">{selectedBookForDetails.boxInfo.code}</Descriptions.Item>
+                  <Descriptions.Item label="Supplier">{selectedBookForDetails.boxInfo.supplier || 'N/A'}</Descriptions.Item>
+                  <Descriptions.Item label="Received Date">
+                    {selectedBookForDetails.boxInfo.receivedDate 
+                      ? new Date(selectedBookForDetails.boxInfo.receivedDate).toLocaleDateString()
+                      : 'N/A'
+                    }
+                  </Descriptions.Item>
+                </Descriptions>
+              </>
+            )}
+
+            <Divider>📄 Coupon Pages for Verification</Divider>
             
             <Alert
-              message="Coupon Serial Numbers"
-              description={`This book contains ${selectedBookForDetails.numberOfCoupons} coupons with serials from ${selectedBookForDetails.firstCouponId} to ${selectedBookForDetails.lastCouponId}`}
+              message="Intelligent Coupon Page Breakdown"
+              description={`This book is organized into ${selectedBookForDetails.couponPages?.length || 'unknown'} pages with 10 coupons per page for easy verification and dispatch management.`}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
             />
 
-            <div style={{ 
-              maxHeight: '300px', 
-              overflowY: 'auto', 
-              border: '1px solid #d9d9d9', 
-              borderRadius: '6px',
-              padding: '16px',
-              backgroundColor: '#fafafa'
-            }}>
-              <Row gutter={[8, 8]}>
-                {generateCouponSerials(selectedBookForDetails.firstCouponId, selectedBookForDetails.numberOfCoupons).map((serial, index) => (
-                  <Col span={8} key={serial}>
-                    <Card size="small" style={{ textAlign: 'center' }}>
-                      <Text style={{ fontSize: '12px', fontFamily: 'monospace' }}>
-                        <strong>#{index + 1}</strong><br />
-                        {serial}
-                      </Text>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </div>
+            {/* Show Coupon Pages instead of individual serials */}
+            {selectedBookForDetails.couponPages && selectedBookForDetails.couponPages.length > 0 ? (
+              <div style={{ 
+                maxHeight: '400px', 
+                overflowY: 'auto', 
+                border: '1px solid #d9d9d9', 
+                borderRadius: '6px',
+                padding: '16px',
+                backgroundColor: '#fafafa'
+              }}>
+                <Row gutter={[12, 12]}>
+                  {selectedBookForDetails.couponPages.map((page) => (
+                    <Col span={8} key={page.pageNumber}>
+                      <Card 
+                        size="small" 
+                        style={{ 
+                          textAlign: 'center',
+                          borderColor: '#1890ff',
+                          backgroundColor: '#f6ffed'
+                        }}
+                        title={
+                          <Space>
+                            <FileTextOutlined style={{ color: '#1890ff' }} />
+                            <Text strong>Page {page.pageNumber}</Text>
+                          </Space>
+                        }
+                      >
+                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                          <Text strong style={{ color: '#1890ff' }}>
+                            📍 {page.firstCoupon}
+                          </Text>
+                          <Text type="secondary">to</Text>
+                          <Text strong style={{ color: '#1890ff' }}>
+                            📍 {page.lastCoupon}
+                          </Text>
+                          <Divider style={{ margin: '8px 0' }} />
+                          <Space>
+                            <Badge count={page.couponsInPage} color="blue" />
+                            <Text style={{ fontSize: '11px' }}>coupons</Text>
+                          </Space>
+                          <Text strong style={{ color: '#52c41a', fontSize: '12px' }}>
+                            ZWG {page.pageValue.toLocaleString()}
+                          </Text>
+                        </Space>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </div>
+            ) : (
+              // Fallback: Show individual serials if coupon pages not available
+              <div style={{ 
+                maxHeight: '300px', 
+                overflowY: 'auto', 
+                border: '1px solid #d9d9d9', 
+                borderRadius: '6px',
+                padding: '16px',
+                backgroundColor: '#fafafa'
+              }}>
+                <Alert
+                  message="Individual Coupon Serials"
+                  description="Coupon pages not available. Showing individual serials:"
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+                <Row gutter={[8, 8]}>
+                  {generateCouponSerials(selectedBookForDetails.firstCouponId, selectedBookForDetails.numberOfCoupons).map((serial, index) => (
+                    <Col span={6} key={serial}>
+                      <Card size="small" style={{ textAlign: 'center' }}>
+                        <Text style={{ fontSize: '10px', fontFamily: 'monospace' }}>
+                          <strong>#{index + 1}</strong><br />
+                          {serial}
+                        </Text>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </div>
+            )}
 
             <div style={{ marginTop: 16, textAlign: 'center' }}>
               <Space>
