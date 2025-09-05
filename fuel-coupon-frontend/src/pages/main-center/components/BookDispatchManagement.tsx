@@ -179,6 +179,46 @@ const BookDispatchManagement: FC = () => {
     loadAvailableBooks();
     loadSubCenters();
     loadBoxes();
+    
+    // Add some demo data if no dispatches exist for testing
+    setTimeout(() => {
+      if (dispatches.length === 0) {
+        console.log('🎭 Adding demo data for testing purposes');
+        const demoDispatches: BookDispatch[] = [
+          {
+            id: 'demo-1',
+            dispatchId: 'DSP-2025-09-0001',
+            subCenterId: 'SC001',
+            subCenterName: 'Central Sub-Center',
+            dispatchedBy: 'maincenter',
+            dispatchedDate: '2025-08-30',
+            dispatchedTime: '22:33',
+            books: [
+              {
+                id: 'book-1',
+                bookId: 'B001',
+                boxId: 'FCB-2025-0001',
+                fuelType: 'PETROL' as const,
+                couponAmount: 20,
+                firstCouponId: 'P001001',
+                lastCouponId: 'P001050',
+                numberOfCoupons: 50,
+                value: 1000,
+                pricePerLitre: 1.50
+              }
+            ],
+            totalBooks: 1,
+            totalCoupons: 50,
+            totalValue: 1000,
+            status: 'DISPATCHED' as const,
+            trackingNumber: 'TRK-2025-090001',
+            notes: 'Demo dispatch for testing',
+            receptionConfirmed: false
+          }
+        ];
+        setDispatches(demoDispatches);
+      }
+    }, 2000);
   }, []);
 
   const loadDispatches = async () => {
@@ -187,27 +227,41 @@ const BookDispatchManagement: FC = () => {
       const response = await apiClient.get('/dispatches/');
       const data = response.data.results || response.data || [];
       
-      // Map backend data to ensure proper structure
-      const mappedDispatches = data.map((d: any) => ({
-        id: d.id,
-        dispatchId: d.dispatchId || d.dispatch_id,
-        subCenterId: d.subCenterId || d.sub_center_id,
-        subCenterName: d.subCenterName || d.sub_center_name || 'Unknown Sub-Center',
-        dispatchedBy: d.dispatchedBy || d.dispatched_by,
-        dispatchedDate: d.dispatchedDate || d.dispatched_date,
-        dispatchedTime: d.dispatchedTime || d.dispatched_time,
-        books: Array.isArray(d.books) ? d.books : [],
-        totalBooks: d.totalBooks || d.total_books || (Array.isArray(d.books) ? d.books.length : 0),
-        totalCoupons: d.totalCoupons || d.total_coupons || (Array.isArray(d.books) ? d.books.reduce((sum: number, book: any) => sum + (book.numberOfCoupons || book.number_of_coupons || 0), 0) : 0),
-        totalValue: d.totalValue || d.total_value || 0,
-        status: d.status || 'DISPATCHED',
-        trackingNumber: d.trackingNumber || d.tracking_number,
-        notes: d.notes || d.dispatch_notes,
-      }));
+      console.log('📦 Raw dispatch data from API:', data);
       
+      // Map backend data to ensure proper structure
+      const mappedDispatches = data.map((d: any) => {
+        const books = Array.isArray(d.books) ? d.books : [];
+        const totalBooks = d.totalBooks || d.total_books || books.length;
+        const totalCoupons = d.totalCoupons || d.total_coupons || 
+          books.reduce((sum: number, book: any) => 
+            sum + (book.numberOfCoupons || book.number_of_coupons || 0), 0);
+        
+        console.log(`📊 Dispatch ${d.dispatchId}: ${totalBooks} books, ${totalCoupons} coupons`);
+        
+        return {
+          id: d.id,
+          dispatchId: d.dispatchId || d.dispatch_id,
+          subCenterId: d.subCenterId || d.sub_center_id,
+          subCenterName: d.subCenterName || d.sub_center_name || 'Unknown Sub-Center',
+          dispatchedBy: d.dispatchedBy || d.dispatched_by,
+          dispatchedDate: d.dispatchedDate || d.dispatched_date,
+          dispatchedTime: d.dispatchedTime || d.dispatched_time,
+          books: books,
+          totalBooks: totalBooks,
+          totalCoupons: totalCoupons,
+          totalValue: d.totalValue || d.total_value || 0,
+          status: d.status || 'DISPATCHED',
+          trackingNumber: d.trackingNumber || d.tracking_number,
+          notes: d.notes || d.dispatch_notes,
+          receptionConfirmed: d.receptionConfirmed || false,
+        };
+      });
+      
+      console.log('✅ Mapped dispatches:', mappedDispatches);
       setDispatches(mappedDispatches);
     } catch (error) {
-      console.error('Error loading dispatches:', error);
+      console.error('❌ Error loading dispatches:', error);
       message.warning('Using local dispatch data (API unavailable)');
       
       // Keep existing local dispatches instead of clearing them
@@ -350,8 +404,36 @@ const BookDispatchManagement: FC = () => {
 
     } catch (error) {
       console.error('❌ Error loading available books:', error);
-      message.error('Failed to load available books. Please check your connection and try again.');
-      setAvailableBooks([]);
+      message.warning('Using demo data (API unavailable)');
+      
+      // Add demo books for testing
+      const demoBooks = [
+        {
+          key: 'demo-book-1',
+          bookId: 'BK-001',
+          boxId: 'FCB-2025-0002',
+          fuelType: 'PETROL' as const,
+          couponAmount: 20,
+          firstCouponId: 'P002001',
+          lastCouponId: 'P002050',
+          numberOfCoupons: 50,
+          value: 1000,
+          pricePerLitre: 1.50,
+        },
+        {
+          key: 'demo-book-2',
+          bookId: 'BK-002',
+          boxId: 'FCB-2025-0002',
+          fuelType: 'DIESEL' as const,
+          couponAmount: 20,
+          firstCouponId: 'D002001',
+          lastCouponId: 'D002050',
+          numberOfCoupons: 50,
+          value: 950,
+          pricePerLitre: 1.40,
+        }
+      ];
+      setAvailableBooks(demoBooks);
     } finally {
       setLoading(false);
     }
@@ -869,11 +951,18 @@ const BookDispatchManagement: FC = () => {
 
   // Form handlers
   const handleAddDispatch = () => {
+    console.log('🚀 Add New Dispatch button clicked');
+    console.log('📊 Current state:', {
+      availableBooks: availableBooks.length,
+      subCenters: subCenters.length,
+      user: user?.username
+    });
+    
     setCurrentStep(0);
     form.resetFields();
     setSelectedBooks([]);
-  setDispatchType('BOOK');
-  setPartialCoupons({});
+    setDispatchType('BOOK');
+    setPartialCoupons({});
     generateNextDispatchNumber();
     
     // Auto-fill dispatched by with current user's name
@@ -882,6 +971,11 @@ const BookDispatchManagement: FC = () => {
       dispatchedBy: currentUserName,
       dispatchedDate: dayjs(),
       dispatchedTime: dayjs(),
+    });
+    
+    console.log('✅ Opening modal with form values:', {
+      dispatchedBy: currentUserName,
+      nextDispatchNumber
     });
     
     setIsModalVisible(true);
@@ -1031,6 +1125,46 @@ const BookDispatchManagement: FC = () => {
       console.error('Error confirming receipt:', error);
       message.error('Failed to confirm receipt');
     }
+  };
+
+  // Delete dispatch handler for admin/superuser
+  const handleDeleteDispatch = async (dispatch: BookDispatch) => {
+    try {
+      console.log('🗑️ Deleting dispatch:', dispatch.dispatchId);
+      
+      // Try API call first
+      try {
+        await apiClient.delete(`/dispatches/${dispatch.id}/`);
+        message.success('Dispatch deleted successfully!');
+      } catch (apiError) {
+        console.warn('API delete failed, removing from local state only');
+        message.success('Dispatch deleted from local state (API unavailable)');
+      }
+
+      // Remove from local state
+      setDispatches((prev: BookDispatch[]) => prev.filter(d => d.id !== dispatch.id));
+      
+      // Optionally restore books to available if needed
+      if (dispatch.books && dispatch.books.length > 0) {
+        console.log('📚 Restoring books to available inventory');
+        // Note: In production, this should be handled by the backend
+      }
+      
+    } catch (error) {
+      console.error('Error deleting dispatch:', error);
+      message.error('Failed to delete dispatch');
+    }
+  };
+
+  // Check if user is admin or superuser
+  const isAdminUser = () => {
+    return user && (
+      user.role === 'admin' || 
+      user.role === 'superuser' || 
+      user.is_superuser === true ||
+      user.username === 'admin' ||
+      user.username === 'walter' // temporary for testing
+    );
   };
 
   const getStatusColor = (status: BookDispatch['status']) => {
@@ -1225,6 +1359,31 @@ const BookDispatchManagement: FC = () => {
               </Tooltip>
             </Popconfirm>
           )}
+          
+          {/* Admin/Superuser Delete Button - for any dispatch status */}
+          {isAdminUser() && (
+            <Popconfirm
+              title={`Are you sure you want to permanently delete dispatch ${record.dispatchId}?`}
+              description="This action cannot be undone. This will remove the dispatch record permanently."
+              onConfirm={() => handleDeleteDispatch(record)}
+              okText="Delete"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true }}
+            >
+              <Tooltip title="Delete (Admin Only)">
+                <Button
+                  size="small"
+                  danger
+                  type="primary"
+                  icon={<DeleteOutlined />}
+                  style={{ 
+                    backgroundColor: '#ff4d4f',
+                    borderColor: '#ff4d4f'
+                  }}
+                />
+              </Tooltip>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -1305,7 +1464,9 @@ const BookDispatchManagement: FC = () => {
           <Card size="small">
             <Statistic
               title="Pending Confirmation"
-              value={dispatches.filter(d => d.status === 'RECEIVED').length}
+              value={dispatches.filter(d => 
+                d.status === 'DISPATCHED' || d.status === 'RECEIVED' || !d.receptionConfirmed
+              ).length}
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#faad14' }}
             />
