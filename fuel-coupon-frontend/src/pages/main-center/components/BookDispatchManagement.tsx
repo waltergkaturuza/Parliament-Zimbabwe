@@ -175,50 +175,11 @@ const BookDispatchManagement: FC = () => {
 
   // Load data from API instead of hardcoded sample data
   useEffect(() => {
+    console.log('🎬 Component mounted, starting data load...');
     loadDispatches();
     loadAvailableBooks();
     loadSubCenters();
     loadBoxes();
-    
-    // Add some demo data if no dispatches exist for testing
-    setTimeout(() => {
-      if (dispatches.length === 0) {
-        console.log('🎭 Adding demo data for testing purposes');
-        const demoDispatches: BookDispatch[] = [
-          {
-            id: 'demo-1',
-            dispatchId: 'DSP-2025-09-0001',
-            subCenterId: 'SC001',
-            subCenterName: 'Central Sub-Center',
-            dispatchedBy: 'maincenter',
-            dispatchedDate: '2025-08-30',
-            dispatchedTime: '22:33',
-            books: [
-              {
-                id: 'book-1',
-                bookId: 'B001',
-                boxId: 'FCB-2025-0001',
-                fuelType: 'PETROL' as const,
-                couponAmount: 20,
-                firstCouponId: 'P001001',
-                lastCouponId: 'P001050',
-                numberOfCoupons: 50,
-                value: 1000,
-                pricePerLitre: 1.50
-              }
-            ],
-            totalBooks: 1,
-            totalCoupons: 50,
-            totalValue: 1000,
-            status: 'DISPATCHED' as const,
-            trackingNumber: 'TRK-2025-090001',
-            notes: 'Demo dispatch for testing',
-            receptionConfirmed: false
-          }
-        ];
-        setDispatches(demoDispatches);
-      }
-    }, 2000);
   }, []);
 
   const loadDispatches = async () => {
@@ -404,36 +365,8 @@ const BookDispatchManagement: FC = () => {
 
     } catch (error) {
       console.error('❌ Error loading available books:', error);
-      message.warning('Using demo data (API unavailable)');
-      
-      // Add demo books for testing
-      const demoBooks = [
-        {
-          key: 'demo-book-1',
-          bookId: 'BK-001',
-          boxId: 'FCB-2025-0002',
-          fuelType: 'PETROL' as const,
-          couponAmount: 20,
-          firstCouponId: 'P002001',
-          lastCouponId: 'P002050',
-          numberOfCoupons: 50,
-          value: 1000,
-          pricePerLitre: 1.50,
-        },
-        {
-          key: 'demo-book-2',
-          bookId: 'BK-002',
-          boxId: 'FCB-2025-0002',
-          fuelType: 'DIESEL' as const,
-          couponAmount: 20,
-          firstCouponId: 'D002001',
-          lastCouponId: 'D002050',
-          numberOfCoupons: 50,
-          value: 950,
-          pricePerLitre: 1.40,
-        }
-      ];
-      setAvailableBooks(demoBooks);
+      message.error('Failed to load available books from backend');
+      setAvailableBooks([]);
     } finally {
       setLoading(false);
     }
@@ -949,36 +882,82 @@ const BookDispatchManagement: FC = () => {
     generateDispatchPDF(dispatch);
   };
 
+  // Generate next dispatch number
+  const generateNextDispatchNumber = () => {
+    try {
+      const year = new Date().getFullYear();
+      const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const existingNumbers = dispatches
+        .map(d => d.dispatchId)
+        .filter(id => id.startsWith(`DSP-${year}-${month}`))
+        .map(id => parseInt(id.split('-').pop() || '0'))
+        .filter(num => !isNaN(num));
+      
+      const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+      const nextDispatchId = `DSP-${year}-${month}-${nextNumber.toString().padStart(4, '0')}`;
+      
+      console.log('📋 Generated dispatch number:', nextDispatchId);
+      setNextDispatchNumber(nextDispatchId);
+      return nextDispatchId;
+    } catch (error) {
+      console.error('Error generating dispatch number:', error);
+      const fallback = `DSP-${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}-0001`;
+      setNextDispatchNumber(fallback);
+      return fallback;
+    }
+  };
+
   // Form handlers
   const handleAddDispatch = () => {
-    console.log('🚀 Add New Dispatch button clicked');
-    console.log('📊 Current state:', {
-      availableBooks: availableBooks.length,
-      subCenters: subCenters.length,
-      user: user?.username
-    });
-    
-    setCurrentStep(0);
-    form.resetFields();
-    setSelectedBooks([]);
-    setDispatchType('BOOK');
-    setPartialCoupons({});
-    generateNextDispatchNumber();
-    
-    // Auto-fill dispatched by with current user's name
-    const currentUserName = user ? `${user.name || user.username}` : 'Administrator';
-    form.setFieldsValue({
-      dispatchedBy: currentUserName,
-      dispatchedDate: dayjs(),
-      dispatchedTime: dayjs(),
-    });
-    
-    console.log('✅ Opening modal with form values:', {
-      dispatchedBy: currentUserName,
-      nextDispatchNumber
-    });
-    
-    setIsModalVisible(true);
+    try {
+      console.log('🚀 Add New Dispatch button clicked');
+      console.log('📊 Current state:', {
+        availableBooks: availableBooks.length,
+        subCenters: subCenters.length,
+        user: user?.username,
+        isModalVisible
+      });
+      
+      setCurrentStep(0);
+      form.resetFields();
+      setSelectedBooks([]);
+      setDispatchType('BOOK');
+      setPartialCoupons({});
+      
+      try {
+        generateNextDispatchNumber();
+      } catch (error) {
+        console.warn('Error generating dispatch number:', error);
+        setNextDispatchNumber('DSP-2025-09-NEW');
+      }
+      
+      // Auto-fill dispatched by with current user's name
+      const currentUserName = user ? `${user.name || user.username}` : 'Administrator';
+      
+      try {
+        form.setFieldsValue({
+          dispatchedBy: currentUserName,
+          dispatchedDate: dayjs(),
+          dispatchedTime: dayjs(),
+        });
+      } catch (error) {
+        console.warn('Error setting form values:', error);
+      }
+      
+      console.log('✅ Opening modal with form values:', {
+        dispatchedBy: currentUserName,
+        nextDispatchNumber,
+        beforeSetModal: isModalVisible
+      });
+      
+      setIsModalVisible(true);
+      
+      console.log('✅ Modal state set to true');
+      
+    } catch (error) {
+      console.error('❌ Error in handleAddDispatch:', error);
+      alert('Error opening dispatch form. Check console for details.');
+    }
   };
 
   const handleSubmit = async () => {
@@ -1092,10 +1071,9 @@ const BookDispatchManagement: FC = () => {
           throw new Error('API call failed');
         }
       } catch (apiError) {
-        // For demo, add to local state
-        setDispatches((prev: BookDispatch[]) => [newDispatch, ...prev]);
-        setAvailableBooks(prev => prev.filter(book => !selectedBooks.includes(book.key)));
-        message.success('Books dispatched successfully! (Demo mode)');
+        console.error('Failed to save dispatch to backend:', apiError);
+        message.error('Failed to save dispatch. Please try again.');
+        return;
       }
 
       setIsModalVisible(false);
@@ -1135,14 +1113,14 @@ const BookDispatchManagement: FC = () => {
       // Try API call first
       try {
         await apiClient.delete(`/dispatches/${dispatch.id}/`);
+        // Remove from local state only after successful API call
+        setDispatches((prev: BookDispatch[]) => prev.filter(d => d.id !== dispatch.id));
         message.success('Dispatch deleted successfully!');
       } catch (apiError) {
-        console.warn('API delete failed, removing from local state only');
-        message.success('Dispatch deleted from local state (API unavailable)');
+        console.error('Failed to delete dispatch from backend:', apiError);
+        message.error('Failed to delete dispatch. Please try again.');
+        return;
       }
-
-      // Remove from local state
-      setDispatches((prev: BookDispatch[]) => prev.filter(d => d.id !== dispatch.id));
       
       // Optionally restore books to available if needed
       if (dispatch.books && dispatch.books.length > 0) {

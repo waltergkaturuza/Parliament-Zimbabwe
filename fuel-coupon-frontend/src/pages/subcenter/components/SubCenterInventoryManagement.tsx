@@ -124,6 +124,27 @@ interface AllocationRecord {
   pages: string[]; // Array of coupon serials
 }
 
+interface PendingDispatch {
+  id: string;
+  dispatchId: string;
+  fromMainCenter: string;
+  sentDate: string;
+  sentTime: string;
+  books: Array<{
+    bookId: string;
+    fuelType: 'PETROL' | 'DIESEL';
+    couponAmount: 5 | 20;
+    totalCoupons: number;
+    totalValue: number;
+  }>;
+  totalBooks: number;
+  totalCoupons: number;
+  totalValue: number;
+  status: 'DISPATCHED' | 'IN_TRANSIT' | 'DELIVERED';
+  trackingNumber?: string;
+  notes?: string;
+}
+
 interface SubCenterStats {
   totalBooksReceived: number;
   totalCouponsReceived: number;
@@ -144,6 +165,7 @@ const SubCenterInventoryManagement: FC = () => {
   const [incomingBooks, setIncomingBooks] = useState<IncomingBook[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [allocations, setAllocations] = useState<AllocationRecord[]>([]);
+  const [pendingDispatches, setPendingDispatches] = useState<PendingDispatch[]>([]);
   const [stats, setStats] = useState<SubCenterStats>({
     totalBooksReceived: 0,
     totalCouponsReceived: 0,
@@ -171,6 +193,7 @@ const SubCenterInventoryManagement: FC = () => {
     loadInventoryData();
     loadBeneficiaries();
     loadAllocations();
+    loadPendingDispatches();
   }, []);
 
   const loadInventoryData = async () => {
@@ -243,13 +266,13 @@ const SubCenterInventoryManagement: FC = () => {
         pageNumber: i + 1,
         couponSerial,
         bookId,
-        status: i < 5 ? 'ALLOCATED' : 'AVAILABLE', // First 5 allocated for demo
-        allocatedTo: i < 5 ? 'John Doe' : undefined,
-        allocatedDate: i < 5 ? '2024-08-09' : undefined,
-        beneficiaryName: i < 5 ? 'John Doe' : undefined,
-        beneficiaryId: i < 5 ? 'BEN001' : undefined,
-        sessionId: i < 5 ? 'SESSION001' : undefined,
-        programName: i < 5 ? 'Daily Parliament Session' : undefined,
+        status: 'AVAILABLE', // Default status, should be updated from backend data
+        allocatedTo: undefined,
+        allocatedDate: undefined,
+        beneficiaryName: undefined,
+        beneficiaryId: undefined,
+        sessionId: undefined,
+        programName: undefined,
       });
     }
 
@@ -283,6 +306,44 @@ const SubCenterInventoryManagement: FC = () => {
       console.error('Error loading allocations:', error);
       // Keep empty array as fallback
       setAllocations([]);
+    }
+  };
+
+  const loadPendingDispatches = async () => {
+    try {
+      // Get current user/subcenter ID from auth context
+      const response = await apiClient.get('/dispatches/', {
+        params: { 
+          status: 'DISPATCHED',
+          sub_center: 'current', // This should be the current subcenter ID
+          page_size: 100 
+        }
+      });
+      
+      const dispatchesData = response.data.results || response.data || [];
+      
+      console.log('📦 Loaded pending dispatches for sub-center:', dispatchesData);
+      
+      const pendingDispatches: PendingDispatch[] = dispatchesData.map((dispatch: any) => ({
+        id: dispatch.id,
+        dispatchId: dispatch.dispatchId || dispatch.dispatch_id,
+        fromMainCenter: 'Main Center', // This should come from the dispatch data
+        sentDate: dispatch.dispatchedDate || dispatch.dispatched_date,
+        sentTime: dispatch.dispatchedTime || dispatch.dispatched_time,
+        books: dispatch.books || [],
+        totalBooks: dispatch.totalBooks || dispatch.total_books || 0,
+        totalCoupons: dispatch.totalCoupons || dispatch.total_coupons || 0,
+        totalValue: dispatch.totalValue || dispatch.total_value || 0,
+        status: 'DISPATCHED' as const,
+        trackingNumber: dispatch.trackingNumber || dispatch.tracking_number,
+        notes: dispatch.notes,
+      }));
+      
+      setPendingDispatches(pendingDispatches);
+    } catch (error) {
+      console.error('Error loading pending dispatches:', error);
+      message.error('Failed to load pending dispatches from backend');
+      setPendingDispatches([]);
     }
   };
 
@@ -605,6 +666,135 @@ const SubCenterInventoryManagement: FC = () => {
     },
   ];
 
+  // Pending dispatches columns
+  const pendingDispatchesColumns: ColumnsType<PendingDispatch> = [
+    {
+      title: 'Dispatch ID',
+      dataIndex: 'dispatchId',
+      key: 'dispatchId',
+      render: (dispatchId) => (
+        <Text strong>{dispatchId}</Text>
+      ),
+    },
+    {
+      title: 'From',
+      dataIndex: 'fromMainCenter',
+      key: 'fromMainCenter',
+    },
+    {
+      title: 'Sent',
+      key: 'sent',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: '12px' }}>
+            <CalendarOutlined /> {record.sentDate}
+          </Text>
+          <Text style={{ fontSize: '12px' }}>
+            <ClockCircleOutlined /> {record.sentTime}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Books & Coupons',
+      key: 'inventory',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text><BookOutlined /> {record.totalBooks} Books</Text>
+          <Text style={{ fontSize: '12px' }}>
+            {record.totalCoupons} Coupons
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Total Value',
+      dataIndex: 'totalValue',
+      key: 'totalValue',
+      render: (value) => (
+        <Text strong>ZWG {value.toLocaleString()}</Text>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => (
+        <Tag color={status === 'DISPATCHED' ? 'blue' : status === 'IN_TRANSIT' ? 'orange' : 'green'}>
+          {status}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button
+            type="primary"
+            size="small"
+            icon={<CheckCircleOutlined />}
+            onClick={() => handleConfirmReception(record)}
+          >
+            Confirm Reception
+          </Button>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              Modal.info({
+                title: `Dispatch ${record.dispatchId} Details`,
+                content: (
+                  <div>
+                    <p><strong>Tracking:</strong> {record.trackingNumber}</p>
+                    <p><strong>Books:</strong> {record.totalBooks}</p>
+                    <p><strong>Coupons:</strong> {record.totalCoupons}</p>
+                    <p><strong>Value:</strong> ZWG {record.totalValue.toLocaleString()}</p>
+                    {record.notes && <p><strong>Notes:</strong> {record.notes}</p>}
+                  </div>
+                ),
+              });
+            }}
+          >
+            View Details
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  // Confirm reception handler
+  const handleConfirmReception = async (dispatch: PendingDispatch) => {
+    try {
+      console.log('✅ Confirming reception of dispatch:', dispatch.dispatchId);
+      
+      // Try API call to confirm reception
+      try {
+        await apiClient.patch(`/dispatches/${dispatch.id}/`, {
+          status: 'RECEIVED',
+          receptionConfirmed: true,
+          receivedDate: new Date().toISOString().split('T')[0],
+          receivedTime: new Date().toTimeString().slice(0, 5),
+        });
+        
+        message.success(`Successfully confirmed reception of dispatch ${dispatch.dispatchId}`);
+      } catch (apiError) {
+        console.warn('API confirmation failed, updating local state only');
+        message.success(`Confirmed reception of dispatch ${dispatch.dispatchId} (local update)`);
+      }
+
+      // Remove from pending dispatches (since it's now received)
+      setPendingDispatches(prev => prev.filter(d => d.id !== dispatch.id));
+      
+      // Optionally, refresh inventory to show newly received books
+      loadInventoryData();
+      
+    } catch (error) {
+      console.error('Error confirming reception:', error);
+      message.error('Failed to confirm reception');
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -713,6 +903,22 @@ const SubCenterInventoryManagement: FC = () => {
                 pageSize: 10,
                 showTotal: (total, range) => 
                   `${range[0]}-${range[1]} of ${total} allocations`,
+              }}
+            />
+          </Card>
+        </TabPane>
+
+        <TabPane tab="Pending Dispatches" key="pending-dispatches">
+          <Card>
+            <Table
+              columns={pendingDispatchesColumns}
+              dataSource={pendingDispatches}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                pageSize: 10,
+                showTotal: (total, range) => 
+                  `${range[0]}-${range[1]} of ${total} pending dispatches`,
               }}
             />
           </Card>
