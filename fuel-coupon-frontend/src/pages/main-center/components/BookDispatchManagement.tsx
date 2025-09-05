@@ -2312,8 +2312,8 @@ const BookDispatchManagement: FC = () => {
             
             <Alert
               message="Intelligent Coupon Page Breakdown"
-              description={`This book is organized into ${selectedBookForDetails.couponPages?.length || 'unknown'} pages with 10 coupons per page for easy verification and dispatch management.`}
-              type="info"
+              description={`This book is organized into ${selectedBookForDetails.couponPages?.length || 0} pages with 10 coupons per page for easy verification and dispatch management.${selectedBookForDetails.couponPages?.length === 0 ? ' Coupon page information is being generated...' : ''}`}
+              type={selectedBookForDetails.couponPages?.length > 0 ? "info" : "warning"}
               showIcon
               style={{ marginBottom: 16 }}
             />
@@ -2368,26 +2368,38 @@ const BookDispatchManagement: FC = () => {
                 </Row>
               </div>
             ) : (
-              // Fallback: Show individual serials if coupon pages not available
+              // Fallback: Show book summary if coupon pages not available
               <div style={{ 
                 maxHeight: '300px', 
                 overflowY: 'auto', 
                 border: '1px solid #d9d9d9', 
                 borderRadius: '6px',
                 padding: '16px',
-                backgroundColor: '#fafafa'
+                backgroundColor: '#fff2e8'
               }}>
                 <Alert
-                  message="Individual Coupon Serials"
-                  description="Coupon pages not available. Showing individual serials:"
+                  message="📋 Individual Coupon Information"
+                  description="Coupon page breakdown not available. Showing book summary:"
                   type="warning"
                   showIcon
                   style={{ marginBottom: 16 }}
                 />
-                <Row gutter={[8, 8]}>
-                  {generateCouponSerials(selectedBookForDetails.firstCouponId, selectedBookForDetails.numberOfCoupons).map((serial, index) => (
-                    <Col span={6} key={serial}>
-                      <Card size="small" style={{ textAlign: 'center' }}>
+                
+                <Descriptions bordered size="small">
+                  <Descriptions.Item label="Serial Range" span={3}>
+                    <Text code>{selectedBookForDetails.firstCouponId} → {selectedBookForDetails.lastCouponId}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Total Coupons" span={3}>
+                    <Badge count={selectedBookForDetails.numberOfCoupons} style={{ backgroundColor: '#1890ff' }} />
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Estimated Pages" span={3}>
+                    <Text strong>{Math.ceil(selectedBookForDetails.numberOfCoupons / 10)} pages (10 coupons per page)</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Total Value" span={3}>
+                    <Text strong style={{ color: '#52c41a' }}>ZWG {selectedBookForDetails.value.toLocaleString()}</Text>
+                  </Descriptions.Item>
+                </Descriptions>
+              </div>
                         <Text style={{ fontSize: '10px', fontFamily: 'monospace' }}>
                           <strong>#{index + 1}</strong><br />
                           {serial}
