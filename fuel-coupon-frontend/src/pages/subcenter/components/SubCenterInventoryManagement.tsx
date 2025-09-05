@@ -44,6 +44,7 @@ import {
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import apiClient from '../../../api/index';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -160,6 +161,7 @@ interface SubCenterStats {
 }
 
 const SubCenterInventoryManagement: FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('inventory');
   const [incomingBooks, setIncomingBooks] = useState<IncomingBook[]>([]);
@@ -312,33 +314,66 @@ const SubCenterInventoryManagement: FC = () => {
   const loadPendingDispatches = async () => {
     try {
       // Get current user/subcenter ID from auth context
+      const currentSubCenterId = user?.sub_center_id || user?.centerId;
+      const currentSubCenterName = user?.sub_center?.name || 'Current Sub-Center';
+      
+      console.log('🔍 Loading dispatches for sub-center:', {
+        subCenterId: currentSubCenterId,
+        subCenterName: currentSubCenterName,
+        userInfo: user
+      });
+      
+      // Load all dispatches and filter for current sub-center
       const response = await apiClient.get('/dispatches/', {
         params: { 
-          status: 'DISPATCHED',
-          sub_center: 'current', // This should be the current subcenter ID
           page_size: 100 
         }
       });
       
       const dispatchesData = response.data.results || response.data || [];
       
-      console.log('📦 Loaded pending dispatches for sub-center:', dispatchesData);
+      console.log('📦 All dispatches from API:', dispatchesData);
       
-      const pendingDispatches: PendingDispatch[] = dispatchesData.map((dispatch: any) => ({
+      // Filter dispatches for current sub-center that are DISPATCHED status
+      const filteredDispatches = dispatchesData.filter((dispatch: any) => {
+        const dispatchSubCenterId = dispatch.subCenterId || dispatch.sub_center_id || dispatch.to_center_id;
+        const dispatchStatus = dispatch.status;
+        
+        console.log('🔍 Checking dispatch:', {
+          dispatchId: dispatch.dispatchId || dispatch.id,
+          dispatchSubCenterId,
+          currentSubCenterId,
+          status: dispatchStatus,
+          matches: String(dispatchSubCenterId) === String(currentSubCenterId),
+          isDispatched: dispatchStatus === 'DISPATCHED'
+        });
+        
+        return String(dispatchSubCenterId) === String(currentSubCenterId) && 
+               (dispatchStatus === 'DISPATCHED' || dispatchStatus === 'PENDING');
+      });
+      
+      console.log('📦 Filtered pending dispatches for sub-center:', filteredDispatches);
+      
+      const pendingDispatches: PendingDispatch[] = filteredDispatches.map((dispatch: any) => ({
         id: dispatch.id,
-        dispatchId: dispatch.dispatchId || dispatch.dispatch_id,
-        fromMainCenter: 'Main Center', // This should come from the dispatch data
-        sentDate: dispatch.dispatchedDate || dispatch.dispatched_date,
-        sentTime: dispatch.dispatchedTime || dispatch.dispatched_time,
+        dispatchId: dispatch.dispatchId || dispatch.dispatch_id || `DSP-${dispatch.id}`,
+        fromMainCenter: dispatch.fromCenter || dispatch.from_center || 'Main Center',
+        sentDate: dispatch.dispatchedDate || dispatch.dispatched_date || dayjs().format('YYYY-MM-DD'),
+        sentTime: dispatch.dispatchedTime || dispatch.dispatched_time || dayjs().format('HH:mm'),
         books: dispatch.books || [],
-        totalBooks: dispatch.totalBooks || dispatch.total_books || 0,
-        totalCoupons: dispatch.totalCoupons || dispatch.total_coupons || 0,
-        totalValue: dispatch.totalValue || dispatch.total_value || 0,
+        totalBooks: dispatch.totalBooks || dispatch.total_books || (dispatch.books ? dispatch.books.length : 0),
+        totalCoupons: dispatch.totalCoupons || dispatch.total_coupons || 
+          (dispatch.books ? dispatch.books.reduce((sum: number, book: any) => 
+            sum + (book.numberOfCoupons || book.number_of_coupons || 0), 0) : 0),
+        totalValue: dispatch.totalValue || dispatch.total_value || 
+          (dispatch.books ? dispatch.books.reduce((sum: number, book: any) => 
+            sum + (book.value || 0), 0) : 0),
         status: 'DISPATCHED' as const,
-        trackingNumber: dispatch.trackingNumber || dispatch.tracking_number,
-        notes: dispatch.notes,
+        trackingNumber: dispatch.trackingNumber || dispatch.tracking_number || `TRK-${dispatch.id}`,
+        notes: dispatch.notes || 'Dispatch from Main Center',
       }));
       
+      console.log('✅ Final pending dispatches to display:', pendingDispatches);
       setPendingDispatches(pendingDispatches);
     } catch (error) {
       console.error('Error loading pending dispatches:', error);
@@ -982,7 +1017,6 @@ const SubCenterInventoryManagement: FC = () => {
                           {page.couponSerial}
                         </Text>
                         <Tag 
-                          size="small" 
                           color={getStatusColor(page.status)}
                         >
                           {page.status}
@@ -1038,7 +1072,7 @@ const SubCenterInventoryManagement: FC = () => {
           >
             <Select placeholder="Select beneficiary">
               {beneficiaries.map(beneficiary => {
-                const displayName = beneficiary.name || `${beneficiary.first_name || ''} ${beneficiary.last_name || ''}`.trim() || 'Unknown Name';
+                const displayName = beneficiary.name || 'Unknown Name';
                 return (
                   <Option key={beneficiary.id} value={beneficiary.id}>
                     <Space direction="vertical" size={0}>
