@@ -79,10 +79,7 @@ interface BookDispatch {
   receivedDate?: string;
   receivedTime?: string;
   receiverSignature?: string;
-  transportDetails?: string;
-  vehicleNumber?: string;
-  driverName?: string;
-  driverPhone?: string;
+  receptionConfirmed?: boolean; // Sub-center reception confirmation
   notes?: string;
   trackingNumber?: string;
 }
@@ -189,12 +186,32 @@ const BookDispatchManagement: FC = () => {
       setLoading(true);
       const response = await apiClient.get('/dispatches/');
       const data = response.data.results || response.data || [];
-      setDispatches(data);
+      
+      // Map backend data to ensure proper structure
+      const mappedDispatches = data.map((d: any) => ({
+        id: d.id,
+        dispatchId: d.dispatchId || d.dispatch_id,
+        subCenterId: d.subCenterId || d.sub_center_id,
+        subCenterName: d.subCenterName || d.sub_center_name || 'Unknown Sub-Center',
+        dispatchedBy: d.dispatchedBy || d.dispatched_by,
+        dispatchedDate: d.dispatchedDate || d.dispatched_date,
+        dispatchedTime: d.dispatchedTime || d.dispatched_time,
+        books: Array.isArray(d.books) ? d.books : [],
+        totalBooks: d.totalBooks || d.total_books || (Array.isArray(d.books) ? d.books.length : 0),
+        totalCoupons: d.totalCoupons || d.total_coupons || (Array.isArray(d.books) ? d.books.reduce((sum: number, book: any) => sum + (book.numberOfCoupons || book.number_of_coupons || 0), 0) : 0),
+        totalValue: d.totalValue || d.total_value || 0,
+        status: d.status || 'DISPATCHED',
+        trackingNumber: d.trackingNumber || d.tracking_number,
+        notes: d.notes || d.dispatch_notes,
+      }));
+      
+      setDispatches(mappedDispatches);
     } catch (error) {
       console.error('Error loading dispatches:', error);
-      message.error('Failed to load dispatches');
-      // Fallback to empty array instead of sample data
-      setDispatches([]);
+      message.warning('Using local dispatch data (API unavailable)');
+      
+      // Keep existing local dispatches instead of clearing them
+      // This preserves dispatches created in the current session
     } finally {
       setLoading(false);
     }
@@ -706,26 +723,26 @@ const BookDispatchManagement: FC = () => {
         </div>
 
         <div class="section">
-            <div class="section-title">Transport Details</div>
+            <div class="section-title">Sub-Center Reception</div>
             <div class="info-grid">
                 <div>
                     <div class="info-item">
-                        <span class="info-label">Vehicle Number:</span>
-                        <span class="info-value">${dispatch.vehicleNumber || 'N/A'}</span>
+                        <span class="info-label">Sub-Center:</span>
+                        <span class="info-value">${dispatch.subCenterName}</span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Driver Name:</span>
-                        <span class="info-value">${dispatch.driverName || 'N/A'}</span>
+                        <span class="info-label">Reception Status:</span>
+                        <span class="info-value">${dispatch.status === 'CONFIRMED' ? '✓ Confirmed' : dispatch.status === 'RECEIVED' ? 'Pending Confirmation' : 'Not Received'}</span>
                     </div>
                 </div>
                 <div>
                     <div class="info-item">
-                        <span class="info-label">Driver Phone:</span>
-                        <span class="info-value">${dispatch.driverPhone || 'N/A'}</span>
+                        <span class="info-label">Tracking Number:</span>
+                        <span class="info-value">${dispatch.trackingNumber || 'N/A'}</span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Transport Details:</span>
-                        <span class="info-value">${dispatch.transportDetails || 'N/A'}</span>
+                        <span class="info-label">Dispatch Notes:</span>
+                        <span class="info-value">${dispatch.notes || 'N/A'}</span>
                     </div>
                 </div>
             </div>
@@ -879,6 +896,13 @@ const BookDispatchManagement: FC = () => {
         selectedBooks.includes(book.key)
       );
 
+      // Validation: Ensure books are selected
+      if (selectedBookDetails.length === 0) {
+        message.error('Please select at least one book to dispatch');
+        setLoading(false);
+        return;
+      }
+
       const totalBooks = selectedBookDetails.length;
       const totalCoupons = dispatchType === 'PAGE'
         ? selectedBookDetails.reduce((sum, book) => sum + Math.min(partialCoupons[book.key] || 0, book.numberOfCoupons), 0)
@@ -890,6 +914,24 @@ const BookDispatchManagement: FC = () => {
             return sum + count * unit;
           }, 0)
         : selectedBookDetails.reduce((sum, book) => sum + book.value, 0);
+
+      // Validation: Ensure totals are positive
+      if (totalBooks === 0 || totalCoupons === 0) {
+        message.error('Invalid dispatch data - no books or coupons selected');
+        setLoading(false);
+        return;
+      }
+
+      // Get sub-center name with fallback
+      const subCenterName = subCenters.find(sc => sc.id === values.subCenterId)?.name || `Sub-Center-${values.subCenterId}`;
+      
+      console.log('📦 Creating dispatch with:', {
+        totalBooks,
+        totalCoupons,
+        totalValue,
+        subCenterName,
+        selectedBookDetails: selectedBookDetails.length
+      });
 
       const newDispatch: BookDispatch = {
         id: Date.now().toString(),
@@ -936,10 +978,7 @@ const BookDispatchManagement: FC = () => {
         totalCoupons,
         totalValue,
         status: 'DISPATCHED',
-        transportDetails: values.transportDetails,
-        vehicleNumber: values.vehicleNumber,
-        driverName: values.driverName,
-        driverPhone: values.driverPhone,
+        receptionConfirmed: false, // Sub-center reception status
         notes: dispatchType === 'PAGE'
           ? `${values.notes || ''}\n[PAGE_DISPATCH] Per-book coupon counts: ${JSON.stringify(selectedBookDetails.map(b => ({ bookId: b.bookId, coupons: Math.min(partialCoupons[b.key] || 0, b.numberOfCoupons) })))}\n(Temporary until backend page-dispatch endpoint)`
           : values.notes,
@@ -951,7 +990,7 @@ const BookDispatchManagement: FC = () => {
         const response = await apiClient.post('/dispatches/', newDispatch);
 
         if (response.status === 200 || response.status === 201) {
-          setDispatches([newDispatch, ...dispatches]);
+          setDispatches((prev: BookDispatch[]) => [newDispatch, ...prev]);
           // Remove dispatched books from available books
           setAvailableBooks(prev => prev.filter(book => !selectedBooks.includes(book.key)));
           message.success('Books dispatched successfully!');
@@ -960,7 +999,7 @@ const BookDispatchManagement: FC = () => {
         }
       } catch (apiError) {
         // For demo, add to local state
-        setDispatches([newDispatch, ...dispatches]);
+        setDispatches((prev: BookDispatch[]) => [newDispatch, ...prev]);
         setAvailableBooks(prev => prev.filter(book => !selectedBooks.includes(book.key)));
         message.success('Books dispatched successfully! (Demo mode)');
       }
@@ -1083,19 +1122,22 @@ const BookDispatchManagement: FC = () => {
       ),
     },
     {
-      title: 'Transport',
-      key: 'transport',
+      title: 'Reception Status',
+      key: 'reception',
       width: 150,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          {record.vehicleNumber && (
-            <Text style={{ fontSize: '12px' }}>
-              <CarOutlined /> {record.vehicleNumber}
-            </Text>
-          )}
-          {record.driverName && (
-            <Text style={{ fontSize: '12px' }}>
-              {record.driverName}
+          <Badge
+            status={record.status === 'CONFIRMED' ? 'success' : record.status === 'RECEIVED' ? 'processing' : 'default'}
+            text={
+              record.status === 'CONFIRMED' ? 'Confirmed' : 
+              record.status === 'RECEIVED' ? 'Pending Confirmation' :
+              'Not Received'
+            }
+          />
+          {record.status === 'CONFIRMED' && (
+            <Text style={{ fontSize: '11px', color: '#52c41a' }}>
+              ✓ Sub-Center Confirmed
             </Text>
           )}
         </Space>
@@ -2143,9 +2185,16 @@ const BookDispatchManagement: FC = () => {
               <Descriptions.Item label="Total Books">{selectedDispatch.totalBooks}</Descriptions.Item>
               <Descriptions.Item label="Total Coupons">{selectedDispatch.totalCoupons}</Descriptions.Item>
               <Descriptions.Item label="Total Value">ZWG {selectedDispatch.totalValue.toLocaleString()}</Descriptions.Item>
-              <Descriptions.Item label="Vehicle Number">{selectedDispatch.vehicleNumber || 'N/A'}</Descriptions.Item>
-              <Descriptions.Item label="Driver">{selectedDispatch.driverName || 'N/A'}</Descriptions.Item>
-              <Descriptions.Item label="Driver Phone">{selectedDispatch.driverPhone || 'N/A'}</Descriptions.Item>
+              <Descriptions.Item label="Reception Status">
+                <Badge
+                  status={selectedDispatch.status === 'CONFIRMED' ? 'success' : selectedDispatch.status === 'RECEIVED' ? 'processing' : 'default'}
+                  text={
+                    selectedDispatch.status === 'CONFIRMED' ? 'Confirmed by Sub-Center' : 
+                    selectedDispatch.status === 'RECEIVED' ? 'Pending Confirmation' :
+                    'Not Received'
+                  }
+                />
+              </Descriptions.Item>
               {selectedDispatch.receivedBy && (
                 <>
                   <Descriptions.Item label="Received By">{selectedDispatch.receivedBy}</Descriptions.Item>
