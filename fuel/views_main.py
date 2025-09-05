@@ -1637,8 +1637,13 @@ class BookViewSet(viewsets.ModelViewSet):
                     },
                     'fuelType': book.box.fuel_type,
                     'denomination': book.box.denomination,
-                    'firstCouponNumber': getattr(book, 'first_coupon_number', None),
-                    'lastCouponNumber': getattr(book, 'last_coupon_number', None),
+                    # Send serial numbers in multiple formats for frontend compatibility
+                    'firstCouponNumber': getattr(book, 'first_coupon_number', ''),
+                    'lastCouponNumber': getattr(book, 'last_coupon_number', ''),
+                    'first_coupon_number': getattr(book, 'first_coupon_number', ''),
+                    'last_coupon_number': getattr(book, 'last_coupon_number', ''),
+                    'firstCouponId': getattr(book, 'first_coupon_number', ''),  # Frontend expects this
+                    'lastCouponId': getattr(book, 'last_coupon_number', ''),   # Frontend expects this
                     'numberOfCoupons': coupon_count,
                     'estimatedValue': estimated_value,
                     'pricePerLitre': float(book.box.fuel_price_per_litre_usd or 1.45),
