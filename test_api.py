@@ -5,7 +5,7 @@ Test script for API endpoints
 import requests
 import json
 
-BASE_URL = "http://localhost:8000/api/v1"
+BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 def test_login():
     """Test login and get JWT token"""

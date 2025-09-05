@@ -218,17 +218,15 @@ const BookDispatchManagement: FC = () => {
       // Try production endpoints in priority order
       let response;
       const endpoints = [
-        '/books/available_for_dispatch/',       // Primary production endpoint (corrected)
-        '/fuel/books/available_for_dispatch/',  // Legacy endpoint with /fuel/ prefix
+        '/books/available_for_dispatch/',       // Primary production endpoint
         '/books/',                              // Fallback with filtering
-        '/fuel/books/'                          // Legacy fallback
       ];
 
       for (const endpoint of endpoints) {
         try {
           console.log(`📚 Attempting to load books from: ${endpoint}`);
           
-          const requestParams = endpoint.includes('/fuel/books/') && !endpoint.includes('available_for_dispatch') 
+          const requestParams = endpoint.includes('/books/') && !endpoint.includes('available_for_dispatch') 
             ? { ...params, is_verified: true, status: 'AVAILABLE' }
             : params;
             
@@ -347,10 +345,8 @@ const BookDispatchManagement: FC = () => {
     try {
       // Try production endpoints in order
       const endpoints = [
-        '/boxes/',          // Primary production endpoint (corrected)
-        '/fuel/boxes/',     // Legacy endpoint with /fuel/ prefix
-        '/box/',            // Alternative endpoint
-        '/fuel/box/'        // Legacy alternative
+        '/boxes/',          // Primary production endpoint
+        '/box/',            // Alternative endpoint (if there's an alias)
       ];
       
       let response;
@@ -408,10 +404,8 @@ const BookDispatchManagement: FC = () => {
     try {
       // Try production endpoints in order
       const endpoints = [
-        '/subcenters/',         // Primary production endpoint (corrected)
-        '/fuel/subcenters/',    // Legacy endpoint with /fuel/ prefix
-        '/sub-centers/',        // Alternative format
-        '/fuel/sub-centers/'    // Legacy alternative
+        '/subcenters/',         // Primary production endpoint
+        '/sub-centers/',        // Alternative format (fuel app uses this as alias)
       ];
       
       let data = [];
@@ -855,153 +849,6 @@ const BookDispatchManagement: FC = () => {
     // For now, use browser's print to PDF functionality
     message.success('Use browser Print → Save as PDF to download the dispatch note');
     generateDispatchPDF(dispatch);
-  };
-
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchDispatches();
-    fetchAvailableBooks();
-    fetchSubCenters();
-    generateNextDispatchNumber();
-  }, []);
-
-  const fetchDispatches = async () => {
-    setLoading(true);
-    try {
-      const response = await apiClient.get('/dispatches/');
-      const data = response.data;
-      
-      // Handle both paginated and direct array responses
-      const dispatches = data.results || data;
-      
-      if (Array.isArray(dispatches)) {
-        // Map backend data to frontend format
-        const mappedDispatches = dispatches.map((dispatch: any) => ({
-          id: String(dispatch.id),
-          dispatchId: `DSP-${new Date(dispatch.dispatch_date).getFullYear()}-${String(new Date(dispatch.dispatch_date).getMonth() + 1).padStart(2, '0')}-${String(dispatch.id).padStart(4, '0')}`,
-          subCenterId: dispatch.to_center?.id || '',
-          subCenterName: dispatch.to_center?.name || 'Unknown Center',
-          dispatchedBy: dispatch.dispatched_by?.first_name && dispatch.dispatched_by?.last_name 
-            ? `${dispatch.dispatched_by.first_name} ${dispatch.dispatched_by.last_name}` 
-            : 'System User',
-          dispatchedDate: new Date(dispatch.dispatch_date).toISOString().split('T')[0],
-          dispatchedTime: new Date(dispatch.dispatch_date).toTimeString().split(' ')[0],
-          books: dispatch.books?.map((book: any) => ({
-            id: String(book.id),
-            bookId: book.book_number || `BK-${book.id}`,
-            boxId: book.box?.box_code || 'Unknown Box',
-            fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
-            couponAmount: 20 as const, // Default
-            firstCouponId: book.first_coupon_number || '',
-            lastCouponId: book.last_coupon_number || '',
-            numberOfCoupons: 10, // Default coupons per book
-            value: 10 * 37.95, // Calculate based on current fuel price
-            pricePerLitre: 37.95,
-          })) || [],
-          totalBooks: dispatch.book_count || 0,
-          totalCoupons: (dispatch.book_count || 0) * 10,
-          totalValue: (dispatch.book_count || 0) * 10 * 37.95,
-          status: mapBackendStatus(dispatch.status),
-          receivedDate: dispatch.received_date ? new Date(dispatch.received_date).toISOString().split('T')[0] : undefined,
-          notes: dispatch.notes || '',
-          trackingNumber: `TRK-${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}${Date.now().toString().slice(-4)}`,
-        }));
-        
-        setDispatches(mappedDispatches);
-      } else {
-        console.warn('No dispatches data received from API');
-        setDispatches([]);
-      }
-    } catch (error) {
-      console.error('Error fetching dispatches:', error);
-      setDispatches([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAvailableBooks = async () => {
-    try {
-      const response = await apiClient.get('/books/');
-      const data = response.data;
-      
-      // Handle both paginated and direct array responses
-      const books = data.results || data;
-      
-      if (Array.isArray(books)) {
-        // Filter for available books and map to frontend format
-        const availableBooks = books.filter((book: any) => !book.is_assigned).map((book: any) => ({
-          key: String(book.id),
-          bookId: book.book_number || `BK-${book.id}`,
-          boxId: book.box?.box_code || 'Unknown Box',
-          fuelType: 'DIESEL' as const, // Default - backend doesn't have this field yet
-          couponAmount: 20 as const, // Default
-          firstCouponId: book.first_coupon_number || '',
-          lastCouponId: book.last_coupon_number || '',
-          numberOfCoupons: 10, // Default coupons per book
-          value: 10 * 37.95, // Calculate based on current fuel price
-          pricePerLitre: 37.95,
-          status: 'AVAILABLE' as const,
-        }));
-        
-        setAvailableBooks(availableBooks);
-      } else {
-        console.warn('No books data received from API');
-        setAvailableBooks([]);
-      }
-    } catch (error) {
-      console.error('Error fetching available books:', error);
-      setAvailableBooks([]);
-    }
-  };
-
-  const fetchSubCenters = async () => {
-    try {
-      const response = await apiClient.get('/subcenters/');
-      const data = response.data;
-      
-      // Handle both paginated and direct array responses
-      const subcenters = data.results || data;
-      
-      if (Array.isArray(subcenters)) {
-        // Map backend data to frontend format
-        const mappedSubCenters = subcenters.map((subcenter: any) => ({
-          id: String(subcenter.id),
-          name: subcenter.name,
-          location: subcenter.location || 'Unknown Location',
-          officerName: subcenter.officer_in_charge?.first_name && subcenter.officer_in_charge?.last_name 
-            ? `${subcenter.officer_in_charge.first_name} ${subcenter.officer_in_charge.last_name}` 
-            : 'Unknown Officer',
-          phone: subcenter.contact_phone || '',
-          email: subcenter.contact_email || '',
-          status: 'ACTIVE' as const, // Default status
-        }));
-        
-        setSubCenters(mappedSubCenters);
-      } else {
-        console.warn('No subcenters data received from API');
-        setSubCenters([]);
-      }
-    } catch (error) {
-      console.error('Error fetching sub centers:', error);
-      setSubCenters([]);
-    }
-  };
-
-  const generateNextDispatchNumber = () => {
-    const year = new Date().getFullYear();
-    const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
-    const lastDispatch = dispatches
-      .filter(dispatch => dispatch.dispatchId.includes(`${year}-${month}`))
-      .sort((a, b) => b.dispatchId.localeCompare(a.dispatchId))[0];
-    
-    let nextNumber = 1;
-    if (lastDispatch) {
-      const lastNumber = parseInt(lastDispatch.dispatchId.split('-')[3]) || 0;
-      nextNumber = lastNumber + 1;
-    }
-    
-    setNextDispatchNumber(`DSP-${year}-${month}-${nextNumber.toString().padStart(4, '0')}`);
   };
 
   // Form handlers
