@@ -278,7 +278,6 @@ const BookDispatchManagement: FC = () => {
         // Additional metadata for enhanced display
         createdAt: b.created_at ?? b.createdAt,
         isGenerated: Boolean(b.is_generated ?? b.isGenerated ?? false),
-        verifiedAt: b.verified_at ?? b.verifiedAt,
       }));
 
       console.log('📊 Books summary:', {
@@ -2399,15 +2398,6 @@ const BookDispatchManagement: FC = () => {
                     <Text strong style={{ color: '#52c41a' }}>ZWG {selectedBookForDetails.value.toLocaleString()}</Text>
                   </Descriptions.Item>
                 </Descriptions>
-              </div>
-                        <Text style={{ fontSize: '10px', fontFamily: 'monospace' }}>
-                          <strong>#{index + 1}</strong><br />
-                          {serial}
-                        </Text>
-                      </Card>
-                    </Col>
-                  ))}
-                </Row>
               </div>
             )}
 
