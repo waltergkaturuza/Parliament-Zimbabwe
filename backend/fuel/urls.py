@@ -106,6 +106,14 @@ try:
         change_password, mark_all_notifications_read, subcenter_statistics,
         dynamic_allocation, subcenters_stats,
         
+        # NEW: Nested subcenter endpoint views
+        subcenter_statistics_detail_view, subcenter_recent_activity_view,
+        subcenter_statistics_list_view, subcenter_overview_view,
+        analytics_subcenter_distribution_timeline, analytics_top_programs_consumption,
+        
+        # NEW: Dispatcher views
+        dispatcher_view, dispatch_page_config_view,
+        
         # Existing ViewSets
         UserViewSet, SubCenterViewSet, BoxViewSet, BookViewSet, CouponViewSet,
         
@@ -121,7 +129,7 @@ try:
         FuelRequirementConfigurationViewSet,
         
         # Dispatch and allocation ViewSets
-        BookDispatchViewSet, CouponAllocationViewSet,
+        BookDispatchViewSet, CouponAllocationViewSet, CouponDistributionViewSet,
         
         # System management ViewSets
         SystemAlertViewSet, AuditLogViewSet,
@@ -130,7 +138,7 @@ try:
         test_business_central_connection,
         
         # CORS test views
-        cors_test, health_check,
+        cors_test, health_check, vehicle_makes,
     )
 except ImportError as e:
     print(f"Import error in fuel/urls.py: {e}")
@@ -199,6 +207,7 @@ _maybe_register('SubCenterViewSet', r'sub-centers', 'subcenter-alias')  # Alias 
 _maybe_register('BoxViewSet', r'boxes', 'box')
 _maybe_register('BookViewSet', r'books', 'book')
 _maybe_register('CouponViewSet', r'coupons', 'coupon')
+_maybe_register('CouponDistributionViewSet', r'distributions', 'distribution')
 
 # Dispatch and allocation management
 _maybe_register('BookDispatchViewSet', r'dispatches', 'dispatch')
@@ -296,6 +305,18 @@ urlpatterns = [
     path('subcenter/statistics/', lazy_api_view('subcenter_statistics_list_view'), name='subcenter-statistics-list'),
     path('subcenter/overview/', lazy_api_view('subcenter_overview_view'), name='subcenter-overview'),
     
+    # Nested subcenter endpoints that frontend expects
+    path('subcenters/<int:subcenter_id>/statistics/', lazy_api_view('subcenter_statistics_detail_view'), name='subcenter-statistics-detail'),
+    path('subcenters/<int:subcenter_id>/recent_activity/', lazy_api_view('subcenter_recent_activity_view'), name='subcenter-recent-activity'),
+    
+    # Analytics endpoints for subcenter dashboard  
+    path('analytics/subcenter-distribution-timeline/', lazy_api_view('analytics_subcenter_distribution_timeline'), name='analytics-subcenter-distribution-timeline'),
+    path('analytics/top-programs-consumption/', lazy_api_view('analytics_top_programs_consumption'), name='analytics-top-programs-consumption'),
+    
+    # Dispatcher endpoints
+    path('dispatchers/', lazy_api_view('dispatcher_view'), name='dispatchers-list'),
+    path('dispatch-page-config/', lazy_api_view('dispatch_page_config_view'), name='dispatch-page-config'),
+    
     # Users endpoints with role filtering
     path('users/me/', lazy_viewset_action('UserViewSet', {'get': 'me'}), name='user-me'),
     path('users/stats/', lazy_viewset_action('UserViewSet', {'get': 'stats'}), name='user-stats'),
@@ -312,6 +333,9 @@ urlpatterns = [
     
     # Dynamic allocation endpoint
     path('dynamic-allocation/', lazy_view('dynamic_allocation'), name='dynamic-allocation'),
+    
+    # Vehicle makes endpoint
+    path('vehicle-makes/', lazy_view('vehicle_makes'), name='vehicle-makes'),
     
     # Router endpoints for missing paths
     path('subcenters/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='subcenters-list'),

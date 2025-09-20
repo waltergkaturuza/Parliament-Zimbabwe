@@ -35,7 +35,7 @@ const navItems = [
   { path: '/users', text: 'User Management', icon: <PeopleIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER'] },
   { path: '/subcenters', text: 'Sub Centers', icon: <StoreIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'AUDITOR'] },
   { path: '/coupons', text: 'Coupons', icon: <LocalGasStationIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'AUDITOR'] },
-  { path: '/boxes', text: 'Boxes', icon: <InventoryIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'AUDITOR'] },
+  { path: '/batches', text: 'Batches', icon: <InventoryIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'AUDITOR'] },
   { path: '/books', text: 'Books', icon: <InventoryIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'AUDITOR'] },
   { path: '/handovers', text: 'Handovers', icon: <SwapHorizIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'AUDITOR'] },
   { path: '/fuel-transactions', text: 'Fuel Transactions', icon: <LocalGasStationIcon />, roles: ['SUPER_ADMIN', 'MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'BENEFICIARY'] },

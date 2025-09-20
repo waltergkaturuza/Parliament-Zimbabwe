@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { CheckCircle, AlertCircle, Calculator, BookOpen, Fuel, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import petrotradeApi, { PetroTradeBoxRequest } from '@/api/petrotrade';
+import petrotradeApi, { PetroTradeBatchRequest } from '@/api/petrotrade';
 
 interface SerialInfo {
   prefix: string;
@@ -100,12 +100,12 @@ export default function PetroTradeSerialGenerator() {
     }
   }, [firstSerial, lastSerial, denomination, couponsPerBook]);
 
-  const handleCreateBox = async () => {
+  const handleCreateBatch = async () => {
     if (!isValid || isCreating) return;
     
     setIsCreating(true);
     
-    const payload: PetroTradeBoxRequest = {
+    const payload: PetroTradeBatchRequest = {
       first_coupon: firstSerial,
       last_coupon: lastSerial,
       fuel_type: fuelType as 'PETROL' | 'DIESEL',
@@ -115,22 +115,22 @@ export default function PetroTradeSerialGenerator() {
     };
     
     try {
-      const response = await petrotradeApi.createBox(payload);
+      const response = await petrotradeApi.createBatch(payload);
       
       toast({
         title: "Success!",
-        description: `PetroTrade box created with ${response.box.total_books} books and ${response.box.coupons_created} coupons.`,
+        description: `PetroTrade batch created with ${response.batch.total_books} books and ${response.batch.coupons_created} coupons.`,
       });
       
       // Reset form or redirect
-      console.log('PetroTrade box created:', response);
+      console.log('PetroTrade batch created:', response);
       
     } catch (error: any) {
-      console.error('Error creating box:', error);
+      console.error('Error creating batch:', error);
       
       const errorMessage = error.response?.data?.error || 
                           error.message || 
-                          'Failed to create PetroTrade box. Please try again.';
+                          'Failed to create PetroTrade batch. Please try again.';
       
       toast({
         title: "Error",
@@ -164,7 +164,7 @@ export default function PetroTradeSerialGenerator() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Fuel className="w-5 h-5" />
-            PetroTrade Coupon Box Generator
+            PetroTrade Coupon Batch Generator
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -333,17 +333,17 @@ export default function PetroTradeSerialGenerator() {
           {/* Action Button */}
           <div className="flex justify-end">
             <Button 
-              onClick={handleCreateBox}
+              onClick={handleCreateBatch}
               disabled={!isValid || isCreating}
               size="lg"
             >
               {isCreating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating Box...
+                  Creating Batch...
                 </>
               ) : (
-                'Create PetroTrade Box'
+                'Create PetroTrade Batch'
               )}
             </Button>
           </div>

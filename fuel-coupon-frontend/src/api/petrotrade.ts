@@ -1,6 +1,6 @@
 import apiClient from './index';
 
-export interface PetroTradeBoxRequest {
+export interface PetroTradeBatchRequest {
   first_coupon: string;
   last_coupon: string;
   fuel_type: 'PETROL' | 'DIESEL';
@@ -9,11 +9,11 @@ export interface PetroTradeBoxRequest {
   create_coupons: boolean;
 }
 
-export interface PetroTradeBoxResponse {
+export interface PetroTradeBatchResponse {
   message: string;
-  box: {
+  batch: {
     id: number;
-    box_code: string;
+    batch_code: string;
     fuel_type: string;
     denomination: number;
     first_coupon: string;
@@ -47,9 +47,9 @@ export interface BookRange {
 
 export const petrotradeApi = {
   /**
-   * Create a new PetroTrade box with sequential coupon serials
+   * Create a new PetroTrade batch with sequential coupon serials
    */
-  createBox: async (data: PetroTradeBoxRequest): Promise<PetroTradeBoxResponse> => {
+  createBatch: async (data: PetroTradeBatchRequest): Promise<PetroTradeBatchResponse> => {
     const response = await apiClient.post('/boxes/create_petrotrade_box/', data);
     return response.data;
   },

@@ -24,11 +24,11 @@ export interface User {
     is_active: boolean;
   }
   
-  export interface Box {
+  export interface Batch {
     // Core identification
     id: number;
-    box_code: string;
-    boxId?: string;      // Frontend alias for box_code
+    batch_code: string;
+    batchId?: string;      // Frontend alias for batch_code
     barcode?: string;
     
     // Supply chain
@@ -83,7 +83,7 @@ export interface User {
   export interface Book {
     id: number;
     book_number: string;
-    box: Box;
+    batch: Batch;
     first_coupon_number: string;
     last_coupon_number: string;
     is_assigned: boolean;

@@ -3,7 +3,7 @@ import apiClient from './index';
 
 // TypeScript interfaces for centralized book generation
 export interface BookGenerationRequest {
-  box_id: number;
+  batch_id: number;
   first_serial: string;
   last_serial: string;
   books_per_box?: number;
@@ -12,7 +12,7 @@ export interface BookGenerationRequest {
 }
 
 export interface ValidationRequest {
-  box_id: number;
+  batch_id: number;
   first_serial: string;
   last_serial: string;
   books_per_box?: number;
@@ -32,9 +32,9 @@ export interface ValidationResult {
   errors: string[];
   warnings: string[];
   plan: {
-    box: {
+    batch: {
       id: number;
-      box_code: string;
+      batch_code: string;
       fuel_type: string;
       denomination: number;
     };
@@ -68,7 +68,7 @@ export interface GenerationResult {
   warnings?: string[];
 }
 
-export interface BoxGenerationStatus {
+export interface BatchGenerationStatus {
   box_id: number;
   box_code: string;
   has_books: boolean;
@@ -91,7 +91,7 @@ export interface BoxGenerationStatus {
 // Centralized Book Generation API Service
 export const bookGenerationAPI = {
   /**
-   * Generate books and coupons for a box using centralized service
+   * Generate books and coupons for a batch using centralized service
    * This is the SINGLE SOURCE OF TRUTH for book generation
    */
   generateBooks: async (data: BookGenerationRequest): Promise<GenerationResult> => {
@@ -105,14 +105,14 @@ export const bookGenerationAPI = {
   },
 
   /**
-   * Generate books for a specific box (alternative endpoint)
+   * Generate books for a specific batch (alternative endpoint)
    */
-  generateBooksForBox: async (boxId: number, data: Omit<BookGenerationRequest, 'box_id'>): Promise<GenerationResult> => {
+  generateBooksForBatch: async (batchId: number, data: Omit<BookGenerationRequest, 'batch_id'>): Promise<GenerationResult> => {
     try {
-      const response = await apiClient.post(`/boxes/${boxId}/generate_books/`, data);
+      const response = await apiClient.post(`/batches/${batchId}/generate_books/`, data);
       return response.data;
     } catch (error: any) {
-      console.error('Error generating books for box:', error);
+      console.error('Error generating books for batch:', error);
       throw error;
     }
   },
@@ -131,14 +131,14 @@ export const bookGenerationAPI = {
   },
 
   /**
-   * Get the generation status of a box
+   * Get the generation status of a batch
    */
-  getBoxStatus: async (boxId: number): Promise<BoxGenerationStatus> => {
+  getBatchStatus: async (batchId: number): Promise<BatchGenerationStatus> => {
     try {
-      const response = await apiClient.get(`/books/box_generation_status/?box_id=${boxId}`);
+      const response = await apiClient.get(`/books/batch_generation_status/?batch_id=${batchId}`);
       return response.data;
     } catch (error: any) {
-      console.error('Error getting box generation status:', error);
+      console.error('Error getting batch generation status:', error);
       throw error;
     }
   },

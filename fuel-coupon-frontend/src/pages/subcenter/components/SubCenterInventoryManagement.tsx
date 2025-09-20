@@ -57,7 +57,7 @@ interface IncomingBook {
   id: string;
   bookId: string;
   bookNumber: string;
-  boxId: string;
+  batchId: string;
   fuelType: 'PETROL' | 'DIESEL';
   couponAmount: 5 | 20;
   firstCouponSerial: string;
@@ -218,7 +218,7 @@ const SubCenterInventoryManagement: FC = () => {
           id: String(book.id),
           bookId: `BOOK${String(book.id).padStart(3, '0')}`,
           bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
-          boxId: book.box?.box_code || `FCB-2024-${String(book.box_id || book.id).padStart(4, '0')}`,
+          batchId: book.batch?.batch_code || `FCB-2024-${String(book.batch_id || book.id).padStart(4, '0')}`,
           fuelType: (book.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
           couponAmount: (book.coupon_amount || (book.fuel_type === 'PETROL' ? 20 : 5)) as 5 | 20,
           firstCouponSerial: book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000001`,

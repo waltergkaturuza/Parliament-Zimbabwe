@@ -5204,6 +5204,49 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
 #             'period': f'{calendar.month_name[month]} {year}'
 #         })
 
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get fuel entitlement statistics"""
+        from django.db.models import Sum, Count, Q
+        from django.utils import timezone
+        
+        queryset = self.get_queryset()
+        
+        # Basic counts
+        total_entitlements = queryset.count()
+        pending_entitlements = queryset.filter(status='PENDING').count()
+        approved_entitlements = queryset.filter(status='APPROVED').count()
+        expired_entitlements = queryset.filter(
+            period_end__lt=timezone.now().date(),
+            status__in=['PENDING', 'APPROVED', 'PARTIALLY_ALLOCATED']
+        ).count()
+        
+        # Aggregate sums  
+        litres_stats = queryset.aggregate(
+            total_litres_entitled=Sum('litres_entitled'),
+            total_litres_allocated=Sum('litres_allocated')
+        )
+        
+        total_litres_entitled = litres_stats['total_litres_entitled'] or 0
+        total_litres_allocated = litres_stats['total_litres_allocated'] or 0
+        
+        # Calculate allocation percentage
+        allocation_percentage = 0
+        if total_litres_entitled > 0:
+            allocation_percentage = (total_litres_allocated / total_litres_entitled) * 100
+        
+        stats = {
+            'total_entitlements': total_entitlements,
+            'pending_entitlements': pending_entitlements,
+            'approved_entitlements': approved_entitlements,
+            'expired_entitlements': expired_entitlements,
+            'total_litres_entitled': float(total_litres_entitled),
+            'total_litres_allocated': float(total_litres_allocated),
+            'allocation_percentage': round(allocation_percentage, 2)
+        }
+        
+        return Response(stats)
+
 
 # ========================= SUBCENTER MANAGEMENT VIEWSETS =========================
 
@@ -7446,6 +7489,46 @@ def cors_test(request):
     
     return Response(response_data)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def vehicle_makes(request):
+    """
+    Get list of unique vehicle makes from pool vehicles
+    """
+    from django.db.models import Q
+    
+    # Get unique makes from PoolVehicle model
+    makes = PoolVehicle.objects.values_list('make', flat=True).distinct().exclude(
+        Q(make__isnull=True) | Q(make__exact='')
+    ).order_by('make')
+    
+    # Also get makes from BeneficiaryProfile model if they exist
+    try:
+        from .models import BeneficiaryProfile
+        beneficiary_makes = BeneficiaryProfile.objects.values_list('vehicle_make', flat=True).distinct().exclude(
+            Q(vehicle_make__isnull=True) | Q(vehicle_make__exact='')
+        )
+        
+        # Combine and deduplicate
+        all_makes = set(makes) | set(beneficiary_makes)
+        makes = sorted(list(all_makes))
+    except:
+        # If BeneficiaryProfile doesn't have vehicle_make field, just use pool vehicle makes
+        makes = list(makes)
+    
+    # Format as expected by frontend
+    vehicle_makes_data = [
+        {
+            'id': i + 1,
+            'name': make,
+            'make': make
+        }
+        for i, make in enumerate(makes)
+    ]
+    
+    return Response(vehicle_makes_data)
+
+
 @csrf_exempt
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -7499,7 +7582,7 @@ class FuelDataViewSet(viewsets.ModelViewSet):
 class CouponDistributionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing coupon distributions"""
     queryset = CouponDistribution.objects.all()
-    serializer_class = CouponSerializer  # Using CouponSerializer as fallback
+    serializer_class = CouponDistributionSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -8456,3 +8539,467 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
                 'error': str(e),
                 'message': 'Failed to create fuel entitlement'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# NESTED SUBCENTER ENDPOINT VIEWS for specific subcenter statistics and activity
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_statistics_detail_view(request, subcenter_id):
+    """
+    Get detailed statistics for a specific subcenter
+    Frontend expects: /api/v1/subcenters/{id}/statistics/
+    """
+    try:
+        user = request.user
+        
+        # Get the specific subcenter
+        try:
+            subcenter = SubCenter.objects.get(id=subcenter_id)
+        except SubCenter.DoesNotExist:
+            return Response(
+                {'error': f'Subcenter with ID {subcenter_id} not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check permissions - users can only access their own subcenter unless admin
+        if user.role == 'SUB_CENTER' and user.sub_center and user.sub_center.id != subcenter_id:
+            return Response(
+                {'error': 'Access denied to this subcenter'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Calculate detailed statistics for this subcenter
+        total_boxes = Box.objects.filter(assigned_to=subcenter).count()
+        total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+        total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
+        used_coupons = Coupon.objects.filter(
+            book__box__assigned_to=subcenter, 
+            status='USED'
+        ).count()
+        
+        # Dispatches to this subcenter
+        received_dispatches = BookDispatch.objects.filter(
+            destination_subcenter=subcenter
+        ).count()
+        
+        pending_dispatches = BookDispatch.objects.filter(
+            destination_subcenter=subcenter,
+            status='PENDING'
+        ).count()
+        
+        # Recent activity (last 30 days)
+        recent_transactions = FuelTransaction.objects.filter(
+            coupon__book__box__assigned_to=subcenter,
+            timestamp__gte=timezone.now() - timedelta(days=30)
+        ).count()
+        
+        # Active members
+        active_members = User.objects.filter(
+            sub_center=subcenter,
+            is_active=True
+        ).count()
+        
+        # Revenue/value calculations
+        total_value = Coupon.objects.filter(
+            book__box__assigned_to=subcenter
+        ).aggregate(
+            total=Sum('denomination')
+        )['total'] or 0
+        
+        used_value = Coupon.objects.filter(
+            book__box__assigned_to=subcenter,
+            status='USED'
+        ).aggregate(
+            total=Sum('denomination')
+        )['total'] or 0
+        
+        statistics = {
+            'subcenter_id': subcenter.id,
+            'subcenter_name': subcenter.name,
+            'subcenter_code': subcenter.code or f'SC-{subcenter.id}',
+            'location': {
+                'district': subcenter.district or 'Not specified',
+                'province': subcenter.province or 'Not specified'
+            },
+            'inventory': {
+                'total_boxes': total_boxes,
+                'total_books': total_books,
+                'total_coupons': total_coupons,
+                'used_coupons': used_coupons,
+                'available_coupons': total_coupons - used_coupons,
+                'utilization_rate': round((used_coupons / total_coupons * 100) if total_coupons > 0 else 0, 2)
+            },
+            'dispatches': {
+                'total_received': received_dispatches,
+                'pending': pending_dispatches,
+                'completed': received_dispatches - pending_dispatches
+            },
+            'activity': {
+                'recent_transactions': recent_transactions,
+                'active_members': active_members
+            },
+            'financial': {
+                'total_value': float(total_value),
+                'used_value': float(used_value),
+                'available_value': float(total_value - used_value)
+            },
+            'last_updated': timezone.now().isoformat()
+        }
+        
+        return Response(statistics)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve subcenter statistics: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_recent_activity_view(request, subcenter_id):
+    """
+    Get recent activity for a specific subcenter
+    Frontend expects: /api/v1/subcenters/{id}/recent_activity/
+    """
+    try:
+        user = request.user
+        
+        # Get the specific subcenter
+        try:
+            subcenter = SubCenter.objects.get(id=subcenter_id)
+        except SubCenter.DoesNotExist:
+            return Response(
+                {'error': f'Subcenter with ID {subcenter_id} not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check permissions
+        if user.role == 'SUB_CENTER' and user.sub_center and user.sub_center.id != subcenter_id:
+            return Response(
+                {'error': 'Access denied to this subcenter'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get recent activity (last 30 days by default)
+        days = int(request.GET.get('days', 30))
+        since_date = timezone.now() - timedelta(days=days)
+        
+        # Recent transactions
+        recent_transactions = FuelTransaction.objects.filter(
+            coupon__book__box__assigned_to=subcenter,
+            timestamp__gte=since_date
+        ).order_by('-timestamp')[:20]
+        
+        # Recent dispatches
+        recent_dispatches = BookDispatch.objects.filter(
+            destination_subcenter=subcenter,
+            created_at__gte=since_date
+        ).order_by('-created_at')[:10]
+        
+        # Recent user activity
+        recent_logins = User.objects.filter(
+            sub_center=subcenter,
+            last_login__gte=since_date
+        ).order_by('-last_login')[:10]
+        
+        # Format activity data
+        activity_data = {
+            'subcenter_id': subcenter.id,
+            'subcenter_name': subcenter.name,
+            'period_days': days,
+            'since_date': since_date.isoformat(),
+            'transactions': [
+                {
+                    'id': tx.id,
+                    'timestamp': tx.timestamp.isoformat(),
+                    'amount': float(tx.amount),
+                    'coupon_id': tx.coupon.id if tx.coupon else None,
+                    'beneficiary': tx.beneficiary.get_full_name() if tx.beneficiary else 'Unknown',
+                    'type': 'FUEL_TRANSACTION'
+                } for tx in recent_transactions
+            ],
+            'dispatches': [
+                {
+                    'id': dispatch.id,
+                    'created_at': dispatch.created_at.isoformat(),
+                    'from_subcenter': dispatch.source_subcenter.name if dispatch.source_subcenter else 'Central',
+                    'books_count': dispatch.books.count() if hasattr(dispatch, 'books') else 0,
+                    'status': dispatch.status,
+                    'type': 'DISPATCH'
+                } for dispatch in recent_dispatches
+            ],
+            'user_activity': [
+                {
+                    'id': user.id,
+                    'username': user.username,
+                    'full_name': user.get_full_name(),
+                    'last_login': user.last_login.isoformat() if user.last_login else None,
+                    'role': user.role,
+                    'type': 'USER_LOGIN'
+                } for user in recent_logins
+            ],
+            'summary': {
+                'total_transactions': len(recent_transactions),
+                'total_dispatches': len(recent_dispatches),
+                'active_users': len(recent_logins)
+            }
+        }
+        
+        return Response(activity_data)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve subcenter activity: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ADDITIONAL ANALYTICS VIEWS for subcenter dashboard
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_subcenter_distribution_timeline(request):
+    """
+    Analytics endpoint for subcenter distribution timeline
+    """
+    try:
+        # Get timeline data for subcenter distributions
+        end_date = timezone.now()
+        start_date = end_date - timedelta(days=30)
+        
+        # Get dispatches by date
+        dispatches_by_date = BookDispatch.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).extra(
+            select={'date': 'DATE(created_at)'}
+        ).values('date').annotate(
+            count=Count('id'),
+            total_books=Count('books')
+        ).order_by('date')
+        
+        timeline_data = [
+            {
+                'date': item['date'].isoformat() if item['date'] else None,
+                'dispatches': item['count'],
+                'books_dispatched': item['total_books']
+            } for item in dispatches_by_date
+        ]
+        
+        return Response({
+            'timeline': timeline_data,
+            'period': {
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'days': 30
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve distribution timeline: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def analytics_top_programs_consumption(request):
+    """
+    Analytics endpoint for top programs consumption
+    """
+    try:
+        # Get top programs by consumption
+        # Assuming programs are linked to beneficiaries and their fuel usage
+        programs_data = Program.objects.annotate(
+            total_consumption=Sum('beneficiaryprofile__fuelentitlement__monthly_allocation'),
+            beneficiary_count=Count('beneficiaryprofile')
+        ).order_by('-total_consumption')[:10]
+        
+        consumption_data = [
+            {
+                'program_id': program.id,
+                'program_name': program.name,
+                'description': program.description or '',
+                'total_consumption': float(program.total_consumption or 0),
+                'beneficiary_count': program.beneficiary_count,
+                'average_consumption': float((program.total_consumption or 0) / max(program.beneficiary_count, 1))
+            } for program in programs_data
+        ]
+        
+        return Response({
+            'top_programs': consumption_data,
+            'total_programs': Program.objects.count(),
+            'analysis_date': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve programs consumption: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# LIST VIEWS for subcenter statistics and overview
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_statistics_list_view(request):
+    """
+    List view for all subcenter statistics
+    Frontend expects: /api/v1/subcenter/statistics/
+    """
+    # This can reuse the existing subcenter_statistics function
+    return subcenter_statistics(request)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_overview_view(request):
+    """
+    Overview of all subcenters with summary data
+    Frontend expects: /api/v1/subcenter/overview/
+    """
+    try:
+        user = request.user
+        
+        # Get subcenters based on user role
+        if user.role == 'SUB_CENTER' and user.sub_center:
+            subcenters = SubCenter.objects.filter(id=user.sub_center.id)
+        else:
+            subcenters = SubCenter.objects.all()
+        
+        overview_data = []
+        
+        for subcenter in subcenters:
+            # Quick summary stats
+            total_books = Book.objects.filter(box__assigned_to=subcenter).count()
+            total_coupons = Coupon.objects.filter(book__box__assigned_to=subcenter).count()
+            used_coupons = Coupon.objects.filter(
+                book__box__assigned_to=subcenter, 
+                status='USED'
+            ).count()
+            
+            recent_activity = FuelTransaction.objects.filter(
+                coupon__book__box__assigned_to=subcenter,
+                timestamp__gte=timezone.now() - timedelta(days=7)
+            ).count()
+            
+            overview_data.append({
+                'id': subcenter.id,
+                'name': subcenter.name,
+                'code': subcenter.code or f'SC-{subcenter.id}',
+                'district': subcenter.district or 'Not specified',
+                'province': subcenter.province or 'Not specified',
+                'summary': {
+                    'total_books': total_books,
+                    'total_coupons': total_coupons,
+                    'available_coupons': total_coupons - used_coupons,
+                    'utilization_rate': round((used_coupons / total_coupons * 100) if total_coupons > 0 else 0, 1),
+                    'recent_activity': recent_activity
+                }
+            })
+        
+        return Response({
+            'subcenters': overview_data,
+            'total_count': len(overview_data),
+            'last_updated': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve subcenter overview: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# DISPATCHER VIEW for handling dispatcher API calls
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dispatcher_view(request):
+    """
+    List dispatchers (users who can create dispatches)
+    Frontend expects: /api/v1/dispatchers/
+    """
+    try:
+        # Get users who can dispatch (admin, managers, or specific roles)
+        dispatchers = User.objects.filter(
+            Q(role='ADMIN') | Q(role='MANAGER') | Q(role='SUB_CENTER'),
+            is_active=True
+        ).select_related('sub_center')
+        
+        dispatcher_data = [
+            {
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.get_full_name(),
+                'email': user.email,
+                'role': user.role,
+                'sub_center': {
+                    'id': user.sub_center.id if user.sub_center else None,
+                    'name': user.sub_center.name if user.sub_center else None
+                } if user.sub_center else None,
+                'is_active': user.is_active,
+                'last_login': user.last_login.isoformat() if user.last_login else None
+            } for user in dispatchers
+        ]
+        
+        return Response({
+            'dispatchers': dispatcher_data,
+            'count': len(dispatcher_data),
+            'last_updated': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve dispatchers: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dispatch_page_config_view(request):
+    """
+    Configuration data for dispatch page
+    Frontend expects: /api/v1/dispatch-page-config/
+    """
+    try:
+        # Get available subcenters for dispatch targets
+        subcenters = SubCenter.objects.filter(is_active=True)
+        
+        # Get available books for dispatch
+        available_books = Book.objects.filter(
+            status='AVAILABLE',
+            box__isnull=False
+        ).select_related('box')
+        
+        config_data = {
+            'subcenters': [
+                {
+                    'id': sc.id,
+                    'name': sc.name,
+                    'code': sc.code or f'SC-{sc.id}',
+                    'district': sc.district,
+                    'province': sc.province
+                } for sc in subcenters
+            ],
+            'available_books': [
+                {
+                    'id': book.id,
+                    'book_number': book.book_number,
+                    'box_id': book.box.id if book.box else None,
+                    'box_number': book.box.box_number if book.box else None,
+                    'coupon_count': book.coupons.count()
+                } for book in available_books[:50]  # Limit to 50 for performance
+            ],
+            'dispatch_statuses': ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'],
+            'last_updated': timezone.now().isoformat()
+        }
+        
+        return Response(config_data)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to retrieve dispatch page config: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

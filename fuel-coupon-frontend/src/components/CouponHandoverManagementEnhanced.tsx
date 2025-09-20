@@ -978,7 +978,7 @@ const CouponHandoverManagementEnhanced: React.FC = () => {
                     width: 100
                   },
                   {
-                    title: 'Box Code',
+                    title: 'Batch Code',
                     dataIndex: 'boxCode',
                     key: 'boxCode',
                     width: 120

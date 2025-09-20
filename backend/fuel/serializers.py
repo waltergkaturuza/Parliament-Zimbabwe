@@ -127,7 +127,6 @@ if HarmonizedBeneficiaryProfile is None:
 
 class BookDispatchSerializer(serializers.ModelSerializer):
     """Enhanced serializer for book dispatch with intelligent coupon generation support"""
-    from_center = SimpleSubCenterSerializer(read_only=True)
     to_center = SimpleSubCenterSerializer(read_only=True)
     dispatched_by = SimpleUserSerializer(read_only=True)
     received_by = SimpleUserSerializer(read_only=True)
@@ -179,21 +178,13 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookDispatch
         fields = [
-            'id', 'dispatch_id', 'from_center', 'to_center', 'subcenter_name',
+            'id', 'dispatch_id', 'to_center', 'subcenter_name',
             'dispatched_by', 'received_by', 'books', 'total_books',
-            'dispatch_date', 'dispatched_date', 'dispatched_time',
-            'received_date', 'received_time', 'status', 'notes',
+            'dispatch_date', 'dispatched_date', 'dispatched_time', 'status',
             # Linkages
             'program', 'session',
-            # Enhanced fields
-            'generation_mode', 'transport_method', 'vehicle_number',
-            'driver_name', 'driver_phone', 'courier_service', 'tracking_number',
-            'receiver_signature', 'delivery_note', 'dispatch_notes',
-            'special_instructions', 'verification_checks', 'verification_notes',
-            'verified_by', 'verified_at',
-            
             # Calculated fields
-            'total_coupons', 'total_value', 'total_value_usd',
+            'total_coupons', 'total_value',
             'first_serial', 'last_serial'
         ]
         read_only_fields = [
@@ -2522,7 +2513,7 @@ class PoolVehicleSerializer(serializers.ModelSerializer):
                 'id': current_assignment.driver.id,
                 'full_name': current_assignment.driver.full_name,
                 'employee_id': getattr(current_assignment.driver, 'employee_id', ''),
-                'license_number': current_assignment.driver.license_number
+                'license_number': getattr(current_assignment.driver, 'license_number', '')
             }
         return None
     
@@ -3556,3 +3547,42 @@ class BookDispatchEnhancedSerializer(serializers.ModelSerializer):
     
     def get_status_display(self, obj):
         return obj.get_status_display() if hasattr(obj, 'get_status_display') else obj.status
+
+
+class SafeBookDispatchSerializer(serializers.ModelSerializer):
+    """Minimal, robust serializer using only fields that actually exist on BookDispatch.
+    Avoids ImproperlyConfigured errors due to referencing non-existent fields in the temp model.
+    """
+    dispatch_id = serializers.SerializerMethodField()
+    subcenter_name = serializers.CharField(source='to_center.name', read_only=True)
+    total_books = serializers.SerializerMethodField()
+    total_value = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookDispatch
+        fields = [
+            'id', 'dispatch_id', 'to_center', 'subcenter_name', 'dispatched_by', 'received_by',
+            'status', 'dispatch_date', 'first_serial', 'last_serial', 'total_coupons',
+            'program', 'session', 'total_books', 'total_value'
+        ]
+        read_only_fields = fields
+
+    def get_dispatch_id(self, obj):
+        return f"DSP-{obj.id}" if obj.id else "DSP-NEW"
+
+    def get_total_books(self, obj):
+        try:
+            return obj.books.count()
+        except Exception:
+            return 0
+
+    def get_total_value(self, obj):
+        try:
+            total = 0
+            for book in obj.books.all():
+                denom = getattr(getattr(book, 'box', None), 'denomination', 20) or 20
+                coupons = getattr(book, 'initial_coupon_count', 100) or 100
+                total += denom * coupons
+            return total
+        except Exception:
+            return 0

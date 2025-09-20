@@ -149,33 +149,6 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     dispatched_date = serializers.DateField(source='dispatch_date', read_only=True)
     dispatched_time = serializers.TimeField(source='dispatch_date', read_only=True)
     
-    # Generation mode and configuration
-    generation_mode = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    
-    # Transport and receipt details
-    transport_method = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    vehicle_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    driver_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    driver_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    courier_service = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    tracking_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    
-    # Receipt confirmation
-    receiver_signature = serializers.CharField(required=False, allow_blank=True)
-    received_date = serializers.DateField(source='received_date', required=False, allow_null=True)
-    received_time = serializers.TimeField(source='received_date', required=False, allow_null=True)
-    
-    # Documentation
-    delivery_note = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    dispatch_notes = serializers.CharField(source='notes', required=False, allow_blank=True)
-    special_instructions = serializers.CharField(required=False, allow_blank=True)
-    
-    # Verification
-    verification_checks = serializers.JSONField(required=False, default=list)
-    verification_notes = serializers.CharField(required=False, allow_blank=True)
-    verified_by = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    verified_at = serializers.DateTimeField(required=False, allow_null=True)
-    
     # Calculated fields
     total_coupons = serializers.SerializerMethodField()
     total_value = serializers.SerializerMethodField()
@@ -183,19 +156,11 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookDispatch
         fields = [
-            'id', 'dispatch_id', 'from_center', 'to_center', 'subcenter_name',
+            'id', 'dispatch_id', 'to_center', 'subcenter_name',
             'dispatched_by', 'received_by', 'books', 'total_books',
-            'dispatch_date', 'dispatched_date', 'dispatched_time',
-            'received_date', 'received_time', 'status', 'notes',
+            'dispatch_date', 'dispatched_date', 'dispatched_time', 'status',
             # Linkages
             'program', 'session',
-            # Enhanced fields
-            'generation_mode', 'transport_method', 'vehicle_number',
-            'driver_name', 'driver_phone', 'courier_service', 'tracking_number',
-            'receiver_signature', 'delivery_note', 'dispatch_notes',
-            'special_instructions', 'verification_checks', 'verification_notes',
-            'verified_by', 'verified_at',
-            
             # Calculated fields
             'total_coupons', 'total_value', 'total_value_usd',
             'first_serial', 'last_serial'
@@ -2938,22 +2903,22 @@ class FuelPriceSerializer(serializers.ModelSerializer):
     class Meta:
         model = FuelPrice
         fields = [
-            'id', 'fuel_type', 'price_usd_per_litre', 'price_zwg_per_litre',
-            'exchange_rate_usd_to_zwg', 'effective_from', 'effective_to',
-            'is_current', 'created_date', 'last_modified'
+            'id', 'fuel_type', 'price_per_litre_usd', 'price_per_litre_zwg',
+            'exchange_rate_usd_zwg', 'effective_date', 'expiry_date',
+            'is_active', 'created', 'modified'
         ]
-        read_only_fields = ['id', 'created_date', 'last_modified']
+        read_only_fields = ['id', 'created', 'modified']
 
     def validate(self, data):
         """Validate fuel price data"""
-        if data.get('effective_to') and data.get('effective_from'):
-            if data['effective_to'] <= data['effective_from']:
-                raise serializers.ValidationError("Effective to date must be after effective from date")
+        if data.get('expiry_date') and data.get('effective_date'):
+            if data['expiry_date'] <= data['effective_date']:
+                raise serializers.ValidationError("Expiry date must be after effective date")
         
-        if data.get('price_usd_per_litre', 0) <= 0:
+        if data.get('price_per_litre_usd', 0) <= 0:
             raise serializers.ValidationError("USD price must be greater than 0")
         
-        if data.get('exchange_rate_usd_to_zwg', 0) <= 0:
+        if data.get('exchange_rate_usd_zwg', 0) <= 0:
             raise serializers.ValidationError("Exchange rate must be greater than 0")
         
         return data

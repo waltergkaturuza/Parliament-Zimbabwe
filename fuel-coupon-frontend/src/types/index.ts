@@ -166,11 +166,11 @@ export interface SubCenter {
   updated_at: string;
 }
 
-export interface Box {
+export interface Batch {
   // Core identification
   id: string;
-  box_id: string;        // Main identifier
-  box_code?: string;     // Backend field name
+  batch_id: string;        // Main identifier
+  batch_code?: string;     // Backend field name
   barcode?: string;
   
   // Supply chain
@@ -223,7 +223,7 @@ export interface Book {
   book_id: string;
   number_of_coupons?: number;
   status: string;
-  box?: Box;
+  batch?: Batch;
   coupons?: Coupon[];
   created_at: string;
   updated_at: string;

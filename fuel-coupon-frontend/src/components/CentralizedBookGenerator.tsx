@@ -50,7 +50,7 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
 
   // Form data
   const [formData, setFormData] = useState<BookGenerationRequest>({
-    box_id: boxId,
+    batch_id: boxId,
     first_serial: '',
     last_serial: '',
     books_per_box: 10,
@@ -68,7 +68,7 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
       const requestData = {
         ...formData,
         ...values,
-        box_id: boxId
+        batch_id: boxId
       };
 
       // Frontend validation first
@@ -198,9 +198,9 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
         {validation.valid && validation.plan && (
           <Card title="📋 Generation Plan" style={{ marginBottom: 16 }}>
             <Descriptions column={2} bordered>
-              <Descriptions.Item label="Box Code">{validation.plan.box.box_code}</Descriptions.Item>
-              <Descriptions.Item label="Fuel Type">{validation.plan.box.fuel_type}</Descriptions.Item>
-              <Descriptions.Item label="Denomination">${validation.plan.box.denomination}</Descriptions.Item>
+              <Descriptions.Item label="Batch Code">{validation.plan.batch.batch_code}</Descriptions.Item>
+              <Descriptions.Item label="Fuel Type">{validation.plan.batch.fuel_type}</Descriptions.Item>
+              <Descriptions.Item label="Denomination">${validation.plan.batch.denomination}</Descriptions.Item>
               <Descriptions.Item label="Total Books">{validation.plan.total_books}</Descriptions.Item>
               <Descriptions.Item label="Total Coupons">{validation.plan.total_coupons}</Descriptions.Item>
               <Descriptions.Item label="Expected Coupons">{validation.plan.expected_coupons}</Descriptions.Item>
