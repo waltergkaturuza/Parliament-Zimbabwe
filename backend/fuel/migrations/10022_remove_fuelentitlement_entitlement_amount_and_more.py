@@ -27,11 +27,22 @@ def check_column_exists(table_name, column_name):
 def safe_add_field(apps, schema_editor, model_name, field_name, field):
     """Safely add a field only if it doesn't exist"""
     table_name = f"fuel_{model_name.lower()}"
-    if not check_column_exists(table_name, field_name):
+    
+    # Check for ForeignKey fields which create _id columns
+    db_column_name = field_name
+    if hasattr(field, 'remote_field') and field.remote_field:
+        db_column_name = f"{field_name}_id"
+    
+    if not check_column_exists(table_name, db_column_name):
         # Field doesn't exist, safe to add
         model = apps.get_model('fuel', model_name)
-        field.contribute_to_class(model, field_name)
-        schema_editor.add_field(model, field)
+        # Create a new field instance to avoid state conflicts
+        field_copy = field.__class__(**{
+            k: v for k, v in field.__dict__.items() 
+            if k not in ['creation_counter', 'model', 'name']
+        })
+        field_copy.set_attributes_from_name(field_name)
+        schema_editor.add_field(model, field_copy)
         print(f"Added field {field_name} to {model_name}")
     else:
         print(f"Field {field_name} already exists in {model_name}, skipping")
