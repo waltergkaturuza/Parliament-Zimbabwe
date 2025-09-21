@@ -4,7 +4,84 @@ import django.db.models.deletion
 import django.utils.timezone
 import fuel.validators
 from django.conf import settings
-from django.db import migrations, models
+from django.db import migrations, models, connection
+
+
+def check_column_exists(table_name, column_name):
+    """Check if a column exists in a table"""
+    with connection.cursor() as cursor:
+        # Different query for SQLite vs PostgreSQL
+        if connection.vendor == 'sqlite':
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [column[1] for column in cursor.fetchall()]
+            return column_name in columns
+        else:  # PostgreSQL
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM information_schema.columns 
+                WHERE table_name = %s AND column_name = %s
+            """, [table_name, column_name])
+            return cursor.fetchone()[0] > 0
+
+
+def safe_add_field(apps, schema_editor, model_name, field_name, field):
+    """Safely add a field only if it doesn't exist"""
+    table_name = f"fuel_{model_name.lower()}"
+    if not check_column_exists(table_name, field_name):
+        # Field doesn't exist, safe to add
+        model = apps.get_model('fuel', model_name)
+        field.contribute_to_class(model, field_name)
+        schema_editor.add_field(model, field)
+        print(f"Added field {field_name} to {model_name}")
+    else:
+        print(f"Field {field_name} already exists in {model_name}, skipping")
+
+
+def safe_remove_field(apps, schema_editor, model_name, field_name):
+    """Safely remove a field only if it exists"""
+    table_name = f"fuel_{model_name.lower()}"
+    if check_column_exists(table_name, field_name):
+        # Field exists, safe to remove
+        model = apps.get_model('fuel', model_name)
+        field = model._meta.get_field(field_name)
+        schema_editor.remove_field(model, field)
+        print(f"Removed field {field_name} from {model_name}")
+    else:
+        print(f"Field {field_name} doesn't exist in {model_name}, skipping")
+
+
+def add_book_fields_safely(apps, schema_editor):
+    """Safely add fields to Book model"""
+    safe_add_field(apps, schema_editor, 'Book', 'first_coupon_serial', 
+                   models.CharField(blank=True, help_text='First coupon serial in this book (e.g., PU006H1355101)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]))
+    safe_add_field(apps, schema_editor, 'Book', 'last_coupon_serial', 
+                   models.CharField(blank=True, help_text='Last coupon serial in this book (e.g., PU006H1355200)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]))
+    safe_add_field(apps, schema_editor, 'Book', 'is_generated',
+                   models.BooleanField(default=False, help_text='Whether this book was generated via the centralized service'))
+
+
+def add_box_fields_safely(apps, schema_editor):
+    """Safely add fields to Box model"""
+    safe_add_field(apps, schema_editor, 'Box', 'first_coupon_serial',
+                   models.CharField(blank=True, help_text='First coupon serial in the box (e.g., PU006H1355101)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]))
+    safe_add_field(apps, schema_editor, 'Box', 'last_coupon_serial',
+                   models.CharField(blank=True, help_text='Last coupon serial in the box (e.g., PU006H1356100)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]))
+    safe_add_field(apps, schema_editor, 'Box', 'total_books',
+                   models.IntegerField(blank=True, help_text='Total number of books that will be generated for this box', null=True))
+
+
+def remove_book_fields_safely(apps, schema_editor):
+    """Safely remove fields from Book model"""
+    safe_remove_field(apps, schema_editor, 'Book', 'is_generated')
+    safe_remove_field(apps, schema_editor, 'Book', 'last_coupon_serial')
+    safe_remove_field(apps, schema_editor, 'Book', 'first_coupon_serial')
+
+
+def remove_box_fields_safely(apps, schema_editor):
+    """Safely remove fields from Box model"""
+    safe_remove_field(apps, schema_editor, 'Box', 'total_books')
+    safe_remove_field(apps, schema_editor, 'Box', 'last_coupon_serial')
+    safe_remove_field(apps, schema_editor, 'Box', 'first_coupon_serial')
 
 
 class Migration(migrations.Migration):
@@ -18,21 +95,7 @@ class Migration(migrations.Migration):
             model_name='fuelentitlement',
             name='entitlement_amount',
         ),
-        migrations.AddField(
-            model_name='book',
-            name='first_coupon_serial',
-            field=models.CharField(blank=True, help_text='First coupon serial in this book (e.g., PU006H1355101)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]),
-        ),
-        migrations.AddField(
-            model_name='book',
-            name='is_generated',
-            field=models.BooleanField(default=False, help_text='Whether this book was generated via the centralized service'),
-        ),
-        migrations.AddField(
-            model_name='book',
-            name='last_coupon_serial',
-            field=models.CharField(blank=True, help_text='Last coupon serial in this book (e.g., PU006H1355200)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]),
-        ),
+        migrations.RunPython(add_book_fields_safely, remove_book_fields_safely),
         migrations.AddField(
             model_name='bookdispatch',
             name='courier_service',
@@ -113,21 +176,7 @@ class Migration(migrations.Migration):
             name='verified_by',
             field=models.CharField(blank=True, help_text='Person who verified the dispatch', max_length=100, null=True),
         ),
-        migrations.AddField(
-            model_name='box',
-            name='first_coupon_serial',
-            field=models.CharField(blank=True, help_text='First coupon serial in the box (e.g., PU006H1355101)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]),
-        ),
-        migrations.AddField(
-            model_name='box',
-            name='last_coupon_serial',
-            field=models.CharField(blank=True, help_text='Last coupon serial in the box (e.g., PU006H1356100)', max_length=50, null=True, validators=[fuel.validators.validate_petrotrade_serial]),
-        ),
-        migrations.AddField(
-            model_name='box',
-            name='total_books',
-            field=models.IntegerField(blank=True, help_text='Total number of books that will be generated for this box', null=True),
-        ),
+        migrations.RunPython(add_box_fields_safely, remove_box_fields_safely),
         migrations.AddField(
             model_name='coupon',
             name='coupon_serial',
