@@ -827,6 +827,7 @@ class BoxSerializer(serializers.ModelSerializer):
     couponsRemaining = serializers.SerializerMethodField(read_only=True)
     litresRemaining = serializers.SerializerMethodField(read_only=True)
     monetaryValue = serializers.SerializerMethodField(read_only=True)
+    calculation_mode_display = serializers.SerializerMethodField(read_only=True)
 
     coupon_range = serializers.SerializerMethodField()
 
@@ -848,6 +849,10 @@ class BoxSerializer(serializers.ModelSerializer):
     def get_monetaryValue(self, obj):
         """Return monetary value (alias for total_value_zwg)"""
         return obj.total_value_zwg or 0
+    
+    def get_calculation_mode_display(self, obj):
+        """Get the calculation mode used for this box"""
+        return self.get_calculation_mode(obj)
 
     def get_receivedBy(self, obj):
         """Safely return the full name of the receiver or empty string."""
@@ -856,28 +861,199 @@ class BoxSerializer(serializers.ModelSerializer):
         except Exception:
             return ""
 
+    # New fields for bidirectional calculations
+    first_coupon_serial = serializers.CharField(required=False, allow_blank=True)
+    last_coupon_serial = serializers.CharField(required=False, allow_blank=True)
+    
+    # Read-only calculated fields for frontend
+    calculated_number_of_books = serializers.SerializerMethodField()
+    calculated_coupons_per_book = serializers.SerializerMethodField()
+    calculated_last_serial = serializers.SerializerMethodField()
+    calculated_total_coupons = serializers.SerializerMethodField()
+    detailed_book_breakdown = serializers.SerializerMethodField()
+    calculation_errors = serializers.SerializerMethodField()
+    
+    def get_calculated_number_of_books(self, obj):
+        """Calculate number of books from serials if available"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('calculations', {}).get('number_of_books', obj.number_of_books)
+        
+        # Try to trigger calculation if we have the data
+        if obj.first_coupon_serial and obj.last_coupon_serial:
+            result = obj.smart_calculate(
+                first_serial=obj.first_coupon_serial,
+                last_serial=obj.last_coupon_serial
+            )
+            if not result.get('errors'):
+                return result.get('calculations', {}).get('number_of_books', obj.number_of_books)
+        
+        return obj.number_of_books
+    
+    def get_calculated_coupons_per_book(self, obj):
+        """Calculate coupons per book from serials if available"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('calculations', {}).get('coupons_per_book', obj.coupons_per_book)
+        
+        # Try to trigger calculation if we have the data
+        if obj.first_coupon_serial and obj.last_coupon_serial:
+            result = obj.smart_calculate(
+                first_serial=obj.first_coupon_serial,
+                last_serial=obj.last_coupon_serial
+            )
+            if not result.get('errors'):
+                return result.get('calculations', {}).get('coupons_per_book', obj.coupons_per_book)
+        
+        return obj.coupons_per_book
+    
+    def get_calculated_last_serial(self, obj):
+        """Calculate last serial from first serial and book structure if available"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('calculations', {}).get('last_serial', obj.last_coupon_serial or obj.last_coupon_number)
+        
+        # Try to trigger calculation if we have the data
+        if obj.first_coupon_serial and obj.number_of_books and obj.coupons_per_book:
+            result = obj.smart_calculate(
+                first_serial=obj.first_coupon_serial,
+                number_of_books=obj.number_of_books,
+                coupons_per_book=obj.coupons_per_book
+            )
+            if not result.get('errors'):
+                return result.get('calculations', {}).get('last_serial', obj.last_coupon_serial or obj.last_coupon_number)
+        
+        return obj.last_coupon_serial or obj.last_coupon_number
+    
+    def get_calculated_total_coupons(self, obj):
+        """Get calculated total coupons"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('calculations', {}).get('total_coupons', obj.total_coupons_calculated)
+        
+        # Try to trigger calculation if we have the data
+        if obj.first_coupon_serial and obj.last_coupon_serial:
+            result = obj.smart_calculate(
+                first_serial=obj.first_coupon_serial,
+                last_serial=obj.last_coupon_serial
+            )
+            if not result.get('errors'):
+                return result.get('calculations', {}).get('total_coupons', obj.total_coupons_calculated or 0)
+        elif obj.number_of_books and obj.coupons_per_book:
+            return obj.number_of_books * obj.coupons_per_book
+        
+        return obj.total_coupons_calculated or 0
+    
+    def get_detailed_book_breakdown(self, obj):
+        """Get detailed book breakdown from calculations"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('book_breakdown', obj.book_details_json)
+        return obj.book_details_json
+    
+    def get_calculation_errors(self, obj):
+        """Get calculation errors if any"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('errors', [])
+        return []
+    
+    def get_calculation_mode(self, obj):
+        """Get the calculation mode used"""
+        if hasattr(obj, '_calculation_result'):
+            return obj._calculation_result.get('calculation_mode')
+        
+        # Determine mode from available data
+        if obj.first_coupon_serial and obj.last_coupon_serial:
+            return 'first-and-last'
+        elif obj.first_coupon_serial and obj.number_of_books and obj.coupons_per_book:
+            return 'first-and-count'
+        
+        return obj.calculation_mode if hasattr(obj, 'calculation_mode') else None
+
     def validate(self, data):
-        # If coupon_range is present, use it to set first and last coupon numbers
+        # Handle coupon_range for backward compatibility
         coupon_range = self.initial_data.get('coupon_range')
         if coupon_range and 'undefined' not in coupon_range and coupon_range.strip() != '':
             parts = coupon_range.split()
             if len(parts) == 2 and all(parts):
                 data['first_coupon_number'] = parts[0]
                 data['last_coupon_number'] = parts[1]
-        # Allow saving with just first_coupon_number, number_of_books, and coupons_per_book
-        # Only require last_coupon_number if books are being generated
+        
+        # Handle new serial fields (prefer these over legacy fields)
+        first_serial = (data.get('first_coupon_serial') or 
+                       data.get('first_coupon_number') or 
+                       self.initial_data.get('firstCouponId') or 
+                       self.initial_data.get('firstCouponNumber'))
+        
+        last_serial = (data.get('last_coupon_serial') or 
+                      data.get('last_coupon_number') or 
+                      self.initial_data.get('lastCouponId') or 
+                      self.initial_data.get('lastCouponNumber'))
+        
+        number_of_books = (data.get('number_of_books') or 
+                          self.initial_data.get('numberOfBooks'))
+        
+        coupons_per_book = (data.get('coupons_per_book') or 
+                           self.initial_data.get('couponsPerBook'))
+        
+        denomination = data.get('denomination') or self.initial_data.get('couponAmount', 20)
+        
+        # Perform bidirectional calculation validation
+        if first_serial:
+            # Create a temporary Box instance for calculation
+            temp_box = Box(
+                first_coupon_serial=first_serial,
+                last_coupon_serial=last_serial, 
+                number_of_books=number_of_books or 10,
+                coupons_per_book=coupons_per_book or 100,
+                denomination=denomination
+            )
+            
+            # Perform smart calculation
+            calc_result = temp_box.smart_calculate()
+            
+            # Check for calculation errors
+            if calc_result['errors']:
+                raise serializers.ValidationError({
+                    'calculation_errors': calc_result['errors']
+                })
+            
+            # Update data with calculated values
+            calculations = calc_result.get('calculations', {})
+            
+            if calc_result['calculation_mode'] == 'first-and-last':
+                # Update book structure from serial calculation
+                data['number_of_books'] = calculations.get('number_of_books', number_of_books)
+                data['coupons_per_book'] = calculations.get('coupons_per_book', coupons_per_book)
+                data['total_coupons_calculated'] = calculations.get('total_coupons', 0)
+                
+            elif calc_result['calculation_mode'] == 'first-and-count':
+                # Update last serial from book structure calculation
+                data['last_coupon_serial'] = calculations.get('last_serial')
+                data['total_coupons_calculated'] = calculations.get('total_coupons', 0)
+            
+            # Store calculation result for serializer methods
+            if hasattr(self, 'instance') and self.instance:
+                self.instance._calculation_result = calc_result
+            
+            # Update book details with detailed breakdown
+            if calc_result.get('book_breakdown'):
+                data['book_details_json'] = calc_result['book_breakdown']
+                data['calculation_mode'] = calc_result['calculation_mode']
+        
         # Validate calculated fields if present
         total_coupons = data.get('total_coupons_calculated')
         total_litres = data.get('total_litres')
         total_value_usd = data.get('total_value_usd')
-        if (total_coupons is not None and total_coupons <= 0) or (total_litres is not None and total_litres <= 0) or (total_value_usd is not None and total_value_usd <= 0):
-            raise serializers.ValidationError({'calculated_fields': 'Calculated totals (coupons, litres, or value) must be greater than zero.'})
-        # Accept booksGenerated as book_details if book_details is missing
+        
+        if (total_coupons is not None and total_coupons <= 0) or \
+           (total_litres is not None and total_litres <= 0) or \
+           (total_value_usd is not None and total_value_usd <= 0):
+            raise serializers.ValidationError({
+                'calculated_fields': 'Calculated totals (coupons, litres, or value) must be greater than zero.'
+            })
+        
+        # Handle book details compatibility
         book_details = self.initial_data.get('book_details')
         books_generated = self.initial_data.get('booksGenerated')
         if not book_details and books_generated:
             data['book_details'] = books_generated
-        # Only require book_details if books are being generated
+        
         return data
 
     class Meta:
@@ -898,14 +1074,18 @@ class BoxSerializer(serializers.ModelSerializer):
             'fuel_type', 'fuelType', 'denomination', 'coupon_amount', 'couponAmount',
             'number_of_books', 'numberOfBooks', 'coupons_per_book', 'couponsPerBook',
             
-            # Coupon Serial Numbers
+            # Coupon Serial Numbers (Legacy and New)
             'first_coupon_number', 'last_coupon_number', 'first_coupon_id', 'last_coupon_id',
             'firstCouponId', 'lastCouponId', 'firstCouponNumber', 'lastCouponNumber',
+            'first_coupon_serial', 'last_coupon_serial',
             'coupon_range',
             
-            # Calculated Totals
+            # Calculated Totals (Original and Enhanced)
             'total_coupons_calculated', 'total_coupons', 'totalCoupons',
             'total_litres', 'totalLitres',
+            'calculated_number_of_books', 'calculated_coupons_per_book', 
+            'calculated_last_serial', 'calculated_total_coupons',
+            'detailed_book_breakdown', 'calculation_errors',
             
             # Financial Information (USD)
             'fuel_price_per_litre_usd', 'fuelPricePerLitreUSD', 'fuelPricePerLitreUsd', 'fuelPriceUSD',
@@ -919,6 +1099,7 @@ class BoxSerializer(serializers.ModelSerializer):
             'books_dispatched', 'coupons_used', 'litres_used', 'location',
             'booksDispatched', 'couponsUsed', 'litresUsed',
             'booksRemaining', 'couponsRemaining', 'litresRemaining', 'monetaryValue',
+            'calculation_mode_display',
             
             # Status and Workflow
             'status', 'verification_notes', 'verificationNotes', 'couponVerificationNotes', 'verified_at', 'verified_by',
@@ -940,7 +1121,10 @@ class BoxSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'assigned_to_details', 'received_by_details', 'created', 'modified',
             'totalCoupons', 'totalValueUSD', 'totalValueZWG', 'receivedBy', 'current_user_full_name',
-            'booksRemaining', 'couponsRemaining', 'litresRemaining', 'monetaryValue'
+            'booksRemaining', 'couponsRemaining', 'litresRemaining', 'monetaryValue',
+            'calculated_number_of_books', 'calculated_coupons_per_book', 
+            'calculated_last_serial', 'calculated_total_coupons',
+            'detailed_book_breakdown', 'calculation_errors'
         ]
         extra_kwargs = {
             'first_coupon_number': {'required': False},

@@ -959,20 +959,234 @@ class Box(ArchivableModel):
         except (ValueError, AttributeError):
             return None
 
-    def calculate_totals(self):
-        """Calculate all derived fields based on current data"""
-        # Calculate total coupons from coupon serial numbers
-        if self.first_coupon_number and self.last_coupon_number:
-            first_num = self._extract_coupon_number(self.first_coupon_number)
-            last_num = self._extract_coupon_number(self.last_coupon_number)
+    def _extract_serial_prefix(self, coupon_str):
+        """Extract the prefix part from coupon string (everything before the number)"""
+        try:
+            match = re.match(r'^(.+?)(\d+)$', coupon_str)
+            return match.group(1) if match else ''
+        except AttributeError:
+            return ''
+
+    def _generate_serial_from_number(self, prefix, number):
+        """Generate a full serial number from prefix and number"""
+        if not prefix:
+            return str(number)
+        return f"{prefix}{number:06d}"  # Pad to 6 digits
+
+    def calculate_from_first_last_serials(self, first_serial, last_serial):
+        """
+        Calculate number of books and coupons from first and last serial numbers
+        Returns: dict with calculated values
+        """
+        first_num = self._extract_coupon_number(first_serial)
+        last_num = self._extract_coupon_number(last_serial)
+        
+        if not first_num or not last_num:
+            return {
+                'error': 'Invalid serial number format',
+                'total_coupons': 0,
+                'number_of_books': 0,
+                'coupons_per_book': 0
+            }
+        
+        if first_num >= last_num:
+            return {
+                'error': 'Last serial must be greater than first serial',
+                'total_coupons': 0,
+                'number_of_books': 0,
+                'coupons_per_book': 0
+            }
+        
+        total_coupons = last_num - first_num + 1
+        
+        # If coupons_per_book is set, calculate number_of_books
+        if self.coupons_per_book and self.coupons_per_book > 0:
+            number_of_books = total_coupons // self.coupons_per_book
+            remaining_coupons = total_coupons % self.coupons_per_book
             
-            if first_num and last_num:
-                self.total_coupons_calculated = last_num - first_num + 1
+            if remaining_coupons > 0:
+                # If there are remaining coupons, we need one more book
+                # or adjust coupons_per_book
+                number_of_books += 1
+                # Recalculate coupons_per_book to distribute evenly
+                actual_coupons_per_book = total_coupons // number_of_books
+                if total_coupons % number_of_books > 0:
+                    actual_coupons_per_book += 1
             else:
-                # Fallback to book calculation
-                self.total_coupons_calculated = self.number_of_books * self.coupons_per_book
+                actual_coupons_per_book = self.coupons_per_book
         else:
+            # If number_of_books is set, calculate coupons_per_book
+            if self.number_of_books and self.number_of_books > 0:
+                number_of_books = self.number_of_books
+                actual_coupons_per_book = total_coupons // number_of_books
+                if total_coupons % number_of_books > 0:
+                    actual_coupons_per_book += 1
+            else:
+                # Default: assume 100 coupons per book
+                number_of_books = total_coupons // 100
+                if total_coupons % 100 > 0:
+                    number_of_books += 1
+                actual_coupons_per_book = total_coupons // number_of_books
+                if total_coupons % number_of_books > 0:
+                    actual_coupons_per_book += 1
+        
+        return {
+            'total_coupons': total_coupons,
+            'number_of_books': number_of_books,
+            'coupons_per_book': actual_coupons_per_book,
+            'total_litres': total_coupons * self.denomination,
+            'first_num': first_num,
+            'last_num': last_num
+        }
+
+    def calculate_from_first_and_books(self, first_serial, number_of_books, coupons_per_book):
+        """
+        Calculate last serial from first serial, number of books and coupons per book
+        Returns: dict with calculated values
+        """
+        first_num = self._extract_coupon_number(first_serial)
+        prefix = self._extract_serial_prefix(first_serial)
+        
+        if not first_num:
+            return {
+                'error': 'Invalid first serial number format',
+                'last_serial': '',
+                'total_coupons': 0
+            }
+        
+        total_coupons = number_of_books * coupons_per_book
+        last_num = first_num + total_coupons - 1
+        last_serial = self._generate_serial_from_number(prefix, last_num)
+        
+        return {
+            'last_serial': last_serial,
+            'total_coupons': total_coupons,
+            'total_litres': total_coupons * self.denomination,
+            'first_num': first_num,
+            'last_num': last_num
+        }
+
+    def generate_book_breakdown(self, first_serial, last_serial, number_of_books, coupons_per_book):
+        """
+        Generate detailed book breakdown with serial ranges for each book
+        Returns: list of book details
+        """
+        first_num = self._extract_coupon_number(first_serial)
+        prefix = self._extract_serial_prefix(first_serial)
+        
+        if not first_num:
+            return []
+        
+        books = []
+        current_num = first_num
+        
+        for book_idx in range(number_of_books):
+            book_first = current_num
+            book_last = current_num + coupons_per_book - 1
+            
+            books.append({
+                'book_number': book_idx + 1,
+                'first_coupon_serial': self._generate_serial_from_number(prefix, book_first),
+                'last_coupon_serial': self._generate_serial_from_number(prefix, book_last),
+                'number_of_coupons': coupons_per_book,
+                'total_litres': coupons_per_book * self.denomination
+            })
+            
+            current_num = book_last + 1
+        
+        return books
+
+    def smart_calculate(self, **kwargs):
+        """
+        Smart bidirectional calculation based on provided parameters
+        Supports multiple calculation modes:
+        1. first_serial + last_serial -> calculate books and coupons per book
+        2. first_serial + number_of_books + coupons_per_book -> calculate last_serial
+        3. Validate and recalculate all fields based on what's provided
+        """
+        first_serial = kwargs.get('first_serial') or self.first_coupon_serial or self.first_coupon_number
+        last_serial = kwargs.get('last_serial') or self.last_coupon_serial or self.last_coupon_number
+        number_of_books = kwargs.get('number_of_books') or self.number_of_books
+        coupons_per_book = kwargs.get('coupons_per_book') or self.coupons_per_book
+        
+        result = {
+            'calculation_mode': 'unknown',
+            'calculations': {},
+            'book_breakdown': [],
+            'errors': []
+        }
+        
+        # Mode 1: Calculate from first and last serials
+        if first_serial and last_serial:
+            result['calculation_mode'] = 'first-and-last'
+            calc = self.calculate_from_first_last_serials(first_serial, last_serial)
+            
+            if 'error' in calc:
+                result['errors'].append(calc['error'])
+            else:
+                result['calculations'] = calc
+                result['book_breakdown'] = self.generate_book_breakdown(
+                    first_serial, last_serial, 
+                    calc['number_of_books'], calc['coupons_per_book']
+                )
+        
+        # Mode 2: Calculate from first serial and book structure
+        elif first_serial and number_of_books and coupons_per_book:
+            result['calculation_mode'] = 'first-and-count'
+            calc = self.calculate_from_first_and_books(first_serial, number_of_books, coupons_per_book)
+            
+            if 'error' in calc:
+                result['errors'].append(calc['error'])
+            else:
+                result['calculations'] = calc
+                result['book_breakdown'] = self.generate_book_breakdown(
+                    first_serial, calc['last_serial'], 
+                    number_of_books, coupons_per_book
+                )
+        
+        else:
+            result['errors'].append('Insufficient data for calculation. Need either (first+last) or (first+books+coupons_per_book)')
+        
+        return result
+
+    def calculate_totals(self):
+        """Calculate all derived fields based on current data using smart calculation"""
+        # Use new serial fields if available, fallback to legacy fields
+        first_serial = self.first_coupon_serial or self.first_coupon_number
+        last_serial = self.last_coupon_serial or self.last_coupon_number
+        
+        # Perform smart calculation
+        calc_result = self.smart_calculate(
+            first_serial=first_serial,
+            last_serial=last_serial,
+            number_of_books=self.number_of_books,
+            coupons_per_book=self.coupons_per_book
+        )
+        
+        if calc_result['errors']:
+            # Fallback to basic calculation if smart calculation fails
             self.total_coupons_calculated = self.number_of_books * self.coupons_per_book
+        else:
+            calculations = calc_result['calculations']
+            self.total_coupons_calculated = calculations.get('total_coupons', self.number_of_books * self.coupons_per_book)
+            
+            # Update book structure if calculated from serials
+            if calc_result['calculation_mode'] == 'first-and-last':
+                # Update number_of_books and coupons_per_book from calculation
+                self.number_of_books = calculations.get('number_of_books', self.number_of_books)
+                self.coupons_per_book = calculations.get('coupons_per_book', self.coupons_per_book)
+            elif calc_result['calculation_mode'] == 'first-and-count':
+                # Update last serial from calculation
+                if not last_serial and 'last_serial' in calculations:
+                    if self.first_coupon_serial:
+                        self.last_coupon_serial = calculations['last_serial']
+                    else:
+                        self.last_coupon_number = calculations['last_serial']
+            
+            # Store calculation mode and book breakdown
+            self.calculation_mode = calc_result['calculation_mode']
+            if calc_result['book_breakdown']:
+                self.book_details_json = calc_result['book_breakdown']
         
         # Calculate total litres
         self.total_litres = Decimal(str(self.total_coupons_calculated * self.denomination))
