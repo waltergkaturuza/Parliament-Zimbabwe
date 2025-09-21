@@ -40,12 +40,17 @@ import {
   PlusOutlined,
   CalendarOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import apiClient from '../../../api/index';
 import { useAuth } from '../../../contexts/AuthContext';
 import BidirectionalCouponAllocation from '@/components/subcenter/BidirectionalCouponAllocation';
+import EnhancedAllocationModal from '@/components/subcenter/EnhancedAllocationModal';
+import EnhancedAllocationHistory, { demoAllocationHistory } from '@/components/subcenter/EnhancedAllocationHistory';
+import BeneficiaryEntitlementDashboard, { demoBeneficiaryEntitlements } from '@/components/subcenter/BeneficiaryEntitlementDashboard';
+import SubCenterStockService from '@/services/subCenterStockService';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -188,6 +193,7 @@ const SubCenterInventoryManagement: FC = () => {
   const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
   const [bidirectionalAllocationVisible, setBidirectionalAllocationVisible] = useState(false);
+  const [enhancedAllocationVisible, setEnhancedAllocationVisible] = useState(false);
   const [selectedBeneficiary, setBeneficiary] = useState<Beneficiary | null>(null);
   
   // Form for allocation
@@ -203,49 +209,141 @@ const SubCenterInventoryManagement: FC = () => {
   const loadInventoryData = async () => {
     setLoading(true);
     try {
-      // Simulate incoming books from main center dispatches
-      // Load books received by this subcenter from API
-      const response = await apiClient.get('/books/received/');
-      const booksData = response.data.results || response.data || [];
+      console.log('🔍 Loading intelligent inventory for user subcenter:', user?.sub_center?.id);
+      
+      if (!user?.sub_center?.id) {
+        message.error('Subcenter ID not found. Please ensure you are logged in correctly.');
+        return;
+      }
 
-      const processedBooks: IncomingBook[] = booksData.map((book: any) => {
-        // Calculate coupon pages for this book
-        const pages = generateCouponPages(
-          book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-${book.id}-000001`,
-          book.total_coupons || 20,
-          String(book.id)
-        );
-
-        return {
-          id: String(book.id),
-          bookId: `BOOK${String(book.id).padStart(3, '0')}`,
-          bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
-          batchId: book.batch?.batch_code || `FCB-2024-${String(book.batch_id || book.id).padStart(4, '0')}`,
-          fuelType: (book.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
-          couponAmount: (book.coupon_amount || (book.fuel_type === 'PETROL' ? 20 : 5)) as 5 | 20,
-          firstCouponSerial: book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000001`,
-          lastCouponSerial: book.last_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000020`,
-          totalCoupons: book.total_coupons || 20,
-          couponsAllocated: book.coupons_allocated || 0,
-          couponsRemaining: (book.total_coupons || 20) - (book.coupons_allocated || 0),
-          totalValue: book.total_value || ((book.total_coupons || 20) * (book.coupon_amount || 20) * (book.fuel_type === 'PETROL' ? 37.95 : 36.00)),
-          valueAllocated: book.value_allocated || 0,
-          valueRemaining: (book.total_value || 0) - (book.value_allocated || 0),
-          receivedDate: book.received_date ? dayjs(book.received_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-          receivedTime: book.received_time || dayjs().format('HH:mm'),
-          receivedBy: book.received_by?.full_name || book.received_by_name || 'System User',
-          dispatchId: book.dispatch?.dispatch_id || book.dispatch_id || `DSP-${String(book.id).padStart(6, '0')}`,
-          fromMainCenter: 'Parliament Main Center',
-          status: book.status || 'RECEIVED',
-          pages,
+      // Initialize intelligent stock service
+      const stockService = new SubCenterStockService(String(user.sub_center.id));
+      
+      // Get intelligent stock calculation from handover receipts minus dispatches
+      const intelligentStock = await stockService.calculateCurrentStock();
+      console.log('📊 Intelligent stock calculated:', intelligentStock);
+      
+      // Get stock movement history for context
+      const movementHistory = await stockService.getStockMovementHistory(30);
+      console.log('📈 Stock movement history:', movementHistory);
+      
+      // Convert intelligent stock to books format for UI compatibility
+      const processedBooks: IncomingBook[] = [];
+      
+      // Process petrol stock if available
+      if (intelligentStock.petrol.availableStock.books > 0) {
+        const petrolBook: IncomingBook = {
+          id: 'petrol-intelligent-stock',
+          bookId: 'PETROL-STOCK',
+          bookNumber: `Petrol Stock from Handovers`,
+          batchId: 'HANDOVER-STOCK',
+          fuelType: 'PETROL',
+          couponAmount: 20,
+          firstCouponSerial: 'PETROL-20-2024-000001',
+          lastCouponSerial: `PETROL-20-2024-${intelligentStock.petrol.availableStock.coupons.toString().padStart(6, '0')}`,
+          totalCoupons: intelligentStock.petrol.totalReceived.coupons,
+          couponsAllocated: intelligentStock.petrol.totalDispensed.coupons,
+          couponsRemaining: intelligentStock.petrol.availableStock.coupons,
+          totalValue: intelligentStock.petrol.totalReceived.liters * 1.45, // Price per liter
+          valueAllocated: intelligentStock.petrol.totalDispensed.liters * 1.45,
+          valueRemaining: intelligentStock.petrol.availableStock.liters * 1.45,
+          receivedDate: dayjs(intelligentStock.lastUpdated).format('YYYY-MM-DD'),
+          receivedTime: dayjs(intelligentStock.lastUpdated).format('HH:mm'),
+          receivedBy: 'Handover System',
+          dispatchId: 'INTELLIGENT-STOCK-PETROL',
+          fromMainCenter: 'Main Center (via Handovers)',
+          status: intelligentStock.petrol.reconciliation.isBalanced ? 'RECEIVED' : 'PARTIALLY_USED',
+          pages: generateCouponPages('PETROL-20-2024-000001', intelligentStock.petrol.availableStock.coupons, 'petrol-stock')
         };
-      });
+        processedBooks.push(petrolBook);
+      }
+      
+      // Process diesel stock if available
+      if (intelligentStock.diesel.availableStock.books > 0) {
+        const dieselBook: IncomingBook = {
+          id: 'diesel-intelligent-stock',
+          bookId: 'DIESEL-STOCK',
+          bookNumber: `Diesel Stock from Handovers`,
+          batchId: 'HANDOVER-STOCK',
+          fuelType: 'DIESEL',
+          couponAmount: 5,
+          firstCouponSerial: 'DIESEL-05-2024-000001',
+          lastCouponSerial: `DIESEL-05-2024-${intelligentStock.diesel.availableStock.coupons.toString().padStart(6, '0')}`,
+          totalCoupons: intelligentStock.diesel.totalReceived.coupons,
+          couponsAllocated: intelligentStock.diesel.totalDispensed.coupons,
+          couponsRemaining: intelligentStock.diesel.availableStock.coupons,
+          totalValue: intelligentStock.diesel.totalReceived.liters * 1.38, // Price per liter
+          valueAllocated: intelligentStock.diesel.totalDispensed.liters * 1.38,
+          valueRemaining: intelligentStock.diesel.availableStock.liters * 1.38,
+          receivedDate: dayjs(intelligentStock.lastUpdated).format('YYYY-MM-DD'),
+          receivedTime: dayjs(intelligentStock.lastUpdated).format('HH:mm'),
+          receivedBy: 'Handover System',
+          dispatchId: 'INTELLIGENT-STOCK-DIESEL',
+          fromMainCenter: 'Main Center (via Handovers)',
+          status: intelligentStock.diesel.reconciliation.isBalanced ? 'RECEIVED' : 'PARTIALLY_USED',
+          pages: generateCouponPages('DIESEL-05-2024-000001', intelligentStock.diesel.availableStock.coupons, 'diesel-stock')
+        };
+        processedBooks.push(dieselBook);
+      }
+
+      // If no intelligent stock found, show message
+      if (processedBooks.length === 0) {
+        message.info('No stock available. Stock is calculated from received handovers minus beneficiary dispatches.');
+      }
 
       setIncomingBooks(processedBooks);
       calculateStats(processedBooks);
+      
+      // Store intelligent stock data for additional operations
+      (window as any).intelligentStock = intelligentStock;
+      
     } catch (error) {
-      console.error('Error loading inventory:', error);
-      message.error('Failed to load inventory data');
+      console.error('❌ Error loading intelligent inventory:', error);
+      message.error('Failed to load intelligent inventory data. Using fallback method.');
+      
+      // Fallback to original method if intelligent stock fails
+      try {
+        const response = await apiClient.get('/books/received/');
+        const booksData = response.data.results || response.data || [];
+        
+        const processedBooks: IncomingBook[] = booksData.map((book: any) => {
+          const pages = generateCouponPages(
+            book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-${book.id}-000001`,
+            book.total_coupons || 20,
+            String(book.id)
+          );
+
+          return {
+            id: String(book.id),
+            bookId: `BOOK${String(book.id).padStart(3, '0')}`,
+            bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
+            batchId: book.batch?.batch_code || `FCB-2024-${String(book.batch_id || book.id).padStart(4, '0')}`,
+            fuelType: (book.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
+            couponAmount: (book.coupon_amount || (book.fuel_type === 'PETROL' ? 20 : 5)) as 5 | 20,
+            firstCouponSerial: book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000001`,
+            lastCouponSerial: book.last_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000020`,
+            totalCoupons: book.total_coupons || 20,
+            couponsAllocated: book.coupons_allocated || 0,
+            couponsRemaining: (book.total_coupons || 20) - (book.coupons_allocated || 0),
+            totalValue: book.total_value || ((book.total_coupons || 20) * (book.coupon_amount || 20) * (book.fuel_type === 'PETROL' ? 37.95 : 36.00)),
+            valueAllocated: book.value_allocated || 0,
+            valueRemaining: (book.total_value || 0) - (book.value_allocated || 0),
+            receivedDate: book.received_date ? dayjs(book.received_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+            receivedTime: book.received_time || dayjs().format('HH:mm'),
+            receivedBy: book.received_by?.full_name || book.received_by_name || 'System User',
+            dispatchId: book.dispatch?.dispatch_id || book.dispatch_id || `DSP-${String(book.id).padStart(6, '0')}`,
+            fromMainCenter: 'Parliament Main Center',
+            status: book.status || 'RECEIVED',
+            pages,
+          };
+        });
+
+        setIncomingBooks(processedBooks);
+        calculateStats(processedBooks);
+      } catch (fallbackError) {
+        console.error('❌ Fallback method also failed:', fallbackError);
+        message.error('Unable to load any inventory data');
+      }
     } finally {
       setLoading(false);
     }
@@ -503,6 +601,62 @@ const SubCenterInventoryManagement: FC = () => {
     }
   };
 
+  const handleEnhancedAllocation = async (values: any) => {
+    try {
+      const { 
+        beneficiaryId, 
+        litresRequested, 
+        allocationSources, 
+        allocationMessage,
+        totalAllocated,
+        purpose,
+        notes 
+      } = values;
+
+      // Create enhanced allocation record with entitlement tracking
+      const newAllocation: AllocationRecord = {
+        id: `ENHANCED_ALLOC${Date.now()}`,
+        beneficiaryId,
+        beneficiaryName: beneficiaries.find(b => b.id === beneficiaryId)?.name || '',
+        allocationDate: dayjs().format('YYYY-MM-DD'),
+        sessionName: purpose === 'SESSION_ATTENDANCE' ? 'Session Attendance' : 'General Usage',
+        programName: allocationSources?.map((s: any) => s.sourceName).join(', ') || purpose,
+        firstCouponSerial: 'AUTO_GENERATED',
+        lastCouponSerial: 'AUTO_GENERATED',
+        totalCoupons: Math.ceil(totalAllocated / 20), // Assume 20L per coupon
+        totalLitres: totalAllocated,
+        totalValue: totalAllocated * 200, // Assume 200 per litre
+        notes: `${allocationMessage}\n${notes || ''}`,
+        allocatedBy: user?.username || 'Current User',
+        status: 'ALLOCATED',
+        pages: [], // Will be generated when coupons are issued
+      };
+
+      setAllocations([...allocations, newAllocation]);
+      
+      // Show detailed success message
+      message.success({
+        content: (
+          <div>
+            <div>Enhanced allocation successful!</div>
+            <div style={{ fontSize: '12px', marginTop: 4 }}>
+              {allocationMessage}
+            </div>
+          </div>
+        ),
+        duration: 5,
+      });
+      
+      setEnhancedAllocationVisible(false);
+      
+      // Reload data to update statistics
+      loadInventoryData();
+    } catch (error) {
+      console.error('Error creating enhanced allocation:', error);
+      message.error('Failed to create enhanced allocation');
+    }
+  };
+
   const generateSerialRange = (firstSerial: string, lastSerial: string): string[] => {
     const serials: string[] = [];
     const match = firstSerial.match(/^(.*?)(\d+)$/);
@@ -679,6 +833,25 @@ const SubCenterInventoryManagement: FC = () => {
       title: 'Last Allocation',
       dataIndex: 'lastAllocation',
       key: 'lastAllocation',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button
+            size="small"
+            type="primary"
+            icon={<ThunderboltOutlined />}
+            onClick={() => {
+              setBeneficiary(record);
+              setEnhancedAllocationVisible(true);
+            }}
+          >
+            Enhanced Allocation
+          </Button>
+        </Space>
+      ),
     },
   ];
 
@@ -885,6 +1058,12 @@ const SubCenterInventoryManagement: FC = () => {
               </Button>
               <Button 
                 type="primary" 
+                icon={<ThunderboltOutlined />}
+                onClick={() => setEnhancedAllocationVisible(true)}
+              >
+                Enhanced Allocation
+              </Button>
+              <Button 
                 icon={<PlusOutlined />}
                 onClick={() => setBidirectionalAllocationVisible(true)}
               >
@@ -969,6 +1148,17 @@ const SubCenterInventoryManagement: FC = () => {
           </Card>
         </TabPane>
 
+        <TabPane tab="Entitlement Status" key="entitlements">
+          <BeneficiaryEntitlementDashboard
+            data={demoBeneficiaryEntitlements}
+            loading={loading}
+            onAllocate={(beneficiary) => {
+              setBeneficiary(beneficiary as any);
+              setEnhancedAllocationVisible(true);
+            }}
+          />
+        </TabPane>
+
         <TabPane tab="Allocation History" key="allocations">
           <Card>
             <Table
@@ -998,6 +1188,13 @@ const SubCenterInventoryManagement: FC = () => {
               }}
             />
           </Card>
+        </TabPane>
+
+        <TabPane tab="Enhanced Allocations" key="enhanced-allocations">
+          <EnhancedAllocationHistory 
+            data={demoAllocationHistory} 
+            loading={loading}
+          />
         </TabPane>
       </Tabs>
 
@@ -1196,6 +1393,15 @@ const SubCenterInventoryManagement: FC = () => {
         </Form>
       </Modal>
 
+      {/* Enhanced Allocation Modal */}
+      <EnhancedAllocationModal
+        visible={enhancedAllocationVisible}
+        onCancel={() => setEnhancedAllocationVisible(false)}
+        onSubmit={handleEnhancedAllocation}
+        beneficiary={selectedBeneficiary}
+        loading={loading}
+      />
+
       {/* Bidirectional Coupon Allocation Modal */}
       <BidirectionalCouponAllocation
         visible={bidirectionalAllocationVisible}
@@ -1205,7 +1411,7 @@ const SubCenterInventoryManagement: FC = () => {
           loadAllocations();
         }}
         beneficiaries={beneficiaries}
-        subCenterId={user?.sub_center_id || user?.id}
+        subCenterId={String(user?.sub_center_id || user?.id || '')}
       />
     </div>
   );

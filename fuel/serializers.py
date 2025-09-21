@@ -146,8 +146,10 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     # Enhanced fields for intelligent dispatch
     dispatch_id = serializers.SerializerMethodField()
     subcenter_name = serializers.CharField(source='to_center.name', read_only=True)
-    dispatched_date = serializers.DateField(source='dispatch_date', read_only=True)
-    dispatched_time = serializers.TimeField(source='dispatch_date', read_only=True)
+    # Use DateTimeField directly then expose date/time parts via method fields to avoid DateField datetime assertion
+    dispatch_date = serializers.DateTimeField(read_only=True)
+    dispatched_date = serializers.SerializerMethodField()
+    dispatched_time = serializers.SerializerMethodField()
     
     # Calculated fields
     total_coupons = serializers.SerializerMethodField()
@@ -185,6 +187,22 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             denomination = book.box.denomination if book.box else 20
             total += coupon_count * denomination
         return total
+
+    def get_dispatched_date(self, obj):
+        """Return date portion of dispatch_date as YYYY-MM-DD string"""
+        if getattr(obj, 'dispatch_date', None):
+            from django.utils import timezone
+            dt = timezone.localtime(obj.dispatch_date) if obj.dispatch_date else None
+            return dt.strftime('%Y-%m-%d') if dt else None
+        return None
+
+    def get_dispatched_time(self, obj):
+        """Return time portion HH:MM from dispatch_date"""
+        if getattr(obj, 'dispatch_date', None):
+            from django.utils import timezone
+            dt = timezone.localtime(obj.dispatch_date)
+            return dt.strftime('%H:%M')
+        return None
     
     def create(self, validated_data):
         """Enhanced create method for dispatch with intelligent generation"""

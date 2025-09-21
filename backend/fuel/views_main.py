@@ -898,7 +898,12 @@ class BoxViewSet(viewsets.ModelViewSet):
         # Create a composite permission for write operations
         class BoxWritePermission(permissions.BasePermission):
             def has_permission(self, request, view):
-                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']
+                print(f"=== BOX WRITE PERMISSION DEBUG ===")
+                print(f"User: {request.user.username}")
+                print(f"User role: {request.user.role}")
+                print(f"Required roles: ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER']")
+                print(f"Permission granted: {request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER', 'ADMIN']}")
+                return request.user.role in ['MAIN_CENTER', 'SUB_CENTER', 'AUDITOR', 'SUPERUSER', 'ADMIN']
         
         return [IsAuthenticated(), BoxWritePermission()]
     
@@ -3330,11 +3335,11 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 # Find the actual book in the database
                 book = None
                 if book_id:
-                    # Try to find by book_number or ID
-                    book = Book.objects.filter(
-                        models.Q(book_number=book_id) | 
-                        models.Q(id=book_id) if str(book_id).isdigit() else models.Q(book_number=book_id)
-                    ).first()
+                    # Try to find by book_number, book_code, or numeric ID
+                    query = models.Q(book_number=book_id) | models.Q(book_code=book_id)
+                    if str(book_id).isdigit():
+                        query |= models.Q(id=book_id)
+                    book = Book.objects.filter(query).first()
                 
                 # If not found by book_id, try by box + first coupon
                 if not book and box_id and first_coupon:
@@ -3478,8 +3483,36 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
 
             results = []
             now_str = timezone.localtime(timezone.now()).strftime('%Y-%m')
+            # Preload related books to reduce queries
+            book_map = {}
+            for d in items:
+                book_map[d.id] = list(d.books.select_related('box').all()) if hasattr(d, 'books') else []
+
             for d in items:
                 dispatched_local = timezone.localtime(getattr(d, 'dispatch_date', timezone.now()))
+                books = book_map.get(d.id, [])
+                total_books = len(books)
+                # Compute coupon totals & value
+                total_coupons = 0
+                total_value = 0.0
+                book_payload = []
+                for b in books:
+                    coupon_count = b.initial_coupon_count or 100
+                    denomination = b.box.denomination if getattr(b, 'box', None) else 20
+                    total_coupons += coupon_count
+                    total_value += coupon_count * denomination
+                    book_payload.append({
+                        'id': str(b.id),
+                        'bookId': b.book_number,
+                        'boxId': b.box.box_code if getattr(b, 'box', None) else None,
+                        'fuelType': b.box.fuel_type if getattr(b, 'box', None) else None,
+                        'couponAmount': denomination,
+                        'firstCouponId': b.first_coupon_number,
+                        'lastCouponId': b.last_coupon_number,
+                        'numberOfCoupons': coupon_count,
+                        'value': coupon_count * denomination,
+                    })
+
                 results.append({
                     'id': str(d.id),
                     'dispatchId': f"DSP-{now_str}-{str(d.id).zfill(4)}",
@@ -3488,21 +3521,21 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                     'dispatchedBy': getattr(getattr(d, 'dispatched_by', None), 'username', 'system'),
                     'dispatchedDate': dispatched_local.strftime('%Y-%m-%d'),
                     'dispatchedTime': dispatched_local.strftime('%H:%M'),
-                    'books': [],
-                    'totalBooks': 0,
-                    'totalCoupons': 0,
-                    'totalValue': 0.0,
+                    'books': book_payload,
+                    'totalBooks': total_books,
+                    'totalCoupons': total_coupons,
+                    'totalValue': round(total_value, 2),
                     'status': getattr(d, 'status', 'DISPATCHED') or 'DISPATCHED',
                     'receivedBy': getattr(getattr(d, 'received_by', None), 'username', None),
-                    'receivedDate': None,
-                    'receivedTime': None,
-                    'receiverSignature': None,
+                    'receivedDate': None if not getattr(d, 'received_date', None) else timezone.localtime(d.received_date).strftime('%Y-%m-%d'),
+                    'receivedTime': None if not getattr(d, 'received_date', None) else timezone.localtime(d.received_date).strftime('%H:%M'),
+                    'receiverSignature': getattr(d, 'receiver_signature', None),
                     'transportDetails': None,
-                    'vehicleNumber': None,
-                    'driverName': None,
-                    'driverPhone': None,
-                    'notes': '',
-                    'trackingNumber': f"TRK-{now_str}{str(d.id).zfill(4)}",
+                    'vehicleNumber': getattr(d, 'vehicle_number', None),
+                    'driverName': getattr(d, 'driver_name', None),
+                    'driverPhone': getattr(d, 'driver_phone', None),
+                    'notes': getattr(d, 'notes', '') or '',
+                    'trackingNumber': getattr(d, 'tracking_number', None) or f"TRK-{now_str}{str(d.id).zfill(4)}",
                 })
 
             return Response({
@@ -3519,6 +3552,79 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 'page_size': 50,
                 'error': str(e)
             }, status=status.HTTP_200_OK)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Detailed view for a single dispatch including books and optional coupon list.
+
+        Query params:
+            include_coupons=true => embed coupons for each book (may be heavy)
+        """
+        from django.utils import timezone
+        instance = self.get_object()
+        include_coupons = str(request.query_params.get('include_coupons', 'false')).lower() in ('1','true','yes')
+
+        dispatched_local = timezone.localtime(getattr(instance, 'dispatch_date', timezone.now()))
+        books = list(instance.books.select_related('box').all()) if hasattr(instance, 'books') else []
+
+        total_coupons = 0
+        total_value = 0.0
+        book_payload = []
+        for b in books:
+            coupon_count = b.initial_coupon_count or 100
+            denomination = b.box.denomination if getattr(b, 'box', None) else 20
+            total_coupons += coupon_count
+            total_value += coupon_count * denomination
+
+            coupons_data = []
+            if include_coupons:
+                coupons = list(b.coupons.all()[:1000])  # safety slice
+                for c in coupons:
+                    coupons_data.append({
+                        'id': c.id,
+                        'couponNumber': c.coupon_number,
+                        'status': c.status,
+                        'litres': c.litres,
+                        'usdValue': c.usd_value,
+                    })
+
+            book_payload.append({
+                'id': str(b.id),
+                'bookId': b.book_number,
+                'boxId': b.box.box_code if getattr(b, 'box', None) else None,
+                'fuelType': b.box.fuel_type if getattr(b, 'box', None) else None,
+                'couponAmount': denomination,
+                'firstCouponId': b.first_coupon_number,
+                'lastCouponId': b.last_coupon_number,
+                'numberOfCoupons': coupon_count,
+                'value': coupon_count * denomination,
+                'coupons': coupons_data if include_coupons else None,
+            })
+
+        now_str = dispatched_local.strftime('%Y-%m')
+        payload = {
+            'id': str(instance.id),
+            'dispatchId': f"DSP-{now_str}-{str(instance.id).zfill(4)}",
+            'subCenterId': str(getattr(getattr(instance, 'to_center', None), 'id', '') or ''),
+            'subCenterName': getattr(getattr(instance, 'to_center', None), 'name', '') or '',
+            'dispatchedBy': getattr(getattr(instance, 'dispatched_by', None), 'username', 'system'),
+            'dispatchedDate': dispatched_local.strftime('%Y-%m-%d'),
+            'dispatchedTime': dispatched_local.strftime('%H:%M'),
+            'books': book_payload,
+            'totalBooks': len(books),
+            'totalCoupons': total_coupons,
+            'totalValue': round(total_value, 2),
+            'status': getattr(instance, 'status', 'DISPATCHED') or 'DISPATCHED',
+            'receivedBy': getattr(getattr(instance, 'received_by', None), 'username', None),
+            'receivedDate': None if not getattr(instance, 'received_date', None) else timezone.localtime(instance.received_date).strftime('%Y-%m-%d'),
+            'receivedTime': None if not getattr(instance, 'received_date', None) else timezone.localtime(instance.received_date).strftime('%H:%M'),
+            'receiverSignature': getattr(instance, 'receiver_signature', None),
+            'vehicleNumber': getattr(instance, 'vehicle_number', None),
+            'driverName': getattr(instance, 'driver_name', None),
+            'driverPhone': getattr(instance, 'driver_phone', None),
+            'trackingNumber': getattr(instance, 'tracking_number', None),
+            'notes': getattr(instance, 'notes', '') or '',
+        }
+        return Response(payload)
 
     def partial_update(self, request, *args, **kwargs):
         """Allow sub-center to accept/confirm receipt of a dispatch addressed to them.
@@ -7720,6 +7826,83 @@ class CouponHandoverViewSet(viewsets.ModelViewSet):
             return queryset.filter(beneficiary=user)
         
         return queryset.none()
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        # Allow sub-centers to PATCH their own handovers to mark as approved/received  
+        if self.action in ['partial_update']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), MainCenterPermission()]
+
+    def partial_update(self, request, *args, **kwargs):
+        """Allow sub-center to approve/update handover status for their beneficiaries.
+
+        Similar to BookDispatchViewSet, permits subcenter officers to approve handovers 
+        for beneficiaries in their sub-center area.
+        """
+        try:
+            instance = self.get_object()
+            user = request.user
+
+            requested_status = str(request.data.get('status') or '').upper()
+            allowed_statuses = {'APPROVED', 'HANDED_OVER', 'RECEIVED', 'CONFIRMED'}
+
+            # Gate: only sub-center user for whom the handover is assigned can approve
+            if getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+                if instance.sub_center_id != user.sub_center.id:
+                    return Response({'detail': 'Not authorized to modify this handover'}, status=status.HTTP_403_FORBIDDEN)
+                if requested_status not in allowed_statuses:
+                    return Response({'detail': 'Only status updates to APPROVED, HANDED_OVER, RECEIVED, or CONFIRMED are allowed'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Perform safe update
+                instance.status = requested_status
+                try:
+                    if requested_status == 'HANDED_OVER':
+                        instance.handed_over_by = user
+                        instance.handover_date = timezone.now()
+                    elif requested_status == 'RECEIVED':
+                        instance.received_by = user
+                        instance.received_date = timezone.now()
+                except Exception:
+                    pass
+                
+                # Update any additional fields from request
+                if 'notes' in request.data:
+                    instance.notes = request.data.get('notes', '')
+                if 'receiver_signature' in request.data:
+                    instance.receiver_signature = request.data.get('receiver_signature', '')
+                
+                instance.save()
+
+                # Return updated handover data
+                return Response({
+                    'id': instance.id,
+                    'handover_id': getattr(instance, 'handover_id', f"HO-{instance.id}"),
+                    'status': instance.status,
+                    'beneficiary': {
+                        'id': instance.beneficiary.id,
+                        'name': instance.beneficiary.get_full_name(),
+                    } if instance.beneficiary else None,
+                    'sub_center': {
+                        'id': instance.sub_center.id,
+                        'name': instance.sub_center.name,
+                    } if instance.sub_center else None,
+                    'handed_over_by': getattr(getattr(instance, 'handed_over_by', None), 'username', None),
+                    'handover_date': getattr(instance, 'handover_date', None),
+                    'received_by': getattr(getattr(instance, 'received_by', None), 'username', None),
+                    'received_date': getattr(instance, 'received_date', None),
+                    'notes': getattr(instance, 'notes', ''),
+                    'total_coupons': getattr(instance, 'total_coupons', 0),
+                    'total_litres': getattr(instance, 'total_litres', 0),
+                    'total_value': getattr(instance, 'total_value', 0),
+                })
+
+            # Fallback to default behavior for other roles (will be guarded by MainCenterPermission)
+            return super().partial_update(request, *args, **kwargs)
+
+        except Exception as e:
+            return Response({'error': f'Update failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission | SubCenterPermission])
     def intelligent_generation(self, request):

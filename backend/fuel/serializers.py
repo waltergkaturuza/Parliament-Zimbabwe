@@ -143,6 +143,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     # Enhanced fields for intelligent dispatch
     dispatch_id = serializers.SerializerMethodField()
     subcenter_name = serializers.CharField(source='to_center.name', read_only=True)
+    dispatch_date = serializers.DateTimeField(read_only=True)  # Ensure full datetime retained
     dispatched_date = serializers.SerializerMethodField()
     dispatched_time = serializers.SerializerMethodField()
     
@@ -159,8 +160,11 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     
     # Receipt confirmation
     receiver_signature = serializers.CharField(required=False, allow_blank=True)
-    received_date = serializers.SerializerMethodField()
+    received_date = serializers.DateTimeField(required=False, allow_null=True)  # Explicitly define as DateTimeField
     received_time = serializers.SerializerMethodField()
+    
+    # Ensure verified_at is also properly defined
+    verified_at = serializers.DateTimeField(required=False, allow_null=True)
     
     # Documentation
     delivery_note = serializers.CharField(max_length=200, required=False, allow_blank=True)
@@ -199,7 +203,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             'first_serial', 'last_serial'
         ]
         read_only_fields = [
-            'id', 'dispatch_id', 'dispatched_date', 'dispatched_time',
+            'id', 'dispatch_id', 'dispatched_time',
             'total_books', 'total_coupons', 'total_value', 'total_value_usd'
         ]
     
@@ -221,27 +225,24 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         return total
     
     def get_dispatched_date(self, obj):
-        """Extract date from dispatch_date datetime field"""
+        """Return local date (YYYY-MM-DD) from dispatch_date"""
         if obj.dispatch_date:
-            return obj.dispatch_date.date()
+            from django.utils import timezone
+            return timezone.localtime(obj.dispatch_date).strftime('%Y-%m-%d')
         return None
-    
+
     def get_dispatched_time(self, obj):
-        """Extract time from dispatch_date datetime field"""
+        """Return local time (HH:MM) from dispatch_date"""
         if obj.dispatch_date:
-            return obj.dispatch_date.time()
-        return None
-    
-    def get_received_date(self, obj):
-        """Extract date from received_date datetime field"""
-        if obj.received_date:
-            return obj.received_date.date()
+            from django.utils import timezone
+            return timezone.localtime(obj.dispatch_date).strftime('%H:%M')
         return None
     
     def get_received_time(self, obj):
-        """Extract time from received_date datetime field"""
+        """Extract local time (HH:MM) from received_date"""
         if obj.received_date:
-            return obj.received_date.time()
+            from django.utils import timezone
+            return timezone.localtime(obj.received_date).strftime('%H:%M')
         return None
     
     def create(self, validated_data):

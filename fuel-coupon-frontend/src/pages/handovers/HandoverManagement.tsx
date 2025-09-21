@@ -65,9 +65,14 @@ const HandoverManagement: FC = () => {
   const fetchHandovers = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching handovers from dispatch table...');
+      
       // For sub-center users, backend filters /dispatches/ to to_center=current user's subcenter
+      // This ensures we only see dispatches intended for this subcenter
       const resp = await apiClient.get('/dispatches/');
       const rows = Array.isArray(resp.data?.results) ? resp.data.results : (Array.isArray(resp.data) ? resp.data : []);
+      
+      console.log('📦 Found dispatches for handover:', rows.length);
 
       // Normalize mixed backend shapes: serializer snake_case vs create() camelCase
       const normalize = (d: any): HandoverRecord => {
@@ -204,9 +209,24 @@ const HandoverManagement: FC = () => {
 
   const acceptHandover = async (handover: HandoverRecord) => {
     try {
-      // Update status to RECEIVED; backend also assigns received_by when supported
+      // Update status to RECEIVED; this automatically becomes available stock for beneficiary dispatch
       await apiClient.patch(`/dispatches/${handover.id}/`, { status: 'RECEIVED' });
-      message.success('Handover accepted');
+      
+      message.success({
+        content: (
+          <div>
+            <div><strong>Handover accepted successfully!</strong></div>
+            <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
+              📦 {handover.couponCount} coupons are now available for beneficiary dispatch
+            </div>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              🔄 Stock will be automatically calculated: Received - Dispensed = Available
+            </div>
+          </div>
+        ),
+        duration: 6
+      });
+      
       fetchHandovers();
     } catch (e: any) {
       console.error('Accept error', e);
@@ -234,12 +254,18 @@ const HandoverManagement: FC = () => {
         <Title level={2} style={{ margin: 0, color: '#1890ff' }}>
           <SwapOutlined /> Handover Management
         </Title>
-        <Text type="secondary">Manage book handovers between centers</Text>
+        <Text type="secondary">
+          Manage book handovers between centers. Handovers are fetched from the dispatch table where main center dispatches are saved.
+        </Text>
+        <br />
+        <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic' }}>
+          📊 Source: /dispatches/ table filtered by to_center = current subcenter
+        </Text>
       </div>
 
       {/* Quick Stats */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={6}>
           <Card>
             <Statistic
               title="Pending Actions"
@@ -247,6 +273,41 @@ const HandoverManagement: FC = () => {
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: pendingCount > 0 ? '#ff4d4f' : '#52c41a' }}
             />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card>
+            <Statistic
+              title="Total Handovers"
+              value={handovers.length}
+              prefix={<SwapOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card>
+            <Statistic
+              title="Received Stock"
+              value={handovers.filter(h => h.status === 'RECEIVED').reduce((sum, h) => sum + h.couponCount, 0)}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+              suffix="coupons"
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card style={{ textAlign: 'center' }}>
+            <Button 
+              type="primary" 
+              icon={<SwapOutlined />}
+              onClick={() => message.info('This shows how received handovers become subcenter stock for beneficiary dispatch')}
+            >
+              View Stock Impact
+            </Button>
+            <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>
+              Handovers → Stock → Dispatch
+            </div>
           </Card>
         </Col>
         <Col xs={24} sm={8}>

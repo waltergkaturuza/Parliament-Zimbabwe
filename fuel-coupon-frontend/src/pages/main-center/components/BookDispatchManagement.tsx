@@ -1502,11 +1502,13 @@ const BookDispatchManagement: FC = () => {
         footer={null}
         width="99vw"
         style={{ top: 4 }}
-        bodyStyle={{ 
-          maxHeight: '92vh', 
-          overflow: 'auto',
-          padding: '32px',
-          minHeight: '650px'
+        styles={{ 
+          body: {
+            maxHeight: '92vh', 
+            overflow: 'auto',
+            padding: '32px',
+            minHeight: '650px'
+          }
         }}
         destroyOnHidden
       >
@@ -2305,7 +2307,7 @@ const BookDispatchManagement: FC = () => {
         ]}
   width="90vw"
   style={{ top: 24 }}
-  bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}
+  styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}
       >
         {selectedDispatch && (
           <div>
@@ -2440,7 +2442,7 @@ const BookDispatchManagement: FC = () => {
         ]}
   width="85vw"
   style={{ top: 24 }}
-  bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}
+  styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}
       >
         {selectedBookForDetails && (
           <div>
