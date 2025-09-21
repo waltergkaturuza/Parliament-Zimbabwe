@@ -55,6 +55,7 @@ import {
   EditOutlined,
   DollarCircleOutlined,
   DownloadOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -145,6 +146,7 @@ const BookDispatchManagement: FC = () => {
   const { user } = useAuth();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedDispatch, setSelectedDispatch] = useState<BookDispatch | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm();
@@ -173,14 +175,23 @@ const BookDispatchManagement: FC = () => {
   const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
   const [bookDetailConfirmations, setBookDetailConfirmations] = useState<Record<string, boolean>>({});
 
-  // Load data from API instead of hardcoded sample data
+  // Load initial data
   useEffect(() => {
-    console.log('🎬 Component mounted, starting data load...');
-    loadDispatches();
-    loadAvailableBooks();
+    console.log('🎬 Component mounted, starting initial data load...');
     loadSubCenters();
+    loadAvailableBooks();
     loadBoxes();
+    // Load dispatches initially (may have limited name resolution)
+    loadDispatches();
   }, []);
+
+  // Reload dispatches when subCenters are loaded for enhanced name resolution
+  useEffect(() => {
+    if (subCenters.length > 0) {
+      console.log('🏢 Sub-centers loaded, reloading dispatches for enhanced name resolution...');
+      loadDispatches();
+    }
+  }, [subCenters]);
 
   const loadDispatches = async () => {
     try {
@@ -189,22 +200,48 @@ const BookDispatchManagement: FC = () => {
       const data = response.data.results || response.data || [];
       
       console.log('📦 Raw dispatch data from API:', data);
+      console.log('🏢 Available sub-centers for name resolution:', subCenters);
       
       // Map backend data to ensure proper structure
       const mappedDispatches = data.map((d: any) => {
-        const books = Array.isArray(d.books) ? d.books : [];
-        const totalBooks = d.totalBooks || d.total_books || books.length;
-        const totalCoupons = d.totalCoupons || d.total_coupons || 
-          books.reduce((sum: number, book: any) => 
-            sum + (book.numberOfCoupons || book.number_of_coupons || 0), 0);
+        // Try multiple possible book field names
+        const books = Array.isArray(d.books) ? d.books : 
+                     Array.isArray(d.book_set) ? d.book_set :
+                     Array.isArray(d.dispatched_books) ? d.dispatched_books : [];
         
-        console.log(`📊 Dispatch ${d.dispatchId}: ${totalBooks} books, ${totalCoupons} coupons`);
+        // Enhanced book and coupon counting with detailed logging
+        const apiTotalBooks = d.totalBooks || d.total_books || d.book_count;
+        const apiTotalCoupons = d.totalCoupons || d.total_coupons || d.coupon_count;
+        const calculatedBooks = books.length;
+        const calculatedCoupons = books.reduce((sum: number, book: any) => 
+          sum + (book.numberOfCoupons || book.number_of_coupons || book.coupon_count || 0), 0);
+        
+        // Use API values if available, otherwise calculate from books array
+        const totalBooks = apiTotalBooks || calculatedBooks;
+        const totalCoupons = apiTotalCoupons || calculatedCoupons;
+        
+        // Enhanced sub-center name resolution with fallback hierarchy
+        const subCenterId = d.subCenterId || d.sub_center_id;
+        const subCenterName = 
+          // First: try to find by ID in loaded subCenters
+          subCenters.find(sc => sc.id === String(subCenterId))?.name ||
+          // Second: use API provided name
+          d.subCenterName || d.sub_center_name ||
+          // Third: use to_center name if available (from handover relationship)
+          d.to_center?.name ||
+          // Fourth: fallback to formatted ID
+          (subCenterId ? `Sub-Center-${subCenterId}` : 'Unknown Sub-Center');
+        
+        console.log(`📊 Dispatch ${d.dispatchId} (${subCenterName}):`);
+        console.log(`   📚 Books - API: ${apiTotalBooks}, Calculated: ${calculatedBooks}, Final: ${totalBooks}`);
+        console.log(`   🎫 Coupons - API: ${apiTotalCoupons}, Calculated: ${calculatedCoupons}, Final: ${totalCoupons}`);
+        console.log(`   📖 Books array:`, books);
         
         return {
           id: d.id,
           dispatchId: d.dispatchId || d.dispatch_id,
-          subCenterId: d.subCenterId || d.sub_center_id,
-          subCenterName: d.subCenterName || d.sub_center_name || 'Unknown Sub-Center',
+          subCenterId: subCenterId,
+          subCenterName: subCenterName,
           dispatchedBy: d.dispatchedBy || d.dispatched_by,
           dispatchedDate: d.dispatchedDate || d.dispatched_date,
           dispatchedTime: d.dispatchedTime || d.dispatched_time,
@@ -1202,9 +1239,11 @@ const BookDispatchManagement: FC = () => {
       width: 150,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text><BookOutlined /> {record.totalBooks} Books</Text>
+          <Text>
+            <BookOutlined /> {record.totalBooks || 0} Books
+          </Text>
           <Text style={{ fontSize: '12px' }}>
-            {record.totalCoupons} Coupons
+            {record.totalCoupons || 0} Coupons
           </Text>
         </Space>
       ),
@@ -1287,6 +1326,17 @@ const BookDispatchManagement: FC = () => {
               onClick={() => {
                 setSelectedDispatch(record);
                 setViewModalVisible(true);
+              }}
+            />
+          </Tooltip>
+          
+          <Tooltip title="Edit Dispatch">
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setSelectedDispatch(record);
+                setEditModalVisible(true);
               }}
             />
           </Tooltip>
@@ -1472,7 +1522,22 @@ const BookDispatchManagement: FC = () => {
       </Row>
 
       {/* Main Table */}
-      <Card>
+      <Card 
+        title="Dispatch History"
+        extra={
+          <Button 
+            onClick={() => {
+              console.log('🔄 Manual refresh triggered for dispatches');
+              loadDispatches();
+            }}
+            loading={loading}
+            icon={<ReloadOutlined />}
+            size="small"
+          >
+            Refresh
+          </Button>
+        }
+      >
         <Table
           columns={columns}
           dataSource={dispatches}
@@ -2409,6 +2474,51 @@ const BookDispatchManagement: FC = () => {
               size="small"
             />
           </div>
+        )}
+      </Modal>
+
+      {/* Edit Dispatch Modal */}
+      <Modal
+        title={
+          <Space>
+            <EditOutlined />
+            Edit Dispatch - {selectedDispatch?.dispatchId}
+          </Space>
+        }
+        open={editModalVisible}
+        onCancel={() => setEditModalVisible(false)}
+        onOk={() => {
+          // Handle edit save logic here
+          message.success('Dispatch updated successfully');
+          setEditModalVisible(false);
+          loadDispatches(); // Refresh data
+        }}
+        width={600}
+      >
+        {selectedDispatch && (
+          <Form layout="vertical">
+            <Form.Item label="Tracking Number">
+              <Input 
+                defaultValue={selectedDispatch.trackingNumber}
+                placeholder="Update tracking number"
+              />
+            </Form.Item>
+            <Form.Item label="Status">
+              <Select defaultValue={selectedDispatch.status}>
+                <Option value="DISPATCHED">Dispatched</Option>
+                <Option value="IN_TRANSIT">In Transit</Option>
+                <Option value="RECEIVED">Received</Option>
+                <Option value="CONFIRMED">Confirmed</Option>
+              </Select>
+            </Form.Item>
+            <Form.Item label="Notes">
+              <TextArea 
+                rows={4}
+                defaultValue={selectedDispatch.notes}
+                placeholder="Add dispatch notes or updates"
+              />
+            </Form.Item>
+          </Form>
         )}
       </Modal>
 

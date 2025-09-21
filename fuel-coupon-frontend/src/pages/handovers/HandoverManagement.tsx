@@ -65,30 +65,45 @@ const HandoverManagement: FC = () => {
   const fetchHandovers = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching handovers from dispatch table...');
+      console.log('🔍 Fetching handovers/dispatches...');
       
-      // For sub-center users, backend filters /dispatches/ to to_center=current user's subcenter
-      // This ensures we only see dispatches intended for this subcenter
+      // Fetch dispatches - backend automatically filters based on user role:
+      // - MAIN_CENTER: sees all dispatches (outgoing handovers)  
+      // - SUB_CENTER: sees only dispatches to their subcenter (incoming handovers)
       const resp = await apiClient.get('/dispatches/');
       const rows = Array.isArray(resp.data?.results) ? resp.data.results : (Array.isArray(resp.data) ? resp.data : []);
       
-      console.log('📦 Found dispatches for handover:', rows.length);
+      console.log('📦 Raw dispatch data:', rows);
+      console.log('📦 Found dispatches for handover processing:', rows.length);
 
-      // Normalize mixed backend shapes: serializer snake_case vs create() camelCase
+      // Normalize mixed backend shapes and ensure proper field resolution
       const normalize = (d: any): HandoverRecord => {
+        console.log('📋 Normalizing dispatch:', d);
+        
         const id = String(d.id ?? d.dispatchId ?? d.dispatch_id ?? '');
-        const toCenter = d.to_center?.name ?? d.subCenterName ?? d.subcenter_name ?? '';
-        const fromCenter = d.from_center?.name ?? d.fromCenter ?? 'Main Center';
-        const created = d.dispatch_date ?? d.dispatched_date ?? d.dispatchedDate ?? d.created ?? new Date().toISOString();
-        // Count books/coupons from payload if present; fall back to totals
+        // Better sub-center name resolution
+        const toCenter = d.to_center?.name || d.subCenterName || d.subcenter_name || d.subCenterCode || 'Unknown Sub-Center';
+        const fromCenter = d.from_center?.name || d.fromCenter || d.dispatched_by?.username || 'Main Center';
+        const created = d.dispatch_date || d.dispatched_date || d.dispatchedDate || d.created || new Date().toISOString();
+        
+        // Better book/coupon counting
         const books = Array.isArray(d.books) ? d.books : [];
-        const bookCount = Number(d.total_books ?? d.totalBooks ?? books.length ?? 0);
-        const couponCount = Number(d.total_coupons ?? d.totalCoupons ?? books.reduce((s: number, b: any) => s + Number(b.numberOfCoupons || 0), 0));
-        const fuelType = (books[0]?.fuelType ?? 'DIESEL') as 'PETROL' | 'DIESEL';
-        const status = (d.status ?? 'DISPATCHED') as HandoverRecord['status'];
-        return {
+        let bookCount = Number(d.total_books || d.totalBooks || 0);
+        let couponCount = Number(d.total_coupons || d.totalCoupons || 0);
+        
+        // If totals are 0 but we have books array, calculate from books
+        if (bookCount === 0 && books.length > 0) {
+          bookCount = books.length;
+          couponCount = books.reduce((sum: number, book: any) => 
+            sum + Number(book.numberOfCoupons || book.coupon_count || 0), 0);
+        }
+        
+        const fuelType = (books[0]?.fuelType || d.fuel_type || 'DIESEL') as 'PETROL' | 'DIESEL';
+        const status = (d.status || 'DISPATCHED') as HandoverRecord['status'];
+        
+        const normalized = {
           id,
-          handoverNumber: (d.dispatchId ?? d.dispatch_id ?? `DSP-${id}`).toString(),
+          handoverNumber: (d.dispatchId || d.dispatch_id || `DSP-${id}`).toString(),
           fromCenter,
           toCenter,
           bookCount,
@@ -96,7 +111,12 @@ const HandoverManagement: FC = () => {
           fuelType,
           status,
           createdDate: dayjs(created).format('YYYY-MM-DD HH:mm'),
+          driverName: d.driver_name || d.driverName,
+          vehicleNumber: d.vehicle_number || d.vehicleNumber,
         };
+        
+        console.log('✅ Normalized handover:', normalized);
+        return normalized;
       };
 
       const mapped: HandoverRecord[] = rows
@@ -209,8 +229,10 @@ const HandoverManagement: FC = () => {
 
   const acceptHandover = async (handover: HandoverRecord) => {
     try {
+      console.log('🔄 Accepting handover:', handover);
       // Update status to RECEIVED; this automatically becomes available stock for beneficiary dispatch
-      await apiClient.patch(`/dispatches/${handover.id}/`, { status: 'RECEIVED' });
+      const response = await apiClient.patch(`/dispatches/${handover.id}/`, { status: 'RECEIVED' });
+      console.log('✅ Handover accepted:', response.data);
       
       message.success({
         content: (
@@ -227,7 +249,7 @@ const HandoverManagement: FC = () => {
         duration: 6
       });
       
-      fetchHandovers();
+      await fetchHandovers();
     } catch (e: any) {
       console.error('Accept error', e);
       message.error(e?.response?.data?.detail || 'Failed to accept handover');
@@ -347,7 +369,19 @@ const HandoverManagement: FC = () => {
       )}
 
       {/* Handovers Table */}
-      <Card title="Book Handovers">
+      <Card 
+        title="Book Handovers" 
+        extra={
+          <Space>
+            <Button icon={<DownloadOutlined />} onClick={fetchHandovers} loading={loading}>
+              Refresh Data
+            </Button>
+            <Text type="secondary">
+              Last updated: {dayjs().format('HH:mm:ss')}
+            </Text>
+          </Space>
+        }
+      >
         <Table
           columns={columns}
           dataSource={handovers}
