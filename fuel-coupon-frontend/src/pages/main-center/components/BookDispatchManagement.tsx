@@ -1043,6 +1043,7 @@ const BookDispatchManagement: FC = () => {
         selectedBookDetails: selectedBookDetails.length
       });
 
+      // Local representation used for optimistic UI update
       const newDispatch: BookDispatch = {
         id: Date.now().toString(),
         dispatchId: nextDispatchNumber,
@@ -1095,12 +1096,43 @@ const BookDispatchManagement: FC = () => {
         trackingNumber: `TRK-${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}${Date.now().toString().slice(-4)}`,
       };
 
-      // API call to save dispatch
+      // Build backend payload (align with BookDispatchSerializer expectations)
+      const backendPayload: any = {
+        to_center: values.subCenterId, // FK id for subcenter
+        status: 'DISPATCHED',
+        tracking_number: `TRK-${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}${Date.now().toString().slice(-4)}`,
+        notes: values.notes || '',
+        // Pass book ids through context-friendly field (backend serializer uses context for books_data if provided)
+        books_data: selectedBookDetails.map(b => ({ id: b.id || b.bookId || b.key })),
+      };
+
+      console.log('🛰️ POST /dispatches/ payload:', backendPayload);
+
       try {
-        const response = await apiClient.post('/dispatches/', newDispatch);
+        const response = await apiClient.post('/dispatches/', backendPayload);
 
         if (response.status === 200 || response.status === 201) {
-          setDispatches((prev: BookDispatch[]) => [newDispatch, ...prev]);
+          const saved = response.data;
+          console.log('✅ Saved dispatch response:', saved);
+          // Map response into local shape
+          const mapped: BookDispatch = {
+            id: saved.id,
+            dispatchId: saved.dispatch_id || newDispatch.dispatchId,
+            subCenterId: saved.to_center || saved.to_center_id || newDispatch.subCenterId,
+            subCenterName: saved.subcenter_name || newDispatch.subCenterName,
+            dispatchedBy: saved.dispatched_by?.username || newDispatch.dispatchedBy,
+            dispatchedDate: saved.dispatched_date || newDispatch.dispatchedDate,
+            dispatchedTime: saved.dispatched_time || newDispatch.dispatchedTime,
+            books: newDispatch.books, // could re-fetch later for accuracy
+            totalBooks: saved.total_books || newDispatch.totalBooks,
+            totalCoupons: saved.total_coupons || newDispatch.totalCoupons,
+            totalValue: saved.total_value || newDispatch.totalValue,
+            status: saved.status || 'DISPATCHED',
+            trackingNumber: saved.tracking_number || backendPayload.tracking_number,
+            notes: saved.notes || backendPayload.notes,
+            receptionConfirmed: false,
+          };
+          setDispatches((prev: BookDispatch[]) => [mapped, ...prev]);
           // Remove dispatched books from available books
           setAvailableBooks(prev => prev.filter(book => !selectedBooks.includes(book.key)));
           message.success('Books dispatched successfully!');
@@ -2477,50 +2509,78 @@ const BookDispatchManagement: FC = () => {
         )}
       </Modal>
 
-      {/* Edit Dispatch Modal */}
-      <Modal
-        title={
+      {/* Enhanced Edit Drawer */}
+      <Drawer
+        title={<Space><EditOutlined /> Edit Dispatch - {selectedDispatch?.dispatchId}</Space>}
+        placement="right"
+        width={520}
+        open={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        extra={
           <Space>
-            <EditOutlined />
-            Edit Dispatch - {selectedDispatch?.dispatchId}
+            <Button onClick={() => setEditModalVisible(false)}>Cancel</Button>
+            <Button type="primary" onClick={async () => {
+              if (!selectedDispatch) return;
+              try {
+                const formValues = await editForm.validateFields();
+                const payload: any = {
+                  tracking_number: formValues.trackingNumber,
+                  status: formValues.status,
+                  notes: formValues.notes || '',
+                  to_center: formValues.subCenterId,
+                };
+                console.log('🛠️ PATCH /dispatches/:', selectedDispatch.id, payload);
+                await apiClient.patch(`/dispatches/${selectedDispatch.id}/`, payload);
+                message.success('Dispatch updated');
+                setEditModalVisible(false);
+                loadDispatches();
+              } catch (e) {
+                console.error('Edit save error', e);
+                message.error('Failed to save changes');
+              }
+            }}>Save</Button>
           </Space>
         }
-        open={editModalVisible}
-        onCancel={() => setEditModalVisible(false)}
-        onOk={() => {
-          // Handle edit save logic here
-          message.success('Dispatch updated successfully');
-          setEditModalVisible(false);
-          loadDispatches(); // Refresh data
-        }}
-        width={600}
       >
         {selectedDispatch && (
-          <Form layout="vertical">
-            <Form.Item label="Tracking Number">
-              <Input 
-                defaultValue={selectedDispatch.trackingNumber}
-                placeholder="Update tracking number"
-              />
+          <Form layout="vertical" form={editForm} initialValues={{
+            trackingNumber: selectedDispatch.trackingNumber,
+            status: selectedDispatch.status,
+            notes: selectedDispatch.notes,
+            subCenterId: selectedDispatch.subCenterId,
+          }}>
+            <Alert type="info" showIcon style={{ marginBottom: 16 }}
+              message="You can change the receiving sub-center, status, or tracking number. Books editing coming soon." />
+            <Form.Item name="subCenterId" label="Receiving Sub-Center" rules={[{ required: true, message: 'Select sub-center'}]}>
+              <Select placeholder="Select sub-center">
+                {subCenters.map(sc => <Option key={sc.id} value={sc.id}>{sc.name}</Option>)}
+              </Select>
             </Form.Item>
-            <Form.Item label="Status">
-              <Select defaultValue={selectedDispatch.status}>
+            <Form.Item name="trackingNumber" label="Tracking Number" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+              <Select>
                 <Option value="DISPATCHED">Dispatched</Option>
                 <Option value="IN_TRANSIT">In Transit</Option>
                 <Option value="RECEIVED">Received</Option>
                 <Option value="CONFIRMED">Confirmed</Option>
               </Select>
             </Form.Item>
-            <Form.Item label="Notes">
-              <TextArea 
-                rows={4}
-                defaultValue={selectedDispatch.notes}
-                placeholder="Add dispatch notes or updates"
-              />
+            <Form.Item name="notes" label="Notes">
+              <TextArea rows={4} />
             </Form.Item>
+            <Divider orientation="left" plain>Books ({selectedDispatch.books?.length || 0})</Divider>
+            <List
+              size="small"
+              bordered
+              dataSource={selectedDispatch.books || []}
+              renderItem={(b: any) => <List.Item>{b.bookId || b.book_number} - {b.numberOfCoupons || b.number_of_coupons || 100} coupons</List.Item>}
+              style={{ maxHeight: 160, overflow: 'auto' }}
+            />
           </Form>
         )}
-      </Modal>
+      </Drawer>
 
       {/* Book Details Modal */}
   <Modal
