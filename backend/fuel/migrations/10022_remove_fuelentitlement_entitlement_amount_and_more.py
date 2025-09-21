@@ -101,6 +101,52 @@ def remove_coupon_fields_safely(apps, schema_editor):
     safe_remove_field(apps, schema_editor, 'Coupon', 'coupon_serial')
 
 
+def add_fuelentitlement_fields_safely(apps, schema_editor):
+    """Safely add fields to FuelEntitlement model"""
+    User = apps.get_model('auth', 'User')
+    
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'approved_by',
+                   models.ForeignKey(blank=True, help_text='User who approved this entitlement', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='entitlements_approved', to='auth.User'))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'approved_date',
+                   models.DateTimeField(blank=True, help_text='Date when entitlement was approved', null=True))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'created_by',
+                   models.ForeignKey(blank=True, help_text='User who created this entitlement record', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='entitlements_created', to='auth.User'))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'entitlement_type',
+                   models.CharField(choices=[('MONTHLY', 'Monthly Entitlement'), ('SESSION', 'Parliament Session'), ('COMMITTEE', 'Committee Meeting'), ('SPECIAL_EVENT', 'Special Event'), ('TRAVEL_ALLOWANCE', 'Travel Allowance'), ('EMERGENCY', 'Emergency Allocation'), ('CONSTITUENCY_WORK', 'Constituency Work')], default='MONTHLY', help_text='Type of entitlement', max_length=20))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'justification',
+                   models.TextField(blank=True, default='', help_text='Justification for this entitlement'))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'litres_allocated',
+                   models.DecimalField(decimal_places=2, default=0, help_text='Amount of fuel actually allocated/given', max_digits=8))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'litres_entitled',
+                   models.DecimalField(decimal_places=2, default=200, help_text='Amount of fuel entitled in litres', max_digits=8))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'notes',
+                   models.TextField(blank=True, help_text='Additional notes about this entitlement'))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'period_end',
+                   models.DateField(blank=True, help_text='End date of entitlement period', null=True))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'period_start',
+                   models.DateField(blank=True, help_text='Start date of entitlement period', null=True))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'session',
+                   models.ForeignKey(blank=True, help_text='Parliament session this entitlement is for', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fuel_entitlements', to='fuel.ParliamentSession'))
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'status',
+                   models.CharField(choices=[('PENDING', 'Pending Approval'), ('APPROVED', 'Approved'), ('REJECTED', 'Rejected'), ('PARTIALLY_USED', 'Partially Used'), ('FULLY_USED', 'Fully Used'), ('EXPIRED', 'Expired')], default='PENDING', help_text='Status of the entitlement', max_length=20))
+
+
+def remove_fuelentitlement_fields_safely(apps, schema_editor):
+    """Safely remove fields from FuelEntitlement model"""
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'status')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'session')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'period_start')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'period_end')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'notes')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'litres_entitled')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'litres_allocated')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'justification')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'entitlement_type')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'created_by')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'approved_date')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'approved_by')
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -195,66 +241,7 @@ class Migration(migrations.Migration):
         ),
         migrations.RunPython(add_box_fields_safely, remove_box_fields_safely),
         migrations.RunPython(add_coupon_fields_safely, remove_coupon_fields_safely),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='approved_by',
-            field=models.ForeignKey(blank=True, help_text='User who approved this entitlement', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='entitlements_approved', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='approved_date',
-            field=models.DateTimeField(blank=True, help_text='Date when entitlement was approved', null=True),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='created_by',
-            field=models.ForeignKey(blank=True, help_text='User who created this entitlement record', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='entitlements_created', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='entitlement_type',
-            field=models.CharField(choices=[('MONTHLY', 'Monthly Entitlement'), ('SESSION', 'Parliament Session'), ('COMMITTEE', 'Committee Meeting'), ('SPECIAL_EVENT', 'Special Event'), ('TRAVEL_ALLOWANCE', 'Travel Allowance'), ('EMERGENCY', 'Emergency Allocation'), ('CONSTITUENCY_WORK', 'Constituency Work')], default='MONTHLY', help_text='Type of entitlement', max_length=20),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='justification',
-            field=models.TextField(blank=True, default='', help_text='Justification for this entitlement'),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='litres_allocated',
-            field=models.DecimalField(decimal_places=2, default=0, help_text='Amount of fuel actually allocated/given', max_digits=8),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='litres_entitled',
-            field=models.DecimalField(decimal_places=2, default=200, help_text='Amount of fuel entitled in litres', max_digits=8),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='notes',
-            field=models.TextField(blank=True, help_text='Additional notes about this entitlement'),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='period_end',
-            field=models.DateField(blank=True, help_text='End date of entitlement period', null=True),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='period_start',
-            field=models.DateField(blank=True, help_text='Start date of entitlement period', null=True),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='session',
-            field=models.ForeignKey(blank=True, help_text='Related parliament session (if applicable)', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fuel_entitlements', to='fuel.parliamentsession'),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='status',
-            field=models.CharField(choices=[('PENDING', 'Pending'), ('APPROVED', 'Approved'), ('ALLOCATED', 'Allocated'), ('PARTIALLY_ALLOCATED', 'Partially Allocated'), ('EXPIRED', 'Expired'), ('CANCELLED', 'Cancelled')], default='PENDING', max_length=20),
-        ),
+        migrations.RunPython(add_fuelentitlement_fields_safely, remove_fuelentitlement_fields_safely),
         migrations.AlterField(
             model_name='beneficiaryprofile',
             name='party_affiliation',
