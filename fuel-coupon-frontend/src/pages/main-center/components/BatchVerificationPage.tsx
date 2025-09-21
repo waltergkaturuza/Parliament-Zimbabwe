@@ -91,7 +91,8 @@ interface BoxVerification {
   signOffDate?: string;
 }
 
-const BoxVerificationPage: React.FC = () => {
+// NOTE: Renamed from BoxVerificationPage to BatchVerificationPage to match route lazy import
+const BatchVerificationPage: React.FC = () => {
   const [boxes, setBoxes] = useState<BoxVerification[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBox, setSelectedBox] = useState<BoxVerification | null>(null);
