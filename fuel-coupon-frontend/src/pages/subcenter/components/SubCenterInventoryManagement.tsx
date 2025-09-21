@@ -45,6 +45,7 @@ import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import apiClient from '../../../api/index';
 import { useAuth } from '../../../contexts/AuthContext';
+import BidirectionalCouponAllocation from '@/components/subcenter/BidirectionalCouponAllocation';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -59,7 +60,7 @@ interface IncomingBook {
   bookNumber: string;
   batchId: string;
   fuelType: 'PETROL' | 'DIESEL';
-  couponAmount: 5 | 20;
+  couponAmount: 5 | 10 | 20 | 25;
   firstCouponSerial: string;
   lastCouponSerial: string;
   totalCoupons: number;
@@ -134,7 +135,7 @@ interface PendingDispatch {
   books: Array<{
     bookId: string;
     fuelType: 'PETROL' | 'DIESEL';
-    couponAmount: 5 | 20;
+    couponAmount: 5 | 10 | 20 | 25;
     totalCoupons: number;
     totalValue: number;
   }>;
@@ -186,6 +187,7 @@ const SubCenterInventoryManagement: FC = () => {
   const [selectedBook, setSelectedBook] = useState<IncomingBook | null>(null);
   const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
+  const [bidirectionalAllocationVisible, setBidirectionalAllocationVisible] = useState(false);
   const [selectedBeneficiary, setBeneficiary] = useState<Beneficiary | null>(null);
   
   // Form for allocation
@@ -876,11 +878,17 @@ const SubCenterInventoryManagement: FC = () => {
           <Col>
             <Space>
               <Button 
-                type="primary" 
                 icon={<PlusOutlined />}
                 onClick={() => setAllocationModalVisible(true)}
               >
-                New Allocation
+                Basic Allocation
+              </Button>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+                onClick={() => setBidirectionalAllocationVisible(true)}
+              >
+                Smart Allocation
               </Button>
             </Space>
           </Col>
@@ -1187,6 +1195,18 @@ const SubCenterInventoryManagement: FC = () => {
           </div>
         </Form>
       </Modal>
+
+      {/* Bidirectional Coupon Allocation Modal */}
+      <BidirectionalCouponAllocation
+        visible={bidirectionalAllocationVisible}
+        onCancel={() => setBidirectionalAllocationVisible(false)}
+        onSuccess={() => {
+          loadInventoryData();
+          loadAllocations();
+        }}
+        beneficiaries={beneficiaries}
+        subCenterId={user?.sub_center_id || user?.id}
+      />
     </div>
   );
 };

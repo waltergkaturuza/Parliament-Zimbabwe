@@ -1489,6 +1489,71 @@ class BoxViewSet(viewsets.ModelViewSet):
                 'error': f'Status check failed: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['post'])
+    def calculate(self, request):
+        """
+        Perform bidirectional calculations for batch/coupon allocation
+        
+        POST /api/boxes/calculate/
+        
+        Supports two modes:
+        1. first-and-last: Provide first_coupon_serial and last_coupon_serial
+        2. first-and-count: Provide first_coupon_serial, number_of_books, and coupons_per_book
+        
+        Returns calculated values including the mode used and detailed results
+        """
+        try:
+            # Create a temporary Box instance for calculation
+            temp_box = Box(
+                denomination=request.data.get('denomination', 20),
+                fuel_type=request.data.get('fuel_type', 'PETROL'),
+                first_coupon_serial=request.data.get('first_coupon_serial'),
+                last_coupon_serial=request.data.get('last_coupon_serial'),
+                number_of_books=request.data.get('number_of_books'),
+                coupons_per_book=request.data.get('coupons_per_book'),
+                fuel_price_per_litre_usd=Decimal(request.data.get('fuel_price_per_litre_usd', '1.40')),
+                exchange_rate_zwg_usd=Decimal(request.data.get('exchange_rate_zwg_usd', '27.50'))
+            )
+            
+            # Use the smart_calculate method
+            result = temp_box.smart_calculate(
+                first_serial=request.data.get('first_coupon_serial'),
+                last_serial=request.data.get('last_coupon_serial'),
+                number_of_books=request.data.get('number_of_books'),
+                coupons_per_book=request.data.get('coupons_per_book')
+            )
+            
+            if result.get('errors'):
+                return Response({
+                    'error': result['errors'][0] if result['errors'] else 'Calculation failed',
+                    'details': result
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Add calculated fields for API response
+            response_data = {
+                'calculated_number_of_books': result.get('calculations', {}).get('number_of_books'),
+                'calculated_coupons_per_book': result.get('calculations', {}).get('coupons_per_book'),
+                'calculated_last_serial': result.get('calculations', {}).get('last_serial'),
+                'calculated_total_coupons': result.get('calculations', {}).get('total_coupons'),
+                'calculation_mode_display': result.get('calculation_mode'),
+                'detailed_book_breakdown': result.get('book_breakdown', []),
+                'calculation_summary': {
+                    'total_litres': result.get('calculations', {}).get('total_litres'),
+                    'first_num': result.get('calculations', {}).get('first_num'),
+                    'last_num': result.get('calculations', {}).get('last_num'),
+                },
+                'success': True
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f'Error in bidirectional calculation: {e}', exc_info=True)
+            return Response({
+                'error': f'Calculation failed: {str(e)}',
+                'success': False
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class BookViewSet(viewsets.ModelViewSet):
     """Enhanced ViewSet for Book management with sequential allocation"""
