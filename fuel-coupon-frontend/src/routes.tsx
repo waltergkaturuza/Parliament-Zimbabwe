@@ -38,8 +38,8 @@ const MainCenterDashboard = lazy(() => import('@/pages/main-center/MainCenterDas
 const DynamicAllocations = lazy(() => import('@/pages/fuel/DynamicAllocations'));
 
 // Main Center Dedicated Pages
-const BoxReceiptPage = lazy(() => import('@/pages/main-center/BoxReceiptPage'));
-const BoxVerificationPage = lazy(() => import('@/pages/main-center/components/BoxVerificationPage'));
+const BatchReceiptPage = lazy(() => import('@/pages/main-center/BatchReceiptPage'));
+const BatchVerificationPage = lazy(() => import('@/pages/main-center/components/BatchVerificationPage'));
 const BookDispatchPage = lazy(() => import('@/pages/main-center/BookDispatchPage'));
 const FuelPricingPage = lazy(() => import('@/pages/main-center/FuelPricingPage'));
 const InventoryOverviewPage = lazy(() => import('@/pages/main-center/InventoryOverviewPage'));
@@ -166,14 +166,14 @@ const router = createBrowserRouter(
         } />
         
         {/* Dedicated Main Center Operation Routes - Protected */}
-        <Route path="box-receipt" element={
+        <Route path="batch-receipt" element={
           <MainCenterRoute>
-            <Suspense fallback={<LoadingSpinner />}><BoxReceiptPage /></Suspense>
+            <Suspense fallback={<LoadingSpinner />}><BatchReceiptPage /></Suspense>
           </MainCenterRoute>
         } />
-        <Route path="box-verification" element={
+        <Route path="batch-verification" element={
           <MainCenterRoute>
-            <Suspense fallback={<LoadingSpinner />}><BoxVerificationPage /></Suspense>
+            <Suspense fallback={<LoadingSpinner />}><BatchVerificationPage /></Suspense>
           </MainCenterRoute>
         } />
         <Route path="book-dispatch" element={

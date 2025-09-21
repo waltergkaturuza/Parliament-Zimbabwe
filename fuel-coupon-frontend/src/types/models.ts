@@ -102,7 +102,7 @@ export interface User {
     book: Book;
     // Additional properties used in the frontend
     book_number: string;
-    box_code: string;
+    batch_code: string;
     status_display: string;
     allocated_to_name?: string;
   }

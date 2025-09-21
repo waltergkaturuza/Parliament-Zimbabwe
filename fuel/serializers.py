@@ -156,14 +156,13 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookDispatch
         fields = [
-            'id', 'dispatch_id', 'to_center', 'subcenter_name',
+            'id', 'dispatch_id', 'from_center', 'to_center', 'subcenter_name',
             'dispatched_by', 'received_by', 'books', 'total_books',
             'dispatch_date', 'dispatched_date', 'dispatched_time', 'status',
             # Linkages
             'program', 'session',
             # Calculated fields
-            'total_coupons', 'total_value', 'total_value_usd',
-            'first_serial', 'last_serial'
+            'total_coupons', 'total_value', 'total_value_usd'
         ]
         read_only_fields = [
             'id', 'dispatch_id', 'dispatched_date', 'dispatched_time',
@@ -2293,12 +2292,13 @@ class SystemAlertSerializer(serializers.ModelSerializer):
 class AuditLogSerializer(serializers.ModelSerializer):
     """Serializer for AuditLog model"""
     user_details = SimpleUserSerializer(source='user', read_only=True)
+    model_name = serializers.CharField(source='content_type.model', read_only=True)
     
     class Meta:
         model = AuditLog
         fields = [
             'id', 'user', 'user_details', 'action', 'model_name', 'object_id',
-            'object_repr', 'changes', 'ip_address', 'user_agent',
+            'object_repr', 'changes', 'user_ip', 'user_agent',
             'session_key', 'created'
         ]
         read_only_fields = ['id', 'created']

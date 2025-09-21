@@ -140,21 +140,21 @@ export const generateRange = (firstSerial: string, lastSerial: string): string[]
 export const calculateBookRanges = (
   firstSerial: string,
   lastSerial: string,
-  booksPerBox: number = 10,
+  booksPerBatch: number = 10,
   couponsPerBook: number = 100
 ): BookRange[] => {
   const serials = generateRange(firstSerial, lastSerial);
   const totalCoupons = serials.length;
   
-  if (totalCoupons !== booksPerBox * couponsPerBook) {
+  if (totalCoupons !== booksPerBatch * couponsPerBook) {
     throw new Error(
-      `Serial range contains ${totalCoupons} coupons, but expected ${booksPerBox * couponsPerBook}`
+      `Serial range contains ${totalCoupons} coupons, but expected ${booksPerBatch * couponsPerBook}`
     );
   }
 
   const books: BookRange[] = [];
   
-  for (let bookIndex = 0; bookIndex < booksPerBox; bookIndex++) {
+  for (let bookIndex = 0; bookIndex < booksPerBatch; bookIndex++) {
     const startIndex = bookIndex * couponsPerBook;
     const endIndex = startIndex + couponsPerBook - 1;
     

@@ -5017,12 +5017,20 @@ class DynamicAllocation(TimeStampedModel):
 # TEMPORARY MODEL STUBS - TO BE PROPERLY IMPLEMENTED LATER
 
 class BookDispatch(TimeStampedModel):
-    """Book dispatch model with actual book relationships"""
-    to_center = models.ForeignKey(SubCenter, on_delete=models.CASCADE, related_name='dispatches', null=True, blank=True)
+    """Book dispatch model supporting MainCenter→SubCenter and SubCenter→Beneficiary dispatches"""
+    # Dispatch routing - supports both center-to-center and center-to-beneficiary
+    from_center = models.ForeignKey(SubCenter, on_delete=models.CASCADE, related_name='outgoing_dispatches', null=True, blank=True, help_text="Center sending the dispatch")
+    to_center = models.ForeignKey(SubCenter, on_delete=models.CASCADE, related_name='incoming_dispatches', null=True, blank=True, help_text="SubCenter receiving the dispatch")
+    to_beneficiary = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_dispatches', null=True, blank=True, help_text="Beneficiary receiving the dispatch")
+    
+    # Dispatch actors
     dispatched_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispatches_sent', null=True, blank=True)
     received_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispatches_received', null=True, blank=True)
+    
+    # Dispatch metadata
     status = models.CharField(max_length=20, choices=[('PENDING', 'Pending'), ('DISPATCHED', 'Dispatched'), ('RECEIVED', 'Received')], default='PENDING')
     dispatch_date = models.DateTimeField(auto_now_add=True)
+    dispatch_type = models.CharField(max_length=25, choices=[('CENTER_TO_CENTER', 'Center to Center'), ('CENTER_TO_BENEFICIARY', 'Center to Beneficiary')], default='CENTER_TO_CENTER')
     
     # CRITICAL: Many-to-Many relationship with books
     books = models.ManyToManyField(Book, related_name='dispatches', blank=True, help_text="Books included in this dispatch")
@@ -5035,6 +5043,32 @@ class BookDispatch(TimeStampedModel):
     # Fields needed for analytics migration
     program = models.ForeignKey(Program, on_delete=models.CASCADE, null=True, blank=True, help_text="Program associated with this dispatch")
     session = models.ForeignKey(ParliamentSession, on_delete=models.CASCADE, null=True, blank=True, help_text="Parliament session associated with this dispatch")
+    
+    # Generation mode and configuration
+    generation_mode = models.CharField(max_length=50, null=True, blank=True, help_text="Mode used for coupon generation")
+    
+    # Transport and receipt details
+    transport_method = models.CharField(max_length=50, null=True, blank=True, help_text="Method of transport")
+    vehicle_number = models.CharField(max_length=20, null=True, blank=True, help_text="Vehicle registration number")
+    driver_name = models.CharField(max_length=100, null=True, blank=True, help_text="Driver's name")
+    driver_phone = models.CharField(max_length=20, null=True, blank=True, help_text="Driver's phone number")
+    courier_service = models.CharField(max_length=100, null=True, blank=True, help_text="Courier service used")
+    tracking_number = models.CharField(max_length=50, null=True, blank=True, help_text="Tracking number for shipment")
+    
+    # Receipt confirmation
+    receiver_signature = models.TextField(null=True, blank=True, help_text="Digital signature or confirmation")
+    received_date = models.DateTimeField(null=True, blank=True, help_text="Date and time when dispatch was received")
+    
+    # Documentation
+    delivery_note = models.CharField(max_length=200, null=True, blank=True, help_text="Delivery note or reference")
+    notes = models.TextField(null=True, blank=True, help_text="Additional dispatch notes")
+    special_instructions = models.TextField(null=True, blank=True, help_text="Special handling instructions")
+    
+    # Verification
+    verification_checks = models.JSONField(default=list, blank=True, help_text="List of verification checks performed")
+    verification_notes = models.TextField(null=True, blank=True, help_text="Notes from verification process")
+    verified_by = models.CharField(max_length=100, null=True, blank=True, help_text="Person who verified the dispatch")
+    verified_at = models.DateTimeField(null=True, blank=True, help_text="Date and time of verification")
     
     def __str__(self):
         return f"Dispatch to {self.to_center.name if self.to_center else 'Unknown'} - {self.status}"

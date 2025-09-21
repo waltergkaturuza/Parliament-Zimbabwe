@@ -32,10 +32,10 @@ export interface AnalyticsData {
     average_daily_revenue: number;
   };
   operational_summary: {
-    total_boxes_processed: number;
+    total_batches_processed: number;
     total_coupons_issued: number;
     total_litres_allocated: number;
-    average_value_per_box: number;
+    average_value_per_batch: number;
   };
   daily_data: Array<{
     date: string;
@@ -46,7 +46,7 @@ export interface AnalyticsData {
     coupons_issued: number;
     books_issued: number;
     litres_allocated: number;
-    boxes_processed: number;
+    batches_processed: number;
   }>;
   fuel_summary: {
     total_fuel_dispensed: number;

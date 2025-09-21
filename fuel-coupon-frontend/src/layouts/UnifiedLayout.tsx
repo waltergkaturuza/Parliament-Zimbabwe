@@ -151,16 +151,16 @@ const UnifiedLayout: React.FC = () => {
           path: '/dashboard/inventory-management',
         },
         {
-          key: 'box-receipt',
+          key: 'batch-receipt',
           icon: <GiftOutlined />,
-          label: 'Box Receipt Management',
-          path: '/dashboard/box-receipt',
+          label: 'Batch Receipt Management',
+          path: '/dashboard/batch-receipt',
         },
         {
-          key: 'box-verification',
+          key: 'batch-verification',
           icon: <AuditOutlined />,
-          label: 'Box & Coupon Verification',
-          path: '/dashboard/box-verification',
+          label: 'Batch & Coupon Verification',
+          path: '/dashboard/batch-verification',
         },
         {
           key: 'book-dispatch',
@@ -212,7 +212,7 @@ const UnifiedLayout: React.FC = () => {
           icon: <SwapOutlined />,
           label: 'Book Handovers',
           path: '/dashboard/handovers',
-          badge: 0, // TODO: Get actual pending handovers count from API
+          badge:0, // TODO: Get actual pending handovers count from API
         },
         {
           key: 'fuel-distribution',

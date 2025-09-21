@@ -24,7 +24,7 @@ describe('CentralizedBookGenerator Integration Tests', () => {
   const mockProps = {
     visible: true,
     onClose: jest.fn(),
-    boxId: 'TEST-BOX-001',
+    batchId: 1,
     onSuccess: jest.fn(),
   };
 
@@ -70,7 +70,7 @@ describe('CentralizedBookGenerator Integration Tests', () => {
 
     await waitFor(() => {
       expect(mockBookGenerationAPI.validateRequest).toHaveBeenCalledWith({
-        box_id: 'TEST-BOX-001',
+        batch_id: 1,
         petrotrade_serial: 'PT2024001',
         num_books: 50,
       });
@@ -156,7 +156,7 @@ describe('CentralizedBookGenerator Integration Tests', () => {
 
     await waitFor(() => {
       expect(mockBookGenerationAPI.generateBooks).toHaveBeenCalledWith({
-        box_id: 'TEST-BOX-001',
+        batch_id: 1,
         petrotrade_serial: 'PT2024001',
         num_books: 50,
       });

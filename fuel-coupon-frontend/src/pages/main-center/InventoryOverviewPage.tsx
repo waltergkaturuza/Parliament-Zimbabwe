@@ -27,7 +27,7 @@ const InventoryOverviewPage: React.FC = () => {
           Inventory Overview
         </Title>
         <Typography.Text type="secondary">
-          Monitor inventory levels, boxes, books, and coupons across the system
+          Monitor inventory levels, batches, books, and coupons across the system
         </Typography.Text>
       </div>
 

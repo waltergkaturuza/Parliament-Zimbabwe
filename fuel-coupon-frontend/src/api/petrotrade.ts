@@ -50,7 +50,7 @@ export const petrotradeApi = {
    * Create a new PetroTrade batch with sequential coupon serials
    */
   createBatch: async (data: PetroTradeBatchRequest): Promise<PetroTradeBatchResponse> => {
-    const response = await apiClient.post('/boxes/create_petrotrade_box/', data);
+    const response = await apiClient.post('/batches/create_petrotrade_batch/', data);
     return response.data;
   },
 

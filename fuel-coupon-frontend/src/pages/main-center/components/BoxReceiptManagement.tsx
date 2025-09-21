@@ -856,7 +856,7 @@ const BoxReceiptManagement: FC = () => {
       // Validate required fields depending on receive type
       if (receiveType === 'BOX') {
         if (!values.firstCouponId || !values.numberOfBooks || !values.couponsPerBook) {
-          message.error('First coupon ID, number of books, and coupons per book are required for Box receipt.');
+          message.error('First coupon ID, number of books, and coupons per book are required for Batch receipt.');
           setLoading(false);
           return;
         }
@@ -1021,7 +1021,7 @@ const BoxReceiptManagement: FC = () => {
             boxId: savedBox.box_code,
             barcode: savedBox.barcode,
           });
-          message.success('Box saved! Backend calculated last coupon and totals. You can now generate books.');
+          message.success('Batch saved! Backend calculated last coupon and totals. You can now generate books.');
         } else if (lastCouponId) {
           // Fallback: if backend does not return, set calculated lastCouponId
           form.setFieldsValue({ lastCouponId });
@@ -1055,7 +1055,7 @@ const BoxReceiptManagement: FC = () => {
             8
           );
         } else {
-          message.error('Server error occurred while saving the box. Please try again.');
+          message.error('Server error occurred while saving the batch. Please try again.');
         }
       } else if (error.response?.status === 400) {
         // DEBUG: Log detailed 400 error information
@@ -1080,7 +1080,7 @@ const BoxReceiptManagement: FC = () => {
           // Handle box_code duplicate error specifically
           if (errorData.box_code) {
             const boxCodeError = Array.isArray(errorData.box_code) ? errorData.box_code[0] : errorData.box_code;
-            message.error(`Box Code Error: ${boxCodeError}`, 8);
+            message.error(`Batch Code Error: ${boxCodeError}`, 8);
           } else if (fieldErrors.length > 0) {
             message.error(`Field validation errors: ${fieldErrors.join('; ')}`, 10);
           } else {
@@ -1090,7 +1090,7 @@ const BoxReceiptManagement: FC = () => {
           message.error(`Invalid data provided. Please check all fields and try again. Server response: ${errorData}`, 8);
         }
       } else {
-        message.error('Failed to save box receipt. Please check your connection and try again.');
+        message.error('Failed to save batch receipt. Please check your connection and try again.');
       }
     } finally {
       setLoading(false);
@@ -1117,7 +1117,7 @@ const BoxReceiptManagement: FC = () => {
         });
 
         if (response.status === 200) {
-          message.success('Box archived successfully!');
+          message.success('Batch archived successfully!');
           setArchiveModalVisible(false);
           setSelectedBox(null);
           
@@ -1129,7 +1129,7 @@ const BoxReceiptManagement: FC = () => {
       }
     } catch (error) {
       console.error('Error archiving box:', error);
-      message.error('Failed to archive box');
+      message.error('Failed to archive batch');
     }
   };
 
@@ -1142,7 +1142,7 @@ const BoxReceiptManagement: FC = () => {
       });
 
       if (response.status === 200) {
-        message.success('Box restored successfully!');
+        message.success('Batch restored successfully!');
         
         // Remove from archived list if showing archived items
         if (showArchived) {
@@ -1151,7 +1151,7 @@ const BoxReceiptManagement: FC = () => {
       }
     } catch (error) {
       console.error('Error restoring box:', error);
-      message.error('Failed to restore box');
+      message.error('Failed to restore batch');
     }
   };
 
@@ -1159,7 +1159,7 @@ const BoxReceiptManagement: FC = () => {
   const handleExportData = () => {
     try {
       // Convert data to CSV format
-      const headers = ['Box ID', 'Supplier', 'Fuel Type', 'Coupon Amount', 'Number of Books', 'Total Litres', 'Monetary Value USD', 'Status', 'Received Date', 'Received By'];
+      const headers = ['Batch ID', 'Supplier', 'Fuel Type', 'Coupon Amount', 'Number of Books', 'Total Litres', 'Monetary Value USD', 'Status', 'Received Date', 'Received By'];
       const csvContent = [
         headers.join(','),
         ...boxReceipts.map(box => [
@@ -1219,7 +1219,7 @@ const BoxReceiptManagement: FC = () => {
     const printContent = `
       <html>
         <head>
-          <title>Box Receipt Report</title>
+          <title>Batch Receipt Report</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -1232,11 +1232,11 @@ const BoxReceiptManagement: FC = () => {
         <body>
           <div class="header">
             <h1>Parliament of Zimbabwe - Fuel Coupon System</h1>
-            <h2>Box Receipt Report</h2>
+            <h2>Batch Receipt Report</h2>
             <p>Generated on: ${new Date().toLocaleDateString()}</p>
           </div>
           <div class="summary">
-            <p><strong>Total Boxes:</strong> ${boxReceipts.length}</p>
+            <p><strong>Total Batches:</strong> ${boxReceipts.length}</p>
             <p><strong>Total Value:</strong> $${boxReceipts.reduce((sum, box) => {
               // Ensure monetaryValueUSD is parsed as a number to prevent string concatenation
               const value = typeof box.monetaryValueUSD === 'string' 
@@ -1248,7 +1248,7 @@ const BoxReceiptManagement: FC = () => {
           <table>
             <thead>
               <tr>
-                <th>Box ID</th>
+                <th>Batch ID</th>
                 <th>Supplier</th>
                 <th>Fuel Type</th>
                 <th>Total Litres</th>
@@ -1288,7 +1288,7 @@ const BoxReceiptManagement: FC = () => {
     setIsPrintModalVisible(true);
   };
 
-  // Handle box verification
+  // Handle batch verification
   const handleVerifyBox = async (box: BoxReceipt) => {
     try {
       setLoading(true);
@@ -1300,15 +1300,15 @@ const BoxReceiptManagement: FC = () => {
       });
 
       if (response.status === 200) {
-        message.success(`Box ${box.boxId} has been verified successfully!`);
+        message.success(`Batch ${box.boxId} has been verified successfully!`);
         // Refresh the data to show updated status
         await fetchBoxReceipts();
       } else {
-        throw new Error('Failed to verify box');
+        throw new Error('Failed to verify batch');
       }
     } catch (error) {
       console.error('Error verifying box:', error);
-      message.error('Failed to verify box. Please try again.');
+      message.error('Failed to verify batch. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -1329,7 +1329,7 @@ const BoxReceiptManagement: FC = () => {
   const generateVerificationReport = () => {
     if (!selectedBoxForPrint) return;
     
-    // Create a new window for printing the Box Verification Report
+    // Create a new window for printing the Batch Verification Report
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       message.error('Unable to open print window. Please check your browser settings.');
@@ -1340,7 +1340,7 @@ const BoxReceiptManagement: FC = () => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Box Verification Report - ${selectedBoxForPrint.boxId}</title>
+        <title>Batch Verification Report - ${selectedBoxForPrint.boxId}</title>
         <style>
             @page {
                 margin: 20mm;
@@ -1471,15 +1471,15 @@ const BoxReceiptManagement: FC = () => {
             <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
             <div class="title">PARLIAMENT OF ZIMBABWE</div>
             <div class="subtitle">Fuel Coupon Management System</div>
-            <div class="subtitle">Box Verification Report</div>
+            <div class="subtitle">Batch Verification Report</div>
         </div>
 
         <div class="section">
-            <div class="section-title">Box Information</div>
+            <div class="section-title">Batch Information</div>
             <div class="info-grid">
                 <div>
                     <div class="info-item">
-                        <span class="info-label">Box ID:</span>
+                        <span class="info-label">Batch ID:</span>
                         <span class="info-value">${selectedBoxForPrint.boxId}</span>
                     </div>
                     <div class="info-item">
@@ -1717,7 +1717,7 @@ const BoxReceiptManagement: FC = () => {
   const handleViewBox = (box: BoxReceipt) => {
     // For now, just show box details in a modal or navigate to details
     // You can expand this to show a detailed modal
-    message.info(`Viewing details for Box ${box.boxId}`);
+    message.info(`Viewing details for Batch ${box.boxId}`);
   };
 
   const handleGenerateBooks = (box: BoxReceipt) => {
@@ -1745,7 +1745,7 @@ const BoxReceiptManagement: FC = () => {
 
   const columns: ColumnsType<BoxReceipt> = [
     {
-      title: 'Box ID',
+      title: 'Batch ID',
       dataIndex: 'boxId',
       key: 'boxId',
       fixed: 'left',
@@ -1878,10 +1878,10 @@ const BoxReceiptManagement: FC = () => {
           </Tooltip>
           
           {record.status === 'RECEIVED' && (
-            <Tooltip title="Verify Box">
+            <Tooltip title="Verify Batch">
               <Popconfirm
-                title="Verify Box"
-                description="Are you sure you want to verify this box? This action will mark it as verified."
+                title="Verify Batch"
+                description="Are you sure you want to verify this batch? This action will mark it as verified."
                 onConfirm={() => handleVerifyBox(record)}
                 okText="Yes, Verify"
                 cancelText="Cancel"
@@ -1941,7 +1941,7 @@ const BoxReceiptManagement: FC = () => {
           </Tooltip>
 
           {record.status === 'PENDING' && (
-            <Tooltip title="Edit Box">
+            <Tooltip title="Edit Batch">
               <Button
                 size="small"
                 icon={<EditOutlined />}
@@ -1996,7 +1996,7 @@ const BoxReceiptManagement: FC = () => {
           )}
           
           {!showArchived && record.status !== 'ARCHIVED' && (
-            <Tooltip title="Archive Box">
+            <Tooltip title="Archive Batch">
               <Button
                 size="small"
                 icon={<FolderOutlined />}
@@ -2006,7 +2006,7 @@ const BoxReceiptManagement: FC = () => {
           )}
           
           {showArchived && record.status === 'ARCHIVED' && (
-            <Tooltip title="Restore Box">
+            <Tooltip title="Restore Batch">
               <Button
                 size="small"
                 type="primary"
@@ -2018,10 +2018,10 @@ const BoxReceiptManagement: FC = () => {
           
           {record.status === 'PENDING' && !showArchived && (
             <Popconfirm
-              title="Are you sure you want to delete this box receipt?"
+              title="Are you sure you want to delete this batch receipt?"
               onConfirm={() => {
                 setBoxReceipts(prev => prev.filter(box => box.id !== record.id));
-                message.success('Box receipt deleted');
+                message.success('Batch receipt deleted');
               }}
               okText="Yes"
               cancelText="No"
@@ -2045,8 +2045,8 @@ const BoxReceiptManagement: FC = () => {
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
         <Col>
-          <Title level={4}>Box Receipt Management</Title>
-          <Text type="secondary">Receive and verify coupon boxes from Petrotrade</Text>
+          <Title level={4}>Batch Receipt Management</Title>
+          <Text type="secondary">Receive and verify coupon batches from Petrotrade</Text>
         </Col>
         <Col>
           <Space>
@@ -2072,7 +2072,7 @@ const BoxReceiptManagement: FC = () => {
               onClick={handleAddBox}
               disabled={showArchived}
             >
-              Receive New Box
+              Receive New Batch
             </Button>
             <Button
               icon={<ScanOutlined />}
@@ -2115,26 +2115,26 @@ const BoxReceiptManagement: FC = () => {
             onClick={() => setActiveTab('receipts')}
             icon={<InboxOutlined />}
           >
-            Box Receipts
+            Batch Receipts
           </Button>
           <Button 
             type={activeTab === 'verification' ? 'primary' : 'default'}
             onClick={() => setActiveTab('verification')}
             icon={<CheckOutlined />}
           >
-            Box Verification
+            Batch Verification
           </Button>
           <Button 
             type={activeTab === 'inventory' ? 'primary' : 'default'}
             onClick={() => setActiveTab('inventory')}
             icon={<FolderOutlined />}
           >
-            Box Inventory
+            Batch Inventory
           </Button>
         </Space>
       </Card>
 
-      {/* Box Receipts Tab */}
+      {/* Batch Receipts Tab */}
       {activeTab === 'receipts' && (
         <>
           {/* Quick Stats */}
@@ -2142,7 +2142,7 @@ const BoxReceiptManagement: FC = () => {
             <Col xs={24} sm={6}>
               <Card size="small">
                 <Statistic
-                  title="Total Boxes"
+                  title="Total Batches"
                   value={boxReceipts.length}
                   prefix={<InboxOutlined />}
                 />
@@ -2178,7 +2178,7 @@ const BoxReceiptManagement: FC = () => {
             <Col xs={24} sm={6}>
               <Card size="small">
                 <Statistic
-                  title="Next Box Number"
+                  title="Next Batch Number"
                   value={nextBoxNumber}
                   prefix={<FileTextOutlined />}
                 />
@@ -2206,9 +2206,9 @@ const BoxReceiptManagement: FC = () => {
         </>
       )}
 
-      {/* Box Verification Tab */}
+      {/* Batch Verification Tab */}
       {activeTab === 'verification' && (
-        <Card title="Box Verification Center" extra={
+        <Card title="Batch Verification Center" extra={
           <Space>
             <Text type="secondary">Use the dedicated Coupon Verification page for advanced verification workflows</Text>
             <Button
@@ -2239,19 +2239,19 @@ const BoxReceiptManagement: FC = () => {
           
           {/* Pending Verification Boxes */}
           <div style={{ marginBottom: 24 }}>
-            <Title level={5}>Boxes Pending Verification</Title>
+            <Title level={5}>Batches Pending Verification</Title>
             {boxReceipts.filter(box => box.status === 'RECEIVED').map(box => (
               <Card
                 key={box.id}
                 size="small"
                 style={{ marginBottom: 16 }}
-                title={`Box ${box.boxId}`}
+                title={`Batch ${box.boxId}`}
                 extra={
                   <Space>
                     <Tag color="orange">Pending Verification</Tag>
                     <Popconfirm
-                      title="Verify Box"
-                      description="Are you sure you want to verify this box? This action will mark it as verified."
+                      title="Verify Batch"
+                      description="Are you sure you want to verify this batch? This action will mark it as verified."
                       onConfirm={() => handleVerifyBox(box)}
                       okText="Yes, Verify"
                       cancelText="Cancel"
@@ -2262,7 +2262,7 @@ const BoxReceiptManagement: FC = () => {
                         icon={<BarcodeOutlined />}
                         loading={loading}
                       >
-                        Verify Box
+                        Verify Batch
                       </Button>
                     </Popconfirm>
                   </Space>
@@ -2298,7 +2298,7 @@ const BoxReceiptManagement: FC = () => {
             {boxReceipts.filter(box => box.status === 'RECEIVED').length === 0 && (
               <Alert
                 message="No boxes pending verification"
-                description="All received boxes have been verified."
+                description="All received batches have been verified."
                 type="info"
                 showIcon
               />
@@ -2307,13 +2307,13 @@ const BoxReceiptManagement: FC = () => {
           <Divider />
           {/* Verified Boxes */}
           <div>
-            <Title level={5}>Recently Verified Boxes</Title>
+            <Title level={5}>Recently Verified Batches</Title>
             {boxReceipts.filter(box => box.status === 'VERIFIED').slice(0, 5).map(box => (
               <Card
                 key={box.id}
                 size="small"
                 style={{ marginBottom: 16 }}
-                title={`Box ${box.boxId}`}
+                title={`Batch ${box.boxId}`}
                 extra={
                   <Space>
                     <Tag color="green">Verified</Tag>
@@ -2355,9 +2355,9 @@ const BoxReceiptManagement: FC = () => {
         </Card>
       )}
 
-      {/* Box Inventory Tab */}
+      {/* Batch Inventory Tab */}
       {activeTab === 'inventory' && (
-        <Card title="Box Inventory Overview">
+        <Card title="Batch Inventory Overview">
           <Row gutter={16}>
             <Col span={24}>
               <Alert 
@@ -2416,7 +2416,7 @@ const BoxReceiptManagement: FC = () => {
               </Row>
               
               {/* Detailed Box List */}
-              <Title level={5}>Box Details</Title>
+              <Title level={5}>Batch Details</Title>
               {boxReceipts.map(box => (
                 <Card 
                   key={box.id} 
@@ -2444,8 +2444,8 @@ const BoxReceiptManagement: FC = () => {
           <Space>
             {receiveType === 'BOX' ? <InboxOutlined /> : receiveType === 'BOOK' ? <FileTextOutlined /> : <span>📄</span>}
             {selectedBox ? 
-              `Edit ${receiveType === 'BOX' ? 'Box' : receiveType === 'BOOK' ? 'Book' : 'Page'} Receipt` : 
-              `Receive New ${receiveType === 'BOX' ? 'Box from Petrotrade' : receiveType === 'BOOK' ? 'Book' : 'Page(s)'}`
+              `Edit ${receiveType === 'BOX' ? 'Batch' : receiveType === 'BOOK' ? 'Book' : 'Page'} Receipt` : 
+              `Receive New ${receiveType === 'BOX' ? 'Batch from Petrotrade' : receiveType === 'BOOK' ? 'Book' : 'Page(s)'}`
             }
           </Space>
         }
@@ -2464,7 +2464,7 @@ const BoxReceiptManagement: FC = () => {
               onChange={(e) => setReceiveType(e.target.value)}
               optionType="button"
             >
-              <Radio.Button value="BOX">Box</Radio.Button>
+              <Radio.Button value="BOX">Batch</Radio.Button>
               <Radio.Button value="BOOK">Book</Radio.Button>
               <Radio.Button value="PAGE">Coupon Page</Radio.Button>
             </Radio.Group>
@@ -2475,7 +2475,7 @@ const BoxReceiptManagement: FC = () => {
                 message={receiveType === 'PAGE' ? 'Page-level receipt (beta)' : 'Book-level receipt'}
                 description={
                   receiveType === 'PAGE'
-                    ? 'Page-level saving will be recorded with the box. Dedicated backend endpoint for pages is pending; we will include details in notes for now.'
+                    ? 'Page-level saving will be recorded with the batch. Dedicated backend endpoint for pages is pending; we will include details in notes for now.'
                     : 'We will record a single book using the details below and attach it to a new or existing box.'
                 }
               />
@@ -2484,7 +2484,7 @@ const BoxReceiptManagement: FC = () => {
         </Card>
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           <Step 
-            title={receiveType === 'BOX' ? 'Box Info' : receiveType === 'BOOK' ? 'Book Info' : 'Page Info'} 
+            title={receiveType === 'BOX' ? 'Batch Info' : receiveType === 'BOOK' ? 'Book Info' : 'Page Info'} 
             icon={receiveType === 'BOX' ? <InboxOutlined /> : receiveType === 'BOOK' ? <FileTextOutlined /> : <span>📄</span>} 
           />
           <Step title="Fuel Details" icon={<CarOutlined />} />
@@ -2500,11 +2500,11 @@ const BoxReceiptManagement: FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
-                    label={receiveType === 'BOX' ? 'Box ID' : receiveType === 'BOOK' ? 'Parent Box ID' : 'Parent Box ID'}
+                    label={receiveType === 'BOX' ? 'Batch ID' : receiveType === 'BOOK' ? 'Parent Batch ID' : 'Parent Batch ID'}
                     name="boxId"
-                    rules={[{ required: true, message: `${receiveType === 'BOX' ? 'Box' : 'Parent Box'} ID is required` }]}
+                    rules={[{ required: true, message: `${receiveType === 'BOX' ? 'Batch' : 'Parent Batch'} ID is required` }]}
                   >
-                    <Input disabled placeholder={receiveType === 'BOX' ? 'Generating Box ID...' : 'Parent Box ID for this item...'} />
+                    <Input disabled placeholder={receiveType === 'BOX' ? 'Generating Batch ID...' : 'Parent Batch ID for this item...'} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -2885,7 +2885,7 @@ const BoxReceiptManagement: FC = () => {
                       setSelectedBox(null);
                       form.resetFields();
                       await generateNextBoxNumber();
-                      message.success('Box receipt saved and closed successfully!');
+                      message.success('Batch receipt saved and closed successfully!');
                     }}
                   >
                     Save & Close
@@ -2898,12 +2898,12 @@ const BoxReceiptManagement: FC = () => {
         </Form>
       </Modal>
 
-      {/* View Box Details Modal */}
+      {/* View Batch Details Modal */}
       <Modal
         title={
           <Space>
             <EyeOutlined />
-            Box Details - {selectedBox?.boxId}
+            Batch Details - {selectedBox?.boxId}
           </Space>
         }
         open={viewModalVisible}
@@ -2926,7 +2926,7 @@ const BoxReceiptManagement: FC = () => {
         {selectedBox && (
           <div>
             <Descriptions bordered column={2}>
-              <Descriptions.Item label="Box ID">{selectedBox.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Batch ID">{selectedBox.boxId}</Descriptions.Item>
               <Descriptions.Item label="Barcode">{selectedBox.barcode}</Descriptions.Item>
               <Descriptions.Item label="Supplier">{selectedBox.supplier}</Descriptions.Item>
               <Descriptions.Item label="Status">
@@ -3006,7 +3006,7 @@ const BoxReceiptManagement: FC = () => {
         {selectedBoxForPrint && (
           <div>
             <Alert
-              message="Box Verification Report"
+              message="Batch Verification Report"
               description="This will generate a professional verification report with the Parliament of Zimbabwe logo. You can print it directly or download as PDF."
               type="info"
               showIcon
@@ -3014,7 +3014,7 @@ const BoxReceiptManagement: FC = () => {
             />
             
             <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="Box ID">{selectedBoxForPrint.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Batch ID">{selectedBoxForPrint.boxId}</Descriptions.Item>
               <Descriptions.Item label="Supplier">{selectedBoxForPrint.supplier}</Descriptions.Item>
               <Descriptions.Item label="Fuel Type">{selectedBoxForPrint.fuelType}</Descriptions.Item>
               <Descriptions.Item label="Total Books">{selectedBoxForPrint.numberOfBooks}</Descriptions.Item>

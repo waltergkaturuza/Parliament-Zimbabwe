@@ -6,7 +6,7 @@ export interface BookGenerationRequest {
   batch_id: number;
   first_serial: string;
   last_serial: string;
-  books_per_box?: number;
+  books_per_batch?: number;
   coupons_per_book?: number;
   force?: boolean;
 }
@@ -15,7 +15,7 @@ export interface ValidationRequest {
   batch_id: number;
   first_serial: string;
   last_serial: string;
-  books_per_box?: number;
+  books_per_batch?: number;
   coupons_per_book?: number;
   force?: boolean;
 }
@@ -49,8 +49,8 @@ export interface GenerationResult {
   success: boolean;
   message: string;
   data?: {
-    box_id: number;
-    box_code: string;
+    batch_id: number;
+    batch_code: string;
     books_created: number;
     coupons_created: number;
     serial_range: {
@@ -69,8 +69,8 @@ export interface GenerationResult {
 }
 
 export interface BatchGenerationStatus {
-  box_id: number;
-  box_code: string;
+  batch_id: number;
+  batch_code: string;
   has_books: boolean;
   book_count: number;
   coupon_count: number;
@@ -96,7 +96,7 @@ export const bookGenerationAPI = {
    */
   generateBooks: async (data: BookGenerationRequest): Promise<GenerationResult> => {
     try {
-      const response = await apiClient.post('/books/generate_books_for_box/', data);
+      const response = await apiClient.post('/books/generate_books_for_batch/', data);
       return response.data;
     } catch (error: any) {
       console.error('Error generating books:', error);
@@ -146,9 +146,9 @@ export const bookGenerationAPI = {
   /**
    * Preview book ranges without generating
    */
-  previewBookRanges: async (boxId: number): Promise<any> => {
+  previewBookRanges: async (batchId: number): Promise<any> => {
     try {
-      const response = await apiClient.get(`/boxes/${boxId}/coupon_ranges_preview/`);
+      const response = await apiClient.get(`/batches/${batchId}/coupon_ranges_preview/`);
       return response.data;
     } catch (error: any) {
       console.error('Error previewing book ranges:', error);

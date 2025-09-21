@@ -32,13 +32,13 @@ import { validateSerial, calculateBookRanges, validateContinuity } from '../util
 const { Step } = Steps;
 
 interface CentralizedBookGeneratorProps {
-  boxId: number;
+  batchId: number;
   onSuccess?: (result: GenerationResult) => void;
   onClose?: () => void;
 }
 
 const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
-  boxId,
+  batchId,
   onSuccess,
   onClose
 }) => {
@@ -50,10 +50,10 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
 
   // Form data
   const [formData, setFormData] = useState<BookGenerationRequest>({
-    batch_id: boxId,
+    batch_id: batchId,
     first_serial: '',
     last_serial: '',
-    books_per_box: 10,
+    books_per_batch: 10,
     coupons_per_book: 100,
     force: false
   });
@@ -68,7 +68,7 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
       const requestData = {
         ...formData,
         ...values,
-        batch_id: boxId
+        batch_id: batchId
       };
 
       // Frontend validation first
@@ -261,7 +261,7 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
         {generationResult.success && generationResult.data && (
           <Card title="🎉 Generation Results">
             <Descriptions column={2} bordered>
-              <Descriptions.Item label="Box Code">{generationResult.data.box_code}</Descriptions.Item>
+              <Descriptions.Item label="Batch Code">{generationResult.data.batch_code}</Descriptions.Item>
               <Descriptions.Item label="Books Created">{generationResult.data.books_created}</Descriptions.Item>
               <Descriptions.Item label="Coupons Created">{generationResult.data.coupons_created}</Descriptions.Item>
               <Descriptions.Item label="Serial Range">
@@ -399,9 +399,9 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
-                label="Books per Box"
-                name="books_per_box"
-                rules={[{ required: true, message: 'Please enter books per box' }]}
+                label="Books per Batch"
+                name="books_per_batch"
+                rules={[{ required: true, message: 'Please enter books per batch' }]}
               >
                 <InputNumber min={1} max={50} style={{ width: '100%' }} />
               </Form.Item>
@@ -456,7 +456,7 @@ const CentralizedBookGenerator: React.FC<CentralizedBookGeneratorProps> = ({
           <div style={{ marginTop: 16, textAlign: 'center' }}>
             <Space>
               <Button onClick={() => { setCurrentStep(0); setValidation(null); setGenerationResult(null); }}>
-                Generate Another Box
+                Generate Another Batch
               </Button>
               {onClose && (
                 <Button type="primary" onClick={onClose}>

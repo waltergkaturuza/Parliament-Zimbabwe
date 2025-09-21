@@ -124,7 +124,7 @@ interface HandoverCoupon {
   couponNumber: string;
   bookId: string;
   bookNumber: string;
-  boxCode: string;
+  batchCode: string;
   fuelType: 'PETROL' | 'DIESEL';
   denomination: 5 | 10 | 20 | 50;
   status: 'AVAILABLE' | 'SELECTED' | 'VERIFIED';
@@ -287,7 +287,7 @@ const CouponHandoverManagementEnhanced: React.FC = () => {
         couponNumber: 'PU006GH355101',
         bookId: 'BOOK001',
         bookNumber: 'Book 01',
-        boxCode: 'FCB-2024-0005',
+        batchCode: 'FCB-2024-0005',
         fuelType: 'DIESEL',
         denomination: 20,
         status: 'AVAILABLE',
@@ -301,7 +301,7 @@ const CouponHandoverManagementEnhanced: React.FC = () => {
         couponNumber: 'PU006GH355102',
         bookId: 'BOOK001',
         bookNumber: 'Book 01',
-        boxCode: 'FCB-2024-0005',
+        batchCode: 'FCB-2024-0005',
         fuelType: 'DIESEL',
         denomination: 20,
         status: 'AVAILABLE',
@@ -979,8 +979,8 @@ const CouponHandoverManagementEnhanced: React.FC = () => {
                   },
                   {
                     title: 'Batch Code',
-                    dataIndex: 'boxCode',
-                    key: 'boxCode',
+                    dataIndex: 'batchCode',
+                    key: 'batchCode',
                     width: 120
                   },
                   {

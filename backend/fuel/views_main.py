@@ -34,7 +34,7 @@ from .serializers import (
     BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer, PoliticalPartySerializer,
     ParliamentSessionSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
     BulkCouponAllocationSerializer,
-    BookDispatchSerializer, CouponAllocationSerializer,
+    BookDispatchSerializer, CouponAllocationSerializer, CouponDistributionSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
     FuelRequirementConfigurationSerializer, ProgramSerializer, ProgramWriteSerializer

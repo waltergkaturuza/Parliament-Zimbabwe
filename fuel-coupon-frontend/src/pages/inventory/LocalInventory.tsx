@@ -211,7 +211,7 @@ const LocalInventory: FC = () => {
           Local Inventory Management
         </Title>
         <p style={{ color: '#666', margin: '8px 0 0 0', fontSize: '16px' }}>
-          Monitor and manage local inventory levels for boxes, books, and coupons
+          Monitor and manage local inventory levels for batches, books, and coupons
         </p>
       </div>
 

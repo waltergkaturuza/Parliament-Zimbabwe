@@ -306,8 +306,8 @@ urlpatterns = [
     path('subcenter/overview/', lazy_api_view('subcenter_overview_view'), name='subcenter-overview'),
     
     # Nested subcenter endpoints that frontend expects
-    path('subcenters/<int:subcenter_id>/statistics/', lazy_api_view('subcenter_statistics_detail_view'), name='subcenter-statistics-detail'),
-    path('subcenters/<int:subcenter_id>/recent_activity/', lazy_api_view('subcenter_recent_activity_view'), name='subcenter-recent-activity'),
+    path('subcenters/<int:subcenter_id>/statistics/', lazy_view('subcenter_statistics_detail_view'), name='subcenter-statistics-detail'),
+    path('subcenters/<int:subcenter_id>/recent_activity/', lazy_view('subcenter_recent_activity_view'), name='subcenter-recent-activity'),
     
     # Analytics endpoints for subcenter dashboard  
     path('analytics/subcenter-distribution-timeline/', lazy_api_view('analytics_subcenter_distribution_timeline'), name='analytics-subcenter-distribution-timeline'),

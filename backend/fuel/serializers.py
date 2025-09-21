@@ -127,7 +127,9 @@ if HarmonizedBeneficiaryProfile is None:
 
 class BookDispatchSerializer(serializers.ModelSerializer):
     """Enhanced serializer for book dispatch with intelligent coupon generation support"""
+    from_center = SimpleSubCenterSerializer(read_only=True)
     to_center = SimpleSubCenterSerializer(read_only=True)
+    to_beneficiary = SimpleUserSerializer(read_only=True)
     dispatched_by = SimpleUserSerializer(read_only=True)
     received_by = SimpleUserSerializer(read_only=True)
     books = SimpleBookSerializer(many=True, read_only=True)
@@ -141,8 +143,8 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     # Enhanced fields for intelligent dispatch
     dispatch_id = serializers.SerializerMethodField()
     subcenter_name = serializers.CharField(source='to_center.name', read_only=True)
-    dispatched_date = serializers.DateField(source='dispatch_date', read_only=True)
-    dispatched_time = serializers.TimeField(source='dispatch_date', read_only=True)
+    dispatched_date = serializers.SerializerMethodField()
+    dispatched_time = serializers.SerializerMethodField()
     
     # Generation mode and configuration
     generation_mode = serializers.CharField(max_length=50, required=False, allow_blank=True)
@@ -157,8 +159,8 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     
     # Receipt confirmation
     receiver_signature = serializers.CharField(required=False, allow_blank=True)
-    received_date = serializers.DateField(source='received_date', required=False, allow_null=True)
-    received_time = serializers.TimeField(source='received_date', required=False, allow_null=True)
+    received_date = serializers.SerializerMethodField()
+    received_time = serializers.SerializerMethodField()
     
     # Documentation
     delivery_note = serializers.CharField(max_length=200, required=False, allow_blank=True)
@@ -178,11 +180,20 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookDispatch
         fields = [
-            'id', 'dispatch_id', 'to_center', 'subcenter_name',
-            'dispatched_by', 'received_by', 'books', 'total_books',
-            'dispatch_date', 'dispatched_date', 'dispatched_time', 'status',
+            'id', 'dispatch_id', 'from_center', 'to_center', 'to_beneficiary', 'subcenter_name',
+            'dispatched_by', 'received_by', 'books', 'total_books', 'total_value_usd',
+            'dispatch_date', 'dispatched_date', 'dispatched_time', 'status', 'dispatch_type',
             # Linkages
             'program', 'session',
+            # Generation and transport
+            'generation_mode', 'transport_method', 'vehicle_number', 'driver_name', 
+            'driver_phone', 'courier_service', 'tracking_number',
+            # Receipt confirmation
+            'receiver_signature', 'received_date', 'received_time',
+            # Documentation
+            'delivery_note', 'dispatch_notes', 'special_instructions',
+            # Verification
+            'verification_checks', 'verification_notes', 'verified_by', 'verified_at',
             # Calculated fields
             'total_coupons', 'total_value',
             'first_serial', 'last_serial'
@@ -208,6 +219,30 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             denomination = book.box.denomination if book.box else 20
             total += coupon_count * denomination
         return total
+    
+    def get_dispatched_date(self, obj):
+        """Extract date from dispatch_date datetime field"""
+        if obj.dispatch_date:
+            return obj.dispatch_date.date()
+        return None
+    
+    def get_dispatched_time(self, obj):
+        """Extract time from dispatch_date datetime field"""
+        if obj.dispatch_date:
+            return obj.dispatch_date.time()
+        return None
+    
+    def get_received_date(self, obj):
+        """Extract date from received_date datetime field"""
+        if obj.received_date:
+            return obj.received_date.date()
+        return None
+    
+    def get_received_time(self, obj):
+        """Extract time from received_date datetime field"""
+        if obj.received_date:
+            return obj.received_date.time()
+        return None
     
     def create(self, validated_data):
         """Enhanced create method for dispatch with intelligent generation"""

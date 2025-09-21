@@ -283,7 +283,7 @@ const BoxVerificationPage: React.FC = () => {
       if (verified) {
         // Verify the book
         await apiClient.post(`/books/${bookId}/verify_book/`, {
-          verification_notes: notes || 'Book verified during box verification process',
+          verification_notes: notes || 'Book verified during batch verification process',
           verification_checks: [
             'Coupon sequence check',
             'Print quality check',
@@ -363,7 +363,7 @@ const BoxVerificationPage: React.FC = () => {
 
   const columns: ColumnsType<BoxVerification> = [
     {
-      title: 'Box ID',
+      title: 'Batch ID',
       dataIndex: 'boxId',
       key: 'boxId',
       width: 120,
@@ -430,7 +430,7 @@ const BoxVerificationPage: React.FC = () => {
         } else if (boxVerified && allBooksVerified) {
           return <Badge status="processing" text="Ready for Sign-off" />;
         } else if (boxVerified) {
-          return <Badge status="warning" text="Box Verified" />;
+          return <Badge status="warning" text="Batch Verified" />;
         } else {
           return <Badge status="error" text="Pending Verification" />;
         }
@@ -467,9 +467,9 @@ const BoxVerificationPage: React.FC = () => {
     <div>
       <Card>
         <div style={{ marginBottom: 16 }}>
-          <Title level={4}>Box & Coupon Verification</Title>
+          <Title level={4}>Batch & Coupon Verification</Title>
           <Text type="secondary">
-            Verify each box and its books, then confirm and sign off on the coupon serials
+            Verify each batch and its books, then confirm and sign off on the coupon serials
           </Text>
         </div>
 
@@ -483,9 +483,9 @@ const BoxVerificationPage: React.FC = () => {
         />
       </Card>
 
-      {/* Box Verification Modal */}
+      {/* Batch Verification Modal */}
       <Modal
-        title={`Verify Box: ${selectedBox?.boxId}`}
+  title={`Verify Batch: ${selectedBox?.boxId}`}
         visible={verificationModalVisible}
         onCancel={() => setVerificationModalVisible(false)}
         width={1000}
@@ -539,7 +539,7 @@ const BoxVerificationPage: React.FC = () => {
               }
             }}
           >
-            Verify Box
+            Verify Batch
           </Button>
         ]}
       >
@@ -558,10 +558,10 @@ const BoxVerificationPage: React.FC = () => {
               </Form.Item>
             </Form>
 
-            <Divider>Box Details</Divider>
+            <Divider>Batch Details</Divider>
 
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="Box ID">{selectedBox.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Batch ID">{selectedBox.boxId}</Descriptions.Item>
               <Descriptions.Item label="Supplier">{selectedBox.supplier}</Descriptions.Item>
               <Descriptions.Item label="Fuel Type">{selectedBox.fuelType}</Descriptions.Item>
               <Descriptions.Item label="Coupon Amount">{selectedBox.couponAmount}L</Descriptions.Item>
@@ -576,7 +576,7 @@ const BoxVerificationPage: React.FC = () => {
               </Descriptions.Item>
             </Descriptions>
 
-            <Divider>Books in this Box</Divider>
+            <Divider>Books in this Batch</Divider>
 
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
               {selectedBox.books.map((book, index) => (
@@ -768,4 +768,4 @@ const BoxVerificationPage: React.FC = () => {
   );
 };
 
-export default BoxVerificationPage;
+export default BatchVerificationPage;

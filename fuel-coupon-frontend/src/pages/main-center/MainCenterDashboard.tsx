@@ -171,11 +171,11 @@ const MainCenterDashboard: React.FC = () => {
       ),
     },
     {
-      key: 'box-receipt',
+      key: 'batch-receipt',
       label: (
         <Space>
           <InboxOutlined />
-          Box Receipt
+          Batch Receipt
           {dashboardStats.pendingReceipts > 0 && (
             <Badge count={dashboardStats.pendingReceipts} size="small" />
           )}
@@ -260,7 +260,7 @@ const MainCenterDashboard: React.FC = () => {
           <Col xs={24} sm={12} md={6}>
             <Card loading={loading}>
               <Statistic
-                title="Boxes Received"
+                title="Batches Received"
                 value={dashboardStats.totalBoxesReceived}
                 prefix={<InboxOutlined />}
                 valueStyle={{ color: '#3f8600' }}

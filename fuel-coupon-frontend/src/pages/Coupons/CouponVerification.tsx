@@ -686,7 +686,7 @@ const CouponVerification: FC = () => {
             showIcon
             style={{ marginBottom: 16 }}
           />
-          <p><strong>Box ID:</strong> {box.boxId}</p>
+          <p><strong>Batch ID:</strong> {box.boxId}</p>
           <p><strong>Books Generated:</strong> {calculatedBooks.length}</p>
           <p><strong>Total Coupons:</strong> {box.totalCoupons}</p>
           <p><strong>Status:</strong> Will be updated to DISPATCHED</p>
@@ -739,7 +739,7 @@ const CouponVerification: FC = () => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Box Verification Report - ${selectedBoxForPrint.boxId}</title>
+        <title>Batch Verification Report - ${selectedBoxForPrint.boxId}</title>
         <style>
             @page {
                 margin: 20mm;
@@ -870,7 +870,7 @@ const CouponVerification: FC = () => {
             <img src="/logo.webp" alt="Parliament of Zimbabwe Logo" class="logo" />
             <div class="title">PARLIAMENT OF ZIMBABWE</div>
             <div class="subtitle">Fuel Coupon Management System</div>
-            <div class="subtitle">Box Verification Report</div>
+            <div class="subtitle">Batch Verification Report</div>
         </div>
 
         <div class="section">
@@ -878,7 +878,7 @@ const CouponVerification: FC = () => {
             <div class="info-grid">
                 <div>
                     <div class="info-item">
-                        <span class="info-label">Box ID:</span>
+                        <span class="info-label">Batch ID:</span>
                         <span class="info-value">${selectedBoxForPrint.boxId}</span>
                     </div>
                     <div class="info-item">
@@ -986,7 +986,7 @@ const CouponVerification: FC = () => {
   // Table columns for box selection
   const columns: ColumnsType<BoxReceipt> = [
     {
-      title: 'Box ID',
+      title: 'Batch ID',
       dataIndex: 'boxId',
       key: 'boxId',
       fixed: 'left',
@@ -1122,7 +1122,7 @@ const CouponVerification: FC = () => {
         <TabPane tab={
           <span>
             <CheckOutlined />
-            Box Verification
+            Batch Verification
           </span>
         } key="verification">
           {/* Quick Stats */}
@@ -1130,7 +1130,7 @@ const CouponVerification: FC = () => {
             <Col xs={24} sm={8}>
               <Card size="small">
                 <Statistic
-                  title="Total Boxes"
+                  title="Total Batches"
                   value={boxReceipts.length}
                   prefix={<InboxOutlined />}
                 />
@@ -1139,7 +1139,7 @@ const CouponVerification: FC = () => {
             <Col xs={24} sm={8}>
               <Card size="small">
                 <Statistic
-                  title="Received Boxes"
+                  title="Received Batches"
                   value={boxReceipts.filter(box => box.status === 'RECEIVED').length}
                   prefix={<ClockCircleOutlined />}
                   valueStyle={{ color: '#faad14' }}
@@ -1149,7 +1149,7 @@ const CouponVerification: FC = () => {
             <Col xs={24} sm={8}>
               <Card size="small">
                 <Statistic
-                  title="Verified Boxes"
+                  title="Verified Batches"
                   value={boxReceipts.filter(box => box.status === 'VERIFIED').length}
                   prefix={<CheckOutlined />}
                   valueStyle={{ color: '#52c41a' }}
@@ -1159,7 +1159,7 @@ const CouponVerification: FC = () => {
           </Row>
 
           {/* Box Selection Table */}
-          <Card title="Select Box for Verification" style={{ marginBottom: 16 }}>
+          <Card title="Select Batch for Verification" style={{ marginBottom: 16 }}>
             <Table
               columns={columns}
               dataSource={boxReceipts}
@@ -1450,7 +1450,7 @@ const CouponVerification: FC = () => {
         } key="generation">
           <Alert
             message="Automated Coupon Generation"
-            description="Generate coupons from previously received boxes. This tab fetches first and last coupon numbers and book counts from received boxes."
+            description="Generate coupons from previously received batches. This tab fetches first and last coupon numbers and book counts from received batches."
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
@@ -1461,7 +1461,7 @@ const CouponVerification: FC = () => {
             <Col xs={24} sm={8}>
               <Card size="small">
                 <Statistic
-                  title="Boxes Ready for Generation"
+                  title="Batches Ready for Generation"
                   value={generationBoxes.length}
                   prefix={<InboxOutlined />}
                   valueStyle={{ color: '#1890ff' }}
@@ -1546,8 +1546,8 @@ const CouponVerification: FC = () => {
               </Row>
             ) : (
               <Alert
-                message="No boxes ready for generation"
-                description="All received boxes have been processed or there are no received boxes available."
+                message="No batches ready for generation"
+                description="All received batches have been processed or there are no received batches available."
                 type="info"
                 showIcon
               />
@@ -1561,7 +1561,7 @@ const CouponVerification: FC = () => {
         title={
           <Space>
             <EyeOutlined />
-            Box Details - {selectedBox?.boxId}
+            Batch Details - {selectedBox?.boxId}
           </Space>
         }
         open={viewModalVisible}
@@ -1576,7 +1576,7 @@ const CouponVerification: FC = () => {
         {selectedBox && (
           <div>
             <Descriptions bordered column={2}>
-              <Descriptions.Item label="Box ID">{selectedBox.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Batch ID">{selectedBox.boxId}</Descriptions.Item>
               <Descriptions.Item label="Barcode">{selectedBox.barcode}</Descriptions.Item>
               <Descriptions.Item label="Supplier">{selectedBox.supplier}</Descriptions.Item>
               <Descriptions.Item label="Status">
@@ -1642,7 +1642,7 @@ const CouponVerification: FC = () => {
         {selectedBoxForPrint && (
           <div>
             <Alert
-              message="Box Verification Report"
+              message="Batch Verification Report"
               description="This will generate a professional verification report with the Parliament of Zimbabwe logo. You can print it directly or download as PDF."
               type="info"
               showIcon
@@ -1650,7 +1650,7 @@ const CouponVerification: FC = () => {
             />
             
             <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="Box ID">{selectedBoxForPrint.boxId}</Descriptions.Item>
+              <Descriptions.Item label="Batch ID">{selectedBoxForPrint.boxId}</Descriptions.Item>
               <Descriptions.Item label="Supplier">{selectedBoxForPrint.supplier}</Descriptions.Item>
               <Descriptions.Item label="Fuel Type">{selectedBoxForPrint.fuelType}</Descriptions.Item>
               <Descriptions.Item label="Total Books">{selectedBoxForPrint.numberOfBooks}</Descriptions.Item>

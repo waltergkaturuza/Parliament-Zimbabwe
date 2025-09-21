@@ -70,7 +70,7 @@ const InventoryOverview: FC = () => {
   const handleViewDetails = (record: InventoryItem) => {
     console.log('Viewing details for box:', record.boxId);
     // TODO: Navigate to box details page or open modal
-    alert(`Viewing details for Box ${record.boxId}\n\nTotal Books: ${record.totalBooks}\nBooks Remaining: ${record.booksRemaining}\nTotal Coupons: ${record.totalCoupons.toLocaleString()}\nCoupons Remaining: ${record.couponsRemaining.toLocaleString()}\nValue (ZWG): ${record.monetaryValue.toLocaleString()}\nValue (USD): $${record.monetaryValueUSD.toLocaleString()}\nLocation: ${record.location}`);
+    alert(`Viewing details for Batch ${record.boxId}\n\nTotal Books: ${record.totalBooks}\nBooks Remaining: ${record.booksRemaining}\nTotal Coupons: ${record.totalCoupons.toLocaleString()}\nCoupons Remaining: ${record.couponsRemaining.toLocaleString()}\nValue (ZWG): ${record.monetaryValue.toLocaleString()}\nValue (USD): $${record.monetaryValueUSD.toLocaleString()}\nLocation: ${record.location}`);
   };
 
   const handleDispatchBooks = (record: InventoryItem) => {
@@ -82,7 +82,7 @@ const InventoryOverview: FC = () => {
   // Export function
   const handleExportInventory = () => {
     try {
-      const headers = ['Box ID', 'Fuel Type', 'Coupon Amount', 'Total Books', 'Books Remaining', 'Total Coupons', 'Coupons Remaining', 'Total Litres', 'Litres Remaining', 'Monetary Value', 'Status', 'Location'];
+      const headers = ['Batch ID', 'Fuel Type', 'Coupon Amount', 'Total Books', 'Books Remaining', 'Total Coupons', 'Coupons Remaining', 'Total Litres', 'Litres Remaining', 'Monetary Value', 'Status', 'Location'];
       const csvContent = [
         headers.join(','),
         ...inventoryData.map(item => [
@@ -193,7 +193,7 @@ const InventoryOverview: FC = () => {
   // Table columns definition
   const columns: ColumnsType<InventoryItem> = [
     {
-      title: 'Box ID',
+      title: 'Batch ID',
       dataIndex: 'boxId',
       key: 'boxId',
       fixed: 'left',
@@ -376,7 +376,7 @@ const InventoryOverview: FC = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="Total Boxes"
+              title="Total Batches"
               value={totalBoxes}
               prefix={<InboxOutlined />}
               valueStyle={{ color: '#1890ff' }}
@@ -474,7 +474,7 @@ const InventoryOverview: FC = () => {
         <Row gutter={16} align="middle">
           <Col flex="auto">
             <Search
-              placeholder="Search by Box ID or Location"
+              placeholder="Search by Batch ID or Location"
               value={searchText}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
               style={{ width: 300 }}

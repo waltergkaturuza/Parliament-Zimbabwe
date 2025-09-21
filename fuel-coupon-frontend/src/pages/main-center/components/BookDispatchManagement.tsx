@@ -242,7 +242,7 @@ const BookDispatchManagement: FC = () => {
         page_size: 500, // Increased page size
       };
       
-      // Add box filter if selected
+      // Add batch filter if selected
       if (selectedBoxCode) {
         params.box_code = selectedBoxCode;
       }
@@ -357,9 +357,9 @@ const BookDispatchManagement: FC = () => {
         }
       } else {
         if (selectedBoxCode) {
-          message.warning(`📦 Box ${selectedBoxCode}: No available books found. All books may be already dispatched.`);
+          message.warning(`📦 Batch ${selectedBoxCode}: No available books found. All books may be already dispatched.`);
         } else {
-          message.warning('⚠️ No available books found in any box. Check filters or verify books first.');
+          message.warning('⚠️ No available books found in any batch. Check filters or verify books first.');
         }
       }
 
@@ -1749,19 +1749,19 @@ const BookDispatchManagement: FC = () => {
                 >
                   <Row gutter={[16, 16]}>
                     <Col xs={24} sm={8} lg={6}>
-                      <Text strong>Filter by Box:</Text>
+                      <Text strong>Filter by Batch:</Text>
                       <Select
                         allowClear
-                        placeholder="All Boxes"
+                        placeholder="All Batches"
                         value={selectedBoxCode}
                         onChange={(val) => {
                           setSelectedBoxCode(val);
                           if (val) {
                             // Intelligent loading: automatically show all books in the selected box
-                            message.info(`🔍 Loading all books in box ${val}...`);
+                            message.info(`🔍 Loading all books in batch ${val}...`);
                             // The loadAvailableBooks will be called by useEffect when selectedBoxCode changes
                           } else {
-                            message.info('📚 Showing all available books from all boxes');
+                            message.info('📚 Showing all available books from all batches');
                           }
                         }}
                         style={{ width: '100%', marginTop: 4 }}
@@ -2357,7 +2357,7 @@ const BookDispatchManagement: FC = () => {
                   key: 'bookId',
                 },
                 {
-                  title: 'Box ID',
+                  title: 'Batch ID',
                   dataIndex: 'boxId',
                   key: 'boxId',
                 },
@@ -2446,7 +2446,7 @@ const BookDispatchManagement: FC = () => {
           <div>
             <Descriptions bordered column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Book ID">{selectedBookForDetails.bookId}</Descriptions.Item>
-              <Descriptions.Item label="Box ID">
+              <Descriptions.Item label="Batch ID">
                 <Tag color="blue">{selectedBookForDetails.boxId}</Tag>
                 {selectedBoxCode && (
                   <Tag color="orange" style={{ marginLeft: 8 }}>📋 Smart Selected</Tag>
@@ -2483,7 +2483,7 @@ const BookDispatchManagement: FC = () => {
               <>
                 <Divider>📦 Box Information</Divider>
                 <Descriptions bordered column={3} size="small" style={{ marginBottom: 16 }}>
-                  <Descriptions.Item label="Box Code">{selectedBookForDetails.boxInfo.code}</Descriptions.Item>
+                  <Descriptions.Item label="Batch Code">{selectedBookForDetails.boxInfo.code}</Descriptions.Item>
                   <Descriptions.Item label="Supplier">{selectedBookForDetails.boxInfo.supplier || 'N/A'}</Descriptions.Item>
                   <Descriptions.Item label="Received Date">
                     {selectedBookForDetails.boxInfo.receivedDate 

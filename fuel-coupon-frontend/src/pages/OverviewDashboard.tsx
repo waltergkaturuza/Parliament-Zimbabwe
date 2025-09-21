@@ -106,7 +106,7 @@ const OverviewDashboard: React.FC = () => {
                             <li className={styles.navItem}><Link to="/programs" className={styles.navLink}>Programs</Link></li>
                             <li className={styles.navItem}><Link to="/coupons" className={styles.navLink}>Manage Coupons</Link></li>
                             <li className={styles.navItem}><Link to="/books" className={styles.navLink}>Books</Link></li>
-                            <li className={styles.navItem}><Link to="/boxes" className={styles.navLink}>Boxes</Link></li>
+                            <li className={styles.navItem}><Link to="/batches" className={styles.navLink}>Batches</Link></li>
                         </>
                     )}
                     {(isSubCenter || isAdmin) && (

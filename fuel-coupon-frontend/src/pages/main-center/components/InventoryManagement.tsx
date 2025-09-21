@@ -418,7 +418,7 @@ const InventoryManagement: FC = () => {
 
   const boxColumns: ColumnsType<BoxInventory> = [
     {
-      title: 'Box Code',
+      title: 'Batch Code',
       dataIndex: 'boxCode',
       key: 'boxCode',
       render: (code) => <Text strong>{code}</Text>,
@@ -616,7 +616,7 @@ const InventoryManagement: FC = () => {
         <Col span={6}>
           <Card>
             <Statistic
-              title="Total Boxes"
+              title="Total Batches"
               value={stats.totalBoxes}
               prefix={<InboxOutlined />}
               suffix={
@@ -667,7 +667,7 @@ const InventoryManagement: FC = () => {
               <Row gutter={16}>
                 <Col span={6}>
                   <Search
-                    placeholder="Search boxes..."
+                    placeholder="Search batches..."
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     allowClear
@@ -790,12 +790,12 @@ const InventoryManagement: FC = () => {
         </TabPane>
       </Tabs>
 
-      {/* Box Details Modal */}
+      {/* Batch Details Modal */}
       <Modal
         title={
           <Space>
             <InboxOutlined />
-            Box Details - {selectedBox?.boxCode}
+            Batch Details - {selectedBox?.boxCode}
           </Space>
         }
         open={boxDetailsModalVisible}
@@ -806,7 +806,7 @@ const InventoryManagement: FC = () => {
         {selectedBox && (
           <div>
             <Descriptions bordered column={2} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Box Code">{selectedBox.boxCode}</Descriptions.Item>
+              <Descriptions.Item label="Batch Code">{selectedBox.boxCode}</Descriptions.Item>
               <Descriptions.Item label="Received Date">{selectedBox.receivedDate}</Descriptions.Item>
               <Descriptions.Item label="Fuel Type">
                 <Tag color={selectedBox.fuelType === 'PETROL' ? 'blue' : 'green'}>

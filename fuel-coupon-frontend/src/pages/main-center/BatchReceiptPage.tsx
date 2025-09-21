@@ -17,17 +17,17 @@ const BoxReceiptPage: React.FC = () => {
         <Breadcrumb.Item>Main Center</Breadcrumb.Item>
         <Breadcrumb.Item>
           <GiftOutlined />
-          Box Receipt Management
+          Batch Receipt Management
         </Breadcrumb.Item>
       </Breadcrumb>
 
       {/* Page Header */}
       <div style={{ marginBottom: '24px' }}>
         <Title level={2} style={{ margin: 0 }}>
-          Box Receipt Management
+          Batch Receipt Management
         </Title>
         <Typography.Text type="secondary">
-          Receive and manage coupon boxes from Petrotrade Zimbabwe
+          Receive and manage coupon batches from Petrotrade Zimbabwe
         </Typography.Text>
       </div>
 
