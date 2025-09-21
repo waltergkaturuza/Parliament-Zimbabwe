@@ -70,6 +70,16 @@ def add_box_fields_safely(apps, schema_editor):
                    models.IntegerField(blank=True, help_text='Total number of books that will be generated for this box', null=True))
 
 
+def add_coupon_fields_safely(apps, schema_editor):
+    """Safely add fields to Coupon model"""
+    safe_add_field(apps, schema_editor, 'Coupon', 'coupon_serial',
+                   models.CharField(db_index=True, default='TEMP_SERIAL', help_text='Unique coupon serial (e.g., PU006H1355101 - PetroTrade format)', max_length=50, unique=True, validators=[fuel.validators.validate_petrotrade_serial]))
+    safe_add_field(apps, schema_editor, 'Coupon', 'coupon_value',
+                   models.IntegerField(default=20, help_text='Fuel denomination in litres'))
+    safe_add_field(apps, schema_editor, 'Coupon', 'page_number',
+                   models.IntegerField(blank=True, help_text='Page number within the book (1-based)', null=True))
+
+
 def remove_book_fields_safely(apps, schema_editor):
     """Safely remove fields from Book model"""
     safe_remove_field(apps, schema_editor, 'Book', 'is_generated')
@@ -82,6 +92,13 @@ def remove_box_fields_safely(apps, schema_editor):
     safe_remove_field(apps, schema_editor, 'Box', 'total_books')
     safe_remove_field(apps, schema_editor, 'Box', 'last_coupon_serial')
     safe_remove_field(apps, schema_editor, 'Box', 'first_coupon_serial')
+
+
+def remove_coupon_fields_safely(apps, schema_editor):
+    """Safely remove fields from Coupon model"""
+    safe_remove_field(apps, schema_editor, 'Coupon', 'page_number')
+    safe_remove_field(apps, schema_editor, 'Coupon', 'coupon_value')
+    safe_remove_field(apps, schema_editor, 'Coupon', 'coupon_serial')
 
 
 class Migration(migrations.Migration):
@@ -177,22 +194,7 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, help_text='Person who verified the dispatch', max_length=100, null=True),
         ),
         migrations.RunPython(add_box_fields_safely, remove_box_fields_safely),
-        migrations.AddField(
-            model_name='coupon',
-            name='coupon_serial',
-            field=models.CharField(db_index=True, default=django.utils.timezone.now, help_text='Unique coupon serial (e.g., PU006H1355101 - PetroTrade format)', max_length=50, unique=True, validators=[fuel.validators.validate_petrotrade_serial]),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='coupon',
-            name='coupon_value',
-            field=models.IntegerField(default=20, help_text='Fuel denomination in litres'),
-        ),
-        migrations.AddField(
-            model_name='coupon',
-            name='page_number',
-            field=models.IntegerField(blank=True, help_text='Page number within the book (1-based)', null=True),
-        ),
+        migrations.RunPython(add_coupon_fields_safely, remove_coupon_fields_safely),
         migrations.AddField(
             model_name='fuelentitlement',
             name='approved_by',
