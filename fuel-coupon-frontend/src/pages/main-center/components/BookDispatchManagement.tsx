@@ -35,6 +35,8 @@ import {
   Timeline,
   TimePicker,
   Radio,
+  Drawer,
+  List,
 } from 'antd';
 import {
   SendOutlined,
@@ -42,93 +44,90 @@ import {
   EyeOutlined,
   PrinterOutlined,
   FileTextOutlined,
-  CheckOutlined,
-  ClockCircleOutlined,
-  CarOutlined,
-  EnvironmentOutlined,
-  UserOutlined,
-  UploadOutlined,
-  BookOutlined,
-  InboxOutlined,
-  ExclamationCircleOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  DollarCircleOutlined,
-  DownloadOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { Option } = Select;
-const { Step } = Steps;
-
-interface BookDispatch {
-  id: string;
-  dispatchId: string;
-  subCenterId: string;
-  subCenterName: string;
-  dispatchedBy: string;
-  dispatchedDate: string;
-  dispatchedTime: string;
-  books: DispatchedBook[];
-  totalBooks: number;
-  totalCoupons: number;
-  totalValue: number;
-  status: 'PENDING' | 'DISPATCHED' | 'RECEIVED' | 'CONFIRMED' | 'CANCELLED';
+  const columns: ColumnsType<BookDispatch> = [
+    // 1. Dispatch ID (with tracking + main center number)
+    {
+      title: 'Dispatch ID',
+      dataIndex: 'dispatchId',
+      key: 'dispatchId',
+      fixed: 'left',
+      width: 170,
+      render: (text, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{text}</Text>
+          {record.trackingNumber && (
+            <Text type="secondary" style={{ fontSize: 11 }}>{record.trackingNumber}</Text>
+          )}
+          {record.mainCenterDispatchNumber && (
+            <Tag color="blue" style={{ marginTop: 2 }}>{record.mainCenterDispatchNumber}</Tag>
+          )}
+        </Space>
+      )
+    },
+    // 2. Books & Coupons (moved up)
+    {
+      title: 'Books & Coupons',
+      key: 'inventory',
+      width: 140,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text><BookOutlined /> {record.totalBooks || 0} Books</Text>
+          <Text style={{ fontSize: '12px' }}>{record.totalCoupons || 0} Coupons</Text>
+        </Space>
+      ),
+    },
+    // 3. Subcenter info
+    {
+      title: 'Sub Center',
+      key: 'subCenter',
+      width: 180,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.subCenterName}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            <EnvironmentOutlined /> {record.subCenterId}
+          </Text>
+        </Space>
+      ),
+    },
+    // 4. Dispatch Details (who + when)
+    {
+      title: 'Dispatch Details',
+      key: 'details',
+      width: 170,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: 12 }}><UserOutlined /> {typeof record.dispatchedBy === 'object' ? '[object]' : (record.dispatchedBy || 'N/A')}</Text>
+          <Text style={{ fontSize: 12 }}><ClockCircleOutlined /> {record.dispatchedDate} {record.dispatchedTime}</Text>
+        </Space>
+      )
+    },
+    // 5. Litres
+    {
+      title: 'Litres',
+      key: 'totalLitres',
+      width: 90,
+      align: 'right',
+      render: (_, record) => <Text>{(record.totalLitres ?? 0).toLocaleString()}</Text>
+    },
+    // 6. Value USD
+    {
+      title: 'Value (USD)',
+      key: 'totalValueUsd',
+      width: 110,
+      align: 'right',
+      render: (_, record) => <Text strong>${(record.totalValueUsd ?? 0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</Text>
+    },
+    // 7. ZWG Value (existing totalValue)
+    {
+      title: 'Total Value',
+      dataIndex: 'totalValue',
+      key: 'totalValue',
+      width: 110,
+      align: 'right',
+      render: (value) => <Text strong>ZWG {(value || 0).toLocaleString()}</Text>
+    },
   receivedBy?: string;
-  receivedDate?: string;
-  receivedTime?: string;
-  receiverSignature?: string;
-  receptionConfirmed?: boolean; // Sub-center reception confirmation
-  notes?: string;
-  trackingNumber?: string;
-}
-
-interface DispatchedBook {
-  id: string;
-  bookId: string;
-  boxId: string;
-  fuelType: 'PETROL' | 'DIESEL';
-  couponAmount: 5 | 20;
-  firstCouponId: string;
-  lastCouponId: string;
-  numberOfCoupons: number;
-  value: number;
-  pricePerLitre: number;
-}
-
-interface AvailableBook {
-  key: string;
-  bookId: string;
-  boxId: string;
-  fuelType: 'PETROL' | 'DIESEL';
-  couponAmount: 5 | 20;
-  firstCouponId: string;
-  lastCouponId: string;
-  numberOfCoupons: number;
-  value: number;
-  pricePerLitre: number;
-  status: 'VERIFIED' | 'AVAILABLE';
-  // Enhanced metadata from backend
-  serialRange?: string;
-  bookNumber?: number;
-  isVerified?: boolean;
-  verifiedAt?: string;
-  couponPages?: CouponPage[];
-  boxInfo?: {
-    id: number;
-    code: string;
-    supplier?: string;
-    receivedDate?: string;
-  };
-}
-
-interface CouponPage {
-  pageNumber: number;
-  firstCoupon: string;
-  lastCoupon: string;
-  couponsInPage: number;
   pageValue: number;
 }
 
@@ -150,69 +149,41 @@ const BookDispatchManagement: FC = () => {
   const [selectedDispatch, setSelectedDispatch] = useState<BookDispatch | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-  const [dispatches, setDispatches] = useState<BookDispatch[]>([]);
-  const [availableBooks, setAvailableBooks] = useState<AvailableBook[]>([]);
-  const [boxes, setBoxes] = useState<Array<{ box_code: string; id?: string }>>([]);
-  const [selectedBoxCode, setSelectedBoxCode] = useState<string | undefined>(undefined);
-  const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
-  const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
-  const [nextDispatchNumber, setNextDispatchNumber] = useState('');
-  // Dispatch type: full book vs page level
-  const [dispatchType, setDispatchType] = useState<'BOOK' | 'PAGE'>('BOOK');
-  // For PAGE dispatch, how many coupons per selected book
-  const [partialCoupons, setPartialCoupons] = useState<Record<string, number>>({});
-  
-  // Handle dispatchType changes to clear selections and reset state
-  useEffect(() => {
-    setSelectedBooks([]);
-    setPartialCoupons({});
-    setBookDetailConfirmations({});
-  }, [dispatchType]);
-  
-  // New state for book details functionality
-  const [selectedBookForDetails, setSelectedBookForDetails] = useState<AvailableBook | null>(null);
-  const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
-  const [bookDetailConfirmations, setBookDetailConfirmations] = useState<Record<string, boolean>>({});
-
-  // Load initial data
-  useEffect(() => {
-    console.log('🎬 Component mounted, starting initial data load...');
-    loadSubCenters();
-    loadAvailableBooks();
-    loadBoxes();
-    // Load dispatches initially (may have limited name resolution)
-    loadDispatches();
-  }, []);
-
-  // Reload dispatches when subCenters are loaded for enhanced name resolution
-  useEffect(() => {
-    if (subCenters.length > 0) {
-      console.log('🏢 Sub-centers loaded, reloading dispatches for enhanced name resolution...');
-      loadDispatches();
+  const [editForm] = Form.useForm(); // form for edit drawer
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 110,
+      render: (status) => (
+        <Badge status={getStatusColor(status) as any} text={<Space>{getStatusIcon(status)}{status}</Space>} />
+      )
+    },
+    // Compact actions via dropdown
+    {
+      title: 'Actions',
+      key: 'actions',
+      fixed: 'right',
+      width: 70,
+      render: (_, record) => {
+        const menuItems = [
+          { key: 'view', label: 'View Details', icon: <EyeOutlined />, onClick: () => { setSelectedDispatch(record); setViewModalVisible(true); } },
+          { key: 'edit', label: 'Edit Dispatch', icon: <EditOutlined />, onClick: () => { setSelectedDispatch(record); editForm.setFieldsValue({ trackingNumber: record.trackingNumber, status: record.status, notes: record.notes, subCenterId: record.subCenterId }); setEditModalVisible(true); } },
+          { key: 'pdf', label: 'Download PDF', icon: <DownloadOutlined />, onClick: () => exportSingleDispatch(record) },
+          { key: 'clone', label: 'Clone Dispatch', icon: <CopyOutlined />, onClick: () => cloneDispatch(record) },
+          { type: 'divider' as const },
+          { key: 'delete', label: <span style={{ color: 'red' }}>Delete</span>, icon: <DeleteOutlined style={{ color: 'red' }} />, onClick: () => deleteDispatch(record) },
+        ];
+        // Ant Design v5: Dropdown menu prop
+        return (
+          <Dropdown
+            menu={{ items: menuItems.map(mi => mi.type === 'divider' ? { type: 'divider' } : { key: mi.key, icon: mi.icon, label: <span onClick={mi.onClick}>{mi.label}</span> }) }}
+            trigger={['click']}
+          >
+            <Button icon={<MoreOutlined />} />
+          </Dropdown>
+        );
+      }
     }
-  }, [subCenters]);
-
-  const loadDispatches = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get('/dispatches/');
-      const data = response.data.results || response.data || [];
-      
-      console.log('📦 Raw dispatch data from API:', data);
-      console.log('🏢 Available sub-centers for name resolution:', subCenters);
-      
-      // Map backend data to ensure proper structure
-      const mappedDispatches = data.map((d: any) => {
-        // Try multiple possible book field names
-        const books = Array.isArray(d.books) ? d.books : 
-                     Array.isArray(d.book_set) ? d.book_set :
-                     Array.isArray(d.dispatched_books) ? d.dispatched_books : [];
-        
-        // Enhanced book and coupon counting with detailed logging
-        const apiTotalBooks = d.totalBooks || d.total_books || d.book_count;
-        const apiTotalCoupons = d.totalCoupons || d.total_coupons || d.coupon_count;
-        const calculatedBooks = books.length;
         const calculatedCoupons = books.reduce((sum: number, book: any) => 
           sum + (book.numberOfCoupons || book.number_of_coupons || book.coupon_count || 0), 0);
         
@@ -237,17 +208,27 @@ const BookDispatchManagement: FC = () => {
         console.log(`   🎫 Coupons - API: ${apiTotalCoupons}, Calculated: ${calculatedCoupons}, Final: ${totalCoupons}`);
         console.log(`   📖 Books array:`, books);
         
+        // Normalize dispatcher field which might arrive as nested user object
+        let dispatcherRaw = d.dispatchedBy || d.dispatched_by || d.dispatcher || d.user;
+        if (dispatcherRaw && typeof dispatcherRaw === 'object') {
+          // Prefer full name, then username, then id
+            dispatcherRaw = [dispatcherRaw.first_name, dispatcherRaw.last_name].filter(Boolean).join(' ').trim() || dispatcherRaw.username || dispatcherRaw.name || `User-${dispatcherRaw.id || 'unknown'}`;
+        }
+
         return {
           id: d.id,
           dispatchId: d.dispatchId || d.dispatch_id,
+          mainCenterDispatchNumber: d.main_center_dispatch_number || d.mainCenterDispatchNumber,
           subCenterId: subCenterId,
           subCenterName: subCenterName,
-          dispatchedBy: d.dispatchedBy || d.dispatched_by,
+          dispatchedBy: dispatcherRaw || 'Unknown',
           dispatchedDate: d.dispatchedDate || d.dispatched_date,
           dispatchedTime: d.dispatchedTime || d.dispatched_time,
           books: books,
           totalBooks: totalBooks,
           totalCoupons: totalCoupons,
+          totalLitres: d.total_litres || d.totalLitres,
+          totalValueUsd: d.total_value_usd || d.totalValueUsd,
           totalValue: d.totalValue || d.total_value || 0,
           status: d.status || 'DISPATCHED',
           trackingNumber: d.trackingNumber || d.tracking_number,
@@ -1249,7 +1230,28 @@ const BookDispatchManagement: FC = () => {
           <Text type="secondary" style={{ fontSize: '12px' }}>
             {record.trackingNumber}
           </Text>
+          {record.mainCenterDispatchNumber && (
+            <Text type="secondary" style={{ fontSize: '11px' }}>
+              #{record.mainCenterDispatchNumber}
+            </Text>
+          )}
         </Space>
+      ),
+    },
+    {
+      title: 'Litres',
+      key: 'totalLitres',
+      width: 110,
+      render: (_, record) => (
+        <Text>{record.totalLitres ?? 0} L</Text>
+      ),
+    },
+    {
+      title: 'Value (USD)',
+      key: 'totalValueUsd',
+      width: 120,
+      render: (_, record) => (
+        <Text strong>${(record.totalValueUsd ?? 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</Text>
       ),
     },
     {
@@ -1296,7 +1298,7 @@ const BookDispatchManagement: FC = () => {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text style={{ fontSize: '12px' }}>
-            <UserOutlined /> {record.dispatchedBy}
+            <UserOutlined /> {typeof record.dispatchedBy === 'object' ? '[object]' : (record.dispatchedBy || 'N/A')}
           </Text>
           <Text style={{ fontSize: '12px' }}>
             <ClockCircleOutlined /> {record.dispatchedDate} {record.dispatchedTime}
@@ -2513,7 +2515,7 @@ const BookDispatchManagement: FC = () => {
       <Drawer
         title={<Space><EditOutlined /> Edit Dispatch - {selectedDispatch?.dispatchId}</Space>}
         placement="right"
-        width={520}
+        width={640}
         open={editModalVisible}
         onClose={() => setEditModalVisible(false)}
         extra={
@@ -2550,7 +2552,40 @@ const BookDispatchManagement: FC = () => {
             subCenterId: selectedDispatch.subCenterId,
           }}>
             <Alert type="info" showIcon style={{ marginBottom: 16 }}
-              message="You can change the receiving sub-center, status, or tracking number. Books editing coming soon." />
+              message="Update sub-center, status, or tracking number. Books editing coming soon. Values auto-calculate." />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 16,
+              marginBottom: 8
+            }}>
+              <div>
+                <Form.Item label="Main Center Dispatch #">
+                  <Input value={selectedDispatch.mainCenterDispatchNumber || 'Auto'} disabled />
+                </Form.Item>
+              </div>
+              <div>
+                <Form.Item label="Dispatch ID">
+                  <Input value={selectedDispatch.dispatchId} disabled />
+                </Form.Item>
+              </div>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 16,
+              marginBottom: 8
+            }}>
+              <Form.Item label="Total Books">
+                <Input value={selectedDispatch.totalBooks ?? 0} disabled />
+              </Form.Item>
+              <Form.Item label="Total Litres">
+                <Input value={selectedDispatch.totalLitres ?? 0} disabled />
+              </Form.Item>
+              <Form.Item label="Value (USD)">
+                <Input value={(selectedDispatch.totalValueUsd ?? 0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} disabled />
+              </Form.Item>
+            </div>
             <Form.Item name="subCenterId" label="Receiving Sub-Center" rules={[{ required: true, message: 'Select sub-center'}]}>
               <Select placeholder="Select sub-center">
                 {subCenters.map(sc => <Option key={sc.id} value={sc.id}>{sc.name}</Option>)}

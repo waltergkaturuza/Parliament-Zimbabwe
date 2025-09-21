@@ -135,6 +135,8 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     books = SimpleBookSerializer(many=True, read_only=True)
     total_books = serializers.ReadOnlyField()
     total_value_usd = serializers.ReadOnlyField()
+    total_litres = serializers.ReadOnlyField()
+    main_center_dispatch_number = serializers.CharField(read_only=True)
     
     # Optional linkages for analytics
     program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), required=False, allow_null=True)
@@ -185,8 +187,9 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         model = BookDispatch
         fields = [
             'id', 'dispatch_id', 'from_center', 'to_center', 'to_beneficiary', 'subcenter_name',
-            'dispatched_by', 'received_by', 'books', 'total_books', 'total_value_usd',
+            'dispatched_by', 'received_by', 'books', 'total_books', 'total_litres', 'total_value_usd',
             'dispatch_date', 'dispatched_date', 'dispatched_time', 'status', 'dispatch_type',
+            'main_center_dispatch_number',
             # Linkages
             'program', 'session',
             # Generation and transport
@@ -204,7 +207,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'dispatch_id', 'dispatched_time',
-            'total_books', 'total_coupons', 'total_value', 'total_value_usd'
+            'total_books', 'total_coupons', 'total_value', 'total_value_usd', 'total_litres', 'main_center_dispatch_number'
         ]
     
     def get_dispatch_id(self, obj):

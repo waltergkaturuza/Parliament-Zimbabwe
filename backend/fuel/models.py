@@ -5245,6 +5245,8 @@ class BookDispatch(TimeStampedModel):
     status = models.CharField(max_length=20, choices=[('PENDING', 'Pending'), ('DISPATCHED', 'Dispatched'), ('RECEIVED', 'Received')], default='PENDING')
     dispatch_date = models.DateTimeField(auto_now_add=True)
     dispatch_type = models.CharField(max_length=25, choices=[('CENTER_TO_CENTER', 'Center to Center'), ('CENTER_TO_BENEFICIARY', 'Center to Beneficiary')], default='CENTER_TO_CENTER')
+    # Main Center tracking number (auto generated after creation if blank)
+    main_center_dispatch_number = models.CharField(max_length=30, unique=True, null=True, blank=True, help_text="Primary sequential number for Main Center tracking (auto-generated)")
     
     # CRITICAL: Many-to-Many relationship with books
     books = models.ManyToManyField(Book, related_name='dispatches', blank=True, help_text="Books included in this dispatch")
@@ -5300,6 +5302,31 @@ class BookDispatch(TimeStampedModel):
             if book.box:
                 total += (book.initial_coupon_count or 100) * (book.box.denomination or 20) * 1.45  # Default price per liter
         return total
+
+    @property
+    def total_litres(self):
+        """Total litres represented by the coupons in this dispatch"""
+        litres = 0
+        for book in self.books.all():
+            if book.box:
+                litres += (book.initial_coupon_count or 100) * (book.box.denomination or 20)
+        return litres
+
+    @property
+    def total_value_usd(self):
+        """Total USD value (using default 1.45 USD per litre unless future dynamic pricing applied)"""
+        from decimal import Decimal
+        price_per_litre_usd = Decimal('1.45')
+        return float(self.total_litres * price_per_litre_usd)
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate main center dispatch number when creating"""
+        creating = self.pk is None
+        super().save(*args, **kwargs)
+        if creating and not self.main_center_dispatch_number:
+            # Use zero-padded internal id for stable sequence
+            self.main_center_dispatch_number = f"MCD-{self.id:05d}"
+            super().save(update_fields=['main_center_dispatch_number'])
     
     class Meta:
         db_table = 'fuel_bookdispatch'
