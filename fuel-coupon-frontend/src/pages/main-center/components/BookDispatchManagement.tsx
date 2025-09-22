@@ -37,6 +37,7 @@ import {
   Radio,
   Drawer,
   List,
+  Dropdown,
 } from 'antd';
 import {
   EnvironmentOutlined,
@@ -1171,7 +1172,88 @@ const BookDispatchManagement: FC = () => {
     }
   };
 
+  // Build row action menu items
+  const getActionMenuItems = (record: BookDispatch) => {
+    const items: any[] = [
+      {
+        key: 'view',
+        label: 'View Details',
+        icon: <EyeOutlined />,
+        onClick: () => { setSelectedDispatch(record); setViewModalVisible(true); },
+      },
+      {
+        key: 'edit',
+        label: 'Edit Dispatch',
+        icon: <EditOutlined />,
+        onClick: () => { setSelectedDispatch(record); setEditModalVisible(true); },
+      },
+    ];
+    if (record.status === 'RECEIVED') {
+      items.push({
+        key: 'confirm',
+        label: 'Confirm Receipt',
+        icon: <CheckOutlined />,
+        onClick: () => handleConfirmReceipt(record),
+      });
+    }
+    items.push(
+      {
+        key: 'download',
+        label: 'Download PDF',
+        icon: <DownloadOutlined />,
+        onClick: () => downloadDispatchPDF(record),
+      },
+      {
+        key: 'print',
+        label: 'Print Dispatch Note',
+        icon: <PrinterOutlined />,
+        onClick: () => generateDispatchPDF(record),
+      },
+    );
+    if (record.status === 'PENDING') {
+      items.push({
+        key: 'cancel',
+        label: 'Cancel Dispatch',
+        icon: <DeleteOutlined />,
+        danger: true,
+        onClick: () => {
+          Modal.confirm({
+            title: `Cancel dispatch ${record.dispatchId}?`,
+            okText: 'Cancel Dispatch',
+            okButtonProps: { danger: true },
+            onOk: () => {
+              setDispatches(prev => prev.filter(d => d.id !== record.id));
+              message.success('Dispatch cancelled');
+            },
+          });
+        },
+      });
+    }
+    if (isAdminUser()) {
+      items.push({
+        type: 'divider',
+      } as any);
+      items.push({
+        key: 'delete',
+        label: 'Delete Permanently',
+        icon: <DeleteOutlined style={{ color: '#ff4d4f' }} />,
+        danger: true,
+        onClick: () => {
+          Modal.confirm({
+            title: `Delete dispatch ${record.dispatchId}?`,
+            content: 'This action cannot be undone.',
+            okText: 'Delete',
+            okButtonProps: { danger: true },
+            onOk: () => handleDeleteDispatch(record),
+          });
+        },
+      });
+    }
+    return items;
+  };
+
   const columns: ColumnsType<BookDispatch> = [
+    // 1. Dispatch ID
     {
       title: 'Dispatch ID',
       dataIndex: 'dispatchId',
@@ -1181,226 +1263,126 @@ const BookDispatchManagement: FC = () => {
       render: (text, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{text}</Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.trackingNumber}
-          </Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>{record.trackingNumber}</Text>
           {record.mainCenterDispatchNumber && (
-            <Text type="secondary" style={{ fontSize: '11px' }}>
-              #{record.mainCenterDispatchNumber}
-            </Text>
+            <Text type="secondary" style={{ fontSize: '11px' }}>#{record.mainCenterDispatchNumber}</Text>
           )}
         </Space>
       ),
     },
-    {
-      title: 'Litres',
-      key: 'totalLitres',
-      width: 110,
-      render: (_, record) => (
-        <Text>{record.totalLitres ?? 0} L</Text>
-      ),
-    },
-    {
-      title: 'Value (USD)',
-      key: 'totalValueUsd',
-      width: 120,
-      render: (_, record) => (
-        <Text strong>${(record.totalValueUsd ?? 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</Text>
-      ),
-    },
-    {
-      title: 'Sub Center',
-      key: 'subCenter',
-      width: 200,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{record.subCenterName}</Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            <EnvironmentOutlined /> {record.subCenterId}
-          </Text>
-        </Space>
-      ),
-    },
+    // 2. Books & Coupons
     {
       title: 'Books & Coupons',
       key: 'inventory',
-      width: 150,
+      width: 155,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>
-            <BookOutlined /> {record.totalBooks || 0} Books
-          </Text>
-          <Text style={{ fontSize: '12px' }}>
-            {record.totalCoupons || 0} Coupons
-          </Text>
+          <Text><BookOutlined /> {record.totalBooks || 0} Books</Text>
+          <Text style={{ fontSize: '12px' }}>{record.totalCoupons || 0} Coupons</Text>
         </Space>
       ),
     },
+    // 3. Sub Center
     {
-      title: 'Total Value',
-      dataIndex: 'totalValue',
-      key: 'totalValue',
-      width: 120,
-      render: (value) => (
-        <Text strong>ZWG {value.toLocaleString()}</Text>
+      title: 'Sub Center',
+      key: 'subCenter',
+      width: 190,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.subCenterName}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}><EnvironmentOutlined /> {record.subCenterId}</Text>
+        </Space>
       ),
     },
+    // 4. Dispatch Details
     {
       title: 'Dispatch Details',
       key: 'dispatchDetails',
       width: 180,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text style={{ fontSize: '12px' }}>
-            <UserOutlined /> {typeof record.dispatchedBy === 'object' ? '[object]' : (record.dispatchedBy || 'N/A')}
-          </Text>
-          <Text style={{ fontSize: '12px' }}>
-            <ClockCircleOutlined /> {record.dispatchedDate} {record.dispatchedTime}
-          </Text>
+          <Text style={{ fontSize: '12px' }}><UserOutlined /> {typeof record.dispatchedBy === 'object' ? '[object]' : (record.dispatchedBy || 'N/A')}</Text>
+          <Text style={{ fontSize: '12px' }}><ClockCircleOutlined /> {record.dispatchedDate} {record.dispatchedTime}</Text>
         </Space>
       ),
     },
+    // 5. Litres
+    {
+      title: 'Litres',
+      key: 'totalLitres',
+      width: 95,
+      align: 'right',
+      render: (_, record) => <Text>{record.totalLitres ?? 0} L</Text>,
+    },
+    // 6. USD Value
+    {
+      title: 'Value (USD)',
+      key: 'totalValueUsd',
+      width: 120,
+      align: 'right',
+      render: (_, record) => (
+        <Text strong>${(record.totalValueUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+      ),
+    },
+    // 7. ZW Value
+    {
+      title: 'Value (ZWG)',
+      dataIndex: 'totalValue',
+      key: 'totalValue',
+      width: 120,
+      align: 'right',
+      render: (value) => <Text strong>ZWG {(value || 0).toLocaleString()}</Text>,
+    },
+    // 8. Reception Status (absorbs overall status)
     {
       title: 'Reception Status',
       key: 'reception',
-      width: 150,
+      width: 170,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Badge
-            status={record.status === 'CONFIRMED' ? 'success' : record.status === 'RECEIVED' ? 'processing' : 'default'}
+            status={record.status === 'CONFIRMED' ? 'success' : record.status === 'RECEIVED' ? 'processing' : record.status === 'DISPATCHED' ? 'warning' : 'default'}
             text={
-              record.status === 'CONFIRMED' ? 'Confirmed' : 
-              record.status === 'RECEIVED' ? 'Pending Confirmation' :
-              'Not Received'
+              record.status === 'CONFIRMED'
+                ? 'Confirmed'
+                : record.status === 'RECEIVED'
+                  ? 'Pending Confirmation'
+                  : record.status === 'DISPATCHED'
+                    ? 'Dispatched'
+                    : 'Not Received'
             }
           />
           {record.status === 'CONFIRMED' && (
-            <Text style={{ fontSize: '11px', color: '#52c41a' }}>
-              ✓ Sub-Center Confirmed
-            </Text>
+            <Text style={{ fontSize: '11px', color: '#52c41a' }}>✓ Sub-Center Confirmed</Text>
           )}
         </Space>
       ),
     },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status) => (
-        <Badge
-          status={getStatusColor(status) as any}
-          text={
-            <Space>
-              {getStatusIcon(status)}
-              {status}
-            </Space>
-          }
-        />
-      ),
-    },
+    // 9. Actions (compact dropdown)
     {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 200,
+      width: 70,
       render: (_, record) => (
-        <Space>
-          <Tooltip title="View Details">
-            <Button
-              type="primary"
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => {
-                setSelectedDispatch(record);
-                setViewModalVisible(true);
-              }}
-            />
-          </Tooltip>
-          
-          <Tooltip title="Edit Dispatch">
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedDispatch(record);
-                setEditModalVisible(true);
-              }}
-            />
-          </Tooltip>
-          
-          {record.status === 'RECEIVED' && (
-            <Tooltip title="Confirm Receipt">
-              <Button
-                type="default"
-                size="small"
-                icon={<CheckOutlined />}
-                onClick={() => handleConfirmReceipt(record)}
-              />
-            </Tooltip>
-          )}
-          
-          <Tooltip title="Download PDF">
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={() => downloadDispatchPDF(record)}
-            />
-          </Tooltip>
-          
-          <Tooltip title="Print Dispatch Note">
-            <Button
-              size="small"
-              icon={<PrinterOutlined />}
-              onClick={() => generateDispatchPDF(record)}
-            />
-          </Tooltip>
-          
-          {record.status === 'PENDING' && (
-            <Popconfirm
-              title="Are you sure you want to cancel this dispatch?"
-              onConfirm={() => {
-                setDispatches(prev => prev.filter(d => d.id !== record.id));
-                message.success('Dispatch cancelled');
-              }}
-              okText="Yes"
-              cancelText="No"
-            >
-              <Tooltip title="Cancel">
-                <Button
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                />
-              </Tooltip>
-            </Popconfirm>
-          )}
-          
-          {/* Admin/Superuser Delete Button - for any dispatch status */}
-          {isAdminUser() && (
-            <Popconfirm
-              title={`Are you sure you want to permanently delete dispatch ${record.dispatchId}?`}
-              description="This action cannot be undone. This will remove the dispatch record permanently."
-              onConfirm={() => handleDeleteDispatch(record)}
-              okText="Delete"
-              cancelText="Cancel"
-              okButtonProps={{ danger: true }}
-            >
-              <Tooltip title="Delete (Admin Only)">
-                <Button
-                  size="small"
-                  danger
-                  type="primary"
-                  icon={<DeleteOutlined />}
-                  style={{ 
-                    backgroundColor: '#ff4d4f',
-                    borderColor: '#ff4d4f'
-                  }}
-                />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
+        <Dropdown
+          menu={{
+            items: getActionMenuItems(record).map(item => ({
+              key: item.key || Math.random().toString(),
+              icon: item.icon,
+              danger: item.danger,
+              type: item.type,
+              label: (
+                <span onClick={(e) => { e.preventDefault(); item.onClick && item.onClick(); }}>
+                  {item.label}
+                </span>
+              ),
+            })),
+          }}
+          trigger={['click']}
+        >
+          <Button size="small" icon={<EllipsisOutlined />} />
+        </Dropdown>
       ),
     },
   ];
