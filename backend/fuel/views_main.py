@@ -9138,6 +9138,49 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
                 'message': 'Failed to create fuel entitlement'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get fuel entitlement statistics"""
+        from django.db.models import Sum, Count, Q
+        from django.utils import timezone
+        
+        queryset = self.get_queryset()
+        
+        # Basic counts
+        total_entitlements = queryset.count()
+        pending_entitlements = queryset.filter(status='PENDING').count()
+        approved_entitlements = queryset.filter(status='APPROVED').count()
+        expired_entitlements = queryset.filter(
+            period_end__lt=timezone.now().date(),
+            status__in=['PENDING', 'APPROVED', 'PARTIALLY_ALLOCATED']
+        ).count()
+        
+        # Aggregate sums  
+        litres_stats = queryset.aggregate(
+            total_litres_entitled=Sum('litres_entitled'),
+            total_litres_allocated=Sum('litres_allocated')
+        )
+        
+        total_litres_entitled = litres_stats['total_litres_entitled'] or 0
+        total_litres_allocated = litres_stats['total_litres_allocated'] or 0
+        
+        # Calculate allocation percentage
+        allocation_percentage = 0
+        if total_litres_entitled > 0:
+            allocation_percentage = (total_litres_allocated / total_litres_entitled) * 100
+        
+        stats = {
+            'total_entitlements': total_entitlements,
+            'pending_entitlements': pending_entitlements,
+            'approved_entitlements': approved_entitlements,
+            'expired_entitlements': expired_entitlements,
+            'total_litres_entitled': float(total_litres_entitled),
+            'total_litres_allocated': float(total_litres_allocated),
+            'allocation_percentage': round(allocation_percentage, 2)
+        }
+        
+        return Response(stats)
+
 
 # NESTED SUBCENTER ENDPOINT VIEWS for specific subcenter statistics and activity
 @api_view(['GET'])

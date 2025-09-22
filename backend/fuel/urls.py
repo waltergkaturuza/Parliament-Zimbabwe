@@ -267,6 +267,7 @@ urlpatterns = [
     # Admin dashboard endpoints - use relative paths
     path('admin/dashboard/', lazy_view('admin_dashboard'), name='admin-dashboard-v1'),
     path('dashboard/', lazy_view('main_dashboard'), name='main-dashboard-v1'),
+    path('dashboard/subcenter-management/', lazy_api_view('subcenter_management_dashboard'), name='subcenter-management-dashboard'),
     
     # Fuel statistics endpoint
     path('fuel-stats/', lazy_view('fuel_statistics'), name='fuel-statistics'),

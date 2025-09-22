@@ -743,3 +743,66 @@ def top_programs_consumption_timeline_view(request):
     except Exception:
         # On any unexpected error, return stable empty payload
         return Response({'top_programs': [], 'data': []})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcenter_management_dashboard(request):
+    """
+    Dashboard endpoint for subcenter management
+    Frontend expects: /dashboard/subcenter-management/
+    """
+    try:
+        from django.db.models import Count, Sum
+        from .models import SubCenter, User, PoolVehicle, BookDispatch
+        
+        user = request.user
+        
+        # Basic subcenter statistics
+        total_subcenters = SubCenter.objects.filter(is_active=True).count()
+        
+        # User statistics by subcenter
+        subcenter_users = User.objects.filter(
+            sub_center__isnull=False,
+            is_active=True
+        ).values('sub_center__name', 'sub_center__code').annotate(
+            user_count=Count('id')
+        ).order_by('sub_center__name')
+        
+        # Vehicle statistics by subcenter
+        vehicle_stats = PoolVehicle.objects.filter(
+            status='ACTIVE',
+            assigned_subcenter__isnull=False
+        ).values('assigned_subcenter__name', 'assigned_subcenter__code').annotate(
+            vehicle_count=Count('id')
+        ).order_by('assigned_subcenter__name')
+        
+        # Recent dispatches to subcenters
+        recent_dispatches = BookDispatch.objects.filter(
+            to_center__isnull=False
+        ).values('to_center__name', 'to_center__code').annotate(
+            dispatch_count=Count('id'),
+            total_coupons=Sum('total_coupons')
+        ).order_by('-dispatch_count')[:10]
+        
+        # Compile dashboard data
+        dashboard_data = {
+            'total_subcenters': total_subcenters,
+            'subcenter_users': list(subcenter_users),
+            'vehicle_stats': list(vehicle_stats),
+            'recent_dispatches': list(recent_dispatches),
+            'user_role': user.role,
+            'user_subcenter': user.sub_center.code if user.sub_center else None
+        }
+        
+        return Response(dashboard_data)
+        
+    except Exception as e:
+        # Return stable response even on errors to prevent UI crashes
+        return Response({
+            'total_subcenters': 0,
+            'subcenter_users': [],
+            'vehicle_stats': [],
+            'recent_dispatches': [],
+            'error': str(e)
+        }, status=200)
