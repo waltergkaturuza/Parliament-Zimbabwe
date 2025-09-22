@@ -2,11 +2,9 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     """
-    Stub migration to resolve production database migration graph conflict.
-    
-    Production database has references to this migration in django_migrations table
-    but the migration file doesn't exist in our codebase. This stub satisfies
-    Django's migration dependency requirements.
+    Stub migration to satisfy production database migration dependencies.
+    This migration exists in the production django_migrations table but
+    was missing from our codebase, causing conflicts.
     """
     
     dependencies = [
@@ -14,5 +12,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # No operations - this is a stub to satisfy migration graph dependencies
+        # This is a stub - no operations needed
+        # Production database expects this migration to exist
     ]
