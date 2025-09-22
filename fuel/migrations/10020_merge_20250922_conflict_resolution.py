@@ -6,6 +6,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('fuel', '10018_bookdispatch_main_center_dispatch_number'),
         ('fuel', '10019_add_dispatch_aggregates_safe'),
+        ('fuel', '10027_merge_20250922_0335'),
     ]
 
     operations = [
