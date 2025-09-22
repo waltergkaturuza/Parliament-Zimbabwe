@@ -1,14 +1,13 @@
 from django.db import migrations
 
 class Migration(migrations.Migration):
-    """Final merge to collapse divergent leaf involving stub 10029.
+    """Final merge after adding real 10029_dispatch_aggregates_safe placeholder.
 
-    After adding the stub 10029, this merge ensures a single linear head for subsequent
-    migrations. Safe no-op.
+    Ensures a single linear head for future migrations. No schema operations.
     """
 
     dependencies = [
-        ("fuel", "10029_dispatch_aggregates_stub"),
+        ("fuel", "10029_dispatch_aggregates_safe"),
     ]
 
     operations = []
