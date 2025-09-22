@@ -5688,12 +5688,158 @@ class FuelRequirementConfiguration(TimeStampedModel):
 
 
 class CouponHandover(TimeStampedModel):
-    """Temporary stub for CouponHandover model"""
-    beneficiary = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    handover_date = models.DateTimeField(auto_now_add=True)
+    """Enhanced model for coupon handover to beneficiaries"""
+    
+    HANDOVER_MODE_CHOICES = [
+        ('entitlement-based', 'Entitlement-Based Handover'),
+        ('serial-range', 'Serial Range Handover'),
+        ('quantity-based', 'Quantity-Based Handover'),
+        ('emergency-allocation', 'Emergency Allocation'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('CONFIGURED', 'Configured'),
+        ('VERIFIED', 'Verified'),
+        ('HANDED_OVER', 'Handed Over'),
+        ('RECEIVED', 'Received'),
+        ('CONFIRMED', 'Confirmed'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    
+    HANDOVER_METHOD_CHOICES = [
+        ('DIRECT_PICKUP', 'Direct Pickup'),
+        ('OFFICE_DELIVERY', 'Office Delivery'),
+        ('COURIER', 'Courier Service'),
+        ('REPRESENTATIVE', 'Authorized Representative'),
+    ]
+    
+    # Core handover information
+    handover_id = models.CharField(max_length=50, unique=True, help_text='Unique handover identifier')
+    handover_mode = models.CharField(
+        max_length=50, 
+        choices=HANDOVER_MODE_CHOICES, 
+        default='entitlement-based',
+        help_text='Intelligent generation mode used'
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='PENDING',
+        help_text='Current status of handover'
+    )
+    
+    # Relationships
+    beneficiary = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE,
+        related_name='coupon_handovers',
+        help_text='Beneficiary receiving the coupons'
+    )
+    sub_center = models.ForeignKey(
+        SubCenter,
+        on_delete=models.CASCADE,
+        related_name='coupon_handovers',
+        help_text='Sub-center managing this handover'
+    )
+    handed_over_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='handovers_given',
+        help_text='User who performed the handover'
+    )
+    received_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='handovers_received',
+        help_text='User who received the coupons'
+    )
+    
+    # Coupon tracking
+    coupons = models.ManyToManyField(
+        'Coupon',
+        related_name='handovers',
+        help_text='Coupons included in this handover'
+    )
+    first_serial = models.CharField(max_length=50, blank=True, help_text='First coupon serial in handover')
+    last_serial = models.CharField(max_length=50, blank=True, help_text='Last coupon serial in handover')
+    total_coupons = models.IntegerField(default=0, help_text='Total number of coupons in handover')
+    total_litres = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Total litres in handover')
+    total_value = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='Total value of handover in USD')
+    
+    # Handover method and logistics
+    handover_method = models.CharField(
+        max_length=30, 
+        choices=HANDOVER_METHOD_CHOICES, 
+        default='DIRECT_PICKUP',
+        help_text='Method of handover'
+    )
+    
+    # Representative details
+    representative_name = models.CharField(max_length=100, blank=True, help_text='Name of authorized representative')
+    representative_id = models.CharField(max_length=50, blank=True, help_text='Representative ID number')
+    representative_phone = models.CharField(max_length=20, blank=True, help_text='Representative contact number')
+    authorization_letter = models.TextField(blank=True, help_text='Authorization letter details')
+    
+    # Handover logistics
+    scheduled_date = models.DateField(null=True, blank=True, help_text='Scheduled handover date')
+    scheduled_time = models.TimeField(null=True, blank=True, help_text='Scheduled handover time')
+    handover_location = models.CharField(max_length=200, blank=True, help_text='Location where handover took place')
+    special_instructions = models.TextField(blank=True, help_text='Special handling instructions')
+    
+    # Verification
+    verification_checks = models.JSONField(default=list, blank=True, help_text='List of verification checks performed')
+    verification_notes = models.TextField(blank=True, help_text='Notes from verification process')
+    verified_by = models.CharField(max_length=100, blank=True, help_text='Person who verified the handover')
+    verified_at = models.DateTimeField(null=True, blank=True, help_text='Date and time of verification')
+    
+    # Digital signatures
+    beneficiary_signature = models.TextField(blank=True, help_text='Base64 encoded beneficiary signature')
+    representative_signature = models.TextField(blank=True, help_text='Base64 encoded representative signature')
+    witness_signature = models.TextField(blank=True, help_text='Base64 encoded witness signature')
+    witness_name = models.CharField(max_length=100, blank=True, help_text='Name of witness')
+    
+    # Documentation
+    handover_document = models.TextField(blank=True, help_text='Handover document details')
+    receipt_generated = models.BooleanField(default=False, help_text='Whether receipt was generated')
+    delivery_note = models.CharField(max_length=200, blank=True, help_text='Delivery note or reference')
+    handover_notes = models.TextField(blank=True, help_text='Additional handover notes')
+    
+    # Entitlement tracking
+    based_on_entitlement = models.BooleanField(default=True, help_text='Whether handover is based on entitlement')
+    entitlement_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text='Entitlement amount')
+    overrides_entitlement = models.BooleanField(default=False, help_text='Whether this overrides normal entitlement')
+    emergency_reason = models.TextField(blank=True, help_text='Reason for emergency allocation')
+    approved_by = models.CharField(max_length=100, blank=True, help_text='Approver for override/emergency')
+    
+    # Date/time tracking
+    handed_over_date = models.DateField(null=True, blank=True, help_text='Actual handover date')
+    handed_over_time = models.TimeField(null=True, blank=True, help_text='Actual handover time')
+    received_date = models.DateField(null=True, blank=True, help_text='Date when received by beneficiary')
+    received_time = models.TimeField(null=True, blank=True, help_text='Time when received by beneficiary')
     
     class Meta:
         db_table = 'fuel_couponhandover'
+        ordering = ['-created']
+        verbose_name = "Coupon Handover"
+        verbose_name_plural = "Coupon Handovers"
+    
+    def __str__(self):
+        return f"{self.handover_id} - {self.beneficiary} ({self.status})"
+    
+    @property
+    def is_verified(self):
+        return self.status in ['VERIFIED', 'HANDED_OVER', 'RECEIVED', 'CONFIRMED']
+    
+    @property
+    def is_completed(self):
+        return self.status in ['CONFIRMED', 'RECEIVED']
+    
+    @property
+    def can_be_modified(self):
+        return self.status in ['PENDING', 'CONFIGURED']
 
 # -----------------------------
 # Signals for BookDispatch

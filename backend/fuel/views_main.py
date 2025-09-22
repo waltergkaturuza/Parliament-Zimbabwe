@@ -34,7 +34,7 @@ from .serializers import (
     BeneficiaryCategorySerializer, ConstituencySerializer, VehicleCategorySerializer, PoliticalPartySerializer,
     ParliamentSessionSerializer, SessionAttendanceSerializer, BeneficiaryProfileSerializer, 
     BulkCouponAllocationSerializer,
-    BookDispatchSerializer, CouponAllocationSerializer, CouponDistributionSerializer,
+    BookDispatchSerializer, CouponAllocationSerializer, CouponDistributionSerializer, CouponHandoverSerializer,
     FuelEntitlementSerializer, PoolVehicleSerializer, DriverSerializer, VehicleAssignmentSerializer,
     SystemAlertSerializer, AuditLogSerializer, BulkSessionAttendanceSerializer, BoxReceiptSerializer,
     FuelRequirementConfigurationSerializer, ProgramSerializer, ProgramWriteSerializer
@@ -7985,7 +7985,7 @@ class CouponHandoverViewSet(viewsets.ModelViewSet):
     Handles physical distribution of coupons to beneficiaries with multi-step workflow:
     Configuration → Generation → Verification → Handover → Confirmation
     """
-    serializer_class = 'CouponHandoverSerializer'  # Will be defined in serializers.py
+    serializer_class = CouponHandoverSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
