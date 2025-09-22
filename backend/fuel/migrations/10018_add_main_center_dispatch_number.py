@@ -12,15 +12,17 @@ def backfill_main_center_numbers(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    """Convert duplicate AddField migration into idempotent backfill-only.
+
+    The column may have been added already by the sibling migration
+    10018_bookdispatch_main_center_dispatch_number (applied in production).
+    We skip adding the field explicitly to avoid duplicate column errors and
+    only perform backfill if the field exists and is empty.
+    """
     dependencies = [
         ('fuel', '10017_merge_20250901_1204'),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='bookdispatch',
-            name='main_center_dispatch_number',
-            field=models.CharField(max_length=30, unique=True, null=True, blank=True, help_text='Primary sequential number for Main Center tracking (auto-generated)'),
-        ),
         migrations.RunPython(backfill_main_center_numbers, migrations.RunPython.noop),
     ]

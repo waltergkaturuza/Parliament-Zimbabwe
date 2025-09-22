@@ -5026,7 +5026,14 @@ class BookDispatch(TimeStampedModel):
     # CRITICAL: Many-to-Many relationship with books
     books = models.ManyToManyField(Book, related_name='dispatches', blank=True, help_text="Books included in this dispatch")
     
-    # Fields needed for analytics migration
+    # Aggregate + serial tracking (new persisted metrics)
+    first_serial = models.CharField(max_length=50, null=True, blank=True, help_text="First coupon serial in this dispatch")
+    last_serial = models.CharField(max_length=50, null=True, blank=True, help_text="Last coupon serial in this dispatch")
+    total_coupons = models.IntegerField(default=0, help_text="Total number of coupons in this dispatch")
+    aggregated_litres = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total litres for fast reporting")
+    aggregated_value_usd = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total USD value for fast reporting")
+
+    # Fields needed for analytics migration / legacy historical fields
     program = models.ForeignKey(Program, on_delete=models.CASCADE, null=True, blank=True, help_text="Program associated with this dispatch")
     session = models.ForeignKey(ParliamentSession, on_delete=models.CASCADE, null=True, blank=True, help_text="Parliament session associated with this dispatch")
     
@@ -5041,27 +5048,118 @@ class BookDispatch(TimeStampedModel):
     @property
     def total_value(self):
         """Total monetary value of this dispatch"""
-        total = 0
-        for book in self.books.all():
-            if book.box:
-                total += (book.initial_coupon_count or 100) * (book.box.denomination or 20) * 1.45  # Default price per liter
+        # Prefer cached value if present
+        if self.aggregated_value_usd:
+            return float(self.aggregated_value_usd)
+        total = 0.0
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            # Attempt dynamic price per litre if available on box; else fallback 1.45
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None) or 1.45
+            total += (coupon_count * denomination) * float(price_per_litre)
         return total
 
     @property
     def total_litres(self):
-        """Total litres represented by the coupons in this dispatch"""
-        litres = 0
-        for book in self.books.all():
-            if book.box:
-                litres += (book.initial_coupon_count or 100) * (book.box.denomination or 20)
-        return litres
+        """Total litres represented by the coupons in this dispatch (cached when possible)."""
+        if self.aggregated_litres:
+            return float(self.aggregated_litres)
+        litres_total = 0
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            litres_total += (book.initial_coupon_count or 100) * (box.denomination or 20)
+        return litres_total
 
     @property
     def total_value_usd(self):
-        """Total USD value (using default 1.45 USD per litre unless future dynamic pricing applied)"""
+        """Accurate USD value (prefers cached aggregated_value_usd)."""
+        if self.aggregated_value_usd:
+            return float(self.aggregated_value_usd)
+        return self.total_value
+
+    @property
+    def created_at(self):  # compatibility alias
+        return getattr(self, 'created', None)
+
+    def recalculate_aggregates(self, save=True):
+        """Recalculate serial bounds, coupon count, litres and value.
+
+        Safe to call repeatedly; will only save changed fields when save=True.
+        """
         from decimal import Decimal
-        price_per_litre_usd = Decimal('1.45')
-        return float(self.total_litres * price_per_litre_usd)
+        from django.db.models import Min, Max
+
+        # Initialize accumulators
+        total_coupons = 0
+        total_litres = Decimal('0')
+        total_value = Decimal('0')
+        first_serial = None
+        last_serial = None
+
+        related_books = list(self.books.select_related('box').all())
+
+        # Attempt coupon serial aggregation if Coupon model exists
+        try:
+            from .models import Coupon  # type: ignore
+            if related_books:
+                serial_bounds = Coupon.objects.filter(book__in=related_books).aggregate(first=Min('serial_number'), last=Max('serial_number'))
+                first_serial = serial_bounds.get('first') or None
+                last_serial = serial_bounds.get('last') or None
+        except Exception:
+            pass
+
+        for book in related_books:
+            coupon_count = getattr(book, 'initial_coupon_count', None) or 100
+            box = getattr(book, 'box', None)
+            denomination = getattr(box, 'denomination', 20) if box else 20
+            total_coupons += coupon_count
+            litres = Decimal(str(coupon_count * denomination))
+            total_litres += litres
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None) if box else None
+            if price_per_litre is None:
+                try:
+                    from .models import FuelPrice  # type: ignore
+                    current_price = FuelPrice.get_current_price()
+                    price_per_litre = current_price.price_per_litre_usd if current_price else Decimal('1.45')
+                except Exception:
+                    price_per_litre = Decimal('1.45')
+            total_value += litres * Decimal(str(price_per_litre))
+
+        if first_serial is None and related_books:
+            book_ids = sorted([b.id for b in related_books if b.id])
+            if book_ids:
+                first_serial = f"BK{book_ids[0]}-START"
+                last_serial = f"BK{book_ids[-1]}-END"
+
+        # Track changed fields to minimize write
+        changed_fields = []
+        if self.first_serial != first_serial:
+            self.first_serial = first_serial
+            changed_fields.append('first_serial')
+        if self.last_serial != last_serial:
+            self.last_serial = last_serial
+            changed_fields.append('last_serial')
+        if self.total_coupons != total_coupons:
+            self.total_coupons = total_coupons
+            changed_fields.append('total_coupons')
+        if self.aggregated_litres != total_litres:
+            self.aggregated_litres = total_litres
+            changed_fields.append('aggregated_litres')
+        if self.aggregated_value_usd != total_value:
+            self.aggregated_value_usd = total_value
+            changed_fields.append('aggregated_value_usd')
+        if not self.main_center_dispatch_number and self.id:
+            self.main_center_dispatch_number = f"MCD-{self.id:05d}"
+            changed_fields.append('main_center_dispatch_number')
+
+        if save and changed_fields:
+            self.save(update_fields=changed_fields)
 
     def save(self, *args, **kwargs):
         """Override save to auto-generate main center dispatch number when creating"""

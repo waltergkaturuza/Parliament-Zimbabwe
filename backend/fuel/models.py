@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import m2m_changed, post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -5285,6 +5287,120 @@ class BookDispatch(TimeStampedModel):
     verification_notes = models.TextField(null=True, blank=True, help_text="Notes from verification process")
     verified_by = models.CharField(max_length=100, null=True, blank=True, help_text="Person who verified the dispatch")
     verified_at = models.DateTimeField(null=True, blank=True, help_text="Date and time of verification")
+
+    # Persisted aggregates (new)
+    aggregated_litres = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total litres for fast reporting")
+    aggregated_value_usd = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total USD value for fast reporting")
+
+    def recalculate_aggregates(self, save=True):
+        """Recalculate serial ranges, coupon totals, litres and value.
+
+        This method inspects related books and (if available) coupon serials to
+        derive first_serial, last_serial, total_coupons, aggregated_litres and value.
+        """
+        from decimal import Decimal
+        from django.db.models import Min, Max
+
+        # Initialize accumulators
+        total_coupons = 0
+        total_litres = Decimal('0')
+        total_value = Decimal('0')
+        first_serial = None
+        last_serial = None
+
+        # Collect all books once
+        related_books = list(self.books.select_related('box').all())
+
+        # Attempt to use Coupon model if present for serials
+        Coupon = None
+        try:
+            from .models import Coupon as CouponModel  # local import
+            Coupon = CouponModel
+        except Exception:
+            Coupon = None
+
+        # If we have coupons we can query serial ranges for each book
+        if Coupon and related_books:
+            try:
+                serial_bounds = Coupon.objects.filter(book__in=related_books).aggregate(
+                    first=Min('serial_number'), last=Max('serial_number')
+                )
+                first_serial = serial_bounds.get('first') or None
+                last_serial = serial_bounds.get('last') or None
+            except Exception:
+                # Fallback to no serials
+                pass
+
+        for book in related_books:
+            # Coupon count fallback
+            coupon_count = getattr(book, 'initial_coupon_count', None) or 100
+            denomination = getattr(getattr(book, 'box', None), 'denomination', None) or 20
+            total_coupons += coupon_count
+            total_litres += Decimal(str(coupon_count * denomination))
+
+            # Determine price per litre
+            price_per_litre = getattr(getattr(book, 'box', None), 'fuel_price_per_litre_usd', None)
+            if price_per_litre is None:
+                try:
+                    from .models import FuelPrice
+                    current = FuelPrice.get_current_price()
+                    price_per_litre = current.price_per_litre_usd if current else Decimal('1.45')
+                except Exception:
+                    price_per_litre = Decimal('1.45')
+            total_value += Decimal(str(coupon_count * denomination)) * Decimal(str(price_per_litre))
+
+        # If serials not derived via Coupon model, create synthetic range if any books
+        if first_serial is None and related_books:
+            # Synthesize using book IDs for traceability
+            book_ids_sorted = sorted([b.id for b in related_books if b.id])
+            if book_ids_sorted:
+                first_serial = f"BK{book_ids_sorted[0]}-START"
+                last_serial = f"BK{book_ids_sorted[-1]}-END"
+
+        # Assign computed values
+        self.first_serial = first_serial
+        self.last_serial = last_serial
+        self.total_coupons = total_coupons
+        self.aggregated_litres = total_litres
+        self.aggregated_value_usd = total_value
+
+        # Auto-generate main center dispatch number if missing and instance has id
+        if not self.main_center_dispatch_number and self.id:
+            self.main_center_dispatch_number = f"MCD-{self.id:05d}"
+
+        if save:
+            # Only save changed fields for efficiency
+            self.save(update_fields=[
+                'first_serial','last_serial','total_coupons','aggregated_litres',
+                'aggregated_value_usd','main_center_dispatch_number'
+            ])
+
+    @property
+    def created_at(self):  # compatibility alias
+        return getattr(self, 'created', None)
+
+    @property
+    def total_litres(self):
+        """Preserve existing API contract; prefer cached value if present."""
+        if self.aggregated_litres:
+            return self.aggregated_litres
+        # Fallback to dynamic calculation (should be rare once backfilled)
+        from decimal import Decimal
+        litres_total = Decimal('0')
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres_total += Decimal(str(coupon_count * denomination))
+        return litres_total
+
+    @property
+    def total_value_usd(self):
+        if self.aggregated_value_usd:
+            return self.aggregated_value_usd
+        return self.total_value
     
     def __str__(self):
         return f"Dispatch to {self.to_center.name if self.to_center else 'Unknown'} - {self.status}"
@@ -5578,3 +5694,26 @@ class CouponHandover(TimeStampedModel):
     
     class Meta:
         db_table = 'fuel_couponhandover'
+
+# -----------------------------
+# Signals for BookDispatch
+# -----------------------------
+
+@receiver(m2m_changed, sender=BookDispatch.books.through)
+def _bookdispatch_books_changed(sender, instance, action, **kwargs):
+    if action in ('post_add', 'post_remove', 'post_clear'):
+        try:
+            instance.recalculate_aggregates(save=True)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning('BookDispatch m2m recalc failed', exc_info=True)
+
+@receiver(post_save, sender=BookDispatch)
+def _bookdispatch_post_save(sender, instance, created, **kwargs):
+    if created or not instance.main_center_dispatch_number:
+        try:
+            # Save without recursion risk: recalc handles number & saves specific fields
+            instance.recalculate_aggregates(save=True)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning('BookDispatch post_save recalc failed', exc_info=True)

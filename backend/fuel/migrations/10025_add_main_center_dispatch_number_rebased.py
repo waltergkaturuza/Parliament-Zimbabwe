@@ -34,15 +34,11 @@ def reverse_backfill(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    """Rebased migration reduced to backfill only (field already exists)."""
     dependencies = [
         ("fuel", "10017_sync_missing_field"),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='bookdispatch',
-            name='main_center_dispatch_number',
-            field=models.CharField(blank=True, max_length=32, null=True, unique=True),
-        ),
         migrations.RunPython(backfill_main_center_dispatch_number, reverse_backfill),
     ]

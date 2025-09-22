@@ -154,21 +154,32 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     # Calculated fields
     total_coupons = serializers.SerializerMethodField()
     total_value = serializers.SerializerMethodField()
+    total_litres = serializers.ReadOnlyField(source='aggregated_litres')
+    aggregated_litres = serializers.ReadOnlyField()
+    aggregated_value_usd = serializers.ReadOnlyField()
+    first_serial = serializers.ReadOnlyField()
+    last_serial = serializers.ReadOnlyField()
+    main_center_dispatch_number = serializers.ReadOnlyField()
     
     class Meta:
         model = BookDispatch
         fields = [
-            'id', 'dispatch_id', 'from_center', 'to_center', 'subcenter_name',
+            'id', 'dispatch_id', 'main_center_dispatch_number',
+            'from_center', 'to_center', 'subcenter_name',
             'dispatched_by', 'received_by', 'books', 'total_books',
             'dispatch_date', 'dispatched_date', 'dispatched_time', 'status',
             # Linkages
             'program', 'session',
-            # Calculated fields
-            'total_coupons', 'total_value', 'total_value_usd'
+            # Aggregate / serial fields
+            'first_serial', 'last_serial', 'total_coupons', 'total_litres',
+            'aggregated_litres', 'aggregated_value_usd',
+            # Calculated legacy fields
+            'total_value', 'total_value_usd'
         ]
         read_only_fields = [
-            'id', 'dispatch_id', 'dispatched_date', 'dispatched_time',
-            'total_books', 'total_coupons', 'total_value', 'total_value_usd'
+            'id', 'dispatch_id', 'main_center_dispatch_number', 'dispatched_date', 'dispatched_time',
+            'total_books', 'total_coupons', 'total_value', 'total_value_usd',
+            'total_litres','aggregated_litres','aggregated_value_usd','first_serial','last_serial'
         ]
     
     def get_dispatch_id(self, obj):
@@ -176,13 +187,20 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         return f"DISP-{obj.id}" if obj.id else f"DISP-NEW"
     
     def get_total_coupons(self, obj):
-        """Calculate total coupons in dispatch"""
-        return sum(book.initial_coupon_count or 100 for book in obj.books.all())
+        """Return persisted total_coupons (fallback dynamic if zero and books exist)."""
+        if getattr(obj, 'total_coupons', 0):
+            return obj.total_coupons
+        # Fallback dynamic computation (edge case before backfill)
+        return sum((b.initial_coupon_count or 100) for b in obj.books.all())
     
     def get_total_value(self, obj):
-        """Calculate total value of dispatch"""
-        total = 0
-        for book in obj.books.all():
+        """Return litres * average price fallback using persisted aggregates if available."""
+        # Prefer aggregated_value_usd if populated
+        if getattr(obj, 'aggregated_value_usd', None):
+            return float(obj.aggregated_value_usd)
+        # Legacy fallback computation (without price granularity)
+        total = 0.0
+        for book in obj.books.select_related('box').all():
             coupon_count = book.initial_coupon_count or 100
             denomination = book.box.denomination if book.box else 20
             total += coupon_count * denomination
