@@ -48,7 +48,7 @@ from .permissions import (
     
     # Workflow permissions
     MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission,
-    BeneficiaryManagementPermission
+    BeneficiaryManagementPermission, MainCenterOrSubCenterPermission
 )
 from .email_utils import send_user_approval_email, send_user_rejection_email
 from rest_framework.views import APIView # Ensure this import is present
@@ -5582,7 +5582,7 @@ class PoolVehicleViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     def perform_create(self, serializer):
         import logging

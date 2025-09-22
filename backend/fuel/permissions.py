@@ -121,3 +121,8 @@ class BeneficiaryManagementPermission(permissions.BasePermission):
     """Permission for beneficiary management - allows MAIN_CENTER and SUB_CENTER"""
     def has_permission(self, request, view):
         return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
+
+class MainCenterOrSubCenterPermission(permissions.BasePermission):
+    """Permission for both main center and subcenter officers"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']
