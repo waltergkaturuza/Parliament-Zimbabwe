@@ -1757,10 +1757,33 @@ class BookViewSet(viewsets.ModelViewSet):
         Get books available for dispatch - enhanced for intelligent generator
         """
         try:
-            # Base queryset: Books that are in received boxes and not assigned to beneficiaries
+            # Debug: Check different filter conditions
+            debug_mode = request.query_params.get('debug') == 'true'
+            
+            if debug_mode:
+                # Diagnostic information
+                total_books = Book.objects.count()
+                books_with_boxes = Book.objects.filter(box__isnull=False).count()
+                received_boxes = Book.objects.filter(box__is_received=True).count()
+                unassigned_books = Book.objects.filter(is_assigned=False).count()
+                
+                return Response({
+                    'debug_info': {
+                        'total_books': total_books,
+                        'books_with_boxes': books_with_boxes,
+                        'books_in_received_boxes': received_boxes,
+                        'unassigned_books': unassigned_books,
+                        'sample_boxes': list(Book.objects.select_related('box').values(
+                            'id', 'book_code', 'is_assigned', 'box__box_code', 'box__is_received'
+                        )[:5])
+                    }
+                })
+            
+            # Base queryset: More flexible - check for boxes that exist and books not assigned
+            # Remove the strict is_received requirement for now
             available_books = Book.objects.filter(
-                box__is_received=True,
-                is_assigned=False,
+                box__isnull=False,  # Must have a box
+                is_assigned=False,  # Not assigned to beneficiaries
             ).select_related('box', 'box__assigned_to').order_by('-generated_at')
 
             # If historical M2M relation 'dispatches' exists, exclude previously dispatched
