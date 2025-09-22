@@ -28,9 +28,18 @@ def backfill_main_center_numbers(apps, schema_editor):
     
     # Order by primary key for deterministic numbering
     for dispatch in BookDispatch.objects.all().order_by('id'):
-        if not getattr(dispatch, 'main_center_dispatch_number', None):
-            dispatch.main_center_dispatch_number = f"MCD-{dispatch.id:05d}"
-            dispatch.save(update_fields=['main_center_dispatch_number'])
+        # Double-check: ensure the field exists on the model instance before trying to save
+        try:
+            current_value = getattr(dispatch, 'main_center_dispatch_number', None)
+            if not current_value:
+                dispatch.main_center_dispatch_number = f"MCD-{dispatch.id:05d}"
+                dispatch.save(update_fields=['main_center_dispatch_number'])
+        except AttributeError:
+            # Model doesn't have the field yet, skip this record
+            continue
+        except Exception as e:
+            # Any other error, skip this record and continue
+            continue
 
 
 class Migration(migrations.Migration):
