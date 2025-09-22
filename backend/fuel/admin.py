@@ -618,6 +618,57 @@ class ParliamentSessionAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related('organizer', 'managing_subcenter', 'program')
 
 
+@admin.register(BookDispatch)
+class BookDispatchAdmin(admin.ModelAdmin):
+    """Admin interface for BookDispatch with comprehensive filtering and search"""
+    list_display = [
+        'id', 'main_center_dispatch_number', 'to_center', 'dispatched_by', 
+        'status', 'dispatch_date', 'received_by', 'received_date', 'books_count'
+    ]
+    list_filter = [
+        'status', 'dispatch_date', 'received_date', 'to_center', 'dispatched_by'
+    ]
+    search_fields = [
+        'main_center_dispatch_number', 'to_center__name', 'to_center__code',
+        'dispatched_by__username', 'received_by__username'
+    ]
+    readonly_fields = ['created', 'modified', 'books_count']
+    raw_id_fields = ['dispatched_by', 'received_by']
+    date_hierarchy = 'dispatch_date'
+    
+    fieldsets = (
+        ('Dispatch Information', {
+            'fields': ('main_center_dispatch_number', 'to_center', 'status')
+        }),
+        ('Dispatch Details', {
+            'fields': ('dispatched_by', 'dispatch_date', 'dispatch_notes')
+        }),
+        ('Receipt Information', {
+            'fields': ('received_by', 'received_date', 'receipt_notes'),
+            'classes': ('collapse',)
+        }),
+        ('Books & Statistics', {
+            'fields': ('books_count',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created', 'modified'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def books_count(self, obj):
+        """Display number of books in this dispatch"""
+        try:
+            return obj.books.count()
+        except:
+            return 0
+    books_count.short_description = 'Books Count'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('to_center', 'dispatched_by', 'received_by')
+
+
 # Admin Site Customization
 admin.site.site_header = "Fuel Coupon Management System"
 admin.site.site_title = "FCMS Administration"

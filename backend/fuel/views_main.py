@@ -545,12 +545,57 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated:
-            if user.role == 'SUB_CENTER' and user.sub_center:
-                # Sub Center officers can only see their assigned center
-                return queryset.filter(Q(managed_by=user) | Q(officers__user=user)).distinct() # Filter by managed_by or through SubCenterOfficer model
+            # For dispatch operations, all authenticated users should see all active subcenters
+            # This allows proper dispatch destination selection
+            if self.action in ['list']:
+                return queryset.filter(is_active=True)
+            elif user.role == 'SUB_CENTER' and user.sub_center:
+                # Sub Center officers can only see their assigned center for management
+                return queryset.filter(Q(managed_by=user) | Q(officers__user=user)).distinct()
             # Main Center, Admin, etc. can see all
             return queryset
         return queryset.none() # Anonymous users see nothing
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def debug_state(self, request):
+        """Debug endpoint to check subcenter state in production"""
+        from django.db.models import Count
+        
+        # Get comprehensive subcenter information
+        subcenters_data = []
+        for sc in SubCenter.objects.all():
+            subcenters_data.append({
+                'id': sc.id,
+                'name': sc.name,
+                'code': sc.code,
+                'is_active': sc.is_active,
+                'location': sc.location,
+                'managed_by': sc.managed_by.username if sc.managed_by else None,
+                'books_count': Book.objects.filter(box__assigned_to=sc).count(),
+                'received_books_count': Book.objects.filter(
+                    box__assigned_to=sc, box__is_received=True
+                ).count(),
+                'dispatches_to_count': BookDispatch.objects.filter(to_center=sc).count(),
+                'dispatches_from_count': BookDispatch.objects.filter(
+                    dispatched_by__sub_center=sc
+                ).count() if hasattr(BookDispatch, 'dispatched_by') else 0
+            })
+        
+        return Response({
+            'subcenters': subcenters_data,
+            'totals': {
+                'total_subcenters': SubCenter.objects.count(),
+                'active_subcenters': SubCenter.objects.filter(is_active=True).count(),
+                'total_books': Book.objects.count(),
+                'total_received_books': Book.objects.filter(box__is_received=True).count(),
+                'total_dispatches': BookDispatch.objects.count()
+            },
+            'user_info': {
+                'username': request.user.username,
+                'role': request.user.role,
+                'subcenter': request.user.sub_center.name if hasattr(request.user, 'sub_center') and request.user.sub_center else None
+            }
+        })
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def overview(self, request):
@@ -1761,29 +1806,70 @@ class BookViewSet(viewsets.ModelViewSet):
             debug_mode = request.query_params.get('debug') == 'true'
             
             if debug_mode:
-                # Diagnostic information
+                # Comprehensive diagnostic information for production debugging
+                from django.db.models import Count, Q
+                
                 total_books = Book.objects.count()
                 books_with_boxes = Book.objects.filter(box__isnull=False).count()
                 received_boxes = Book.objects.filter(box__is_received=True).count()
                 unassigned_books = Book.objects.filter(is_assigned=False).count()
+                available_books_count = Book.objects.filter(
+                    box__is_received=True, is_assigned=False
+                ).count()
+                
+                # Box statistics
+                total_boxes = Box.objects.count()
+                received_boxes_total = Box.objects.filter(is_received=True).count()
+                
+                # SubCenter statistics
+                total_subcenters = SubCenter.objects.count()
+                active_subcenters = SubCenter.objects.filter(is_active=True).count()
+                
+                # Sample data for inspection
+                sample_boxes = list(Box.objects.values(
+                    'id', 'box_code', 'is_received', 'fuel_type', 'denomination', 'assigned_to__name'
+                ).order_by('-id')[:10])
+                
+                sample_books = list(Book.objects.select_related('box').values(
+                    'id', 'book_code', 'is_assigned', 'box__box_code', 'box__is_received', 'box__fuel_type'
+                ).order_by('-id')[:10])
+                
+                sample_subcenters = list(SubCenter.objects.values(
+                    'id', 'name', 'code', 'is_active'
+                ).order_by('id'))
                 
                 return Response({
                     'debug_info': {
-                        'total_books': total_books,
-                        'books_with_boxes': books_with_boxes,
-                        'books_in_received_boxes': received_boxes,
-                        'unassigned_books': unassigned_books,
-                        'sample_boxes': list(Book.objects.select_related('box').values(
-                            'id', 'book_code', 'is_assigned', 'box__box_code', 'box__is_received'
-                        )[:5])
+                        'books': {
+                            'total_books': total_books,
+                            'books_with_boxes': books_with_boxes,
+                            'books_in_received_boxes': received_boxes,
+                            'unassigned_books': unassigned_books,
+                            'available_for_dispatch': available_books_count
+                        },
+                        'boxes': {
+                            'total_boxes': total_boxes,
+                            'received_boxes': received_boxes_total,
+                            'sample_boxes': sample_boxes
+                        },
+                        'subcenters': {
+                            'total_subcenters': total_subcenters,
+                            'active_subcenters': active_subcenters,
+                            'sample_subcenters': sample_subcenters
+                        },
+                        'sample_books': sample_books,
+                        'filters_explanation': {
+                            'available_for_dispatch': 'Books where box.is_received=True AND is_assigned=False',
+                            'issue_likely': 'If available_for_dispatch is 0, boxes are not marked as received'
+                        }
                     }
                 })
             
-            # Base queryset: More flexible - check for boxes that exist and books not assigned
-            # Remove the strict is_received requirement for now
+            # Base queryset: Books that are in received boxes and not assigned to beneficiaries
+            # This is correct - we only want to dispatch confirmed received books
             available_books = Book.objects.filter(
-                box__isnull=False,  # Must have a box
-                is_assigned=False,  # Not assigned to beneficiaries
+                box__is_received=True,  # Only confirmed received boxes
+                is_assigned=False,      # Not assigned to beneficiaries
             ).select_related('box', 'box__assigned_to').order_by('-generated_at')
 
             # If historical M2M relation 'dispatches' exists, exclude previously dispatched
@@ -1816,17 +1902,29 @@ class BookViewSet(viewsets.ModelViewSet):
             # Prepare enhanced book data for intelligent generator
             books_data = []
             for book in available_books:
-                # Prefer actually available coupons if coupons are generated
-                try:
-                    coupon_count = getattr(book, 'available_coupons_count', None)
-                    coupon_count = coupon_count() if callable(coupon_count) else coupon_count
-                except Exception:
-                    coupon_count = None
+                # Get actual coupon count from database
+                actual_coupon_count = book.coupons.count()
+                
+                # Fallback to estimated count if no actual coupons
+                if actual_coupon_count == 0:
+                    actual_coupon_count = book.initial_coupon_count or getattr(book.box, 'coupons_per_book', 100)
 
-                if not coupon_count:
-                    coupon_count = book.initial_coupon_count or getattr(book.box, 'coupons_per_book', 100)
+                # Get actual first and last coupon numbers
+                first_coupon = book.coupons.order_by('coupon_number').first()
+                last_coupon = book.coupons.order_by('coupon_number').last()
+                
+                first_coupon_number = None
+                last_coupon_number = None
+                
+                if first_coupon and last_coupon:
+                    first_coupon_number = first_coupon.coupon_number
+                    last_coupon_number = last_coupon.coupon_number
+                elif book.first_coupon_number and book.last_coupon_number:
+                    # Fallback to book's stored values
+                    first_coupon_number = book.first_coupon_number
+                    last_coupon_number = book.last_coupon_number
 
-                estimated_value = (coupon_count or 0) * (book.box.denomination or 0)
+                estimated_value = actual_coupon_count * (book.box.denomination or 0)
                 
                 books_data.append({
                     'id': book.id,
@@ -1835,15 +1933,21 @@ class BookViewSet(viewsets.ModelViewSet):
                     'boxId': book.box.box_code,
                     'fuelType': book.box.fuel_type,
                     'denomination': book.box.denomination,
-                    'firstCouponNumber': getattr(book, 'first_coupon_number', None),
-                    'lastCouponNumber': getattr(book, 'last_coupon_number', None),
-                    'numberOfCoupons': coupon_count,
+                    'firstCouponNumber': first_coupon_number,
+                    'lastCouponNumber': last_coupon_number,
+                    'numberOfCoupons': actual_coupon_count,
                     'estimatedValue': estimated_value,
                     'pricePerLitre': float(book.box.fuel_price_per_litre_usd or 1.45),
                     'generatedAt': book.generated_at.isoformat() if book.generated_at else None,
                     'boxReceiveDate': book.box.received_at.isoformat() if book.box.received_at else None,
                     'isSelected': False,
-                    'status': 'AVAILABLE_FOR_DISPATCH'
+                    'status': 'AVAILABLE_FOR_DISPATCH',
+                    # Add page breakdown information
+                    'pageBreakdown': {
+                        'totalPages': getattr(book, 'pages_count', 0) or (actual_coupon_count // 10 if actual_coupon_count > 0 else 0),
+                        'couponsPerPage': 10,
+                        'hasPages': hasattr(book, 'pages') and book.pages.exists()
+                    }
                 })
             
             # Summary statistics
