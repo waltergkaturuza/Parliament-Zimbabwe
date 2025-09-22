@@ -25,6 +25,7 @@ from .roles import (
     AuditorPermission,
     BeneficiaryPermission,
     BeneficiaryManagementPermission,
+    MainCenterOrSubCenterPermission,
     CenterBasedObjectPermission,
     SergeantOfArmsPermission,
     AttendanceManagementPermission,
