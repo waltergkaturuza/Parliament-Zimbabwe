@@ -9729,7 +9729,7 @@ def dispatcher_view(request):
     try:
         # Get users who can dispatch (admin, managers, or specific roles)
         dispatchers = User.objects.filter(
-            Q(role='ADMIN') | Q(role='MANAGER') | Q(role='SUB_CENTER'),
+            Q(role='ADMIN') | Q(role='MANAGER') | Q(role='SUB_CENTER') | Q(role='SUPERUSER') | Q(is_superuser=True),
             is_active=True
         ).select_related('sub_center')
         
