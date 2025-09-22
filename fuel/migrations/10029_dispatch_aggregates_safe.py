@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     """
 
     dependencies = [
-        ("fuel", "10020_merge_20250922_conflict_resolution"),
+        ("fuel", "10028_add_dispatch_aggregates_safe"),
     ]
 
     operations = []
