@@ -125,71 +125,122 @@ interface GeneratorFields {
   couponsPerBook: number;
 }
 
-// Coupon format validation regex: [AA–ZZ][000–999][AA–ZZ][000000–999999]
-const COUPON_FORMAT_REGEX = /^[A-Z]{2}[0-9]{3}[A-Z]{2}[0-9]{6}$/;
+// PetroTrade coupon format validation regex: [A-Z]{2}[0-9]{3}[A-Z]{1-2}[0-9]{7}
+// Example: PU006H1355101 (2 letters + 3 digits + 1-2 letters + 7 digits)
+const COUPON_FORMAT_REGEX = /^[A-Z]{2}[0-9]{3}[A-Z]{1,2}[0-9]{7}$/;
 
-// Validate coupon format
+// Validate coupon format using PetroTrade format
 const validateCouponFormat = (couponId: string): boolean => {
   return COUPON_FORMAT_REGEX.test(couponId);
 };
 
-// Increment coupon code using odometer-style logic
-const incrementCoupon = (code: string): string => {
-  if (!validateCouponFormat(code)) {
-    throw new Error('Invalid coupon format');
+// Parse PetroTrade coupon serial format (e.g., PU006H1355101)
+const parsePetroTradeSerial = (serial: string) => {
+  const match = serial.match(/^([A-Z]{2})(\d{3})([A-Z]{1,2})(\d{7})$/);
+  if (!match) {
+    return {
+      prefix: '',
+      seven_digit_serial: 0,
+      is_valid: false,
+      formatted: serial
+    };
   }
 
-  // Split the code into components
-  const prefixLetters = code.substring(0, 2);       // First 2 letters (AA–ZZ)
-  const prefixNumber = parseInt(code.substring(2, 5)); // 3-digit number (000–999)
-  const seriesLetters = code.substring(5, 7);       // Second 2 letters (AA–ZZ)
-  const numericPart = parseInt(code.substring(7));  // Last 6-digit number (000000–999999)
+  const [, leading_letters, three_digits, check_letters, seven_digit_part] = match;
+  return {
+    prefix: `${leading_letters}${three_digits}${check_letters}`,
+    seven_digit_serial: parseInt(seven_digit_part),
+    is_valid: true,
+    formatted: serial.toUpperCase()
+  };
+};
 
-  // Increment numeric part (last 6 digits)
-  let newNumericPart = numericPart + 1;
-  let newSeriesLetters = seriesLetters;
-  let newPrefixNumber = prefixNumber;
-  let newPrefixLetters = prefixLetters;
+// Increment coupon code using PetroTrade format logic
+const incrementCoupon = (code: string): string => {
+  const parsed = parsePetroTradeSerial(code);
+  if (!parsed.is_valid) {
+    throw new Error('Invalid PetroTrade coupon format');
+  }
 
-  if (newNumericPart > 999999) {
-    newNumericPart = 0;
-    // Increment second letter pair
-    newSeriesLetters = incrementLetters(seriesLetters);
-    if (newSeriesLetters === "AA") { // rolled over
-      // Increment 3-digit number
-      newPrefixNumber += 1;
-      if (newPrefixNumber > 999) {
-        newPrefixNumber = 0;
-        // Increment first letter pair
-        newPrefixLetters = incrementLetters(prefixLetters);
+  // Extract components using the pattern: [A-Z]{2}[0-9]{3}[A-Z]{1,2}[0-9]{7}
+  const match = code.match(/^([A-Z]{2})(\d{3})([A-Z]{1,2})(\d{7})$/);
+  if (!match) {
+    throw new Error('Invalid PetroTrade coupon format');
+  }
+
+  let [, leadingLetters, threeDigits, checkLetters, sevenDigitSerial] = match;
+  let newSevenDigit = parseInt(sevenDigitSerial) + 1;
+  let newCheckLetters = checkLetters;
+  let newThreeDigits = parseInt(threeDigits);
+  let newLeadingLetters = leadingLetters;
+
+  // Handle overflow from 7-digit serial (9999999 -> 0000000)
+  if (newSevenDigit >= 10000000) {
+    newSevenDigit = 0;
+    
+    // Increment check letters
+    if (checkLetters.length === 2) {
+      // Two check letters
+      let check2Ord = checkLetters.charCodeAt(1) + 1;
+      if (check2Ord > 'Z'.charCodeAt(0)) {
+        let check1Ord = checkLetters.charCodeAt(0) + 1;
+        if (check1Ord > 'Z'.charCodeAt(0)) {
+          newCheckLetters = 'AA';
+          // Increment 3-digit section
+          newThreeDigits += 1;
+          if (newThreeDigits >= 1000) {
+            newThreeDigits = 0;
+            // Increment leading letters
+            newLeadingLetters = incrementLeadingLetters(leadingLetters);
+          }
+        } else {
+          newCheckLetters = String.fromCharCode(check1Ord) + 'A';
+        }
+      } else {
+        newCheckLetters = checkLetters[0] + String.fromCharCode(check2Ord);
+      }
+    } else {
+      // One check letter
+      let checkOrd = checkLetters.charCodeAt(0) + 1;
+      if (checkOrd > 'Z'.charCodeAt(0)) {
+        newCheckLetters = 'A';
+        // Increment 3-digit section
+        newThreeDigits += 1;
+        if (newThreeDigits >= 1000) {
+          newThreeDigits = 0;
+          // Increment leading letters
+          newLeadingLetters = incrementLeadingLetters(leadingLetters);
+        }
+      } else {
+        newCheckLetters = String.fromCharCode(checkOrd);
       }
     }
   }
 
-  // Rebuild the code with proper zero-padding
-  return `${newPrefixLetters}${newPrefixNumber.toString().padStart(3, '0')}${newSeriesLetters}${newNumericPart.toString().padStart(6, '0')}`;
+  // Rebuild the serial with proper zero-padding
+  return `${newLeadingLetters}${newThreeDigits.toString().padStart(3, '0')}${newCheckLetters}${newSevenDigit.toString().padStart(7, '0')}`;
 };
 
-// Increment a 2-letter uppercase code (AA–ZZ)
-const incrementLetters = (pair: string): string => {
-  const first = pair[0];
-  const second = pair[1];
-
-  // Convert to numeric 0–25
-  let f = first.charCodeAt(0) - 'A'.charCodeAt(0);
-  let s = second.charCodeAt(0) - 'A'.charCodeAt(0);
-
-  // Increment like base-26
-  s += 1;
-  if (s > 25) {
-    s = 0;
-    f += 1;
-    if (f > 25) {
-      f = 0; // rollover from ZZ → AA
-    }
+// Increment the 2 leading letters (base-26 counter)
+const incrementLeadingLetters = (letters: string): string => {
+  if (letters.length !== 2) {
+    throw new Error('Leading letters must be exactly 2 characters');
   }
 
-  return String.fromCharCode(f + 'A'.charCodeAt(0)) + String.fromCharCode(s + 'A'.charCodeAt(0));
+  const first = letters[0];
+  const second = letters[1];
+  let secondOrd = second.charCodeAt(0) + 1;
+
+  if (secondOrd > 'Z'.charCodeAt(0)) {
+    let firstOrd = first.charCodeAt(0) + 1;
+    if (firstOrd > 'Z'.charCodeAt(0)) {
+      return 'AA'; // Complete overflow - start again
+    } else {
+      return String.fromCharCode(firstOrd) + 'A';
+    }
+  } else {
+    return first + String.fromCharCode(secondOrd);
+  }
 };
 
 // Calculate last coupon ID from first coupon ID using proper increment logic
@@ -322,9 +373,9 @@ const CouponVerification: FC = () => {
               : box.received_by?.username,
             fuelType: box.fuel_type,
             couponAmount: box.coupon_amount,
-            numberOfBooks: box.number_of_books ?? (box.books?.length),
-            couponsPerBook: box.coupons_per_book,
-            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            numberOfBooks: box.number_of_books ?? (box.books?.length || 0),
+            couponsPerBook: box.coupons_per_book || 0,
+            totalCoupons: box.total_coupons ?? ((box.number_of_books || 0) * (box.coupons_per_book || 0)),
             totalLitres: box.total_litres,
             firstCouponId,
             lastCouponId,
@@ -390,9 +441,9 @@ const CouponVerification: FC = () => {
               : box.received_by?.username,
             fuelType: box.fuel_type,
             couponAmount: box.coupon_amount,
-            numberOfBooks: box.number_of_books ?? (box.books?.length),
-            couponsPerBook: box.coupons_per_book,
-            totalCoupons: box.total_coupons ?? ((box.books?.length) * (box.coupons_per_book)),
+            numberOfBooks: box.number_of_books ?? (box.books?.length || 0),
+            couponsPerBook: box.coupons_per_book || 0,
+            totalCoupons: box.total_coupons ?? ((box.number_of_books || 0) * (box.coupons_per_book || 0)),
             totalLitres: box.total_litres,
             firstCouponId,
             lastCouponId,
@@ -428,7 +479,7 @@ const CouponVerification: FC = () => {
       
       // Validate coupon format first
       if (!validateCouponFormat(box.firstCouponId)) {
-        message.error(`Invalid coupon format: ${box.firstCouponId}. Expected format: [AA–ZZ][000–999][AA–ZZ][000000–999999]`);
+        message.error(`Invalid coupon format: ${box.firstCouponId}. Expected format: PU006H1355101 (PetroTrade format)`);
         return;
       }
       
@@ -522,7 +573,7 @@ const CouponVerification: FC = () => {
     
     // Validate coupon format first
     if (!validateCouponFormat(firstCouponId)) {
-      message.error(`Invalid coupon format: ${firstCouponId}. Expected format: [AA–ZZ][000–999][AA–ZZ][000000–999999]`);
+      message.error(`Invalid coupon format: ${firstCouponId}. Expected format: PU006H1355101 (PetroTrade format)`);
       return;
     }
     
@@ -1482,7 +1533,7 @@ const CouponVerification: FC = () => {
               <Card size="small">
                 <Statistic
                   title="Total Coupons"
-                  value={generationBoxes.reduce((sum, box) => sum + box.totalCoupons, 0)}
+                  value={generationBoxes.reduce((sum, box) => sum + (box.totalCoupons || 0), 0)}
                   prefix={<BarcodeOutlined />}
                   valueStyle={{ color: '#faad14' }}
                 />
@@ -1521,16 +1572,20 @@ const CouponVerification: FC = () => {
                         <Col span={12}>
                           <Space direction="vertical" size={4}>
                             <Text type="secondary">First Coupon:</Text>
-                            <Text code style={{ fontSize: '12px' }}>{box.firstCouponId}</Text>
+                            <Text code style={{ fontSize: '12px', color: validateCouponFormat(box.firstCouponId) ? '#000' : '#ff4d4f' }}>
+                              {box.firstCouponId || 'Not set'}
+                            </Text>
                             <Text type="secondary">Last Coupon:</Text>
-                            <Text code style={{ fontSize: '12px' }}>{box.lastCouponId}</Text>
+                            <Text code style={{ fontSize: '12px', color: validateCouponFormat(box.lastCouponId) ? '#000' : '#ff4d4f' }}>
+                              {box.lastCouponId || 'Not set'}
+                            </Text>
                           </Space>
                         </Col>
                         <Col span={12}>
                           <Space direction="vertical" size={4}>
                             <Text type="secondary">Books: <Text strong>{box.numberOfBooks}</Text></Text>
                             <Text type="secondary">Coupons/Book: <Text strong>{box.couponsPerBook}</Text></Text>
-                            <Text type="secondary">Total Coupons: <Text strong>{box.totalCoupons}</Text></Text>
+                            <Text type="secondary">Total Coupons: <Text strong>{box.totalCoupons || (box.numberOfBooks * box.couponsPerBook)}</Text></Text>
                             <Text type="secondary">Total Litres: <Text strong>{box.totalLitres}L</Text></Text>
                           </Space>
                         </Col>

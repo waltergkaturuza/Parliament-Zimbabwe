@@ -2348,6 +2348,16 @@ class PoolVehicleSerializer(serializers.ModelSerializer):
     )
     current_driver = serializers.SerializerMethodField()
     
+    # Driver assignment handling
+    assigned_drivers = serializers.PrimaryKeyRelatedField(
+        queryset=Driver.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+        help_text="List of driver IDs to assign to this vehicle"
+    )
+    active_drivers = serializers.SerializerMethodField()
+    
     class Meta:
         model = PoolVehicle
         fields = [
@@ -2355,16 +2365,15 @@ class PoolVehicleSerializer(serializers.ModelSerializer):
             'engine_cc', 'engine_capacity', 'fuel_type', 'vehicle_type', 'vehicle_category',
             'assigned_subcenter', 'sub_center', 'sub_center_details',
             'status', 'current_mileage', 'mileage', 'last_service_date', 'next_service_due', 'next_service_date',
-            'insurance_expiry', 'current_driver_details', 'current_driver',
+            'insurance_expiry', 'current_driver_details', 'current_driver', 'assigned_drivers', 'active_drivers',
             'created', 'modified'
         ]
-        read_only_fields = ['id', 'created', 'modified', 'current_driver_details', 'current_driver', 'sub_center_details']
+        read_only_fields = ['id', 'created', 'modified', 'current_driver_details', 'current_driver', 'sub_center_details', 'active_drivers']
     
     def get_current_driver_details(self, obj):
         """Get current driver details from active assignment"""
         current_assignment = obj.assignments.filter(
-            status='ACTIVE',
-            end_date__isnull=True
+            unassigned_date__isnull=True
         ).first()
         if current_assignment and current_assignment.driver:
             return {
@@ -2378,11 +2387,88 @@ class PoolVehicleSerializer(serializers.ModelSerializer):
     def get_current_driver(self, obj):
         """Get current driver data (alias for frontend compatibility)"""
         return self.get_current_driver_details(obj)
+    
+    def get_active_drivers(self, obj):
+        """Get all active drivers assigned to this vehicle"""
+        active_assignments = obj.assignments.filter(unassigned_date__isnull=True).select_related('driver')
+        return [
+            {
+                'id': assignment.driver.id,
+                'full_name': assignment.driver.full_name,
+                'employee_id': getattr(assignment.driver, 'employee_id', ''),
+                'license_number': assignment.driver.license_number,
+                'is_primary': assignment.is_primary_driver,
+                'assigned_date': assignment.assigned_date
+            }
+            for assignment in active_assignments
+        ]
+    
+    def create(self, validated_data):
+        """Create vehicle and handle driver assignments"""
+        assigned_drivers = validated_data.pop('assigned_drivers', [])
+        vehicle = super().create(validated_data)
+        
+        # Create driver assignments
+        self._create_driver_assignments(vehicle, assigned_drivers)
+        
+        return vehicle
+    
+    def update(self, instance, validated_data):
+        """Update vehicle and handle driver assignments"""
+        assigned_drivers = validated_data.pop('assigned_drivers', None)
+        vehicle = super().update(instance, validated_data)
+        
+        # Update driver assignments if provided
+        if assigned_drivers is not None:
+            self._update_driver_assignments(vehicle, assigned_drivers)
+        
+        return vehicle
+    
+    def _create_driver_assignments(self, vehicle, drivers):
+        """Create driver assignments for a vehicle"""
+        from .models import VehicleAssignment
+        from django.utils import timezone
+        
+        for i, driver in enumerate(drivers):
+            VehicleAssignment.objects.create(
+                vehicle=vehicle,
+                driver=driver,
+                assigned_date=timezone.now().date(),
+                is_primary_driver=(i == 0),  # First driver is primary
+                notes=f"Assigned during vehicle creation"
+            )
+    
+    def _update_driver_assignments(self, vehicle, new_drivers):
+        """Update driver assignments for a vehicle"""
+        from .models import VehicleAssignment
+        from django.utils import timezone
+        
+        # End all current assignments
+        current_date = timezone.now().date()
+        vehicle.assignments.filter(unassigned_date__isnull=True).update(
+            unassigned_date=current_date
+        )
+        
+        # Create new assignments
+        for i, driver in enumerate(new_drivers):
+            VehicleAssignment.objects.create(
+                vehicle=vehicle,
+                driver=driver,
+                assigned_date=current_date,
+                is_primary_driver=(i == 0),  # First driver is primary
+                notes=f"Reassigned during vehicle update"
+            )
 
 
 class DriverSerializer(serializers.ModelSerializer):
     """Enhanced Driver serializer with frontend compatibility"""
     current_vehicle_details = serializers.SerializerMethodField()
+    active_vehicles = serializers.SerializerMethodField()
+    assigned_vehicles = serializers.ListField(
+        child=serializers.IntegerField(), 
+        required=False, 
+        write_only=True
+    )
     
     # All fields are optional for frontend compatibility (backend will handle required validation)
     employee_id = serializers.CharField(required=False, allow_blank=True)
@@ -2411,20 +2497,19 @@ class DriverSerializer(serializers.ModelSerializer):
             'id_number', 'license_number', 'license_class', 'license_expiry',
             'phone_number', 'email', 'address', 'status',
             'assigned_subcenter', 'hire_date', 'current_vehicle_details', 'current_vehicle',
-            'created', 'modified'
+            'active_vehicles', 'assigned_vehicles', 'created', 'modified'
         ]
-        read_only_fields = ['id', 'created', 'modified', 'current_vehicle_details', 'current_vehicle', 'full_name']
+        read_only_fields = ['id', 'created', 'modified', 'current_vehicle_details', 'current_vehicle', 'active_vehicles', 'full_name']
     
     def get_current_vehicle_details(self, obj):
         """Get current vehicle details from active assignment"""
-        current_assignment = obj.assignments.filter(
-            status='ACTIVE',
-            end_date__isnull=True
+        current_assignment = obj.vehicle_assignments.filter(
+            unassigned_date__isnull=True
         ).first()
         if current_assignment and current_assignment.vehicle:
             return {
                 'id': current_assignment.vehicle.id,
-                'registration_number': current_assignment.vehicle.vehicle_number,
+                'registration_number': current_assignment.vehicle.registration_number,
                 'make': current_assignment.vehicle.make,
                 'model': current_assignment.vehicle.model
             }
@@ -2433,6 +2518,75 @@ class DriverSerializer(serializers.ModelSerializer):
     def get_current_vehicle(self, obj):
         """Get current vehicle data (alias for frontend compatibility)"""
         return self.get_current_vehicle_details(obj)
+    
+    def get_active_vehicles(self, obj):
+        """Get all vehicles currently assigned to this driver"""
+        active_assignments = obj.vehicle_assignments.filter(
+            unassigned_date__isnull=True
+        ).select_related('vehicle')
+        
+        vehicles = []
+        for assignment in active_assignments:
+            if assignment.vehicle:
+                vehicles.append({
+                    'id': assignment.vehicle.id,
+                    'registration_number': assignment.vehicle.registration_number,
+                    'make': assignment.vehicle.make,
+                    'model': assignment.vehicle.model,
+                    'is_primary': assignment.is_primary_driver
+                })
+        return vehicles
+    
+    def create(self, validated_data):
+        """Create driver with vehicle assignments"""
+        assigned_vehicles = validated_data.pop('assigned_vehicles', [])
+        driver = super().create(validated_data)
+        
+        # Create vehicle assignments
+        for i, vehicle_id in enumerate(assigned_vehicles):
+            try:
+                vehicle = PoolVehicle.objects.get(id=vehicle_id)
+                VehicleAssignment.objects.create(
+                    driver=driver,
+                    vehicle=vehicle,
+                    is_primary_driver=(i == 0),  # First vehicle is primary
+                    assigned_date=timezone.now().date(),
+                    notes='Driver creation'
+                )
+            except PoolVehicle.DoesNotExist:
+                continue
+                
+        return driver
+    
+    def update(self, instance, validated_data):
+        """Update driver and vehicle assignments"""
+        assigned_vehicles = validated_data.pop('assigned_vehicles', None)
+        driver = super().update(instance, validated_data)
+        
+        if assigned_vehicles is not None:
+            # Clear existing assignments
+            VehicleAssignment.objects.filter(
+                driver=driver,
+                unassigned_date__isnull=True
+            ).update(
+                unassigned_date=timezone.now().date()
+            )
+            
+            # Create new assignments
+            for i, vehicle_id in enumerate(assigned_vehicles):
+                try:
+                    vehicle = PoolVehicle.objects.get(id=vehicle_id)
+                    VehicleAssignment.objects.create(
+                        driver=driver,
+                        vehicle=vehicle,
+                        is_primary_driver=(i == 0),  # First vehicle is primary
+                        assigned_date=timezone.now().date(),
+                        notes='Driver update'
+                    )
+                except PoolVehicle.DoesNotExist:
+                    continue
+                    
+        return driver
 
 
 class VehicleAssignmentSerializer(serializers.ModelSerializer):
@@ -2454,7 +2608,7 @@ class VehicleAssignmentSerializer(serializers.ModelSerializer):
         if obj.vehicle:
             return {
                 'id': obj.vehicle.id,
-                'vehicle_number': obj.vehicle.vehicle_number,
+                'vehicle_number': obj.vehicle.registration_number,
                 'make': obj.vehicle.make,
                 'model': obj.vehicle.model,
                 'fuel_type': obj.vehicle.fuel_type

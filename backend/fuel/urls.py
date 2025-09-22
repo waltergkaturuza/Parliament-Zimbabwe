@@ -103,7 +103,7 @@ try:
         
         # NEW: Missing view implementations from views_main
     main_dashboard, analytics_consumption_trend,
-        change_password, mark_all_notifications_read, subcenter_statistics,
+        change_password, mark_all_notifications_read, unified_notifications, subcenter_statistics,
         dynamic_allocation, subcenters_stats,
         
         # NEW: Nested subcenter endpoint views
@@ -273,6 +273,7 @@ urlpatterns = [
     
     # Notification endpoints
     path('notifications/stats/', lazy_view('notification_stats'), name='notification-stats'),
+    path('notifications/unified/', lazy_view('unified_notifications'), name='notifications-unified'),
     path('notifications/mark-all-read/', lazy_view('mark_all_notifications_read'), name='notifications-mark-all-read'),
     
     # Analytics endpoints - keep relative paths only
@@ -337,20 +338,7 @@ urlpatterns = [
     # Vehicle makes endpoint
     path('vehicle-makes/', lazy_view('vehicle_makes'), name='vehicle-makes'),
     
-    # Router endpoints for missing paths
-    path('subcenters/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='subcenters-list'),
-    path('sub-centers/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='sub-centers-list'),  # Alternative path
-    # Ensure detail action endpoints exist explicitly (beyond router)
-    path('subcenters/<int:pk>/', lazy_viewset_action('SubCenterViewSet', {
-        'get': 'retrieve',
-        'patch': 'partial_update',
-        'put': 'update',
-        'delete': 'destroy'
-    }), name='subcenters-detail'),
-    # Safe fallback for subcenters detail (production resilience)
-    path('sub-centers/<int:pk>/', lazy_viewset_action('SubCenterViewSet', {
-        'get': 'retrieve'
-    }), name='sub-centers-detail-alias'),
+    # Router endpoints for missing paths - removed manual paths to let router handle them automatically
     path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenters-detail-statistics'),
     path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenters-detail-recent-activity'),
     

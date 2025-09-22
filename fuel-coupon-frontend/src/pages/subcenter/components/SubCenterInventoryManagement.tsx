@@ -199,187 +199,162 @@ const SubCenterInventoryManagement: FC = () => {
   // Form for allocation
   const [allocationForm] = Form.useForm();
 
+  // Load core datasets on mount
   useEffect(() => {
     loadInventoryData();
     loadBeneficiaries();
     loadAllocations();
     loadPendingDispatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadInventoryData = async () => {
+  // Helpers moved above loadInventoryData to avoid temporal dead zone usage errors
+  const generateCouponPages = (firstSerial: string, count: number, bookId: string): CouponPage[] => {
+    const pages: CouponPage[] = [];
+    const match = firstSerial?.match(/^(.*?)(\d+)$/);
+    if (!match) return pages;
+    const prefix = match[1];
+    const startNumber = parseInt(match[2], 10);
+    const numberLength = match[2].length;
+    for (let i = 0; i < count; i++) {
+      const currentNumber = startNumber + i;
+      const paddedNumber = currentNumber.toString().padStart(numberLength, '0');
+      pages.push({
+        id: `page_${bookId}_${i + 1}`,
+        pageNumber: i + 1,
+        couponSerial: `${prefix}${paddedNumber}`,
+        bookId,
+        status: 'AVAILABLE'
+      });
+    }
+    return pages;
+  };
+
+  const loadInventoryData = async (): Promise<void> => {
     setLoading(true);
     try {
-      console.log('🔍 Loading intelligent inventory for user subcenter:', user?.sub_center?.id);
-      
       if (!user?.sub_center?.id) {
         message.error('Subcenter ID not found. Please ensure you are logged in correctly.');
         return;
       }
 
-      // Initialize intelligent stock service
-      const stockService = new SubCenterStockService(String(user.sub_center.id));
-      
-      // Get intelligent stock calculation from handover receipts minus dispatches
-      const intelligentStock = await stockService.calculateCurrentStock();
-      console.log('📊 Intelligent stock calculated:', intelligentStock);
-      
-      // Get stock movement history for context
-      const movementHistory = await stockService.getStockMovementHistory(30);
-      console.log('📈 Stock movement history:', movementHistory);
-      
-      // Convert intelligent stock to books format for UI compatibility
-      const processedBooks: IncomingBook[] = [];
-      
-      // Process petrol stock if available
-      if (intelligentStock.petrol.availableStock.books > 0) {
-        const petrolBook: IncomingBook = {
-          id: 'petrol-intelligent-stock',
-          bookId: 'PETROL-STOCK',
-          bookNumber: `Petrol Stock from Handovers`,
-          batchId: 'HANDOVER-STOCK',
-          fuelType: 'PETROL',
-          couponAmount: 20,
-          firstCouponSerial: 'PETROL-20-2024-000001',
-          lastCouponSerial: `PETROL-20-2024-${intelligentStock.petrol.availableStock.coupons.toString().padStart(6, '0')}`,
-          totalCoupons: intelligentStock.petrol.totalReceived.coupons,
-          couponsAllocated: intelligentStock.petrol.totalDispensed.coupons,
-          couponsRemaining: intelligentStock.petrol.availableStock.coupons,
-          totalValue: intelligentStock.petrol.totalReceived.liters * 1.45, // Price per liter
-          valueAllocated: intelligentStock.petrol.totalDispensed.liters * 1.45,
-          valueRemaining: intelligentStock.petrol.availableStock.liters * 1.45,
-          receivedDate: dayjs(intelligentStock.lastUpdated).format('YYYY-MM-DD'),
-          receivedTime: dayjs(intelligentStock.lastUpdated).format('HH:mm'),
-          receivedBy: 'Handover System',
-          dispatchId: 'INTELLIGENT-STOCK-PETROL',
-          fromMainCenter: 'Main Center (via Handovers)',
-          status: intelligentStock.petrol.reconciliation.isBalanced ? 'RECEIVED' : 'PARTIALLY_USED',
-          pages: generateCouponPages('PETROL-20-2024-000001', intelligentStock.petrol.availableStock.coupons, 'petrol-stock')
-        };
-        processedBooks.push(petrolBook);
-      }
-      
-      // Process diesel stock if available
-      if (intelligentStock.diesel.availableStock.books > 0) {
-        const dieselBook: IncomingBook = {
-          id: 'diesel-intelligent-stock',
-          bookId: 'DIESEL-STOCK',
-          bookNumber: `Diesel Stock from Handovers`,
-          batchId: 'HANDOVER-STOCK',
-          fuelType: 'DIESEL',
-          couponAmount: 5,
-          firstCouponSerial: 'DIESEL-05-2024-000001',
-          lastCouponSerial: `DIESEL-05-2024-${intelligentStock.diesel.availableStock.coupons.toString().padStart(6, '0')}`,
-          totalCoupons: intelligentStock.diesel.totalReceived.coupons,
-          couponsAllocated: intelligentStock.diesel.totalDispensed.coupons,
-          couponsRemaining: intelligentStock.diesel.availableStock.coupons,
-          totalValue: intelligentStock.diesel.totalReceived.liters * 1.38, // Price per liter
-          valueAllocated: intelligentStock.diesel.totalDispensed.liters * 1.38,
-          valueRemaining: intelligentStock.diesel.availableStock.liters * 1.38,
-          receivedDate: dayjs(intelligentStock.lastUpdated).format('YYYY-MM-DD'),
-          receivedTime: dayjs(intelligentStock.lastUpdated).format('HH:mm'),
-          receivedBy: 'Handover System',
-          dispatchId: 'INTELLIGENT-STOCK-DIESEL',
-          fromMainCenter: 'Main Center (via Handovers)',
-          status: intelligentStock.diesel.reconciliation.isBalanced ? 'RECEIVED' : 'PARTIALLY_USED',
-          pages: generateCouponPages('DIESEL-05-2024-000001', intelligentStock.diesel.availableStock.coupons, 'diesel-stock')
-        };
-        processedBooks.push(dieselBook);
-      }
+      // First attempt: fetch real received books from backend so table reflects authoritative data
+      const response = await apiClient.get('/books/received/');
+      const booksData = response.data.results || response.data || [];
 
-      // If no intelligent stock found, show message
+      const processedBooks: IncomingBook[] = booksData.map((book: any) => {
+        const denomination = book.denomination || book.box_details?.denomination || 20;
+        const couponCount = book.coupon_count || book.numberOfCoupons || book.initial_coupon_count || 0;
+        const allocated = book.allocated_coupons || 0;
+        const available = book.available_coupons ?? (couponCount - allocated);
+        return {
+          id: String(book.id),
+          bookId: book.book_code || book.bookId || `BOOK${String(book.id).padStart(3, '0')}`,
+          bookNumber: book.book_number || book.bookNumber,
+          batchId: book.box_details?.box_code || 'N/A',
+          fuelType: (book.fuel_type || book.box_details?.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
+          couponAmount: denomination as 5 | 10 | 20 | 25,
+          firstCouponSerial: book.first_coupon_number || book.firstCouponId || book.first_coupon_serial,
+          lastCouponSerial: book.last_coupon_number || book.lastCouponId || book.last_coupon_serial,
+          totalCoupons: couponCount,
+          couponsAllocated: allocated,
+          couponsRemaining: available,
+          totalValue: couponCount * denomination,
+          valueAllocated: allocated * denomination,
+          valueRemaining: available * denomination,
+          receivedDate: dayjs(book.created || book.generated_at).format('YYYY-MM-DD'),
+          receivedTime: dayjs(book.created || book.generated_at).format('HH:mm'),
+          receivedBy: book.generated_by_name || 'System',
+          dispatchId: 'N/A',
+          fromMainCenter: 'Parliament Main Center',
+          status: book.is_assigned ? 'IN_USE' : 'RECEIVED',
+          pages: generateCouponPages(
+            (book.first_coupon_number || '').replace(/\s+/g, ''),
+            couponCount,
+            String(book.id)
+          )
+        };
+      });
+
       if (processedBooks.length === 0) {
-        message.info('No stock available. Stock is calculated from received handovers minus beneficiary dispatches.');
+        message.info('No received books returned from backend. Falling back to intelligent stock calculation.');
+        // Fallback to intelligent service
+        const stockService = new SubCenterStockService(String(user.sub_center.id));
+        const intelligentStock = await stockService.calculateCurrentStock();
+        (window as any).intelligentStock = intelligentStock;
       }
 
       setIncomingBooks(processedBooks);
       calculateStats(processedBooks);
-      
-      // Store intelligent stock data for additional operations
-      (window as any).intelligentStock = intelligentStock;
-      
     } catch (error) {
-      console.error('❌ Error loading intelligent inventory:', error);
-      message.error('Failed to load intelligent inventory data. Using fallback method.');
-      
-      // Fallback to original method if intelligent stock fails
+      console.error('Primary backend fetch failed, attempting intelligent stock fallback:', error);
       try {
-        const response = await apiClient.get('/books/received/');
-        const booksData = response.data.results || response.data || [];
-        
-        const processedBooks: IncomingBook[] = booksData.map((book: any) => {
-          const pages = generateCouponPages(
-            book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-${book.id}-000001`,
-            book.total_coupons || 20,
-            String(book.id)
-          );
-
-          return {
-            id: String(book.id),
-            bookId: `BOOK${String(book.id).padStart(3, '0')}`,
-            bookNumber: book.book_number || `${book.fuel_type}${book.coupon_amount}-BOOK-2024-${String(book.id).padStart(3, '0')}`,
-            batchId: book.batch?.batch_code || `FCB-2024-${String(book.batch_id || book.id).padStart(4, '0')}`,
-            fuelType: (book.fuel_type || 'PETROL') as 'PETROL' | 'DIESEL',
-            couponAmount: (book.coupon_amount || (book.fuel_type === 'PETROL' ? 20 : 5)) as 5 | 20,
-            firstCouponSerial: book.first_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000001`,
-            lastCouponSerial: book.last_coupon_serial || `${book.fuel_type}${book.coupon_amount}-2024-08-000020`,
-            totalCoupons: book.total_coupons || 20,
-            couponsAllocated: book.coupons_allocated || 0,
-            couponsRemaining: (book.total_coupons || 20) - (book.coupons_allocated || 0),
-            totalValue: book.total_value || ((book.total_coupons || 20) * (book.coupon_amount || 20) * (book.fuel_type === 'PETROL' ? 37.95 : 36.00)),
-            valueAllocated: book.value_allocated || 0,
-            valueRemaining: (book.total_value || 0) - (book.value_allocated || 0),
-            receivedDate: book.received_date ? dayjs(book.received_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-            receivedTime: book.received_time || dayjs().format('HH:mm'),
-            receivedBy: book.received_by?.full_name || book.received_by_name || 'System User',
-            dispatchId: book.dispatch?.dispatch_id || book.dispatch_id || `DSP-${String(book.id).padStart(6, '0')}`,
-            fromMainCenter: 'Parliament Main Center',
-            status: book.status || 'RECEIVED',
-            pages,
-          };
-        });
-
+        const stockService = new SubCenterStockService(String(user?.sub_center?.id));
+        const intelligentStock = await stockService.calculateCurrentStock();
+        (window as any).intelligentStock = intelligentStock;
+        const processedBooks: IncomingBook[] = [];
+        if (intelligentStock.petrol.availableStock.books > 0) {
+          processedBooks.push({
+            id: 'petrol-intelligent-stock',
+            bookId: 'PETROL-STOCK',
+            bookNumber: 'Petrol Stock (Derived)',
+            batchId: 'HANDOVER-STOCK',
+            fuelType: 'PETROL',
+            couponAmount: 20,
+            firstCouponSerial: 'PETROL-20-2024-000001',
+            lastCouponSerial: `PETROL-20-2024-${intelligentStock.petrol.availableStock.coupons.toString().padStart(6,'0')}`,
+            totalCoupons: intelligentStock.petrol.totalReceived.coupons,
+            couponsAllocated: intelligentStock.petrol.totalDispensed.coupons,
+            couponsRemaining: intelligentStock.petrol.availableStock.coupons,
+            totalValue: intelligentStock.petrol.totalReceived.liters * 1.45,
+            valueAllocated: intelligentStock.petrol.totalDispensed.liters * 1.45,
+            valueRemaining: intelligentStock.petrol.availableStock.liters * 1.45,
+            receivedDate: dayjs(intelligentStock.lastUpdated).format('YYYY-MM-DD'),
+            receivedTime: dayjs(intelligentStock.lastUpdated).format('HH:mm'),
+            receivedBy: 'Derived',
+            dispatchId: 'INTELLIGENT-STOCK-PETROL',
+            fromMainCenter: 'Main Center (Derived)',
+            status: intelligentStock.petrol.reconciliation.isBalanced ? 'RECEIVED' : 'PARTIALLY_USED',
+            pages: generateCouponPages('PETROL-20-2024-000001', intelligentStock.petrol.availableStock.coupons, 'petrol-stock')
+          });
+        }
+        if (intelligentStock.diesel.availableStock.books > 0) {
+          processedBooks.push({
+            id: 'diesel-intelligent-stock',
+            bookId: 'DIESEL-STOCK',
+            bookNumber: 'Diesel Stock (Derived)',
+            batchId: 'HANDOVER-STOCK',
+            fuelType: 'DIESEL',
+            couponAmount: 5,
+            firstCouponSerial: 'DIESEL-05-2024-000001',
+            lastCouponSerial: `DIESEL-05-2024-${intelligentStock.diesel.availableStock.coupons.toString().padStart(6,'0')}`,
+            totalCoupons: intelligentStock.diesel.totalReceived.coupons,
+            couponsAllocated: intelligentStock.diesel.totalDispensed.coupons,
+            couponsRemaining: intelligentStock.diesel.availableStock.coupons,
+            totalValue: intelligentStock.diesel.totalReceived.liters * 1.38,
+            valueAllocated: intelligentStock.diesel.totalDispensed.liters * 1.38,
+            valueRemaining: intelligentStock.diesel.availableStock.liters * 1.38,
+            receivedDate: dayjs(intelligentStock.lastUpdated).format('YYYY-MM-DD'),
+            receivedTime: dayjs(intelligentStock.lastUpdated).format('HH:mm'),
+            receivedBy: 'Derived',
+            dispatchId: 'INTELLIGENT-STOCK-DIESEL',
+            fromMainCenter: 'Main Center (Derived)',
+            status: intelligentStock.diesel.reconciliation.isBalanced ? 'RECEIVED' : 'PARTIALLY_USED',
+            pages: generateCouponPages('DIESEL-05-2024-000001', intelligentStock.diesel.availableStock.coupons, 'diesel-stock')
+          });
+        }
         setIncomingBooks(processedBooks);
         calculateStats(processedBooks);
       } catch (fallbackError) {
-        console.error('❌ Fallback method also failed:', fallbackError);
-        message.error('Unable to load any inventory data');
+        console.error('Both backend and intelligent stock methods failed:', fallbackError);
+        message.error('Unable to load inventory data');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const generateCouponPages = (firstSerial: string, count: number, bookId: string): CouponPage[] => {
-    const pages: CouponPage[] = [];
-    const match = firstSerial.match(/^(.*?)(\d+)$/);
-    if (!match) return pages;
-
-    const prefix = match[1];
-    const startNumber = parseInt(match[2], 10);
-    const numberLength = match[2].length;
-
-    for (let i = 0; i < count; i++) {
-      const currentNumber = startNumber + i;
-      const paddedNumber = currentNumber.toString().padStart(numberLength, '0');
-      const couponSerial = `${prefix}${paddedNumber}`;
-
-      pages.push({
-        id: `page_${bookId}_${i + 1}`,
-        pageNumber: i + 1,
-        couponSerial,
-        bookId,
-        status: 'AVAILABLE', // Default status, should be updated from backend data
-        allocatedTo: undefined,
-        allocatedDate: undefined,
-        beneficiaryName: undefined,
-        beneficiaryId: undefined,
-        sessionId: undefined,
-        programName: undefined,
-      });
-    }
-
-    return pages;
-  };
+  // (Removed duplicate generateCouponPages; single definition is placed above before usage.)
 
   const loadBeneficiaries = async () => {
     try {

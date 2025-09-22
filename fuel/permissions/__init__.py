@@ -19,6 +19,7 @@ from .roles import (
     AdminPermission,
     MainCenterPermission,
     SubCenterPermission,
+    MainCenterOrSubCenterPermission,
     ApproverPermission,
     MainCenterApproverPermission,
     SubCenterApproverPermission,

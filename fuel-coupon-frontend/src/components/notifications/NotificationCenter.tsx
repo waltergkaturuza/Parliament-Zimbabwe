@@ -96,17 +96,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
         recipient_id: userId
       };
 
-      if (filter === 'unread') {
-        params.is_read = false;
-      } else if (filter === 'priority') {
-        params.priority = 'HIGH,CRITICAL';
-      }
-
-      if (selectedType !== 'all') {
-        params.message_type = selectedType;
-      }
-
-      const response = await apiClient.get('/notifications/', { params });
+      // Filtering will be done client-side for unified feed
+      const response = await apiClient.get('/notifications/unified/', { params });
       setNotifications(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -261,14 +252,25 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
   };
 
+  // Unified notifications: filter client-side
   const filteredNotifications = notifications.filter(notification => {
+    // Filter by search text
     const matchesSearch = notification.title.toLowerCase().includes(searchText.toLowerCase()) ||
                          notification.message.toLowerCase().includes(searchText.toLowerCase());
-    return matchesSearch;
+    // Filter by type
+    const matchesType = selectedType === 'all' || notification.message_type === selectedType;
+    // Filter by unread/priority
+    let matchesFilter = true;
+    if (filter === 'unread') {
+      matchesFilter = !notification.is_read;
+    } else if (filter === 'priority') {
+      matchesFilter = ['HIGH', 'CRITICAL', 'SECURITY'].includes(notification.priority);
+    }
+    return matchesSearch && matchesType && matchesFilter;
   });
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
-  const priorityCount = notifications.filter(n => ['HIGH', 'CRITICAL'].includes(n.priority)).length;
+  const priorityCount = notifications.filter(n => ['HIGH', 'CRITICAL', 'SECURITY'].includes(n.priority)).length;
 
   return (
     <Drawer
@@ -437,7 +439,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         <Text strong={!notification.is_read}>
                           {notification.title}
                         </Text>
-                        <Tag color={getPriorityColor(notification.priority)} size="small">
+                        <Tag color={getPriorityColor(notification.priority)}>
                           {notification.priority}
                         </Tag>
                       </Space>

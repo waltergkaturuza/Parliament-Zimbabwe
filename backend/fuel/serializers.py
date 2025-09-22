@@ -136,6 +136,10 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     total_books = serializers.ReadOnlyField()
     total_value_usd = serializers.ReadOnlyField()
     total_litres = serializers.ReadOnlyField()
+    total_value_zwg = serializers.SerializerMethodField()
+    average_price_per_litre_usd = serializers.SerializerMethodField()
+    average_exchange_rate_usd_zwg = serializers.SerializerMethodField()
+    price_breakdown = serializers.SerializerMethodField()
     main_center_dispatch_number = serializers.CharField(read_only=True)
     
     # Optional linkages for analytics
@@ -188,6 +192,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'dispatch_id', 'from_center', 'to_center', 'to_beneficiary', 'subcenter_name',
             'dispatched_by', 'received_by', 'books', 'total_books', 'total_litres', 'total_value_usd',
+            'total_value_zwg', 'average_price_per_litre_usd', 'average_exchange_rate_usd_zwg', 'price_breakdown',
             'dispatch_date', 'dispatched_date', 'dispatched_time', 'status', 'dispatch_type',
             'main_center_dispatch_number',
             # Linkages
@@ -207,7 +212,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'dispatch_id', 'dispatched_time',
-            'total_books', 'total_coupons', 'total_value', 'total_value_usd', 'total_litres', 'main_center_dispatch_number'
+            'total_books', 'total_coupons', 'total_value', 'total_value_usd', 'total_litres', 'total_value_zwg', 'average_price_per_litre_usd', 'average_exchange_rate_usd_zwg', 'price_breakdown', 'main_center_dispatch_number'
         ]
     
     def get_dispatch_id(self, obj):
@@ -226,6 +231,58 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             denomination = book.box.denomination if book.box else 20
             total += coupon_count * denomination
         return total
+
+    def get_price_breakdown(self, obj):
+        """Detailed per-book pricing for transparency (USD & optional ZWG)."""
+        breakdown = []
+        from decimal import Decimal
+        for book in obj.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres = coupon_count * denomination
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', Decimal('1.45')) or Decimal('1.45')
+            usd_value = Decimal(str(litres)) * Decimal(str(price_per_litre))
+            exchange_rate = getattr(box, 'exchange_rate_zwg_usd', None)
+            zwg_value = (usd_value * Decimal(str(exchange_rate))) if exchange_rate else None
+            breakdown.append({
+                'book_id': book.id,
+                'book_number': book.book_number,
+                'box_id': box.id if box else None,
+                'box_code': getattr(box, 'box_code', None),
+                'litres': litres,
+                'price_per_litre_usd': str(price_per_litre),
+                'usd_value': str(usd_value.quantize(Decimal('0.01'))),
+                'exchange_rate_zwg_usd': str(exchange_rate) if exchange_rate else None,
+                'zwg_value': str(zwg_value.quantize(Decimal('0.01'))) if zwg_value else None
+            })
+        return breakdown
+
+    def get_total_value_zwg(self, obj):
+        """Get total ZWG value, handling cases where it might be None"""
+        try:
+            value = obj.total_value_zwg
+            return float(value) if value is not None else None
+        except Exception:
+            return None
+
+    def get_average_price_per_litre_usd(self, obj):
+        """Get average price per litre USD, handling cases where it might be None"""
+        try:
+            value = obj.average_price_per_litre_usd
+            return float(value) if value is not None else None
+        except Exception:
+            return None
+
+    def get_average_exchange_rate_usd_zwg(self, obj):
+        """Get average exchange rate, handling cases where it might be None"""
+        try:
+            value = obj.average_exchange_rate_usd_zwg
+            return float(value) if value is not None else None
+        except Exception:
+            return None
     
     def get_dispatched_date(self, obj):
         """Return local date (YYYY-MM-DD) from dispatch_date"""
@@ -1402,6 +1459,9 @@ class BookSerializer(serializers.ModelSerializer):
     numberOfCoupons = serializers.IntegerField(source='coupon_count', read_only=True)
     isAssigned = serializers.BooleanField(source='is_assigned', read_only=True)
     isVerified = serializers.BooleanField(read_only=True)
+    # Added fields to expose related Box fuel type & denomination to frontend inventory table
+    fuel_type = serializers.CharField(source='box.fuel_type', read_only=True)
+    denomination = serializers.IntegerField(source='box.denomination', read_only=True)
 
     class Meta:
         model = Book
@@ -1414,6 +1474,8 @@ class BookSerializer(serializers.ModelSerializer):
             'verification_checks',
             'generated_by', 'generated_by_name', 'generated_at',
             'box_details', 'box_code', 'created', 'modified',
+            # Newly exposed box derived metadata
+            'fuel_type', 'denomination',
             # Frontend compatibility fields
             'bookId', 'bookNumber', 'firstCouponId', 'lastCouponId', 
             'numberOfCoupons', 'isAssigned', 'isVerified'

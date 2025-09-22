@@ -260,8 +260,9 @@ urlpatterns = [
     path('dynamic-allocation/', lazy_view('dynamic_allocation'), name='dynamic-allocation'),
     
     # Router endpoints for missing paths
-    path('subcenters/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='subcenters-list'),
-    path('sub-centers/', lazy_viewset_action('SubCenterViewSet', {'get': 'list'}), name='sub-centers-list'),  # Alternative path
+    # Subcenters list/create (allow POST create via viewset)
+    path('subcenters/', lazy_viewset_action('SubCenterViewSet', {'get': 'list', 'post': 'create'}), name='subcenters-list'),
+    path('sub-centers/', lazy_viewset_action('SubCenterViewSet', {'get': 'list', 'post': 'create'}), name='sub-centers-list'),  # Alternative path
     
     # Beneficiaries endpoints - full CRUD support
     path('beneficiaries/', lazy_viewset_action('BeneficiaryProfileViewSet', {

@@ -49,7 +49,7 @@ from .permissions import (
     ApproverPermission, MainCenterApproverPermission, SubCenterApproverPermission,
     AuditorPermission, BeneficiaryPermission, CenterBasedObjectPermission,
     BeneficiaryManagementPermission, CenterAndAuditorPermission, CenterOperationsPermission,
-    SergeantOfArmsPermission, AttendanceManagementPermission,
+    SergeantOfArmsPermission, AttendanceManagementPermission, MainCenterOrSubCenterPermission,
     
     # Workflow permissions
     MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission
@@ -4409,8 +4409,8 @@ class PoolVehicleViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = PoolVehicle.objects.select_related('assigned_subcenter').all()
         
-        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
-            return queryset  # Main Center and Auditors see all vehicles
+        if user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'AUDITOR']:
+            return queryset  # Superusers, Admins, Main Center and Auditors see all vehicles
         elif user.role == 'SUB_CENTER' and user.sub_center:
             # Sub Center officers see only vehicles in their center
             return queryset.filter(assigned_subcenter=user.sub_center)
@@ -4420,7 +4420,7 @@ class PoolVehicleViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     def perform_create(self, serializer):
         # Auto-assign to user's subcenter if they're a subcenter officer
@@ -4477,8 +4477,8 @@ class DriverViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Driver.objects.all()
         
-        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
-            return queryset  # Main Center and Auditors see all drivers
+        if user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'AUDITOR']:
+            return queryset  # Superusers, Admins, Main Center and Auditors see all drivers
         elif user.role == 'SUB_CENTER' and user.sub_center:
             # Sub Center officers see drivers in their center (if applicable)
             return queryset  # For now, show all drivers
@@ -4488,7 +4488,7 @@ class DriverViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     @action(detail=True, methods=['get'])
     def assignments(self, request, pk=None):

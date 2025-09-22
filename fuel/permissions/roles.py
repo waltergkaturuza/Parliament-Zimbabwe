@@ -26,6 +26,11 @@ class SubCenterPermission(RoleBasedPermission):
     allowed_roles = ['SUPERUSER', 'ADMIN', 'SUB_CENTER', 'SUB_CENTER_APPROVER']
 
 
+class MainCenterOrSubCenterPermission(RoleBasedPermission):
+    """Permission for main center OR sub center operations"""
+    allowed_roles = ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'MAIN_CENTER_APPROVER', 'SUB_CENTER', 'SUB_CENTER_APPROVER']
+
+
 class ApproverPermission(RoleBasedPermission):
     """Permission for any approver role"""
     allowed_roles = ['MAIN_CENTER_APPROVER', 'SUB_CENTER_APPROVER']

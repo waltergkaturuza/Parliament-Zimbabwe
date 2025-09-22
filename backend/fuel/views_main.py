@@ -4110,6 +4110,63 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
             dispatch_date=timezone.now()
         )
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def refresh_calculations(self, request, pk=None):
+        """
+        Recalculate dispatch values and populate missing fields like subcenter info.
+        Useful for fixing old dispatches with miscalculated figures or missing data.
+        """
+        from rest_framework.decorators import action
+        from rest_framework import status
+        from rest_framework.response import Response
+        
+        try:
+            dispatch = self.get_object()
+            updated_fields = []
+            
+            # Fix missing main_center_dispatch_number if needed
+            if not dispatch.main_center_dispatch_number:
+                dispatch.main_center_dispatch_number = f"MCD-{dispatch.id:05d}"
+                dispatch.save(update_fields=['main_center_dispatch_number'])
+                updated_fields.append('main_center_dispatch_number')
+            
+            # Attempt to populate missing subcenter if we can infer it
+            if not dispatch.to_center and dispatch.books.exists():
+                # Try to infer subcenter from book dispatch patterns or other logic
+                # This could be enhanced based on business rules
+                pass
+            
+            # Get fresh calculated values using our enhanced properties
+            fresh_litres = dispatch.total_litres
+            fresh_usd = dispatch.total_value_usd  
+            fresh_zwg = dispatch.total_value_zwg
+            avg_price = dispatch.average_price_per_litre_usd
+            avg_rate = dispatch.average_exchange_rate_usd_zwg
+            
+            # Force a serializer refresh to get all calculated fields
+            serializer = self.get_serializer(dispatch)
+            
+            return Response({
+                'success': True,
+                'message': f'Dispatch calculations refreshed successfully',
+                'updated_fields': updated_fields,
+                'calculated_values': {
+                    'total_litres': float(fresh_litres) if fresh_litres else 0,
+                    'total_value_usd': float(fresh_usd) if fresh_usd else 0,
+                    'total_value_zwg': float(fresh_zwg) if fresh_zwg else None,
+                    'average_price_per_litre_usd': float(avg_price) if avg_price else None,
+                    'average_exchange_rate_usd_zwg': float(avg_rate) if avg_rate else None,
+                    'total_books': dispatch.books.count(),
+                },
+                'dispatch': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to refresh dispatch calculations: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing coupon allocations"""
@@ -4459,6 +4516,90 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
             'updated_count': updated_count
         })
     
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def bulk_acknowledge(self, request):
+        """Bulk acknowledge multiple alerts"""
+        alert_ids = request.data.get('alert_ids', [])
+        
+        if not alert_ids:
+            return Response({'error': 'No alert IDs provided'}, status=400)
+        
+        updated_count = 0
+        alerts = SystemAlert.objects.filter(
+            id__in=alert_ids,
+            status='ACTIVE'
+        )
+        
+        for alert in alerts:
+            alert.acknowledge(request.user)
+            updated_count += 1
+        
+        # Log bulk action
+        SystemAlert.objects.create(
+            title=f"Bulk Alert Acknowledgment",
+            message=f"{updated_count} alerts were bulk acknowledged by {request.user.get_full_name()}",
+            alert_type='INFO',
+            created_by=request.user,
+            priority=1
+        )
+        
+        return Response({
+            'message': f'{updated_count} alerts acknowledged successfully',
+            'updated_count': updated_count
+        })
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def bulk_dismiss(self, request):
+        """Bulk dismiss multiple alerts"""
+        alert_ids = request.data.get('alert_ids', [])
+        
+        if not alert_ids:
+            return Response({'error': 'No alert IDs provided'}, status=400)
+        
+        updated_count = SystemAlert.objects.filter(
+            id__in=alert_ids,
+            is_dismissible=True,
+            status__in=['ACTIVE', 'ACKNOWLEDGED']
+        ).update(status='DISMISSED')
+        
+        # Log bulk action
+        SystemAlert.objects.create(
+            title=f"Bulk Alert Dismissal",
+            message=f"{updated_count} alerts were bulk dismissed by {request.user.get_full_name()}",
+            alert_type='INFO',
+            created_by=request.user,
+            priority=1
+        )
+        
+        return Response({
+            'message': f'{updated_count} alerts dismissed successfully',
+            'updated_count': updated_count
+        })
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
+    def bulk_delete(self, request):
+        """Bulk delete multiple alerts"""
+        alert_ids = request.data.get('alert_ids', [])
+        
+        if not alert_ids:
+            return Response({'error': 'No alert IDs provided'}, status=400)
+        
+        deleted_count, _ = SystemAlert.objects.filter(id__in=alert_ids).delete()
+        
+        # Log bulk action
+        SystemAlert.objects.create(
+            title=f"Bulk Alert Deletion",
+            message=f"{deleted_count} alerts were bulk deleted by {request.user.get_full_name()}",
+            alert_type='INFO',
+            created_by=request.user,
+            priority=1
+        )
+        
+        return Response({
+            'message': f'{deleted_count} alerts deleted successfully',
+            'deleted_count': deleted_count
+        })
+
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, MainCenterPermission])
     def create_system_alert(self, request):
         """Create a system-wide alert with enhanced options"""
@@ -8615,12 +8756,17 @@ def programs_stats(request):
 def notification_stats(request):
     """
     Get notification statistics for the current user
-    Returns real-time notification counts
+    Returns real-time notification counts including system alerts
     """
     try:
         user = request.user
         recipient_type = request.GET.get('recipient_type', user.role)
         recipient_id = request.GET.get('recipient_id', str(user.id))
+        
+        # Initialize counters
+        total_notifications = 0
+        unread_notifications = 0
+        priority_notifications = 0
         
         # For subcenter users, get subcenter-specific notifications
         if hasattr(user, 'sub_center') and user.sub_center:
@@ -8655,6 +8801,38 @@ def notification_stats(request):
             unread_notifications = 0 
             priority_notifications = 0
         
+        # Add system alerts that should appear in notifications for all users
+        try:
+            # Get active system alerts that target this user's role or are general
+            current_time = timezone.now()
+            
+            active_alerts = SystemAlert.objects.filter(
+                status='ACTIVE'
+            ).filter(
+                # Only include non-expired alerts
+                Q(expires_at__isnull=True) |  # Never expires
+                Q(expires_at__gt=current_time)  # Not yet expired
+            ).filter(
+                # Filter by target roles
+                Q(target_roles__isnull=True) |  # General alerts for everyone
+                Q(target_roles__contains=[user.role])  # Role-specific alerts
+            )
+            
+            # Count alerts by priority
+            alert_total = active_alerts.count()
+            alert_priority = active_alerts.filter(
+                alert_type__in=['CRITICAL', 'SECURITY']
+            ).count()
+            
+            # Add to totals
+            total_notifications += alert_total
+            unread_notifications += alert_total  # Consider all active alerts as "unread"
+            priority_notifications += alert_priority
+            
+        except Exception as alert_error:
+            # If system alerts fail, continue with existing notifications
+            logger.warning(f"System alerts unavailable: {alert_error}")
+        
         return Response({
             'total': total_notifications,
             'unread': unread_notifications,
@@ -8668,6 +8846,143 @@ def notification_stats(request):
             'total': 0,
             'unread': 0,
             'priority': 0,
+            'status': 'error',
+            'message': str(e)
+        })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def unified_notifications(request):
+    """
+    Get unified notifications including both regular notifications and system alerts
+    """
+    try:
+        user = request.user
+        recipient_type = request.GET.get('recipient_type', user.role)
+        recipient_id = request.GET.get('recipient_id', str(user.id))
+        
+        notifications_list = []
+        
+        # Add system alerts as notifications
+        try:
+            current_time = timezone.now()
+            
+            active_alerts = SystemAlert.objects.filter(
+                status='ACTIVE'
+            ).filter(
+                # Only include non-expired alerts
+                Q(expires_at__isnull=True) |  # Never expires
+                Q(expires_at__gt=current_time)  # Not yet expired
+            ).filter(
+                # Filter by target roles
+                Q(target_roles__isnull=True) |  # General alerts for everyone
+                Q(target_roles__contains=[user.role])  # Role-specific alerts
+            ).order_by('-created_at')
+            
+            for alert in active_alerts:
+                # Convert SystemAlert to notification format
+                notifications_list.append({
+                    'id': f'alert_{alert.id}',
+                    'title': alert.title,
+                    'message': alert.message,
+                    'message_type': 'SYSTEM_ALERT',
+                    'priority': alert.alert_type,  # INFO, WARNING, ERROR, CRITICAL, SECURITY
+                    'is_read': False,  # System alerts are always considered unread
+                    'created_at': alert.created_at.isoformat(),
+                    'sender_type': 'SYSTEM',
+                    'sender_name': 'System Administrator',
+                    'data': {
+                        'alert_type': alert.alert_type,
+                        'priority': alert.priority,
+                        'source': 'system_alert',
+                        'target_roles': alert.target_roles,
+                        'expires_at': alert.expires_at.isoformat() if alert.expires_at else None,
+                        'alert_id': alert.id
+                    },
+                    'action_required': alert.alert_type in ['CRITICAL', 'SECURITY'],
+                    'action_url': None
+                })
+                
+        except Exception as alert_error:
+            logger.warning(f"Failed to load system alerts: {alert_error}")
+        
+        # For subcenter users, add regular notifications
+        if hasattr(user, 'sub_center') and user.sub_center:
+            try:
+                # Add pending fuel requests as notifications
+                pending_requests = FuelEntitlement.objects.filter(
+                    sub_center=user.sub_center,
+                    status='PENDING'
+                ).order_by('-created_at')[:10]  # Limit to recent 10
+                
+                for request_obj in pending_requests:
+                    notifications_list.append({
+                        'id': f'fuel_request_{request_obj.id}',
+                        'title': f'Fuel Request - {request_obj.beneficiary.username if request_obj.beneficiary else "Unknown"}',
+                        'message': f'Fuel request for {request_obj.quantity}L pending approval',
+                        'message_type': 'FUEL_REQUEST',
+                        'priority': 'HIGH',
+                        'is_read': False,
+                        'created_at': request_obj.created_at.isoformat(),
+                        'sender_type': 'BENEFICIARY',
+                        'sender_name': request_obj.beneficiary.username if request_obj.beneficiary else 'Unknown',
+                        'data': {
+                            'fuel_request_id': request_obj.id,
+                            'quantity': str(request_obj.quantity),
+                            'beneficiary_id': request_obj.beneficiary.id if request_obj.beneficiary else None,
+                            'source': 'fuel_request'
+                        },
+                        'action_required': True,
+                        'action_url': f'/fuel-requests/{request_obj.id}'
+                    })
+                
+                # Add low inventory alerts
+                low_inventory_boxes = Box.objects.filter(
+                    assigned_to=user.sub_center,
+                    status='RECEIVED'
+                ).annotate(
+                    available_coupons=Count('books__coupons', filter=Q(books__coupons__is_used=False))
+                ).filter(available_coupons__lt=10)[:5]  # Limit to 5
+                
+                for box in low_inventory_boxes:
+                    notifications_list.append({
+                        'id': f'low_inventory_{box.id}',
+                        'title': f'Low Inventory Alert - Box {box.box_number}',
+                        'message': f'Only {box.available_coupons} coupons remaining',
+                        'message_type': 'INVENTORY_UPDATE',
+                        'priority': 'NORMAL',
+                        'is_read': False,
+                        'created_at': box.created_at.isoformat(),
+                        'sender_type': 'SYSTEM',
+                        'sender_name': 'Inventory System',
+                        'data': {
+                            'box_id': box.id,
+                            'available_coupons': box.available_coupons,
+                            'box_number': box.box_number,
+                            'source': 'inventory_alert'
+                        },
+                        'action_required': box.available_coupons < 5,
+                        'action_url': f'/inventory/boxes/{box.id}'
+                    })
+                    
+            except Exception as regular_error:
+                logger.warning(f"Failed to load regular notifications: {regular_error}")
+        
+        # Sort all notifications by created_at descending
+        notifications_list.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        return Response({
+            'results': notifications_list,
+            'count': len(notifications_list),
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        logger.error(f"Unified notifications error: {str(e)}")
+        return Response({
+            'results': [],
+            'count': 0,
             'status': 'error',
             'message': str(e)
         })

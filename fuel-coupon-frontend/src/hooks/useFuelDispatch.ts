@@ -55,7 +55,7 @@ export const useFuelDispatch = (): UseFuelDispatchReturn => {
   });
 
   // Get subcenter ID from user data
-  const subcenterId = user?.centerId || user?.subcenter_id || 'default';
+  const subcenterId = user?.sub_center_id?.toString() || 'default';
   
   // Get dispatch handler instance
   const dispatchHandler = getFuelDispatchHandler(subcenterId);

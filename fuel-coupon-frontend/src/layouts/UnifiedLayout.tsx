@@ -215,10 +215,10 @@ const UnifiedLayout: React.FC = () => {
           badge:0, // TODO: Get actual pending handovers count from API
         },
         {
-          key: 'fuel-distribution',
+          key: 'fuel-dispatch',
           icon: <FileTextOutlined />,
-          label: 'Fuel Distribution',
-          path: '/dashboard/fuel-distribution',
+          label: 'Dispatch Coupons',
+          path: '/dashboard/fuel-dispatch',
         },
         // Commented out until inventory endpoints are working
         // {
@@ -292,16 +292,16 @@ const UnifiedLayout: React.FC = () => {
           path: '/dashboard/political-parties',
         },
         {
-          key: 'fuel-allocations',
-          icon: <CarOutlined />,
-          label: 'Fuel Allocations',
-          path: '/dashboard/fuel-allocations',
-        },
-        {
           key: 'fuel-entitlements',
           icon: <FileTextOutlined />,
           label: 'Fuel Entitlements',
           path: '/dashboard/fuel-entitlements',
+        },
+        {
+          key: 'fuel-dispatch-parliament',
+          icon: <CarOutlined />,
+          label: 'Dispatch Coupons',
+          path: '/dashboard/fuel-dispatch',
         },
         {
           key: 'dynamic-allocations',

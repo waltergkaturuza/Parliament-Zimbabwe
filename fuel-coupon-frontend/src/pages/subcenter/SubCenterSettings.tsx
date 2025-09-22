@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Card, Form, Input, Button, Select, Switch, message, Spin, Typography, Row, Col, Divider, Space, Modal } from 'antd';
 import { SaveOutlined, ReloadOutlined, SettingOutlined, UserOutlined, HomeOutlined } from '@ant-design/icons';
+import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/api/index';
 import type { SubCenter, User } from '../../types';
 
@@ -27,10 +28,13 @@ interface SubCenterConfig {
 }
 
 const SubCenterSettings: FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [subCenter, setSubCenter] = useState<SubCenter | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [allSubCenters, setAllSubCenters] = useState<SubCenter[]>([]);
+  const [selectedSubCenterId, setSelectedSubCenterId] = useState<string | null>(null);
   const [config, setConfig] = useState<SubCenterConfig>({
     allowCouponDistribution: true,
     requireApprovalForLargeOrders: true,
@@ -57,45 +61,80 @@ const SubCenterSettings: FC = () => {
     try {
       setLoading(true);
       
-      // Get current user's sub center
-  const userResponse = await apiClient.get('/users/me/');
-      const currentUser = userResponse.data;
-      
-      if (currentUser.sub_center) {
-                const subCenterResponse = await apiClient.get(`/subcenters/${currentUser.sub_center}/`);
-        const subCenterData = subCenterResponse.data;
-        setSubCenter(subCenterData);
-
-        // Load sub center users
-  const usersResponse = await apiClient.get('/users/', {
-          params: { sub_center: currentUser.sub_center }
-        });
-        const userData = usersResponse.data.results || usersResponse.data;
-        setUsers(userData);
-
-        // Set form values
-        form.setFieldsValue({
-          name: subCenterData.name,
-          location: subCenterData.location,
-          contact_person: subCenterData.contact_person,
-          phone: subCenterData.phone,
-          email: subCenterData.email,
-          status: subCenterData.status,
-          allowCouponDistribution: config.allowCouponDistribution,
-          requireApprovalForLargeOrders: config.requireApprovalForLargeOrders,
-          largeOrderThreshold: config.largeOrderThreshold,
-          enableAutomaticReporting: config.enableAutomaticReporting,
-          reportingFrequency: config.reportingFrequency,
-          operatingStart: config.operatingHours.start,
-          operatingEnd: config.operatingHours.end,
-          primaryContact: config.contactSettings.primaryContact,
-          emergencyContact: config.contactSettings.emergencyContact,
-          contactEmail: config.contactSettings.email
-        });
+      // Check if user is SUPERUSER or ADMIN - they can access all subcenters
+      if (user?.role === 'SUPERUSER' || user?.role === 'ADMIN') {
+        // Load all subcenters for selection
+        const allSubCentersResponse = await apiClient.get('/subcenters/');
+        const allSubCentersData = allSubCentersResponse.data.results || allSubCentersResponse.data;
+        setAllSubCenters(allSubCentersData);
+        
+        // If there are subcenters, select the first one by default
+        if (allSubCentersData.length > 0) {
+          const firstSubCenter = allSubCentersData[0];
+          setSelectedSubCenterId(firstSubCenter.id);
+          await loadSubCenterData(firstSubCenter.id);
+        }
+      } else {
+        // Get current user's assigned sub center
+        const userResponse = await apiClient.get('/users/me/');
+        const currentUser = userResponse.data;
+        
+        if (currentUser.sub_center) {
+          setSelectedSubCenterId(currentUser.sub_center);
+          await loadSubCenterData(currentUser.sub_center);
+        }
       }
     } catch (error) {
       console.error('Error loading sub center data:', error);
       message.error('Failed to load sub center settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSubCenterData = async (subCenterId: string) => {
+    try {
+      const subCenterResponse = await apiClient.get(`/subcenters/${subCenterId}/`);
+      const subCenterData = subCenterResponse.data;
+      setSubCenter(subCenterData);
+
+      // Load sub center users
+      const usersResponse = await apiClient.get('/users/', {
+        params: { sub_center: subCenterId }
+      });
+      const userData = usersResponse.data.results || usersResponse.data;
+      setUsers(userData);
+
+      // Set form values
+      form.setFieldsValue({
+        name: subCenterData.name,
+        location: subCenterData.location,
+        contact_person: subCenterData.contact_person,
+        phone: subCenterData.phone,
+        email: subCenterData.email,
+        status: subCenterData.status,
+        allowCouponDistribution: config.allowCouponDistribution,
+        requireApprovalForLargeOrders: config.requireApprovalForLargeOrders,
+        largeOrderThreshold: config.largeOrderThreshold,
+        enableAutomaticReporting: config.enableAutomaticReporting,
+        reportingFrequency: config.reportingFrequency,
+        operatingStart: config.operatingHours.start,
+        operatingEnd: config.operatingHours.end,
+        primaryContact: config.contactSettings.primaryContact,
+        emergencyContact: config.contactSettings.emergencyContact,
+        contactEmail: config.contactSettings.email
+      });
+    } catch (error) {
+      console.error('Error loading sub center data:', error);
+      message.error('Failed to load sub center settings');
+    }
+  };
+
+  const handleSubCenterChange = async (subCenterId: string) => {
+    setSelectedSubCenterId(subCenterId);
+    setLoading(true);
+    try {
+      await loadSubCenterData(subCenterId);
     } finally {
       setLoading(false);
     }
@@ -201,11 +240,19 @@ const SubCenterSettings: FC = () => {
   }
 
   if (!subCenter) {
-    return (
-      <div style={{ textAlign: 'center', padding: '50px' }}>
-        <Text type="secondary">No sub center assigned to your account</Text>
-      </div>
-    );
+    if (user?.role === 'SUPERUSER' || user?.role === 'ADMIN') {
+      return (
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <Text type="secondary">No sub centers found in the system</Text>
+        </div>
+      );
+    } else {
+      return (
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <Text type="secondary">No sub center assigned to your account</Text>
+        </div>
+      );
+    }
   }
 
   return (
@@ -218,6 +265,27 @@ const SubCenterSettings: FC = () => {
           Configure settings and preferences for {subCenter.name}
         </p>
       </div>
+
+      {/* Sub Center Selector for SUPERUSER/ADMIN */}
+      {(user?.role === 'SUPERUSER' || user?.role === 'ADMIN') && allSubCenters.length > 0 && (
+        <Card style={{ marginBottom: '24px' }}>
+          <Space align="center">
+            <Text strong>Select Sub Center:</Text>
+            <Select
+              value={selectedSubCenterId}
+              onChange={handleSubCenterChange}
+              style={{ width: 300 }}
+              placeholder="Select a sub center to manage"
+            >
+              {allSubCenters.map((sc) => (
+                <Option key={sc.id} value={sc.id}>
+                  {sc.name}
+                </Option>
+              ))}
+            </Select>
+          </Space>
+        </Card>
+      )}
 
       <Form
         form={form}

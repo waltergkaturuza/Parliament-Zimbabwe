@@ -72,6 +72,7 @@ const AttendanceTracking = lazy(() => import('@/pages/parliament/AttendanceTrack
 const ConstituencyManagement = lazy(() => import('@/pages/parliament/ConstituencyManagement'));
 const FuelAllocations = lazy(() => import('@/pages/fuel/FuelAllocations'));
 const FuelEntitlements = lazy(() => import('@/pages/fuel/FuelEntitlements'));
+const FuelCouponDispatch = lazy(() => import('@/pages/fuel/FuelCouponDispatch'));
 
 // Beneficiary pages
 const MySessionsPage = lazy(() => import('@/pages/beneficiary/MySessionsPage'));
@@ -227,6 +228,8 @@ const router = createBrowserRouter(
         <Route path="constituencies" element={<Suspense fallback={<LoadingSpinner />}><ConstituencyManagement /></Suspense>} />
         <Route path="fuel-allocations" element={<Suspense fallback={<LoadingSpinner />}><FuelAllocations /></Suspense>} />
         <Route path="fuel-entitlements" element={<Suspense fallback={<LoadingSpinner />}><FuelEntitlements /></Suspense>} />
+        <Route path="fuel-dispatch" element={<Suspense fallback={<LoadingSpinner />}><FuelCouponDispatch /></Suspense>} />
+        <Route path="fuel-distribution" element={<Suspense fallback={<LoadingSpinner />}><FuelCouponDispatch /></Suspense>} />
         <Route path="dynamic-allocations" element={<Suspense fallback={<LoadingSpinner />}><DynamicAllocations /></Suspense>} />
         
         {/* Coupon Routes */}
@@ -263,7 +266,11 @@ const router = createBrowserRouter(
         {/* Admin Routes */}
         <Route path="users" element={<Suspense fallback={<LoadingSpinner />}><UsersPage /></Suspense>} />
         <Route path="subcenters" element={<Suspense fallback={<LoadingSpinner />}><SubCenterSettings /></Suspense>} />
-        <Route path="subcenter-management" element={<Suspense fallback={<LoadingSpinner />}><SubCenterManagement /></Suspense>} />
+        <Route path="subcenter-management" element={
+          <ProtectedRoute allowedRoles={['SUPERUSER', 'ADMIN', 'MAIN_CENTER']}>
+            <Suspense fallback={<LoadingSpinner />}><SubCenterManagement /></Suspense>
+          </ProtectedRoute>
+        } />
         <Route path="political-parties" element={
           <ProtectedRoute allowedRoles={['SUB_CENTER', 'MAIN_CENTER']}>
             <Suspense fallback={<LoadingSpinner />}><SubCenterPoliticalPartiesPage /></Suspense>

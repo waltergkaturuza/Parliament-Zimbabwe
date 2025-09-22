@@ -98,3 +98,8 @@ class AttendanceManagementPermission(permissions.BasePermission):
     """Permission for attendance management operations"""
     def has_permission(self, request, view):
         return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SERGEANT_OF_ARMS']
+
+class MainCenterOrSubCenterPermission(permissions.BasePermission):
+    """Permission for main center OR sub center operations"""
+    def has_permission(self, request, view):
+        return request.user.role in ['SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'SUB_CENTER']

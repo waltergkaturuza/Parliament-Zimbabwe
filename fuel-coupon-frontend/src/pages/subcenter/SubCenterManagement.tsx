@@ -54,6 +54,8 @@ import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import apiClient from '@/api/index';
 import { SubCenterService } from '@/api/subcenters';
+import { VehicleService } from '@/api/vehicles';
+import { DriverService, Driver as DriverType } from '@/api/drivers';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -68,7 +70,8 @@ interface SubCenter {
   name: string;
   location: string;
   is_active: boolean;
-  managed_by?: {
+  managed_by?: string | number; // This is just the ID for writes
+  managed_by_details?: {
     id: string;
     username: string;
     first_name: string;
@@ -102,6 +105,14 @@ interface PoolVehicle {
     full_name: string;
     employee_id: string;
   };
+  active_drivers?: {
+    id: string;
+    full_name: string;
+    employee_id: string;
+    license_number: string;
+    is_primary: boolean;
+    assigned_date: string;
+  }[];
 }
 
 interface Driver {
@@ -157,9 +168,9 @@ const SubCenterManagement: FC = () => {
   const [vehicleForm] = Form.useForm();
 
   // Driver states
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
   const [isDriverModalVisible, setIsDriverModalVisible] = useState(false);
-  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [editingDriver, setEditingDriver] = useState<DriverType | null>(null);
   const [driverForm] = Form.useForm();
 
   // Manager states
@@ -173,6 +184,7 @@ const SubCenterManagement: FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      console.log('Loading SubCenter Management data...');
       // Load mock data for demonstration
       await Promise.all([
         loadSubCenters(),
@@ -180,7 +192,9 @@ const SubCenterManagement: FC = () => {
         loadDrivers(),
         loadAvailableManagers()
       ]);
+      console.log('All data loaded successfully');
     } catch (error) {
+      console.error('Failed to load data:', error);
       message.error('Failed to load data');
     } finally {
       setLoading(false);
@@ -202,7 +216,10 @@ const SubCenterManagement: FC = () => {
   const loadVehicles = async () => {
     try {
       const response = await apiClient.get('/pool-vehicles/');
-      setVehicles(response.data.results || response.data);
+      console.log('Vehicle API Response:', response.data);
+      const vehicles = response.data.results || response.data;
+      console.log('Vehicles loaded:', vehicles.length, 'vehicles');
+      setVehicles(vehicles);
     } catch (error) {
       console.error('Failed to load vehicles:', error);
       message.error('Failed to load vehicles');
@@ -245,7 +262,7 @@ const SubCenterManagement: FC = () => {
       code: record.code,
       name: record.name,
       location: record.location,
-      managed_by: record.managed_by?.id,
+      managed_by: record.managed_by_details?.id || record.managed_by,
       capacity: record.capacity,
       is_active: record.is_active
     });
@@ -256,14 +273,19 @@ const SubCenterManagement: FC = () => {
     try {
       if (editingSubCenter) {
         // Update subcenter
+        await SubCenterService.updateSubCenter(editingSubCenter.id, values);
         message.success('SubCenter updated successfully');
       } else {
         // Create subcenter
+        await SubCenterService.createSubCenter(values);
         message.success('SubCenter created successfully');
       }
       setIsSubCenterModalVisible(false);
+      setEditingSubCenter(null);
+      subCenterForm.resetFields();
       loadSubCenters();
     } catch (error) {
+      console.error('Error saving subcenter:', error);
       message.error('Failed to save subcenter');
     }
   };
@@ -281,22 +303,37 @@ const SubCenterManagement: FC = () => {
       ...record,
       last_service_date: record.last_service_date ? dayjs(record.last_service_date) : undefined,
       next_service_due: record.next_service_due ? dayjs(record.next_service_due) : undefined,
-      insurance_expiry: record.insurance_expiry ? dayjs(record.insurance_expiry) : undefined
+      insurance_expiry: record.insurance_expiry ? dayjs(record.insurance_expiry) : undefined,
+      assigned_drivers: record.active_drivers?.map(driver => driver.id) || []
     });
     setIsVehicleModalVisible(true);
   };
 
   const handleVehicleSubmit = async (values: any) => {
     try {
+      // Convert date fields to proper format
+      const vehicleData = {
+        ...values,
+        last_service_date: values.last_service_date ? values.last_service_date.format('YYYY-MM-DD') : null,
+        next_service_due: values.next_service_due ? values.next_service_due.format('YYYY-MM-DD') : null,
+        insurance_expiry: values.insurance_expiry ? values.insurance_expiry.format('YYYY-MM-DD') : null,
+        license_expiry: values.license_expiry ? values.license_expiry.format('YYYY-MM-DD') : null
+      };
+
       if (editingVehicle) {
+        await VehicleService.updateVehicle(Number(editingVehicle.id), vehicleData);
         message.success('Vehicle updated successfully');
       } else {
+        await VehicleService.createVehicle(vehicleData);
         message.success('Vehicle created successfully');
       }
       setIsVehicleModalVisible(false);
+      vehicleForm.resetFields();
+      setEditingVehicle(null);
       loadVehicles();
-    } catch (error) {
-      message.error('Failed to save vehicle');
+    } catch (error: any) {
+      console.error('Vehicle save error:', error);
+      message.error(error.response?.data?.message || 'Failed to save vehicle');
     }
   };
 
@@ -308,26 +345,46 @@ const SubCenterManagement: FC = () => {
   };
 
   const handleEditDriver = (record: Driver) => {
-    setEditingDriver(record);
+    setEditingDriver(record as any);
+    
+    // Extract vehicle IDs from active_vehicles for the form
+    const assignedVehicleIds = (record as any).active_vehicles?.map((v: any) => v.id) || [];
+    
     driverForm.setFieldsValue({
       ...record,
       license_expiry: dayjs(record.license_expiry),
-      hire_date: dayjs(record.hire_date)
+      hire_date: dayjs(record.hire_date),
+      assigned_vehicles: assignedVehicleIds
     });
     setIsDriverModalVisible(true);
   };
 
   const handleDriverSubmit = async (values: any) => {
     try {
+      // Convert date fields to proper format
+      const driverData = {
+        ...values,
+        license_expiry: values.license_expiry ? values.license_expiry.format('YYYY-MM-DD') : null,
+        hire_date: values.hire_date ? values.hire_date.format('YYYY-MM-DD') : null,
+        date_of_birth: values.date_of_birth ? values.date_of_birth.format('YYYY-MM-DD') : null,
+        assigned_vehicles: values.assigned_vehicles || []
+      };
+
       if (editingDriver) {
+        await DriverService.updateDriver(Number(editingDriver.id), driverData);
         message.success('Driver updated successfully');
       } else {
+        await DriverService.createDriver(driverData);
         message.success('Driver created successfully');
       }
       setIsDriverModalVisible(false);
+      driverForm.resetFields();
+      setEditingDriver(null);
       loadDrivers();
-    } catch (error) {
-      message.error('Failed to save driver');
+      loadVehicles(); // Reload vehicles to update their driver assignments
+    } catch (error: any) {
+      console.error('Driver save error:', error);
+      message.error(error.response?.data?.message || 'Failed to save driver');
     }
   };
 
@@ -354,12 +411,16 @@ const SubCenterManagement: FC = () => {
     },
     {
       title: 'Manager',
-      dataIndex: 'managed_by',
-      key: 'managed_by',
+      dataIndex: 'managed_by_details',
+      key: 'managed_by_details',
       render: (manager) => manager ? (
         <Space>
           <Avatar size="small" icon={<UserOutlined />} />
-          <Text>{manager.first_name} {manager.last_name}</Text>
+          <Text>
+            {manager.first_name && manager.last_name 
+              ? `${manager.first_name} ${manager.last_name}`.trim()
+              : manager.username}
+          </Text>
         </Space>
       ) : <Text type="secondary">Not assigned</Text>
     },
@@ -427,15 +488,33 @@ const SubCenterManagement: FC = () => {
       )
     },
     {
-      title: 'Driver',
-      dataIndex: 'current_driver',
-      key: 'current_driver',
-      render: (driver) => driver ? (
-        <Space>
-          <Avatar size="small" icon={<UserOutlined />} />
-          <Text>{driver.full_name}</Text>
-        </Space>
-      ) : <Text type="secondary">No driver assigned</Text>
+      title: 'Drivers',
+      key: 'active_drivers',
+      render: (_, record) => {
+        const activeDrivers = record.active_drivers || [];
+        if (activeDrivers.length === 0) {
+          return <Text type="secondary">No drivers assigned</Text>;
+        }
+        
+        return (
+          <Space direction="vertical" size="small">
+            {activeDrivers.map((driver, index) => (
+              <Space key={driver.id} size="small">
+                <Avatar size="small" icon={<UserOutlined />} />
+                <Text>
+                  {driver.full_name}
+                  {driver.is_primary && <Tag color="blue" style={{ marginLeft: 4, fontSize: '10px' }}>Primary</Tag>}
+                </Text>
+              </Space>
+            ))}
+            {activeDrivers.length > 1 && (
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {activeDrivers.length} drivers assigned
+              </Text>
+            )}
+          </Space>
+        );
+      }
     },
     {
       title: 'Status',
@@ -520,15 +599,49 @@ const SubCenterManagement: FC = () => {
       )
     },
     {
-      title: 'Vehicle',
-      dataIndex: 'current_vehicle',
-      key: 'current_vehicle',
-      render: (vehicle) => vehicle ? (
-        <Space>
-          <CarOutlined />
-          <Text>{vehicle.registration_number}</Text>
-        </Space>
-      ) : <Text type="secondary">No vehicle assigned</Text>
+      title: 'Assigned Vehicles',
+      dataIndex: 'active_vehicles',
+      key: 'active_vehicles',
+      render: (vehicles: any[]) => {
+        if (!vehicles || vehicles.length === 0) {
+          return <Text type="secondary">No vehicles assigned</Text>;
+        }
+        
+        if (vehicles.length === 1) {
+          const vehicle = vehicles[0];
+          return (
+            <Space>
+              <CarOutlined />
+              <Text>{vehicle.registration_number}</Text>
+              {vehicle.is_primary && <Tag color="blue">Primary</Tag>}
+            </Space>
+          );
+        }
+        
+        const primaryVehicle = vehicles.find((v: any) => v.is_primary);
+        const otherVehicles = vehicles.filter((v: any) => !v.is_primary);
+        
+        return (
+          <Space direction="vertical" size="small">
+            {primaryVehicle && (
+              <Space>
+                <CarOutlined />
+                <Text>{primaryVehicle.registration_number}</Text>
+                <Tag color="blue">Primary</Tag>
+              </Space>
+            )}
+            {otherVehicles.map((vehicle: any, index: number) => (
+              <Space key={vehicle.id}>
+                <CarOutlined />
+                <Text>{vehicle.registration_number}</Text>
+              </Space>
+            ))}
+            {vehicles.length > 2 && (
+              <Text type="secondary">+{vehicles.length - 1} more</Text>
+            )}
+          </Space>
+        );
+      }
     },
     {
       title: 'Status',
@@ -1006,6 +1119,30 @@ const SubCenterManagement: FC = () => {
           </Row>
 
           <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="assigned_drivers"
+                label="Assigned Drivers"
+                tooltip="Select one or more drivers who can operate this vehicle"
+              >
+                <Select
+                  mode="multiple"
+                  placeholder="Select drivers..."
+                  allowClear
+                  showSearch
+                  optionFilterProp="children"
+                >
+                  {drivers.map(driver => (
+                    <Option key={driver.id} value={driver.id}>
+                      {driver.first_name} {driver.last_name} ({driver.employee_id}) - {driver.license_class}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
             <Col span={8}>
               <Form.Item
                 name="last_service_date"
@@ -1203,6 +1340,26 @@ const SubCenterManagement: FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            name="assigned_vehicles"
+            label="Assigned Vehicles"
+          >
+            <Select
+              mode="multiple"
+              placeholder="Select vehicles to assign"
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {vehicles.map(vehicle => (
+                <Option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.registration_number} - {vehicle.make} {vehicle.model}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
             <Space>

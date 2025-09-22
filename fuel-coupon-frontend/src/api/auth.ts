@@ -33,31 +33,31 @@ export const AuthService = {
       // Use the correct Django auth endpoint
       // Base URL already includes /api, so this hits /api/auth/login/
       const response = await apiClient.post<{ 
-        success: boolean; 
-        access_token: string; 
-        refresh_token?: string; 
+        success?: boolean; // legacy expectation
+        status?: string;   // backend currently returns 'success' here
+        access?: string;   // backend field
+        refresh?: string;  // backend field
+        access_token?: string; // legacy field name support
+        refresh_token?: string; // legacy field name support
         message?: string; 
         user?: any 
       }>('/auth/login/', credentials);
       
       console.log('AuthService.login response received:', response.status, response.data);
       
-      if (response.data.success === true) {
-        // Store tokens immediately for subsequent requests
-        localStorage.setItem('access_token', response.data.access_token);
-        if (response.data.refresh_token) {
-          localStorage.setItem('refresh_token', response.data.refresh_token);
+      // Normalize response
+      const backendSuccess = response.data.success === true || response.data.status === 'success';
+      const accessToken = response.data.access || response.data.access_token;
+      const refreshToken = response.data.refresh || response.data.refresh_token;
+
+      if (backendSuccess && accessToken) {
+        localStorage.setItem('access_token', accessToken);
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
         }
-        
-        return { 
-          success: true,
-          access: response.data?.access_token, 
-          refresh: response.data?.refresh_token,
-          user: response.data?.user
-        };
-      } else {
-        return { success: false, message: response.data.message || 'Login failed' };
+        return { success: true, access: accessToken, refresh: refreshToken, user: response.data?.user };
       }
+      return { success: false, message: response.data.message || 'Login failed' };
     } catch (error: any) {
       console.error('Login API Error:', error);
       console.error('Error details:', {

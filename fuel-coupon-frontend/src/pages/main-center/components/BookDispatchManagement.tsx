@@ -79,6 +79,10 @@ interface BookDispatch {
   totalLitres?: number;
   totalValueUsd?: number;
   totalValue?: number;
+  totalValueZwg?: number;
+  averagePricePerLitreUsd?: number;
+  averageExchangeRateUsdZwg?: number;
+  priceBreakdown?: any[];
   status?: string;
   trackingNumber?: string;
   notes?: string;
@@ -186,6 +190,10 @@ const BookDispatchManagement: FC = () => {
           totalLitres: d.total_litres || d.totalLitres,
           totalValueUsd: d.total_value_usd || d.totalValueUsd,
           totalValue: d.totalValue || d.total_value || 0,
+          totalValueZwg: d.total_value_zwg || d.totalValueZwg || null,
+          averagePricePerLitreUsd: d.average_price_per_litre_usd || d.averagePricePerLitreUsd || null,
+          averageExchangeRateUsdZwg: d.average_exchange_rate_usd_zwg || d.averageExchangeRateUsdZwg || null,
+          priceBreakdown: d.price_breakdown || d.priceBreakdown || [],
           status: d.status || 'DISPATCHED',
           trackingNumber: d.trackingNumber || d.tracking_number,
           notes: d.notes || d.dispatch_notes,
@@ -1324,14 +1332,19 @@ const BookDispatchManagement: FC = () => {
         <Text strong>${(record.totalValueUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
       ),
     },
-    // 7. ZW Value
+    // 7. ZWG Value (corrected to use backend totalValueZwg)
     {
       title: 'Value (ZWG)',
-      dataIndex: 'totalValue',
-      key: 'totalValue',
+      key: 'totalValueZwg',
       width: 120,
       align: 'right',
-      render: (value) => <Text strong>ZWG {(value || 0).toLocaleString()}</Text>,
+      render: (_, record) => (
+        <Text strong>
+          {record.totalValueZwg && record.totalValueZwg > 0
+            ? `ZWG ${record.totalValueZwg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+            : 'N/A'}
+        </Text>
+      ),
     },
     // 8. Reception Status (absorbs overall status)
     {
@@ -2457,6 +2470,43 @@ const BookDispatchManagement: FC = () => {
         extra={
           <Space>
             <Button onClick={() => setEditModalVisible(false)}>Cancel</Button>
+            <Button 
+              icon={<ReloadOutlined />}
+              onClick={async () => {
+                if (!selectedDispatch) return;
+                try {
+                  setLoading(true);
+                  console.log('🔄 Refreshing dispatch calculations for:', selectedDispatch.id);
+                  const response = await apiClient.post(`/dispatches/${selectedDispatch.id}/refresh_calculations/`);
+                  if (response.data.success) {
+                    message.success(`Calculations refreshed! Updated: ${response.data.updated_fields?.join(', ') || 'values recalculated'}`);
+                    // Update the selected dispatch with fresh data
+                    const refreshedDispatch = {
+                      ...selectedDispatch,
+                      ...response.data.calculated_values,
+                      totalLitres: response.data.calculated_values.total_litres,
+                      totalValueUsd: response.data.calculated_values.total_value_usd,
+                      totalValueZwg: response.data.calculated_values.total_value_zwg,
+                      averagePricePerLitreUsd: response.data.calculated_values.average_price_per_litre_usd,
+                      averageExchangeRateUsdZwg: response.data.calculated_values.average_exchange_rate_usd_zwg,
+                      totalBooks: response.data.calculated_values.total_books,
+                    };
+                    setSelectedDispatch(refreshedDispatch);
+                    // Also refresh the main list
+                    loadDispatches();
+                  } else {
+                    message.error(response.data.error || 'Failed to refresh calculations');
+                  }
+                } catch (error) {
+                  console.error('Refresh error:', error);
+                  message.error('Failed to refresh calculations');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Refresh
+            </Button>
             <Button type="primary" onClick={async () => {
               if (!selectedDispatch) return;
               try {
@@ -2488,7 +2538,14 @@ const BookDispatchManagement: FC = () => {
             subCenterId: selectedDispatch.subCenterId,
           }}>
             <Alert type="info" showIcon style={{ marginBottom: 16 }}
-              message="Update sub-center, status, or tracking number. Books editing coming soon. Values auto-calculate." />
+              message={
+                <div>
+                  <div>Update sub-center, status, or tracking number. Values auto-calculate from book pricing.</div>
+                  <div style={{ marginTop: 4, fontSize: '12px', opacity: 0.8 }}>
+                    💡 Use "Refresh" button to recalculate values and fix missing fields for old dispatches.
+                  </div>
+                </div>
+              } />
             <div style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
@@ -2520,6 +2577,22 @@ const BookDispatchManagement: FC = () => {
               </Form.Item>
               <Form.Item label="Value (USD)">
                 <Input value={(selectedDispatch.totalValueUsd ?? 0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} disabled />
+              </Form.Item>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 16,
+              marginBottom: 8
+            }}>
+              <Form.Item label="Value (ZWG)">
+                <Input value={selectedDispatch.totalValueZwg && selectedDispatch.totalValueZwg > 0 ? selectedDispatch.totalValueZwg.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}) : 'N/A'} disabled />
+              </Form.Item>
+              <Form.Item label="Avg Price/L (USD)">
+                <Input value={selectedDispatch.averagePricePerLitreUsd && selectedDispatch.averagePricePerLitreUsd > 0 ? `$${selectedDispatch.averagePricePerLitreUsd.toFixed(4)}` : 'N/A'} disabled />
+              </Form.Item>
+              <Form.Item label="Avg Exchange Rate">
+                <Input value={selectedDispatch.averageExchangeRateUsdZwg && selectedDispatch.averageExchangeRateUsdZwg > 0 ? selectedDispatch.averageExchangeRateUsdZwg.toFixed(4) : 'N/A'} disabled />
               </Form.Item>
             </div>
             <Form.Item name="subCenterId" label="Receiving Sub-Center" rules={[{ required: true, message: 'Select sub-center'}]}>

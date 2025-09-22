@@ -5297,27 +5297,135 @@ class BookDispatch(TimeStampedModel):
     @property
     def total_value(self):
         """Total monetary value of this dispatch"""
-        total = 0
-        for book in self.books.all():
-            if book.box:
-                total += (book.initial_coupon_count or 100) * (book.box.denomination or 20) * 1.45  # Default price per liter
+        # Backwards-compatible alias – historically this returned litres * hard-coded USD price.
+        # We now compute using dynamic box pricing but keep the legacy name for any existing callers.
+        from decimal import Decimal
+        total = Decimal('0')
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres = Decimal(str(coupon_count * denomination))
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None)
+            if price_per_litre is None:
+                # Fallback to current FuelPrice model if available, else default 1.45
+                try:
+                    from .models import FuelPrice  # local import to avoid circular at load time
+                    current_price = FuelPrice.get_current_price()  # may return None
+                    price_per_litre = current_price.price_per_litre_usd if current_price else Decimal('1.45')
+                except Exception:
+                    price_per_litre = Decimal('1.45')
+            total += litres * Decimal(str(price_per_litre))
         return total
 
     @property
     def total_litres(self):
         """Total litres represented by the coupons in this dispatch"""
-        litres = 0
-        for book in self.books.all():
-            if book.box:
-                litres += (book.initial_coupon_count or 100) * (book.box.denomination or 20)
-        return litres
+        from decimal import Decimal
+        litres_total = Decimal('0')
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres_total += Decimal(str(coupon_count * denomination))
+        return litres_total
 
     @property
     def total_value_usd(self):
-        """Total USD value (using default 1.45 USD per litre unless future dynamic pricing applied)"""
+        """Accurate USD value using per-box fuel_price_per_litre_usd if present, else current FuelPrice or default 1.45.
+
+        Returns a Decimal for precision (serializer can cast as needed).
+        """
+        return self.total_value  # Already computed as Decimal in total_value property
+
+    @property
+    def total_value_zwg(self):
+        """Total ZWG value using each box's exchange_rate_zwg_usd if provided.
+
+        If a box lacks an exchange rate we attempt to derive from FuelPrice (if its exchange_rate_usd_zwg present)
+        else we skip ZWG contribution for that portion (acts as 0).
+        """
         from decimal import Decimal
-        price_per_litre_usd = Decimal('1.45')
-        return float(self.total_litres * price_per_litre_usd)
+        total_zwg = Decimal('0')
+        # Lazy import to avoid circular dependency
+        try:
+            from .models import FuelPrice  # type: ignore
+        except Exception:
+            FuelPrice = None  # noqa: N806
+        cached_rate = None
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres = Decimal(str(coupon_count * denomination))
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None)
+            if price_per_litre is None:
+                try:
+                    if FuelPrice and cached_rate is None:
+                        current_price = FuelPrice.get_current_price()
+                        if current_price:
+                            price_per_litre = current_price.price_per_litre_usd
+                            cached_rate = getattr(current_price, 'exchange_rate_usd_zwg', None)
+                except Exception:
+                    price_per_litre = None
+            if price_per_litre is None:
+                price_per_litre = Decimal('1.45')
+            exchange_rate = getattr(box, 'exchange_rate_zwg_usd', None)
+            if exchange_rate is None:
+                exchange_rate = cached_rate
+            if exchange_rate:
+                total_zwg += litres * Decimal(str(price_per_litre)) * Decimal(str(exchange_rate))
+        return total_zwg
+
+    @property
+    def average_price_per_litre_usd(self):
+        """Weighted average USD price per litre across all books in the dispatch."""
+        from decimal import Decimal
+        total_litres = Decimal('0')
+        total_value = Decimal('0')
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres = Decimal(str(coupon_count * denomination))
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None)
+            if price_per_litre is None:
+                price_per_litre = Decimal('1.45')
+            total_litres += litres
+            total_value += litres * Decimal(str(price_per_litre))
+        if total_litres == 0:
+            return None
+        return (total_value / total_litres).quantize(Decimal('0.0001'))
+
+    @property
+    def average_exchange_rate_usd_zwg(self):
+        """Weighted average USD→ZWG exchange rate across books where available."""
+        from decimal import Decimal
+        total_litres = Decimal('0')
+        weighted_sum = Decimal('0')
+        for book in self.books.select_related('box').all():
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            exchange_rate = getattr(box, 'exchange_rate_zwg_usd', None)
+            if not exchange_rate:
+                continue
+            coupon_count = book.initial_coupon_count or 100
+            denomination = getattr(box, 'denomination', 20) or 20
+            litres = Decimal(str(coupon_count * denomination))
+            total_litres += litres
+            weighted_sum += litres * Decimal(str(exchange_rate))
+        if total_litres == 0:
+            return None
+        return (weighted_sum / total_litres).quantize(Decimal('0.0001'))
 
     def save(self, *args, **kwargs):
         """Override save to auto-generate main center dispatch number when creating"""

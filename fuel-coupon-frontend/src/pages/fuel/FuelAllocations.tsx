@@ -6,7 +6,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined, BarChartOut
 import apiClient from '@/api/index';
 import type { FuelEntitlement, BeneficiaryProfile, VehicleCategory } from '../../types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { Option } = Select;
 
 interface AllocationStats {
@@ -17,20 +17,7 @@ interface AllocationStats {
 }
 
 const FuelAllocations: FC = () => {
-  // --- Category filter and multi-select logic ---
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
-  const [selectedBeneficiaryIds, setSelectedBeneficiaryIds] = useState<string[]>([]);
-
-  // Extract unique categories from beneficiaries
-  const beneficiaryCategories = Array.from(new Set(beneficiaries.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean)));
-
-  // Filter beneficiaries by selected category
-  const filteredBeneficiaries = selectedCategory
-    ? beneficiaries.filter((b: any) => {
-        const cat = typeof b.category === 'object' ? b.category?.name : b.category;
-        return cat === selectedCategory;
-      })
-    : beneficiaries;
+  // State declarations first
   const [loading, setLoading] = useState(true);
   const [entitlements, setEntitlements] = useState<FuelEntitlement[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryProfile[]>([]);
@@ -45,6 +32,21 @@ const FuelAllocations: FC = () => {
   const [editingEntitlement, setEditingEntitlement] = useState<FuelEntitlement | null>(null);
   const [form] = Form.useForm();
 
+  // --- Category filter and multi-select logic ---
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedBeneficiaryIds, setSelectedBeneficiaryIds] = useState<string[]>([]);
+
+  // Extract unique categories from beneficiaries (after beneficiaries state is declared)
+  const beneficiaryCategories = Array.from(new Set(beneficiaries.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean)));
+
+  // Filter beneficiaries by selected category
+  const filteredBeneficiaries = selectedCategory
+    ? beneficiaries.filter((b: any) => {
+        const cat = typeof b.category === 'object' ? b.category?.name : b.category;
+        return cat === selectedCategory;
+      })
+    : beneficiaries;
+
   useEffect(() => {
     loadData();
   }, []);
@@ -52,15 +54,32 @@ const FuelAllocations: FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      // Fetch all data with proper pagination for beneficiaries
       const [entitlementsResponse, beneficiariesResponse, vehicleCategoriesResponse] = await Promise.all([
         apiClient.get('/fuel-entitlements/'),
-        apiClient.get('/beneficiary-profiles/'),
+        apiClient.get('/beneficiary-profiles/?page_size=1000'), // Fetch all beneficiaries
         apiClient.get('/vehicle-categories/')
       ]);
 
       const entitlementData = entitlementsResponse.data.results || entitlementsResponse.data;
-      const beneficiaryData = beneficiariesResponse.data.results || beneficiariesResponse.data;
+      let beneficiaryData = beneficiariesResponse.data.results || beneficiariesResponse.data;
       const vehicleCategoryData = vehicleCategoriesResponse.data.results || vehicleCategoriesResponse.data;
+
+      // If there are more beneficiaries, fetch all pages
+      if (beneficiariesResponse.data.next) {
+        const allBeneficiaries = [...beneficiaryData];
+        let nextUrl = beneficiariesResponse.data.next;
+        
+        while (nextUrl) {
+          const nextResponse = await apiClient.get(nextUrl.replace(apiClient.defaults.baseURL, ''));
+          const nextData = nextResponse.data.results || nextResponse.data;
+          allBeneficiaries.push(...nextData);
+          nextUrl = nextResponse.data.next;
+        }
+        
+        beneficiaryData = allBeneficiaries;
+      }
 
       setEntitlements(entitlementData);
       setBeneficiaries(beneficiaryData);
@@ -258,16 +277,28 @@ const FuelAllocations: FC = () => {
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-        <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={8}>
-            <Space>
-              <span>Category:</span>
+      {/* Filter Controls */}
+      <Card style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Title level={4} style={{ margin: 0 }}>Filter Beneficiaries</Title>
+          <Text type="secondary">
+            {loading ? (
+              <Space>
+                <Spin size="small" />
+                Loading beneficiaries...
+              </Space>
+            ) : (
+              `${beneficiaries.length} beneficiaries loaded`
+            )}
+          </Text>
+        </div>
+        
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={6} md={4}>
+            <div>
+              <Text strong>Category:</Text>
               <Select
-                style={{ width: 200 }}
+                style={{ width: '100%', marginTop: 8 }}
                 value={selectedCategory}
                 onChange={setSelectedCategory}
                 placeholder="Select category"
@@ -277,32 +308,54 @@ const FuelAllocations: FC = () => {
                   <Option key={cat} value={cat}>{cat}</Option>
                 ))}
               </Select>
-            </Space>
+            </div>
           </Col>
-          <Col xs={24} sm={16}>
-            <Space>
-              <span>Beneficiaries:</span>
+          <Col xs={24} sm={18} md={20}>
+            <div>
+              <Text strong>
+                Beneficiaries: 
+                <Text type="secondary" style={{ fontWeight: 'normal', marginLeft: 8 }}>
+                  ({filteredBeneficiaries.length} filtered)
+                </Text>
+              </Text>
               <Select
                 mode="multiple"
-                style={{ minWidth: 300 }}
+                style={{ width: '100%', marginTop: 8 }}
                 value={selectedBeneficiaryIds}
                 onChange={setSelectedBeneficiaryIds}
-                placeholder="Select beneficiaries"
+                placeholder="Search and select beneficiaries"
                 optionLabelProp="label"
                 showSearch
+                maxTagCount="responsive"
+                loading={loading}
+                notFoundContent={loading ? <Spin size="small" /> : "No beneficiaries found"}
               >
                 {filteredBeneficiaries.map((b: any) => {
                   const displayName = b.user ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim() : (b.constituency?.name || 'Unknown Name');
+                  const constituency = b.constituency?.name || 'No Constituency';
+                  const position = b.position || 'Member';
+                  
                   return (
                     <Option key={b.id} value={b.id} label={displayName}>
-                      <span><input type="checkbox" checked={selectedBeneficiaryIds.includes(b.id)} readOnly style={{ marginRight: 8 }} />{displayName}</span>
+                      <div>
+                        <div style={{ fontWeight: 'bold' }}>{displayName}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          {position} - {constituency}
+                        </div>
+                      </div>
                     </Option>
                   );
                 })}
               </Select>
-            </Space>
+            </div>
           </Col>
         </Row>
+      </Card>
+
+      {/* Stats Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
             <Statistic
               title="Total Entitlements"
               value={stats.totalEntitlements}
@@ -398,15 +451,34 @@ const FuelAllocations: FC = () => {
             label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Beneficiary</span>}
             rules={[{ required: true, message: 'Please select beneficiary' }]}
           >
-            <Select placeholder="Select beneficiary" showSearch size="large" style={{ fontSize: '16px', minHeight: '40px' }}>
+            <Select 
+              placeholder="Search and select beneficiary" 
+              showSearch 
+              size="large" 
+              style={{ fontSize: '16px', minHeight: '40px' }}
+              filterOption={(input, option) => {
+                if (!option?.children) return false;
+                const childrenStr = String(option.children);
+                return childrenStr.toLowerCase().includes(input.toLowerCase());
+              }}
+              notFoundContent={loading ? <Spin size="small" /> : "No beneficiaries found"}
+            >
               {beneficiaries.map((beneficiary) => {
                 const displayName = beneficiary.user
                   ? `${beneficiary.user.first_name || ''} ${beneficiary.user.last_name || ''}`.trim()
                   : (beneficiary.constituency?.name || 'Unknown Name');
+                
+                const constituency = beneficiary.constituency?.name || 'No Constituency';
+                const position = (beneficiary as any).position || 'Member';
 
                 return (
                   <Option key={beneficiary.id} value={beneficiary.id}>
-                    {displayName}
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>{displayName}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>
+                        {position} - {constituency}
+                      </div>
+                    </div>
                   </Option>
                 );
               })}
