@@ -2756,34 +2756,25 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 class PoolVehicleSerializer(serializers.ModelSerializer):
     """Enhanced PoolVehicle serializer with frontend compatibility"""
-    sub_center_details = SimpleSubCenterSerializer(source='sub_center', read_only=True)
+    assigned_subcenter_details = SimpleSubCenterSerializer(source='assigned_subcenter', read_only=True)
     current_driver_details = serializers.SerializerMethodField()
     
-    # Frontend field mappings
-    registration_number = serializers.CharField(source='vehicle_number', required=False)
-    vehicle_type = serializers.CharField(source='vehicle_category', required=False)
-    engine_cc = serializers.IntegerField(source='engine_capacity', required=False)
+    # Direct field mappings (matching actual database columns)
     assigned_subcenter = serializers.PrimaryKeyRelatedField(
-        source='sub_center', 
         queryset=SubCenter.objects.all(), 
-        required=False, 
-        allow_null=True
+        required=True
     )
-    current_mileage = serializers.IntegerField(source='mileage', required=False)
-    last_service_date = serializers.DateField(required=False, allow_null=True)
-    next_service_due = serializers.DateField(source='next_service_date', required=False, allow_null=True)
-    insurance_expiry = serializers.DateField(required=False, allow_null=True)
     current_driver = serializers.SerializerMethodField()
     
     class Meta:
         model = PoolVehicle
         fields = [
-            'id', 'vehicle_number', 'registration_number', 'make', 'model', 'year', 
-            'engine_capacity', 'engine_cc', 'fuel_type', 'vehicle_category', 'vehicle_type',
-            'sub_center', 'sub_center_details', 'assigned_subcenter',
-            'status', 'mileage', 'current_mileage', 'last_service_date', 'next_service_date', 'next_service_due',
-            'insurance_expiry', 'license_expiry', 'current_driver_details', 'current_driver',
-            'notes', 'created', 'modified'
+            'id', 'registration_number', 'make', 'model', 'year', 
+            'engine_cc', 'fuel_type', 'vehicle_type',
+            'assigned_subcenter', 'assigned_subcenter_details',
+            'status', 'current_mileage', 'last_service_date', 'next_service_due',
+            'insurance_expiry', 'current_driver_details', 'current_driver',
+            'created', 'modified'
         ]
         read_only_fields = ['id', 'created', 'modified', 'current_driver_details', 'current_driver']
     
