@@ -1,12 +1,42 @@
-"""Stub migration file to satisfy applied migration record.
+"""Add main_center_dispatch_number field to BookDispatch model.
 
-The original migration that added the main_center_dispatch_number column was
-applied under this name in some environments but the file went missing / was
-renamed. We restore a no-op stub so Django can load the historical graph.
-
-DO NOT REMOVE – downstream merge migrations reference both 10018 variants.
+This migration adds the main_center_dispatch_number field using a defensive approach
+that checks if the column already exists before attempting to add it.
 """
-from django.db import migrations
+from django.db import migrations, models
+
+
+def add_main_center_dispatch_number_field(apps, schema_editor):
+    """Add main_center_dispatch_number field if it doesn't exist."""
+    connection = schema_editor.connection
+    cursor = connection.cursor()
+    
+    # Check if column exists
+    if connection.vendor == 'postgresql':
+        cursor.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name='fuel_bookdispatch' AND column_name='main_center_dispatch_number'"
+        )
+        field_exists = cursor.fetchone() is not None
+    else:
+        # SQLite fallback
+        cursor.execute("PRAGMA table_info(fuel_bookdispatch)")
+        columns = [row[1] for row in cursor.fetchall()]
+        field_exists = 'main_center_dispatch_number' in columns
+    
+    if not field_exists:
+        # Add the column
+        if connection.vendor == 'postgresql':
+            cursor.execute(
+                "ALTER TABLE fuel_bookdispatch ADD COLUMN main_center_dispatch_number varchar(30) NULL"
+            )
+            cursor.execute(
+                "CREATE UNIQUE INDEX CONCURRENTLY fuel_bookdispatch_main_center_dispatch_number_key ON fuel_bookdispatch (main_center_dispatch_number) WHERE main_center_dispatch_number IS NOT NULL"
+            )
+        else:
+            # SQLite
+            cursor.execute(
+                "ALTER TABLE fuel_bookdispatch ADD COLUMN main_center_dispatch_number varchar(30)"
+            )
 
 
 class Migration(migrations.Migration):
@@ -15,5 +45,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # No operations – real column already exists (or will be created by the other 10018 variant).
+        migrations.RunPython(add_main_center_dispatch_number_field, migrations.RunPython.noop),
     ]
