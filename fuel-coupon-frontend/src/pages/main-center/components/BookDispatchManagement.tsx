@@ -39,96 +39,52 @@ import {
   List,
 } from 'antd';
 import {
+  EnvironmentOutlined,
+  BookOutlined,
+  ClockCircleOutlined,
   SendOutlined,
-  PlusOutlined,
+  InboxOutlined,
+  CheckOutlined,
+  ExclamationCircleOutlined,
   EyeOutlined,
+  EditOutlined,
+  DownloadOutlined,
   PrinterOutlined,
+  UserOutlined,
+  DeleteOutlined,
+  PlusOutlined,
   FileTextOutlined,
-  const columns: ColumnsType<BookDispatch> = [
-    // 1. Dispatch ID (with tracking + main center number)
-    {
-      title: 'Dispatch ID',
-      dataIndex: 'dispatchId',
-      key: 'dispatchId',
-      fixed: 'left',
-      width: 170,
-      render: (text, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{text}</Text>
-          {record.trackingNumber && (
-            <Text type="secondary" style={{ fontSize: 11 }}>{record.trackingNumber}</Text>
-          )}
-          {record.mainCenterDispatchNumber && (
-            <Tag color="blue" style={{ marginTop: 2 }}>{record.mainCenterDispatchNumber}</Tag>
-          )}
-        </Space>
-      )
-    },
-    // 2. Books & Coupons (moved up)
-    {
-      title: 'Books & Coupons',
-      key: 'inventory',
-      width: 140,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text><BookOutlined /> {record.totalBooks || 0} Books</Text>
-          <Text style={{ fontSize: '12px' }}>{record.totalCoupons || 0} Coupons</Text>
-        </Space>
-      ),
-    },
-    // 3. Subcenter info
-    {
-      title: 'Sub Center',
-      key: 'subCenter',
-      width: 180,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{record.subCenterName}</Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            <EnvironmentOutlined /> {record.subCenterId}
-          </Text>
-        </Space>
-      ),
-    },
-    // 4. Dispatch Details (who + when)
-    {
-      title: 'Dispatch Details',
-      key: 'details',
-      width: 170,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text style={{ fontSize: 12 }}><UserOutlined /> {typeof record.dispatchedBy === 'object' ? '[object]' : (record.dispatchedBy || 'N/A')}</Text>
-          <Text style={{ fontSize: 12 }}><ClockCircleOutlined /> {record.dispatchedDate} {record.dispatchedTime}</Text>
-        </Space>
-      )
-    },
-    // 5. Litres
-    {
-      title: 'Litres',
-      key: 'totalLitres',
-      width: 90,
-      align: 'right',
-      render: (_, record) => <Text>{(record.totalLitres ?? 0).toLocaleString()}</Text>
-    },
-    // 6. Value USD
-    {
-      title: 'Value (USD)',
-      key: 'totalValueUsd',
-      width: 110,
-      align: 'right',
-      render: (_, record) => <Text strong>${(record.totalValueUsd ?? 0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</Text>
-    },
-    // 7. ZWG Value (existing totalValue)
-    {
-      title: 'Total Value',
-      dataIndex: 'totalValue',
-      key: 'totalValue',
-      width: 110,
-      align: 'right',
-      render: (value) => <Text strong>ZWG {(value || 0).toLocaleString()}</Text>
-    },
+  EllipsisOutlined,
+  ReloadOutlined,
+  DollarCircleOutlined,
+} from '@ant-design/icons';
+
+// NOTE: A previous corruption placed a `const columns: ColumnsType<BookDispatch> = [...]` inside the import block.
+// That caused the production esbuild error: "Expected 'as' but found 'columns'". The valid columns definition is
+// located later in the file (around line ~1170). This comment documents the fix to prevent reintroduction.
+// Interface definitions (restored)
+interface BookDispatch {
+  id?: string | number;
+  dispatchId: string;
+  mainCenterDispatchNumber?: string;
+  subCenterId?: string | number;
+  subCenterName?: string;
+  dispatchedBy: string;
+  dispatchedDate?: string;
+  dispatchedTime?: string;
+  books?: any[];
+  totalBooks?: number;
+  totalCoupons?: number;
+  totalLitres?: number;
+  totalValueUsd?: number;
+  totalValue?: number;
+  status?: string;
+  trackingNumber?: string;
+  notes?: string;
+  receptionConfirmed?: boolean;
   receivedBy?: string;
-  pageValue: number;
+  receivedDate?: string;
+  receivedTime?: string;
 }
 
 interface SubCenter {
@@ -141,6 +97,28 @@ interface SubCenter {
   status: 'ACTIVE' | 'INACTIVE';
 }
 
+interface AvailableBook {
+  key: string;
+  bookId: string;
+  boxId: string;
+  fuelType: 'PETROL' | 'DIESEL';
+  couponAmount: 5 | 20;
+  firstCouponId: string;
+  lastCouponId: string;
+  numberOfCoupons: number;
+  value: number;
+  pricePerLitre: number;
+  status: string;
+  serialRange: string;
+  bookNumber?: number;
+  isVerified?: boolean;
+  verifiedAt?: string;
+  couponPages?: any[];
+  boxInfo?: any;
+  createdAt?: string;
+  isGenerated?: boolean;
+}
+
 const BookDispatchManagement: FC = () => {
   const { user } = useAuth();
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -150,83 +128,60 @@ const BookDispatchManagement: FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm(); // form for edit drawer
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 110,
-      render: (status) => (
-        <Badge status={getStatusColor(status) as any} text={<Space>{getStatusIcon(status)}{status}</Space>} />
-      )
-    },
-    // Compact actions via dropdown
-    {
-      title: 'Actions',
-      key: 'actions',
-      fixed: 'right',
-      width: 70,
-      render: (_, record) => {
-        const menuItems = [
-          { key: 'view', label: 'View Details', icon: <EyeOutlined />, onClick: () => { setSelectedDispatch(record); setViewModalVisible(true); } },
-          { key: 'edit', label: 'Edit Dispatch', icon: <EditOutlined />, onClick: () => { setSelectedDispatch(record); editForm.setFieldsValue({ trackingNumber: record.trackingNumber, status: record.status, notes: record.notes, subCenterId: record.subCenterId }); setEditModalVisible(true); } },
-          { key: 'pdf', label: 'Download PDF', icon: <DownloadOutlined />, onClick: () => exportSingleDispatch(record) },
-          { key: 'clone', label: 'Clone Dispatch', icon: <CopyOutlined />, onClick: () => cloneDispatch(record) },
-          { type: 'divider' as const },
-          { key: 'delete', label: <span style={{ color: 'red' }}>Delete</span>, icon: <DeleteOutlined style={{ color: 'red' }} />, onClick: () => deleteDispatch(record) },
-        ];
-        // Ant Design v5: Dropdown menu prop
-        return (
-          <Dropdown
-            menu={{ items: menuItems.map(mi => mi.type === 'divider' ? { type: 'divider' } : { key: mi.key, icon: mi.icon, label: <span onClick={mi.onClick}>{mi.label}</span> }) }}
-            trigger={['click']}
-          >
-            <Button icon={<MoreOutlined />} />
-          </Dropdown>
-        );
-      }
-    }
-        const calculatedCoupons = books.reduce((sum: number, book: any) => 
-          sum + (book.numberOfCoupons || book.number_of_coupons || book.coupon_count || 0), 0);
-        
-        // Use API values if available, otherwise calculate from books array
+  // --- state & helper sections continue below ---
+  const [dispatches, setDispatches] = useState<BookDispatch[]>([]);
+  const [subCenters, setSubCenters] = useState<SubCenter[]>([]);
+  const [availableBooks, setAvailableBooks] = useState<any[]>([]);
+  const [selectedBoxCode, setSelectedBoxCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedBooks, setSelectedBooks] = useState<any[]>([]);
+  const [dispatchType, setDispatchType] = useState<'BOOK' | 'PAGE'>('BOOK');
+  const [partialCoupons, setPartialCoupons] = useState<Record<string, number>>({});
+  const [nextDispatchNumber, setNextDispatchNumber] = useState<string>('');
+  const [boxes, setBoxes] = useState<any[]>([]);
+  const [bookDetailConfirmations, setBookDetailConfirmations] = useState<Record<string, boolean>>({});
+  const { Title, Text } = Typography;
+  const { Step } = Steps;
+  const { Option } = Select;
+  const { TextArea } = Input;
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState<AvailableBook | null>(null);
+  const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
+
+  // Reconstructed loadDispatches (original block was corrupted during previous edit)
+  const loadDispatches = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get('/dispatches/');
+      const data = response.data.results || response.data || [];
+      console.log('📦 Raw dispatch data from API:', data);
+      console.log('🏢 Available sub-centers for name resolution:', subCenters);
+
+      const mappedDispatches: BookDispatch[] = data.map((d: any) => {
+        const books = Array.isArray(d.books) ? d.books : Array.isArray(d.book_set) ? d.book_set : Array.isArray(d.dispatched_books) ? d.dispatched_books : [];
+        const apiTotalBooks = d.totalBooks || d.total_books || d.book_count;
+        const apiTotalCoupons = d.totalCoupons || d.total_coupons || d.coupon_count;
+        const calculatedBooks = books.length;
+        const calculatedCoupons = books.reduce((sum: number, book: any) => sum + (book.numberOfCoupons || book.number_of_coupons || book.coupon_count || 0), 0);
         const totalBooks = apiTotalBooks || calculatedBooks;
         const totalCoupons = apiTotalCoupons || calculatedCoupons;
-        
-        // Enhanced sub-center name resolution with fallback hierarchy
         const subCenterId = d.subCenterId || d.sub_center_id;
-        const subCenterName = 
-          // First: try to find by ID in loaded subCenters
-          subCenters.find(sc => sc.id === String(subCenterId))?.name ||
-          // Second: use API provided name
-          d.subCenterName || d.sub_center_name ||
-          // Third: use to_center name if available (from handover relationship)
-          d.to_center?.name ||
-          // Fourth: fallback to formatted ID
-          (subCenterId ? `Sub-Center-${subCenterId}` : 'Unknown Sub-Center');
-        
-        console.log(`📊 Dispatch ${d.dispatchId} (${subCenterName}):`);
-        console.log(`   📚 Books - API: ${apiTotalBooks}, Calculated: ${calculatedBooks}, Final: ${totalBooks}`);
-        console.log(`   🎫 Coupons - API: ${apiTotalCoupons}, Calculated: ${calculatedCoupons}, Final: ${totalCoupons}`);
-        console.log(`   📖 Books array:`, books);
-        
-        // Normalize dispatcher field which might arrive as nested user object
+        const subCenterName = subCenters.find(sc => sc.id === String(subCenterId))?.name || d.subCenterName || d.sub_center_name || d.to_center?.name || (subCenterId ? `Sub-Center-${subCenterId}` : 'Unknown Sub-Center');
         let dispatcherRaw = d.dispatchedBy || d.dispatched_by || d.dispatcher || d.user;
         if (dispatcherRaw && typeof dispatcherRaw === 'object') {
-          // Prefer full name, then username, then id
-            dispatcherRaw = [dispatcherRaw.first_name, dispatcherRaw.last_name].filter(Boolean).join(' ').trim() || dispatcherRaw.username || dispatcherRaw.name || `User-${dispatcherRaw.id || 'unknown'}`;
+          dispatcherRaw = [dispatcherRaw.first_name, dispatcherRaw.last_name].filter(Boolean).join(' ').trim() || dispatcherRaw.username || dispatcherRaw.name || `User-${dispatcherRaw.id || 'unknown'}`;
         }
-
         return {
           id: d.id,
           dispatchId: d.dispatchId || d.dispatch_id,
           mainCenterDispatchNumber: d.main_center_dispatch_number || d.mainCenterDispatchNumber,
-          subCenterId: subCenterId,
-          subCenterName: subCenterName,
+          subCenterId,
+            subCenterName,
           dispatchedBy: dispatcherRaw || 'Unknown',
           dispatchedDate: d.dispatchedDate || d.dispatched_date,
           dispatchedTime: d.dispatchedTime || d.dispatched_time,
-          books: books,
-          totalBooks: totalBooks,
-          totalCoupons: totalCoupons,
+          books,
+          totalBooks,
+          totalCoupons,
           totalLitres: d.total_litres || d.totalLitres,
           totalValueUsd: d.total_value_usd || d.totalValueUsd,
           totalValue: d.totalValue || d.total_value || 0,
@@ -236,19 +191,16 @@ const BookDispatchManagement: FC = () => {
           receptionConfirmed: d.receptionConfirmed || false,
         };
       });
-      
       console.log('✅ Mapped dispatches:', mappedDispatches);
       setDispatches(mappedDispatches);
     } catch (error) {
       console.error('❌ Error loading dispatches:', error);
       message.warning('Using local dispatch data (API unavailable)');
-      
-      // Keep existing local dispatches instead of clearing them
-      // This preserves dispatches created in the current session
     } finally {
       setLoading(false);
     }
   };
+        
 
   const loadAvailableBooks = async () => {
     try {
@@ -797,7 +749,7 @@ const BookDispatchManagement: FC = () => {
                 <div>
                     <div class="info-item">
                         <span class="info-label">Total Value:</span>
-                        <span class="info-value">ZWG ${dispatch.totalValue.toLocaleString()}</span>
+                        <span class="info-value">ZWG ${(dispatch.totalValue ?? 0).toLocaleString()}</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Report Generated:</span>
@@ -1186,12 +1138,14 @@ const BookDispatchManagement: FC = () => {
 
   // Check if user is admin or superuser
   const isAdminUser = () => {
-    return user && (
-      user.role === 'admin' || 
-      user.role === 'superuser' || 
-      user.is_superuser === true ||
+    if (!user) return false;
+    const role = (user as any).role || '';
+    return (
+      role === 'admin' ||
+      role === 'superuser' ||
+      (user as any).is_superuser === true ||
       user.username === 'admin' ||
-      user.username === 'walter' // temporary for testing
+      user.username === 'walter'
     );
   };
 
@@ -2424,7 +2378,7 @@ const BookDispatchManagement: FC = () => {
               <Descriptions.Item label="Dispatch Date">{selectedDispatch.dispatchedDate} {selectedDispatch.dispatchedTime}</Descriptions.Item>
               <Descriptions.Item label="Total Books">{selectedDispatch.totalBooks}</Descriptions.Item>
               <Descriptions.Item label="Total Coupons">{selectedDispatch.totalCoupons}</Descriptions.Item>
-              <Descriptions.Item label="Total Value">ZWG {selectedDispatch.totalValue.toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="Total Value">ZWG {(selectedDispatch.totalValue ?? 0).toLocaleString()}</Descriptions.Item>
               <Descriptions.Item label="Reception Status">
                 <Badge
                   status={selectedDispatch.status === 'CONFIRMED' ? 'success' : selectedDispatch.status === 'RECEIVED' ? 'processing' : 'default'}
@@ -2707,7 +2661,7 @@ const BookDispatchManagement: FC = () => {
             <Alert
               message="Intelligent Coupon Page Breakdown"
               description={`This book is organized into ${selectedBookForDetails.couponPages?.length || 0} pages with 10 coupons per page for easy verification and dispatch management.${selectedBookForDetails.couponPages?.length === 0 ? ' Coupon page information is being generated...' : ''}`}
-              type={selectedBookForDetails.couponPages?.length > 0 ? "info" : "warning"}
+              type={(selectedBookForDetails?.couponPages?.length ?? 0) > 0 ? "info" : "warning"}
               showIcon
               style={{ marginBottom: 16 }}
             />
