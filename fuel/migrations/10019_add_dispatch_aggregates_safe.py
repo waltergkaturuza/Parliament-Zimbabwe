@@ -26,13 +26,13 @@ def add_columns(apps, schema_editor):
         for col, ddl in PG_COLS:
             cur.execute(CHECK_PG, [col])
             if cur.fetchone() is None:
-                schema_editor.execute(ddl)
+                cur.execute(ddl)
     else:
         cur.execute(CHECK_SQLITE)
         existing = {r[1] for r in cur.fetchall()}
         for col, ddl in SQLITE_COLS:
             if col not in existing:
-                schema_editor.execute(ddl)
+                cur.execute(ddl)
 
 def noop(apps, schema_editor):
     pass
