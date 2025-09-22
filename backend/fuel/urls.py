@@ -211,6 +211,8 @@ _maybe_register('CouponDistributionViewSet', r'distributions', 'distribution')
 
 # Dispatch and allocation management
 _maybe_register('BookDispatchViewSet', r'dispatches', 'dispatch')
+_maybe_register('BookDispatchViewSet', r'coupon-dispatches', 'coupon-dispatch')  # Frontend expects this endpoint
+_maybe_register('BookDispatchViewSet', r'fuel-dispatches', 'fuel-dispatch')  # Frontend expects this endpoint
 _maybe_register('CouponAllocationViewSet', r'allocations', 'allocation')
 
 # Parliament-specific entities
@@ -221,6 +223,7 @@ _maybe_register('PoliticalPartyViewSet', r'political-parties', 'political-party'
 _maybe_register('ParliamentSessionViewSet', r'parliament-sessions', 'parliament-session')
 _maybe_register('SessionAttendanceViewSet', r'session-attendances', 'session-attendance')
 _maybe_register('BeneficiaryProfileViewSet', r'beneficiary-profiles', 'beneficiary-profile')
+_maybe_register('BeneficiaryProfileViewSet', r'beneficiaries', 'beneficiary')  # Frontend expects this endpoint
 _maybe_register('FuelEntitlementViewSet', r'fuel-entitlements', 'fuel-entitlement')
 
 # Subcenter management
@@ -299,6 +302,7 @@ urlpatterns = [
     
     # Fuel pricing and statistics endpoints
     path('fuel-stats/', lazy_view('fuel_statistics'), name='fuel-statistics'),
+    # Fuel prices endpoint now served by dynamic allocation system
     path('fuel-prices/', lazy_view('fuel_statistics'), name='fuel-prices'),
     
     # SubCenter statistics endpoint

@@ -496,6 +496,24 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     queryset = SubCenter.objects.all().select_related('managed_by') # Select related managed_by
     serializer_class = SubCenterSerializer
     permission_classes = [IsAuthenticated]
+    lookup_field = 'id'
+    
+    def get_object(self):
+        """Custom object lookup to handle 'default' as first active subcenter"""
+        lookup_value = self.kwargs.get(self.lookup_field)
+        
+        if lookup_value == 'default':
+            # Get the first active subcenter
+            obj = SubCenter.objects.filter(is_active=True).first()
+            if not obj:
+                from rest_framework.exceptions import NotFound
+                raise NotFound('No active subcenter found for default')
+        else:
+            obj = super().get_object()
+        
+        # Check object permissions as usual
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def get_permissions(self):
         """Role-based permissions for subcenter management
@@ -3275,6 +3293,25 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = BookDispatch.objects.all().select_related('to_center', 'dispatched_by', 'received_by')
         
+        # Handle query parameter filtering
+        subcenter_id = self.request.query_params.get('subcenter_id') or self.request.query_params.get('subcenter')
+        if subcenter_id:
+            if subcenter_id == 'default':
+                # Get the first active subcenter
+                default_subcenter = SubCenter.objects.filter(is_active=True).first()
+                if default_subcenter:
+                    queryset = queryset.filter(to_center=default_subcenter)
+                else:
+                    return queryset.none()
+            else:
+                try:
+                    # Try numeric ID
+                    queryset = queryset.filter(to_center_id=int(subcenter_id))
+                except (ValueError, TypeError):
+                    # Try by code
+                    queryset = queryset.filter(to_center__code=subcenter_id)
+        
+        # Apply role-based filtering
         if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
             return queryset
         elif user.role == 'SUB_CENTER' and user.sub_center:
