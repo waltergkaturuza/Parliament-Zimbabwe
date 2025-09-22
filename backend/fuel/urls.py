@@ -321,8 +321,8 @@ urlpatterns = [
     path('analytics/top-programs-consumption/', lazy_api_view('analytics_top_programs_consumption'), name='analytics-top-programs-consumption'),
     
     # Dispatcher endpoints
-    path('dispatchers/', lazy_api_view('dispatcher_view'), name='dispatchers-list'),
-    path('dispatch-page-config/', lazy_api_view('dispatch_page_config_view'), name='dispatch-page-config'),
+    path('dispatchers/', dispatcher_view, name='dispatchers-list'),
+    path('dispatch-page-config/', dispatch_page_config_view, name='dispatch-page-config'),
     
     # Users endpoints with role filtering
     path('users/me/', lazy_viewset_action('UserViewSet', {'get': 'me'}), name='user-me'),
