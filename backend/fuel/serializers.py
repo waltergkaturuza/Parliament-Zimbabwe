@@ -2762,9 +2762,46 @@ class PoolVehicleSerializer(serializers.ModelSerializer):
     # Direct field mappings (matching actual database columns)
     assigned_subcenter = serializers.PrimaryKeyRelatedField(
         queryset=SubCenter.objects.all(), 
-        required=True
+        required=True,
+        error_messages={
+            'required': 'Assigned subcenter is required.',
+            'does_not_exist': 'Invalid subcenter selected.'
+        }
+    )
+    registration_number = serializers.CharField(
+        required=True,
+        error_messages={
+            'required': 'Registration number is required.',
+            'unique': 'A vehicle with this registration number already exists.'
+        }
+    )
+    make = serializers.CharField(
+        required=True,
+        error_messages={'required': 'Vehicle make is required.'}
+    )
+    model = serializers.CharField(
+        required=True,
+        error_messages={'required': 'Vehicle model is required.'}
+    )
+    year = serializers.IntegerField(
+        required=True,
+        error_messages={'required': 'Vehicle year is required.'}
     )
     current_driver = serializers.SerializerMethodField()
+    
+    def validate_registration_number(self, value):
+        """Validate registration number format and uniqueness"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Registration number cannot be empty.")
+        return value.strip().upper()
+    
+    def validate_year(self, value):
+        """Validate vehicle year is reasonable"""
+        from django.utils import timezone
+        current_year = timezone.now().year
+        if value < 1900 or value > current_year + 1:
+            raise serializers.ValidationError(f"Year must be between 1900 and {current_year + 1}.")
+        return value
     
     class Meta:
         model = PoolVehicle

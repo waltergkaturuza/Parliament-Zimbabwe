@@ -5585,11 +5585,46 @@ class PoolVehicleViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
     
     def perform_create(self, serializer):
-        # Auto-assign to user's subcenter if they're a subcenter officer
-        if self.request.user.role == 'SUB_CENTER' and self.request.user.sub_center:
-            serializer.save(assigned_subcenter=self.request.user.sub_center)
-        else:
-            serializer.save()
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Auto-assign to user's subcenter if they're a subcenter officer
+            if self.request.user.role == 'SUB_CENTER' and self.request.user.sub_center:
+                logger.info(f"Auto-assigning vehicle to subcenter: {self.request.user.sub_center}")
+                serializer.save(assigned_subcenter=self.request.user.sub_center)
+            else:
+                logger.info(f"Creating vehicle with data: {serializer.validated_data}")
+                serializer.save()
+        except Exception as e:
+            logger.error(f"Error creating pool vehicle: {str(e)}")
+            logger.error(f"Request data: {self.request.data}")
+            logger.error(f"Serializer errors: {serializer.errors}")
+            raise
+    
+    def create(self, request, *args, **kwargs):
+        import logging
+        from rest_framework.response import Response
+        from rest_framework import status
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"PoolVehicle create request from user: {request.user} (role: {request.user.role})")
+        logger.info(f"Request data: {request.data}")
+        
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"PoolVehicle creation failed: {str(e)}")
+            logger.error(f"Exception type: {type(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Return a more detailed error response
+            return Response({
+                'error': 'Failed to create vehicle',
+                'detail': str(e),
+                'type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     def assign_driver(self, request, pk=None):
