@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+
 class Command(BaseCommand):
     help = "Backfill cached aggregate fields on BookDispatch (first_serial, last_serial, total_coupons, aggregated_litres, aggregated_value_usd). Safe to re-run."
 
@@ -10,7 +11,8 @@ class Command(BaseCommand):
         parser.add_argument('--ids', type=str, help='Comma-separated list of dispatch IDs to limit scope')
 
     def handle(self, *args, **options):
-        from backend.fuel.models import BookDispatch  # Avoid early import issues
+        # Import from the active app label 'fuel' so command works with INSTALLED_APPS referencing 'fuel'
+        from fuel.models import BookDispatch  # noqa: WPS433 (runtime import intentional)
         batch_size = options['batch']
         dry_run = options['dry_run']
         id_filter = options.get('ids')
