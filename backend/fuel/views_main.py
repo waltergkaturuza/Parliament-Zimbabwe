@@ -5685,7 +5685,7 @@ class DriverViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     @action(detail=True, methods=['get'])
     def assignments(self, request, pk=None):
@@ -5735,7 +5735,7 @@ class VehicleAssignmentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     def perform_create(self, serializer):
         serializer.save(assigned_by=self.request.user)
