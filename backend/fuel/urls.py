@@ -129,7 +129,7 @@ try:
         FuelRequirementConfigurationViewSet,
         
         # Dispatch and allocation ViewSets
-        BookDispatchViewSet, CouponAllocationViewSet, CouponDistributionViewSet,
+        BookDispatchViewSet, CouponHandoverViewSet, CouponAllocationViewSet, CouponDistributionViewSet,
         
         # System management ViewSets
         SystemAlertViewSet, AuditLogViewSet,
@@ -214,6 +214,7 @@ _maybe_register('BookDispatchViewSet', r'dispatches', 'dispatch')
 _maybe_register('BookDispatchViewSet', r'coupon-dispatches', 'coupon-dispatch')  # Frontend expects this endpoint
 _maybe_register('BookDispatchViewSet', r'fuel-dispatches', 'fuel-dispatch')  # Frontend expects this endpoint
 _maybe_register('CouponAllocationViewSet', r'allocations', 'allocation')
+_maybe_register('CouponHandoverViewSet', r'handovers', 'handover')  # Add handover tracking
 
 # Parliament-specific entities
 _maybe_register('BeneficiaryCategoryViewSet', r'beneficiary-categories', 'beneficiary-category')
