@@ -70,6 +70,22 @@ class MainCenterOrSubCenterPermission(RoleBasedPermission):
     ]
 
 
+class MainCenterOrAuditorPermission(RoleBasedPermission):
+    """Permission for operations allowed by either MAIN_CENTER or AUDITOR roles"""
+    allowed_roles = [
+        'SUPERUSER', 'ADMIN',
+        'MAIN_CENTER', 'MAIN_CENTER_APPROVER',
+        'AUDITOR'
+    ]
+
+
+class AdminOrSuperUserOrMainCenterPermission(RoleBasedPermission):
+    """Permission for operations allowed by ADMIN, SUPERUSER, or MAIN_CENTER roles"""
+    allowed_roles = [
+        'SUPERUSER', 'ADMIN', 'MAIN_CENTER', 'MAIN_CENTER_APPROVER'
+    ]
+
+
 class SergeantOfArmsPermission(RoleBasedPermission):
     """Permission for sergeant of arms operations"""
     allowed_roles = ['SUPERUSER', 'ADMIN', 'SERGEANT_OF_ARMS']

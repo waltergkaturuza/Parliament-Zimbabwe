@@ -48,7 +48,8 @@ from .permissions import (
     
     # Workflow permissions
     MainCenterApprovalPermission, SubCenterApprovalPermission, CrossCenterApprovalPermission,
-    BeneficiaryManagementPermission, MainCenterOrSubCenterPermission
+    BeneficiaryManagementPermission, MainCenterOrSubCenterPermission, MainCenterOrAuditorPermission,
+    AdminOrSuperUserOrMainCenterPermission
 )
 from .email_utils import send_user_approval_email, send_user_rejection_email
 from rest_framework.views import APIView # Ensure this import is present
@@ -2834,7 +2835,7 @@ class BeneficiaryCategoryViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | AuditorPermission()]
+        return [IsAuthenticated(), MainCenterOrAuditorPermission()]
 
     @action(detail=False, methods=['post'])
     def load_defaults(self, request):
@@ -5350,7 +5351,7 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -5790,7 +5791,7 @@ class FuelRequirementConfigurationViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), AdminPermission() | SuperUserPermission() | MainCenterPermission()]
+        return [IsAuthenticated(), AdminOrSuperUserOrMainCenterPermission()]
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -7597,7 +7598,7 @@ class SessionAttendanceViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterPermission() | SubCenterPermission()]
+        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
     
     def perform_create(self, serializer):
         serializer.save(recorded_by=self.request.user)
