@@ -51,6 +51,8 @@ import EnhancedAllocationModal from '@/components/subcenter/EnhancedAllocationMo
 import EnhancedAllocationHistory, { demoAllocationHistory } from '@/components/subcenter/EnhancedAllocationHistory';
 import BeneficiaryEntitlementDashboard, { demoBeneficiaryEntitlements } from '@/components/subcenter/BeneficiaryEntitlementDashboard';
 import SubCenterStockService from '@/services/subCenterStockService';
+import CouponTrackingTable from '@/components/audit/CouponTrackingTable';
+import IndividualCouponAllocation from '@/components/subcenter/IndividualCouponAllocation';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -194,6 +196,7 @@ const SubCenterInventoryManagement: FC = () => {
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
   const [bidirectionalAllocationVisible, setBidirectionalAllocationVisible] = useState(false);
   const [enhancedAllocationVisible, setEnhancedAllocationVisible] = useState(false);
+  const [individualCouponAllocationVisible, setIndividualCouponAllocationVisible] = useState(false);
   const [selectedBeneficiary, setBeneficiary] = useState<Beneficiary | null>(null);
   
   // Form for allocation
@@ -1039,6 +1042,12 @@ const SubCenterInventoryManagement: FC = () => {
                 Enhanced Allocation
               </Button>
               <Button 
+                icon={<UserOutlined />}
+                onClick={() => setIndividualCouponAllocationVisible(true)}
+              >
+                Individual Coupon Allocation
+              </Button>
+              <Button 
                 icon={<PlusOutlined />}
                 onClick={() => setBidirectionalAllocationVisible(true)}
               >
@@ -1161,6 +1170,25 @@ const SubCenterInventoryManagement: FC = () => {
                 showTotal: (total, range) => 
                   `${range[0]}-${range[1]} of ${total} pending dispatches`,
               }}
+            />
+          </Card>
+        </TabPane>
+
+        <TabPane tab="Individual Coupon Tracking" key="coupon-tracking">
+          <Card title="Individual Coupon Inventory & Tracking">
+            <Alert
+              message="Individual Coupon Management"
+              description="Track individual coupon serial numbers, allocation status, and beneficiary assignments for complete audit trail compliance."
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            <CouponTrackingTable
+              filter={{ center: user?.sub_center?.id?.toString() }}
+              showSearch={true}
+              showFilters={true}
+              showStats={true}
+              maxHeight={500}
             />
           </Card>
         </TabPane>
@@ -1375,6 +1403,20 @@ const SubCenterInventoryManagement: FC = () => {
         onSubmit={handleEnhancedAllocation}
         beneficiary={selectedBeneficiary}
         loading={loading}
+      />
+
+      {/* Individual Coupon Allocation Modal */}
+      <IndividualCouponAllocation
+        visible={individualCouponAllocationVisible}
+        onCancel={() => setIndividualCouponAllocationVisible(false)}
+        onSuccess={(allocation) => {
+          message.success(`Successfully allocated ${allocation.selected_coupons.length} individual coupons to ${allocation.beneficiary.name}`);
+          setIndividualCouponAllocationVisible(false);
+          loadInventoryData();
+          loadAllocations();
+        }}
+        subCenterId={user?.sub_center?.id?.toString()}
+        preSelectedBeneficiary={undefined}
       />
 
       {/* Bidirectional Coupon Allocation Modal */}

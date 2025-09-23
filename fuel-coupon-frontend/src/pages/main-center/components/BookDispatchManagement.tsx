@@ -442,17 +442,41 @@ const BookDispatchManagement: FC = () => {
         }
       }
 
-      const mapped = (Array.isArray(data) ? data : []).map((subcenter: any) => ({
-        id: String(subcenter.id),
-        name: subcenter.name || 'Unknown Center',
-        location: subcenter.location || subcenter.address || 'Unknown Location',
-        officerName: subcenter.officer_in_charge?.first_name && subcenter.officer_in_charge?.last_name
-          ? `${subcenter.officer_in_charge.first_name} ${subcenter.officer_in_charge.last_name}`
-          : (subcenter.officerName || subcenter.officer_name || 'Unknown Officer'),
-        phone: subcenter.contact_phone || subcenter.phone || subcenter.contact_number || '',
-        email: subcenter.contact_email || subcenter.email || '',
-        status: 'ACTIVE' as const,
-      }));
+      const mapped = (Array.isArray(data) ? data : []).map((subcenter: any) => {
+        // Extract officer name from multiple possible sources
+        let officerName = 'Unknown Officer';
+        
+        // Try managed_by_details first (most complete)
+        if (subcenter.managed_by_details?.first_name && subcenter.managed_by_details?.last_name) {
+          officerName = `${subcenter.managed_by_details.first_name} ${subcenter.managed_by_details.last_name}`;
+        }
+        // Try manager_name (direct field)
+        else if (subcenter.manager_name) {
+          officerName = subcenter.manager_name;
+        }
+        // Try contact_person
+        else if (subcenter.contact_person) {
+          officerName = subcenter.contact_person;
+        }
+        // Try legacy officer_in_charge format
+        else if (subcenter.officer_in_charge?.first_name && subcenter.officer_in_charge?.last_name) {
+          officerName = `${subcenter.officer_in_charge.first_name} ${subcenter.officer_in_charge.last_name}`;
+        }
+        // Try other legacy formats
+        else if (subcenter.officerName || subcenter.officer_name) {
+          officerName = subcenter.officerName || subcenter.officer_name;
+        }
+
+        return {
+          id: String(subcenter.id),
+          name: subcenter.name || 'Unknown Center',
+          location: subcenter.location || subcenter.address || 'Unknown Location',
+          officerName,
+          phone: subcenter.contact_phone || subcenter.phone || subcenter.contact_number || '',
+          email: subcenter.contact_email || subcenter.email || '',
+          status: 'ACTIVE' as const,
+        };
+      });
       
       console.log('🏢 Mapped sub-centers:', mapped.length);
       setSubCenters(mapped);
@@ -506,6 +530,11 @@ const BookDispatchManagement: FC = () => {
     // Reset confirmations when selected books change
     setBookDetailConfirmations({});
   }, [selectedBooks]);
+
+  // Load subcenters when component mounts
+  useEffect(() => {
+    loadSubCenters();
+  }, []);
 
   // Maintain per-book partial coupon defaults in PAGE mode
   useEffect(() => {

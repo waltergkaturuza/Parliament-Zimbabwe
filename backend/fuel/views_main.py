@@ -3439,10 +3439,14 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                     queryset = queryset.filter(to_center__code=subcenter_id)
         
         # Apply role-based filtering
-        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
+        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR' or user.role == 'SUPERUSER':
             return queryset
         elif user.role == 'SUB_CENTER' and user.sub_center:
-            return queryset.filter(to_center=user.sub_center)
+            # Include dispatches for their center OR unassigned dispatches
+            from django.db import models
+            return queryset.filter(
+                models.Q(to_center=user.sub_center) | models.Q(to_center_id__isnull=True)
+            )
         
         return queryset.none()
     
@@ -3797,19 +3801,29 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         Only permits setting status to RECEIVED (or CONFIRMED for future workflows) on own dispatches.
         Other updates remain restricted to main center via default permissions.
         """
+        print(f"🐛 PARTIAL_UPDATE DEBUG: User: {request.user.username}, Role: {getattr(request.user, 'role', 'N/A')}")
         try:
             instance = self.get_object()
             user = request.user
+            print(f"🐛 DEBUG: Dispatch ID: {instance.id}, to_center_id: {instance.to_center_id}, user sub_center: {getattr(user, 'sub_center', None)}")
 
             requested_status = str(request.data.get('status') or '').upper()
             allowed_statuses = {'RECEIVED'}
+            print(f"🐛 DEBUG: Requested status: {requested_status}")
 
-            # Gate: only sub-center user for whom the dispatch is addressed can accept
-            if getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
-                if instance.to_center_id != user.sub_center.id:
+            # Allow SUPERUSER and MAIN_CENTER to update any dispatch
+            if getattr(user, 'role', None) in ['SUPERUSER', 'MAIN_CENTER']:
+                pass  # Allow any status update for admin users
+            elif getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+                # If to_center_id is None (unassigned), assign it to the user's subcenter
+                if not instance.to_center_id:
+                    instance.to_center = user.sub_center
+                elif instance.to_center_id != user.sub_center.id:
                     return Response({'detail': 'Not authorized to modify this dispatch'}, status=status.HTTP_403_FORBIDDEN)
                 if requested_status not in allowed_statuses:
                     return Response({'detail': 'Only status update to RECEIVED is allowed'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({'detail': 'Not authorized to modify dispatches'}, status=status.HTTP_403_FORBIDDEN)
 
                 # Perform safe update
                 instance.status = requested_status
@@ -3857,10 +3871,19 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_object()
             user = request.user
-            if getattr(user, 'role', None) != 'SUB_CENTER' or not getattr(user, 'sub_center', None):
+            
+            # Allow SUPERUSER and MAIN_CENTER to accept any dispatch for testing/admin purposes
+            if getattr(user, 'role', None) in ['SUPERUSER', 'MAIN_CENTER']:
+                pass  # Allow superuser to accept any dispatch
+            elif getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+                # For subcenter users, check if dispatch is for their center or if to_center is None (unassigned)
+                if instance.to_center_id and instance.to_center_id != user.sub_center.id:
+                    return Response({'detail': 'Not authorized to accept this dispatch'}, status=status.HTTP_403_FORBIDDEN)
+                # If to_center_id is None, assign it to the user's subcenter  
+                if not instance.to_center_id:
+                    instance.to_center = user.sub_center
+            else:
                 return Response({'detail': 'Only subcenter users can accept a dispatch'}, status=status.HTTP_403_FORBIDDEN)
-            if instance.to_center_id != user.sub_center.id:
-                return Response({'detail': 'Not authorized to accept this dispatch'}, status=status.HTTP_403_FORBIDDEN)
 
             instance.status = 'RECEIVED'
             try:
@@ -9825,8 +9848,3 @@ def dispatch_page_config_view(request):
         
         return Response(config_data)
         
-    except Exception as e:
-        return Response(
-            {'error': f'Failed to retrieve dispatch page config: {str(e)}'}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
