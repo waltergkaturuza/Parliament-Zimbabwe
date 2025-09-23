@@ -9775,7 +9775,7 @@ def dispatch_page_config_view(request):
         
         # Get available books for dispatch
         available_books = Book.objects.filter(
-            status='AVAILABLE',
+            is_archived=False,
             box__isnull=False
         ).select_related('box')
         
