@@ -28,8 +28,26 @@ interface SubCenterConfig {
 }
 
 const SubCenterSettings: FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthLoading } = useAuth();
   const [loading, setLoading] = useState(true);
+  
+  // Don't render if auth is still loading
+  if (isAuthLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+  
+  // Don't render if user is not available
+  if (!user) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <div>Authentication required. Please log in.</div>
+      </div>
+    );
+  }
   const [saving, setSaving] = useState(false);
   const [subCenter, setSubCenter] = useState<SubCenter | null>(null);
   const [users, setUsers] = useState<User[]>([]);

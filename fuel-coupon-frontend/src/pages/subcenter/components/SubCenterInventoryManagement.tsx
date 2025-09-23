@@ -26,6 +26,7 @@ import {
   Divider,
   Timeline,
   Checkbox,
+  Spin,
 } from 'antd';
 import {
   InboxOutlined,
@@ -169,8 +170,26 @@ interface SubCenterStats {
 }
 
 const SubCenterInventoryManagement: FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthLoading } = useAuth();
   const [loading, setLoading] = useState(false);
+  
+  // Don't render if auth is still loading
+  if (isAuthLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+  
+  // Don't render if user is not available
+  if (!user) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <div>Authentication required. Please log in.</div>
+      </div>
+    );
+  }
   const [activeTab, setActiveTab] = useState('inventory');
   const [incomingBooks, setIncomingBooks] = useState<IncomingBook[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);

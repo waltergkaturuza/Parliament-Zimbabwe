@@ -137,8 +137,26 @@ const HeaderSubtitle = styled(Typography)(({ theme }) => ({
 }));
 
 const SimpleSubCenterDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthLoading } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  
+  // Don't render if auth is still loading
+  if (isAuthLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
+  
+  // Don't render if user is not available
+  if (!user) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <Typography variant="h6">Authentication required. Please log in.</Typography>
+      </Box>
+    );
+  }
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
