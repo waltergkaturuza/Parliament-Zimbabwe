@@ -4355,6 +4355,54 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                 'error': f'Failed to refresh dispatch calculations: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get dispatch statistics, optionally filtered by subcenter"""
+        try:
+            subcenter_param = request.query_params.get('subcenter')
+            queryset = self.get_queryset()
+            
+            # Filter by subcenter if provided
+            if subcenter_param:
+                try:
+                    subcenter_id = int(subcenter_param)
+                    queryset = queryset.filter(to_center_id=subcenter_id)
+                except (ValueError, TypeError):
+                    return Response(
+                        {'error': 'Invalid subcenter parameter'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Calculate statistics
+            total_dispatches = queryset.count()
+            pending_dispatches = queryset.filter(status='PENDING').count()
+            in_transit_dispatches = queryset.filter(status='IN_TRANSIT').count()
+            delivered_dispatches = queryset.filter(status='DELIVERED').count()
+            
+            # Recent dispatches (last 30 days)
+            from datetime import timedelta
+            thirty_days_ago = timezone.now() - timedelta(days=30)
+            recent_dispatches = queryset.filter(dispatch_date__gte=thirty_days_ago).count()
+            
+            stats = {
+                'total_dispatches': total_dispatches,
+                'pending_dispatches': pending_dispatches,
+                'in_transit_dispatches': in_transit_dispatches,
+                'delivered_dispatches': delivered_dispatches,
+                'recent_dispatches': recent_dispatches,
+                'completion_rate': round((delivered_dispatches / total_dispatches * 100) if total_dispatches > 0 else 0, 2),
+                'last_updated': timezone.now().isoformat()
+            }
+            
+            return Response(stats)
+            
+        except Exception as e:
+            logger.error(f"Error fetching dispatch stats: {e}")
+            return Response(
+                {'error': 'Failed to fetch dispatch statistics'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class CouponAllocationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing coupon allocations"""
@@ -9394,7 +9442,7 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
 # NESTED SUBCENTER ENDPOINT VIEWS for specific subcenter statistics and activity
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def subcenter_statistics_detail_view(request, subcenter_id):
+def subcenter_statistics_detail_view(request, pk):
     """
     Get detailed statistics for a specific subcenter
     Frontend expects: /api/v1/subcenters/{id}/statistics/
@@ -9404,15 +9452,15 @@ def subcenter_statistics_detail_view(request, subcenter_id):
         
         # Get the specific subcenter
         try:
-            subcenter = SubCenter.objects.get(id=subcenter_id)
+            subcenter = SubCenter.objects.get(id=pk)
         except SubCenter.DoesNotExist:
             return Response(
-                {'error': f'Subcenter with ID {subcenter_id} not found'}, 
+                {'error': f'Subcenter with ID {pk} not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         
         # Check permissions - users can only access their own subcenter unless admin
-        if user.role == 'SUB_CENTER' and user.sub_center and user.sub_center.id != subcenter_id:
+        if user.role == 'SUB_CENTER' and user.sub_center and user.sub_center.id != pk:
             return Response(
                 {'error': 'Access denied to this subcenter'}, 
                 status=status.HTTP_403_FORBIDDEN
@@ -9508,7 +9556,7 @@ def subcenter_statistics_detail_view(request, subcenter_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def subcenter_recent_activity_view(request, subcenter_id):
+def subcenter_recent_activity_view(request, pk):
     """
     Get recent activity for a specific subcenter
     Frontend expects: /api/v1/subcenters/{id}/recent_activity/
@@ -9518,15 +9566,15 @@ def subcenter_recent_activity_view(request, subcenter_id):
         
         # Get the specific subcenter
         try:
-            subcenter = SubCenter.objects.get(id=subcenter_id)
+            subcenter = SubCenter.objects.get(id=pk)
         except SubCenter.DoesNotExist:
             return Response(
-                {'error': f'Subcenter with ID {subcenter_id} not found'}, 
+                {'error': f'Subcenter with ID {pk} not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         
         # Check permissions
-        if user.role == 'SUB_CENTER' and user.sub_center and user.sub_center.id != subcenter_id:
+        if user.role == 'SUB_CENTER' and user.sub_center and user.sub_center.id != pk:
             return Response(
                 {'error': 'Access denied to this subcenter'}, 
                 status=status.HTTP_403_FORBIDDEN

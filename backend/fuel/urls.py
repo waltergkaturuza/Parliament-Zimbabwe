@@ -312,9 +312,9 @@ urlpatterns = [
     path('subcenter/statistics/', lazy_api_view('subcenter_statistics_list_view'), name='subcenter-statistics-list'),
     path('subcenter/overview/', lazy_api_view('subcenter_overview_view'), name='subcenter-overview'),
     
-    # Nested subcenter endpoints that frontend expects
-    path('subcenters/<int:subcenter_id>/statistics/', lazy_view('subcenter_statistics_detail_view'), name='subcenter-statistics-detail'),
-    path('subcenters/<int:subcenter_id>/recent_activity/', lazy_view('subcenter_recent_activity_view'), name='subcenter-recent-activity'),
+    # Nested subcenter endpoints - handled by ViewSet
+    # path('subcenters/<int:subcenter_id>/statistics/', lazy_view('subcenter_statistics_detail_view'), name='subcenter-statistics-detail'),
+    # path('subcenters/<int:subcenter_id>/recent_activity/', lazy_view('subcenter_recent_activity_view'), name='subcenter-recent-activity'),
     
     # Analytics endpoints for subcenter dashboard  
     path('analytics/subcenter-distribution-timeline/', lazy_api_view('analytics_subcenter_distribution_timeline'), name='analytics-subcenter-distribution-timeline'),
@@ -344,9 +344,9 @@ urlpatterns = [
     # Vehicle makes endpoint
     path('vehicle-makes/', lazy_view('vehicle_makes'), name='vehicle-makes'),
     
-    # Router endpoints for missing paths - removed manual paths to let router handle them automatically
-    path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenters-detail-statistics'),
-    path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenters-detail-recent-activity'),
+    # Router endpoints - handled automatically by DRF router
+    # path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenters-detail-statistics'),
+    # path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenters-detail-recent-activity'),
     
     # Beneficiaries endpoints - full CRUD support
     path('beneficiaries/', lazy_viewset_action('BeneficiaryProfileViewSet', {
@@ -427,10 +427,9 @@ urlpatterns = [
     # General subcenter statistics endpoint - Using new function-based view
     path('subcenter/statistics/', lazy_view('subcenter_statistics'), name='subcenter-statistics-v1'),
     path('subcenters/stats/', lazy_view('subcenters_stats'), name='subcenters-stats'),  # Frontend stats endpoint
-    # Individual subcenter statistics endpoint
-    path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenter-detail-statistics'),
-    # Individual subcenter recent activity endpoint
-    path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenter-detail-recent-activity'),
+    # Individual subcenter endpoints - handled by DRF router automatically
+    # path('subcenters/<int:pk>/statistics/', lazy_viewset_action('SubCenterViewSet', {'get': 'statistics'}), name='subcenter-detail-statistics'),
+    # path('subcenters/<int:pk>/recent_activity/', lazy_viewset_action('SubCenterViewSet', {'get': 'recent_activity'}), name='subcenter-detail-recent-activity'),
     # Subcenter quick actions endpoint
     path('subcenter/quick-actions/', lazy_viewset_action('SubCenterViewSet', {'post': 'quick_actions'}), name='subcenter-quick-actions'),
     
