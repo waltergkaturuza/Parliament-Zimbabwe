@@ -8189,12 +8189,18 @@ class CouponHandoverViewSet(viewsets.ModelViewSet):
             requested_status = str(request.data.get('status') or '').upper()
             allowed_statuses = {'APPROVED', 'HANDED_OVER', 'RECEIVED', 'CONFIRMED'}
 
-            # Gate: only sub-center user for whom the handover is assigned can approve
-            if getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
+            # Gate: allow sub-center users for their handovers, or superusers/main center for any
+            if getattr(user, 'role', None) in ['SUPERUSER', 'MAIN_CENTER']:
+                # Superuser and main center can update any handover
+                if requested_status not in allowed_statuses:
+                    return Response({'detail': 'Only status updates to APPROVED, HANDED_OVER, RECEIVED, or CONFIRMED are allowed'}, status=status.HTTP_400_BAD_REQUEST)
+            elif getattr(user, 'role', None) == 'SUB_CENTER' and getattr(user, 'sub_center', None):
                 if instance.sub_center_id != user.sub_center.id:
                     return Response({'detail': 'Not authorized to modify this handover'}, status=status.HTTP_403_FORBIDDEN)
                 if requested_status not in allowed_statuses:
                     return Response({'detail': 'Only status updates to APPROVED, HANDED_OVER, RECEIVED, or CONFIRMED are allowed'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({'detail': 'Not authorized to modify handovers'}, status=status.HTTP_403_FORBIDDEN)
 
                 # Perform safe update
                 instance.status = requested_status
@@ -8571,11 +8577,26 @@ class CouponHandoverViewSet(viewsets.ModelViewSet):
                 'error': f'Failed to complete handover: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def confirm_receipt(self, request, pk=None):
-        """Confirm receipt by beneficiary"""
+        """Confirm receipt by beneficiary or subcenter officer"""
         try:
             handover = self.get_object()
+            user = request.user
+            
+            # Permission check: only the beneficiary, subcenter officer, or main center officer can confirm
+            can_confirm = False
+            if user.role in ['MAIN_CENTER', 'SUPERUSER']:
+                can_confirm = True
+            elif user.role == 'SUB_CENTER' and user.sub_center and handover.sub_center_id == user.sub_center.id:
+                can_confirm = True
+            elif user.role == 'BENEFICIARY' and handover.beneficiary_id == user.id:
+                can_confirm = True
+                
+            if not can_confirm:
+                return Response({
+                    'error': 'You do not have permission to confirm this handover'
+                }, status=status.HTTP_403_FORBIDDEN)
             
             if handover.status != 'HANDED_OVER':
                 return Response({
