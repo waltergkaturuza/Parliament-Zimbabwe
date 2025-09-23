@@ -9491,7 +9491,7 @@ def subcenter_statistics_detail_view(request, subcenter_id):
             'financial': {
                 'total_value': float(total_value),
                 'used_value': float(used_value),
-                'available_value': float(total_value - used_value)
+                'remaining_value': float(total_value - used_value)
             },
             'last_updated': timezone.now().isoformat()
         }
@@ -9499,8 +9499,9 @@ def subcenter_statistics_detail_view(request, subcenter_id):
         return Response(statistics)
         
     except Exception as e:
+        logger.error(f"Error fetching subcenter statistics: {e}")
         return Response(
-            {'error': f'Failed to retrieve subcenter statistics: {str(e)}'}, 
+            {'error': 'Failed to fetch subcenter statistics'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -9848,3 +9849,10 @@ def dispatch_page_config_view(request):
         
         return Response(config_data)
         
+    except Exception as e:
+        logger.error(f"Error fetching dispatch page config: {e}")
+        return Response(
+            {'error': 'Failed to fetch dispatch configuration'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
