@@ -26,7 +26,17 @@ def check_column_exists(table_name, column_name):
 def safe_add_field(apps, schema_editor, model_name, field_name, field):
     """Safely add a field only if it doesn't exist"""
     table_name = f"fuel_{model_name.lower()}"
-    if not check_column_exists(table_name, field_name):
+    
+    # For foreign key fields, Django creates a column with "_id" suffix
+    # Check the actual database column name
+    if hasattr(field, 'remote_field') and field.remote_field is not None:
+        # This is a ForeignKey field
+        db_column_name = f"{field_name}_id"
+    else:
+        # Regular field
+        db_column_name = field_name
+    
+    if not check_column_exists(table_name, db_column_name):
         # Field doesn't exist, safe to add
         model = apps.get_model('fuel', model_name)
         # Create a fake field for the schema editor
@@ -37,11 +47,32 @@ def safe_add_field(apps, schema_editor, model_name, field_name, field):
 def safe_remove_field(apps, schema_editor, model_name, field_name):
     """Safely remove a field only if it exists"""
     table_name = f"fuel_{model_name.lower()}"
-    if check_column_exists(table_name, field_name):
-        # Field exists, safe to remove
-        model = apps.get_model('fuel', model_name)
+    
+    # For foreign key fields, Django creates a column with "_id" suffix
+    # We need to check the actual database column name
+    model = apps.get_model('fuel', model_name)
+    try:
         field = model._meta.get_field(field_name)
-        schema_editor.remove_field(model, field)
+        if hasattr(field, 'remote_field') and field.remote_field is not None:
+            # This is a ForeignKey field
+            db_column_name = f"{field_name}_id"
+        else:
+            # Regular field
+            db_column_name = field_name
+    except:
+        # Field might not exist in model, try both possibilities
+        db_column_name = field_name
+        if not check_column_exists(table_name, field_name):
+            db_column_name = f"{field_name}_id"
+    
+    if check_column_exists(table_name, db_column_name):
+        # Field exists, safe to remove
+        try:
+            field = model._meta.get_field(field_name)
+            schema_editor.remove_field(model, field)
+        except:
+            # Field might not be in model definition anymore
+            pass
 
 
 def forward_safe_migrations(apps, schema_editor):
