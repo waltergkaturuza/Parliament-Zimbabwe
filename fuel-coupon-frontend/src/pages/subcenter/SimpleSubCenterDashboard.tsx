@@ -172,7 +172,7 @@ const SimpleSubCenterDashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     // Check for multiple possible user ID fields from different API responses
-    const subcenterId = user?.sub_center?.id || user?.centerId || user?.sub_center_id || 2;
+  const subcenterId = user?.sub_center?.id || user?.sub_center_id || 'default';
     
     console.log('Dashboard fetch - User object:', user);
     console.log('Dashboard fetch - Using subcenter ID:', subcenterId);
@@ -288,7 +288,7 @@ const SimpleSubCenterDashboard: React.FC = () => {
     // Auto-refresh every 60 seconds
     const interval = setInterval(fetchDashboardData, 60000);
     return () => clearInterval(interval);
-  }, [user?.centerId]);
+  }, [user?.sub_center?.id, user?.sub_center_id]);
 
   // Chart configurations
   const lineChartOptions = {

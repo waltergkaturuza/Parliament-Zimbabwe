@@ -40,6 +40,7 @@ import {
 } from '@ant-design/icons';
 import apiClient from '@/api/index';
 import type { FuelEntitlement, BeneficiaryProfile, VehicleCategory } from '../../types';
+import { useAuth } from '@/contexts/AuthContext';
 import { useFuelDispatch } from '@/hooks/useFuelDispatch';
 import type { DispatchRequest } from '@/services/fuelDispatchHandler';
 import dayjs from 'dayjs';
@@ -164,7 +165,7 @@ const NewDispatchComponent: React.FC = () => {
           <div>
             <div><strong>Coupon dispatch created successfully!</strong></div>
             <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
-              📦 {selectedCoupons.length} coupons dispatched to {selectedBeneficiary.user?.first_name} {selectedBeneficiary.user?.last_name}
+              📦 {selectedCoupons.length} coupons dispatched to {selectedBeneficiary?.user?.first_name} {selectedBeneficiary?.user?.last_name}
             </div>
             <div style={{ fontSize: '12px', color: '#666' }}>
               ⛽ Total: {selectedCoupons.reduce((sum, coupon) => sum + coupon.couponAmount, 0)}L
@@ -279,9 +280,9 @@ const NewDispatchComponent: React.FC = () => {
             }
           >
             {beneficiaries.map(beneficiary => {
-              const displayName = beneficiary.user 
-                ? `${beneficiary.user.first_name || ''} ${beneficiary.user.last_name || ''}`.trim()
-                : (beneficiary.constituency?.name || 'Unknown Name');
+              const displayName = beneficiary?.user 
+                ? `${beneficiary?.user?.first_name || ''} ${beneficiary?.user?.last_name || ''}`.trim()
+                : (beneficiary?.constituency?.name || 'Unknown Name');
               
               return (
                 <Option key={beneficiary.id} value={beneficiary.id}>
@@ -301,7 +302,7 @@ const NewDispatchComponent: React.FC = () => {
             <Card size="small" style={{ background: '#f0f9ff' }}>
               <Descriptions size="small" column={2}>
                 <Descriptions.Item label="Name">
-                  {selectedBeneficiary.user?.first_name} {selectedBeneficiary.user?.last_name}
+                  {selectedBeneficiary?.user?.first_name} {selectedBeneficiary?.user?.last_name}
                 </Descriptions.Item>
                 <Descriptions.Item label="Constituency">
                   {selectedBeneficiary.constituency?.name}
@@ -310,7 +311,7 @@ const NewDispatchComponent: React.FC = () => {
                   {selectedBeneficiary.category?.name}
                 </Descriptions.Item>
                 <Descriptions.Item label="Member ID">
-                  {selectedBeneficiary.user?.username || 'N/A'}
+                  {selectedBeneficiary?.user?.username || 'N/A'}
                 </Descriptions.Item>
               </Descriptions>
             </Card>
@@ -641,6 +642,21 @@ interface CouponDispatch {
 }
 
 const FuelCouponDispatch: FC = () => {
+  const { user, isAuthLoading } = useAuth();
+  if (isAuthLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+  if (!user) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+        <Alert type="warning" message="Authentication required. Please log in." />
+      </div>
+    );
+  }
   // Use the fuel dispatch hook
   const {
     loading: dispatchLoading,
@@ -678,9 +694,9 @@ const FuelCouponDispatch: FC = () => {
     const matchesCategory = !selectedCategory || 
       (typeof b.category === 'object' ? b.category?.name : b.category) === selectedCategory;
     
-    const displayName = b.user 
-      ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim()
-      : (b.constituency?.name || 'Unknown Name');
+    const displayName = b?.user 
+      ? `${b?.user?.first_name || ''} ${b?.user?.last_name || ''}`.trim()
+      : (b?.constituency?.name || 'Unknown Name');
     
     const matchesSearch = !searchTerm || displayName.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -785,7 +801,7 @@ const FuelCouponDispatch: FC = () => {
       const result = await dispatchFuel(dispatchRequest);
       
       if (result.success) {
-        message.success(`Successfully dispatched ${result.actualLitersDispatched}L to ${selectedBeneficiary.user?.first_name || 'beneficiary'}`);
+        message.success(`Successfully dispatched ${result.actualLitersDispatched}L to ${selectedBeneficiary?.user?.first_name || 'beneficiary'}`);
         setModalVisible(false);
         setSelectedBeneficiary(null);
         form.resetFields();
@@ -808,9 +824,9 @@ const FuelCouponDispatch: FC = () => {
         <Space>
           <UserOutlined />
           <div>
-            <div>{record.beneficiary.user?.first_name} {record.beneficiary.user?.last_name}</div>
+            <div>{record?.beneficiary?.user?.first_name} {record?.beneficiary?.user?.last_name}</div>
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              {record.beneficiary.constituency?.name}
+              {record?.beneficiary?.constituency?.name}
             </Text>
           </div>
         </Space>
@@ -996,9 +1012,9 @@ const FuelCouponDispatch: FC = () => {
         <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
           <Row gutter={[16, 16]}>
             {filteredBeneficiaries.slice(0, 12).map((beneficiary: any) => {
-              const displayName = beneficiary.user 
-                ? `${beneficiary.user.first_name || ''} ${beneficiary.user.last_name || ''}`.trim()
-                : (beneficiary.constituency?.name || 'Unknown Name');
+              const displayName = beneficiary?.user 
+                ? `${beneficiary?.user?.first_name || ''} ${beneficiary?.user?.last_name || ''}`.trim()
+                : (beneficiary?.constituency?.name || 'Unknown Name');
               
               // Entitlement info will be loaded when dispatch modal opens
               
@@ -1053,7 +1069,7 @@ const FuelCouponDispatch: FC = () => {
             Dispatch Fuel Coupon
             {selectedBeneficiary && (
               <Text type="secondary">
-                - {selectedBeneficiary.user?.first_name} {selectedBeneficiary.user?.last_name}
+                - {selectedBeneficiary?.user?.first_name} {selectedBeneficiary?.user?.last_name}
               </Text>
             )}
           </Space>

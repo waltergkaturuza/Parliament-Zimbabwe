@@ -494,7 +494,7 @@ const SubCenterInventoryManagement: FC = () => {
     
     // Try API in background (for future when endpoints are fixed)
     try {
-      const currentSubCenterId = user?.sub_center_id || user?.centerId || 1;
+      const currentSubCenterId = user?.sub_center?.id || user?.sub_center_id || 'default';
       console.log('🔍 Background: Current sub-center ID:', currentSubCenterId);
       
       // This will fail for now, but we log it for debugging
