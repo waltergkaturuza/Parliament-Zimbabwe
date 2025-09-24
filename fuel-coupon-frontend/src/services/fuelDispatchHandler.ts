@@ -391,7 +391,22 @@ class FuelDispatchHandler {
   async getDispatchHistory(limit: number = 50): Promise<any[]> {
     try {
       const response = await apiClient.get(`/fuel-dispatches/?subcenter=${this.subcenterId}&limit=${limit}&ordering=-dispatch_date`);
-      return response.data.results || response.data || [];
+      const raw = response.data.results || response.data || [];
+      // Normalize keys to camelCase expected by UI
+      const normalized = (Array.isArray(raw) ? raw : [raw]).map((d: any) => ({
+        id: d.id,
+        beneficiary: d.beneficiary,
+        litersDispensed: d.liters_dispensed ?? d.litersDispensed,
+        entitlementSource: d.entitlement_source ?? d.entitlementSource,
+        remainingEntitlement: d.remaining_entitlement ?? d.remainingEntitlement,
+        couponNumber: d.coupon_number ?? d.couponNumber,
+        dispatchDate: d.dispatch_date ?? d.dispatchDate,
+        status: d.status,
+        subcenterStock: d.subcenter_stock ?? d.subcenterStock,
+        // Keep original for debugging if needed
+        _raw: d
+      }));
+      return normalized;
     } catch (error) {
       console.error('Failed to fetch dispatch history:', error);
       return [];
@@ -424,12 +439,13 @@ class FuelDispatchHandler {
   }> {
     try {
       const response = await apiClient.get(`/fuel-dispatches/stats/?subcenter=${this.subcenterId}`);
-      return response.data || {
-        todayDispatches: 0,
-        todayLiters: 0,
-        weeklyDispatches: 0,
-        weeklyLiters: 0,
-        pendingDispatches: 0
+      const data = response.data || {};
+      return {
+        todayDispatches: data.todayDispatches ?? data.today_dispatches ?? 0,
+        todayLiters: data.todayLiters ?? data.today_liters ?? 0,
+        weeklyDispatches: data.weeklyDispatches ?? data.weekly_dispatches ?? 0,
+        weeklyLiters: data.weeklyLiters ?? data.weekly_liters ?? 0,
+        pendingDispatches: data.pendingDispatches ?? data.pending_dispatches ?? 0
       };
     } catch (error) {
       console.error('Failed to fetch dispatch stats:', error);

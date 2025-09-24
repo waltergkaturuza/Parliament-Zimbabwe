@@ -83,7 +83,8 @@ const NewDispatchComponent: React.FC = () => {
 
   const loadBeneficiaries = async () => {
     try {
-      const response = await apiClient.get('/beneficiary-profiles/?page_size=1000');
+      // Prefer the beneficiaries endpoint which includes top-level first_name/last_name
+      const response = await apiClient.get('/beneficiaries/?page_size=1000');
       setBeneficiaries(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading beneficiaries:', error);
@@ -160,12 +161,19 @@ const NewDispatchComponent: React.FC = () => {
       
       const response = await apiClient.post('/coupon-dispatches/', dispatchData);
       
+      const beneficiaryName = [
+        (selectedBeneficiary as any)?.first_name,
+        (selectedBeneficiary as any)?.last_name
+      ].filter(Boolean).join(' ').trim() ||
+        (selectedBeneficiary?.user ? [`${selectedBeneficiary?.user?.first_name || ''}`, `${selectedBeneficiary?.user?.last_name || ''}`].join(' ').trim() : '') ||
+        (selectedBeneficiary?.constituency?.name || 'beneficiary');
+
       message.success({
         content: (
           <div>
             <div><strong>Coupon dispatch created successfully!</strong></div>
             <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
-              📦 {selectedCoupons.length} coupons dispatched to {selectedBeneficiary?.user?.first_name} {selectedBeneficiary?.user?.last_name}
+              📦 {selectedCoupons.length} coupons dispatched to {beneficiaryName}
             </div>
             <div style={{ fontSize: '12px', color: '#666' }}>
               ⛽ Total: {selectedCoupons.reduce((sum, coupon) => sum + coupon.couponAmount, 0)}L
@@ -280,9 +288,13 @@ const NewDispatchComponent: React.FC = () => {
             }
           >
             {beneficiaries.map(beneficiary => {
-              const displayName = beneficiary?.user 
-                ? `${beneficiary?.user?.first_name || ''} ${beneficiary?.user?.last_name || ''}`.trim()
-                : (beneficiary?.constituency?.name || 'Unknown Name');
+              const displayName = [
+                // Prefer top-level names if API provides them
+                (beneficiary as any)?.first_name,
+                (beneficiary as any)?.last_name
+              ].filter(Boolean).join(' ').trim()
+                || (beneficiary?.user ? [`${beneficiary?.user?.first_name || ''}`, `${beneficiary?.user?.last_name || ''}`].join(' ').trim() : '')
+                || (beneficiary?.constituency?.name || 'Unknown Name');
               
               return (
                 <Option key={beneficiary.id} value={beneficiary.id}>
@@ -302,7 +314,13 @@ const NewDispatchComponent: React.FC = () => {
             <Card size="small" style={{ background: '#f0f9ff' }}>
               <Descriptions size="small" column={2}>
                 <Descriptions.Item label="Name">
-                  {selectedBeneficiary?.user?.first_name} {selectedBeneficiary?.user?.last_name}
+                  {(() => {
+                    const b: any = selectedBeneficiary;
+                    const name = [b?.first_name, b?.last_name].filter(Boolean).join(' ').trim() ||
+                      (b?.user ? [`${b?.user?.first_name || ''}`, `${b?.user?.last_name || ''}`].join(' ').trim() : '') ||
+                      (b?.constituency?.name || 'Unknown Name');
+                    return name;
+                  })()}
                 </Descriptions.Item>
                 <Descriptions.Item label="Constituency">
                   {selectedBeneficiary.constituency?.name}
@@ -584,7 +602,13 @@ const NewDispatchComponent: React.FC = () => {
 
           <Descriptions bordered column={2}>
             <Descriptions.Item label="Beneficiary">
-              {selectedBeneficiary?.user?.first_name} {selectedBeneficiary?.user?.last_name}
+              {(() => {
+                const b: any = selectedBeneficiary;
+                const name = [b?.first_name, b?.last_name].filter(Boolean).join(' ').trim() ||
+                  (b?.user ? [`${b?.user?.first_name || ''}`, `${b?.user?.last_name || ''}`].join(' ').trim() : '') ||
+                  (b?.constituency?.name || 'Unknown Name');
+                return name;
+              })()}
             </Descriptions.Item>
             <Descriptions.Item label="Constituency">
               {selectedBeneficiary?.constituency?.name}
@@ -694,9 +718,12 @@ const FuelCouponDispatch: FC = () => {
     const matchesCategory = !selectedCategory || 
       (typeof b.category === 'object' ? b.category?.name : b.category) === selectedCategory;
     
-    const displayName = b?.user 
-      ? `${b?.user?.first_name || ''} ${b?.user?.last_name || ''}`.trim()
-      : (b?.constituency?.name || 'Unknown Name');
+    const displayName = [
+      (b as any)?.first_name,
+      (b as any)?.last_name
+    ].filter(Boolean).join(' ').trim() ||
+      (b?.user ? [`${b?.user?.first_name || ''}`, `${b?.user?.last_name || ''}`].join(' ').trim() : '') ||
+      (b?.constituency?.name || 'Unknown Name');
     
     const matchesSearch = !searchTerm || displayName.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -712,7 +739,7 @@ const FuelCouponDispatch: FC = () => {
       setLoading(true);
       
       // Fetch beneficiaries
-      const beneficiariesResponse = await apiClient.get('/beneficiary-profiles/?page_size=1000');
+  const beneficiariesResponse = await apiClient.get('/beneficiaries/?page_size=1000');
       let beneficiaryData = beneficiariesResponse.data.results || beneficiariesResponse.data;
 
       // Handle pagination for beneficiaries
@@ -801,7 +828,11 @@ const FuelCouponDispatch: FC = () => {
       const result = await dispatchFuel(dispatchRequest);
       
       if (result.success) {
-        message.success(`Successfully dispatched ${result.actualLitersDispatched}L to ${selectedBeneficiary?.user?.first_name || 'beneficiary'}`);
+        const sb: any = selectedBeneficiary;
+        const name = [sb?.first_name, sb?.last_name].filter(Boolean).join(' ').trim() ||
+          (sb?.user ? [`${sb?.user?.first_name || ''}`, `${sb?.user?.last_name || ''}`].join(' ').trim() : '') ||
+          (sb?.constituency?.name || 'beneficiary');
+        message.success(`Successfully dispatched ${result.actualLitersDispatched}L to ${name}`);
         setModalVisible(false);
         setSelectedBeneficiary(null);
         form.resetFields();
@@ -820,17 +851,26 @@ const FuelCouponDispatch: FC = () => {
     {
       title: 'Beneficiary',
       key: 'beneficiary',
-      render: (_: any, record: CouponDispatch) => (
-        <Space>
-          <UserOutlined />
-          <div>
-            <div>{record?.beneficiary?.user?.first_name} {record?.beneficiary?.user?.last_name}</div>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {record?.beneficiary?.constituency?.name}
-            </Text>
-          </div>
-        </Space>
-      )
+      render: (_: any, record: CouponDispatch) => {
+        const ben: any = record?.beneficiary;
+        const name = [ben?.first_name, ben?.last_name].filter(Boolean).join(' ').trim() ||
+          (ben?.user ? [`${ben?.user?.first_name || ''}`, `${ben?.user?.last_name || ''}`].join(' ').trim() : '') ||
+          (ben?.constituency?.name || (typeof ben === 'string' || typeof ben === 'number' ? `ID: ${ben}` : 'Unknown'));
+        const constituency = ben?.constituency?.name || ben?.constituency || '';
+        return (
+          <Space>
+            <UserOutlined />
+            <div>
+              <div>{name}</div>
+              {constituency ? (
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  {constituency}
+                </Text>
+              ) : null}
+            </div>
+          </Space>
+        );
+      }
     },
     {
       title: 'Liters Dispatched',
@@ -869,7 +909,7 @@ const FuelCouponDispatch: FC = () => {
       title: 'Dispatch Date',
       dataIndex: 'dispatchDate',
       key: 'dispatchDate',
-      render: (date: string) => new Date(date).toLocaleDateString()
+      render: (date: string) => date ? dayjs(date).format('YYYY-MM-DD') : '-'
     },
     {
       title: 'Actions',
@@ -1012,9 +1052,12 @@ const FuelCouponDispatch: FC = () => {
         <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
           <Row gutter={[16, 16]}>
             {filteredBeneficiaries.slice(0, 12).map((beneficiary: any) => {
-              const displayName = beneficiary?.user 
-                ? `${beneficiary?.user?.first_name || ''} ${beneficiary?.user?.last_name || ''}`.trim()
-                : (beneficiary?.constituency?.name || 'Unknown Name');
+              const displayName = [
+                (beneficiary as any)?.first_name,
+                (beneficiary as any)?.last_name
+              ].filter(Boolean).join(' ').trim()
+                || (beneficiary?.user ? [`${beneficiary?.user?.first_name || ''}`, `${beneficiary?.user?.last_name || ''}`].join(' ').trim() : '')
+                || (beneficiary?.constituency?.name || 'Unknown Name');
               
               // Entitlement info will be loaded when dispatch modal opens
               
