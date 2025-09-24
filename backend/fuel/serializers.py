@@ -187,6 +187,14 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     total_coupons = serializers.SerializerMethodField()
     total_value = serializers.SerializerMethodField()
     
+    # Frontend compatibility fields for fuel dispatch UI
+    beneficiary = serializers.SerializerMethodField()
+    liters_dispensed = serializers.SerializerMethodField()
+    entitlement_source = serializers.SerializerMethodField()
+    remaining_entitlement = serializers.SerializerMethodField()
+    coupon_number = serializers.SerializerMethodField()
+    subcenter_stock = serializers.SerializerMethodField()
+    
     class Meta:
         model = BookDispatch
         fields = [
@@ -208,7 +216,10 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             'verification_checks', 'verification_notes', 'verified_by', 'verified_at',
             # Calculated fields
             'total_coupons', 'total_value',
-            'first_serial', 'last_serial'
+            'first_serial', 'last_serial',
+            # Frontend compatibility fields for fuel dispatch UI
+            'beneficiary', 'liters_dispensed', 'entitlement_source', 
+            'remaining_entitlement', 'coupon_number', 'subcenter_stock'
         ]
         read_only_fields = [
             'id', 'dispatch_id', 'dispatched_time',
@@ -304,6 +315,55 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             from django.utils import timezone
             return timezone.localtime(obj.received_date).strftime('%H:%M')
         return None
+    
+    # Frontend compatibility methods for fuel dispatch UI
+    def get_beneficiary(self, obj):
+        """Return beneficiary information for frontend compatibility"""
+        # For dispatches to beneficiaries, use to_beneficiary
+        if obj.to_beneficiary:
+            return {
+                'id': obj.to_beneficiary.id,
+                'first_name': obj.to_beneficiary.first_name,
+                'last_name': obj.to_beneficiary.last_name,
+                'name': f"{obj.to_beneficiary.first_name} {obj.to_beneficiary.last_name}".strip(),
+                'phone': getattr(obj.to_beneficiary, 'phone', ''),
+                'email': obj.to_beneficiary.email,
+            }
+        # For dispatches to centers, get the first allocated coupon's beneficiary
+        elif obj.books.exists():
+            for book in obj.books.all():
+                allocated_coupon = book.coupons.filter(allocated_to__isnull=False).select_related('allocated_to').first()
+                if allocated_coupon and allocated_coupon.allocated_to:
+                    return {
+                        'id': allocated_coupon.allocated_to.id,
+                        'first_name': allocated_coupon.allocated_to.first_name,
+                        'last_name': allocated_coupon.allocated_to.last_name,
+                        'name': f"{allocated_coupon.allocated_to.first_name} {allocated_coupon.allocated_to.last_name}".strip(),
+                        'phone': getattr(allocated_coupon.allocated_to, 'phone', ''),
+                        'email': allocated_coupon.allocated_to.email,
+                    }
+                break
+        return None
+    
+    def get_liters_dispensed(self, obj):
+        """Return total liters in this dispatch"""
+        return float(obj.total_litres) if obj.total_litres else 0.0
+    
+    def get_entitlement_source(self, obj):
+        """Return entitlement source information"""
+        return 'MONTHLY'  # Default for now
+    
+    def get_remaining_entitlement(self, obj):
+        """Return remaining entitlement information"""
+        return 0.0  # Placeholder
+    
+    def get_coupon_number(self, obj):
+        """Return first coupon number in the dispatch"""
+        return obj.first_serial or obj.main_center_dispatch_number or str(obj.id)
+    
+    def get_subcenter_stock(self, obj):
+        """Return subcenter stock information"""
+        return None  # Placeholder
     
     def create(self, validated_data):
         """Enhanced create method for dispatch with intelligent generation"""
@@ -2072,6 +2132,8 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     parliamentaryId = serializers.CharField(source='employee_id', read_only=True)
     memberId = serializers.CharField(source='employee_id', read_only=True)
     name = serializers.SerializerMethodField()
+    first_name = serializers.SerializerMethodField()
+    last_name = serializers.SerializerMethodField()
     title = serializers.CharField(source='position', read_only=True)
     phoneNumber = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
@@ -2139,6 +2201,14 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         if obj.user:
             return f"{obj.user.first_name} {obj.user.last_name}".strip()
         return ""
+    
+    def get_first_name(self, obj):
+        """Get first name from user object"""
+        return obj.user.first_name if obj.user else ""
+    
+    def get_last_name(self, obj):
+        """Get last name from user object"""
+        return obj.user.last_name if obj.user else ""
     
     def get_phoneNumber(self, obj):
         """Get phone number from user object"""
