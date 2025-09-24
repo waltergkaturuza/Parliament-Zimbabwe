@@ -77,17 +77,45 @@ def forward_safe_migrations(apps, schema_editor):
     safe_add_field(apps, schema_editor, 'BookDispatch', 'main_center_dispatch_number',
                    models.CharField(blank=True, help_text='Primary sequential number for Main Center tracking (auto-generated)', max_length=30, null=True, unique=True))
 
-    # FuelEntitlement program field - safely add if it doesn't exist
+    # Coupon fields - safely add if they don't exist
+    safe_add_field(apps, schema_editor, 'Coupon', 'coupon_serial',
+                   models.CharField(db_index=True, default='', help_text='Unique coupon serial number matching Petrotrade format', max_length=50, validators=[fuel.validators.validate_petrotrade_serial]))
+    
+    safe_add_field(apps, schema_editor, 'Coupon', 'coupon_value',
+                   models.IntegerField(default=20, help_text='Fuel denomination in litres (10L or 20L)'))
+    
+    safe_add_field(apps, schema_editor, 'Coupon', 'page_number',
+                   models.IntegerField(blank=True, help_text='Page number within the book (for printing purposes)', null=True))
+
+    # FuelEntitlement fields - safely add if they don't exist
+    User = apps.get_model(settings.AUTH_USER_MODEL)
+    ParliamentSession = apps.get_model('fuel', 'ParliamentSession')
     Program = apps.get_model('fuel', 'Program')
+    
     safe_add_field(apps, schema_editor, 'FuelEntitlement', 'program',
                    models.ForeignKey(Program, blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fuel_entitlements'))
+    
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'approved_by',
+                   models.ForeignKey(User, blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='entitlements_approved'))
+    
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'approved_date',
+                   models.DateTimeField(blank=True, null=True))
+    
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'session',
+                   models.ForeignKey(ParliamentSession, blank=True, help_text='Parliament session this entitlement is for', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fuel_entitlements'))
 
 
 def reverse_safe_migrations(apps, schema_editor):
     """Reverse the safe migrations"""
     
-    # Remove fields safely
+    # Remove fields safely in reverse order
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'session')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'approved_date')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'approved_by')
     safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'program')
+    safe_remove_field(apps, schema_editor, 'Coupon', 'page_number')
+    safe_remove_field(apps, schema_editor, 'Coupon', 'coupon_value')
+    safe_remove_field(apps, schema_editor, 'Coupon', 'coupon_serial')
     safe_remove_field(apps, schema_editor, 'BookDispatch', 'main_center_dispatch_number')
     safe_remove_field(apps, schema_editor, 'BookDispatch', 'aggregated_value_usd')
     safe_remove_field(apps, schema_editor, 'BookDispatch', 'aggregated_litres')
@@ -116,40 +144,10 @@ class Migration(migrations.Migration):
             name='handover_date',
         ),
         
-        # Apply safe field additions using custom function
+        # Apply ALL field additions safely using custom function
         migrations.RunPython(forward_safe_migrations, reverse_safe_migrations),
         
-        # Continue with other safe operations that don't involve field additions
-        migrations.AddField(
-            model_name='coupon',
-            name='coupon_serial',
-            field=models.CharField(db_index=True, default='', help_text='Unique coupon serial number matching Petrotrade format', max_length=50, validators=[fuel.validators.validate_petrotrade_serial]),
-        ),
-        migrations.AddField(
-            model_name='coupon',
-            name='coupon_value',
-            field=models.IntegerField(default=20, help_text='Fuel denomination in litres (10L or 20L)'),
-        ),
-        migrations.AddField(
-            model_name='coupon',
-            name='page_number',
-            field=models.IntegerField(blank=True, help_text='Page number within the book (for printing purposes)', null=True),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='approved_by',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='entitlements_approved', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='approved_date',
-            field=models.DateTimeField(blank=True, null=True),
-        ),
-        migrations.AddField(
-            model_name='fuelentitlement',
-            name='session',
-            field=models.ForeignKey(blank=True, help_text='Parliament session this entitlement is for', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fuel_entitlements', to='fuel.parliamentsession'),
-        ),
+        # Only safe field modifications (not additions)
         migrations.AlterField(
             model_name='fuelentitlement',
             name='created',
