@@ -5581,7 +5581,7 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = FuelEntitlement.objects.select_related(
-            'beneficiary', 'session', 'created_by', 'approved_by'
+            'beneficiary', 'session', 'program', 'created_by', 'approved_by'
         ).all()
         
         if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':

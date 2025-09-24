@@ -50,8 +50,9 @@ import {
 } from '@ant-design/icons';
 import { FuelEntitlementsService, type FuelEntitlement, type FuelEntitlementStats, type CreateEntitlementData } from '../../api/fuelEntitlements';
 import { SessionService } from '../../api/sessions';
+import { ProgramService } from '../../api/programs';
 import { adminService } from '../../api/admin';
-import type { ParliamentSession, User } from '../../types';
+import type { ParliamentSession, User, Program } from '../../types';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -80,6 +81,7 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
   });
   const [beneficiaries, setBeneficiaries] = useState<User[]>([]);
   const [sessions, setSessions] = useState<ParliamentSession[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
   
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
@@ -121,15 +123,17 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [statsData, beneficiariesData, sessionsData] = await Promise.all([
+      const [statsData, beneficiariesData, sessionsData, programsData] = await Promise.all([
         FuelEntitlementsService.getStats(),
         adminService.getUsers({ role: 'BENEFICIARY', is_active: true }),
-        SessionService.getSessions({ status: 'active' })
+        SessionService.getSessions({ status: 'active' }),
+        ProgramService.getPrograms({ is_active: true })
       ]);
       
       setStats(statsData);
       setBeneficiaries((beneficiariesData.results || beneficiariesData) as unknown as User[]);
       setSessions(sessionsData.results || sessionsData);
+      setPrograms(programsData.results || programsData);
     } catch (error) {
       console.error('Error loading initial data:', error);
       message.error('Failed to load initial data');
@@ -374,8 +378,37 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
       render: (record: FuelEntitlement) => (
         <div>
           <div>{dayjs(record.period_start).format('MMM DD')} - {dayjs(record.period_end).format('MMM DD, YYYY')}</div>
-          {record.session && (
-            <div className="text-sm text-gray-500">Session: {record.session.title}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Program',
+      key: 'program',
+      render: (record: FuelEntitlement) => (
+        <div>
+          {record.program ? (
+            <div>
+              <div className="font-medium">{record.program.title}</div>
+              <div className="text-sm text-gray-500">{record.program.program_type.replace('_', ' ')}</div>
+            </div>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Session',
+      key: 'session',
+      render: (record: FuelEntitlement) => (
+        <div>
+          {record.session ? (
+            <div>
+              <div className="font-medium">{record.session.title}</div>
+              <div className="text-sm text-gray-500">{dayjs(record.session.start_date).format('MMM DD, YYYY')}</div>
+            </div>
+          ) : (
+            <span className="text-gray-400">-</span>
           )}
         </div>
       ),
@@ -773,25 +806,50 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
             </Col>
           </Row>
 
-          <Form.Item
-            name="session"
-            label="Related Session (Optional)"
-          >
-            <Select
-              placeholder="Select session"
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-            >
-              {sessions.map(session => (
-                <Option key={session.id} value={session.id}>
-                  {session.title} ({dayjs(session.start_date).format('MMM DD, YYYY')})
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="program"
+                label="Related Program (Optional)"
+              >
+                <Select
+                  placeholder="Select program"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {programs.map(program => (
+                    <Option key={program.id} value={program.id}>
+                      {program.title} ({program.program_type})
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="session"
+                label="Related Session (Optional)"
+              >
+                <Select
+                  placeholder="Select session"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {sessions.map(session => (
+                    <Option key={session.id} value={session.id}>
+                      {session.title} ({dayjs(session.start_date).format('MMM DD, YYYY')})
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             name="justification"

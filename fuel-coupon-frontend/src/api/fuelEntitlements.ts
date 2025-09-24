@@ -30,6 +30,14 @@ export interface FuelEntitlement {
     end_date: string;
     session_type: string;
   };
+  program?: {
+    id: string;
+    title: string;
+    program_type: string;
+    description: string;
+    scheduled_date?: string;
+    end_date?: string;
+  };
   approved_by?: {
     id: string;
     username: string;

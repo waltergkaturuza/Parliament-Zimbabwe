@@ -5646,6 +5646,15 @@ class FuelEntitlement(TimeStampedModel):
         help_text='Related parliament session (if applicable)'
     )
 
+    program = models.ForeignKey(
+        Program,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='fuel_entitlements',
+        help_text='Related program (if applicable)'
+    )
+
     class Meta:
         db_table = 'fuel_fuelentitlement'
         verbose_name = 'Fuel Entitlement'
