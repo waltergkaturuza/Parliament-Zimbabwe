@@ -669,7 +669,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         return Response(activities)
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
-    def statistics(self, request, pk=None):
+    def statistics(self, request, id=None):
         """Get statistics for a specific subcenter"""
         try:
             subcenter = self.get_object()
@@ -728,7 +728,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         return Response(statistics)
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
-    def recent_activity(self, request, pk=None):
+    def recent_activity(self, request, id=None):
         """Get recent activity for a specific subcenter"""
         try:
             subcenter = self.get_object()
@@ -790,7 +790,7 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         except Exception as e:
             # Return empty activities if there's an error, but don't fail completely
-            print(f"Error getting recent activity for subcenter {pk}: {str(e)}")
+            print(f"Error getting recent activity for subcenter {id}: {str(e)}")
             return Response([])  # Return empty list instead of error
 
     def list(self, request, *args, **kwargs):
@@ -3424,12 +3424,16 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         subcenter_id = self.request.query_params.get('subcenter_id') or self.request.query_params.get('subcenter')
         if subcenter_id:
             if subcenter_id == 'default':
-                # Get the first active subcenter
-                default_subcenter = SubCenter.objects.filter(is_active=True).first()
-                if default_subcenter:
-                    queryset = queryset.filter(to_center=default_subcenter)
+                # Map "default" to the current user's sub_center when available
+                if getattr(user, 'sub_center', None):
+                    queryset = queryset.filter(to_center=user.sub_center)
                 else:
-                    return queryset.none()
+                    # Fallback to first active subcenter if no user sub_center is set
+                    default_subcenter = SubCenter.objects.filter(is_active=True).first()
+                    if default_subcenter:
+                        queryset = queryset.filter(to_center=default_subcenter)
+                    else:
+                        return queryset.none()
             else:
                 try:
                     # Try numeric ID
@@ -3451,7 +3455,8 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
         return queryset.none()
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        # Read-only/reporting endpoints: allow any authenticated user (including SUB_CENTER)
+        if self.action in ['list', 'retrieve', 'stats', 'available_books', 'generation_options', 'dispatch_preview']:
             return [IsAuthenticated()]
         # Allow sub-centers to PATCH their own dispatch to mark as RECEIVED
         if self.action in ['partial_update']:
@@ -4364,20 +4369,27 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
             
             # Filter by subcenter if provided
             if subcenter_param:
-                try:
-                    subcenter_id = int(subcenter_param)
-                    queryset = queryset.filter(to_center_id=subcenter_id)
-                except (ValueError, TypeError):
-                    return Response(
-                        {'error': 'Invalid subcenter parameter'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                # Support "default" (map to the requesting user's sub_center), numeric id, or subcenter code
+                if subcenter_param == 'default':
+                    if getattr(request.user, 'sub_center', None):
+                        queryset = queryset.filter(to_center=request.user.sub_center)
+                    else:
+                        # If no associated sub_center, don't further restrict
+                        pass
+                else:
+                    try:
+                        subcenter_id = int(subcenter_param)
+                        queryset = queryset.filter(to_center_id=subcenter_id)
+                    except (ValueError, TypeError):
+                        # Treat as subcenter code
+                        queryset = queryset.filter(to_center__code=subcenter_param)
             
             # Calculate statistics
             total_dispatches = queryset.count()
-            pending_dispatches = queryset.filter(status='PENDING').count()
-            in_transit_dispatches = queryset.filter(status='IN_TRANSIT').count()
-            delivered_dispatches = queryset.filter(status='DELIVERED').count()
+            # Status keys may vary across deployments; include common aliases
+            pending_dispatches = queryset.filter(status__in=['PENDING', 'DISPATCHED']).count()
+            in_transit_dispatches = queryset.filter(status__in=['IN_TRANSIT']).count()
+            delivered_dispatches = queryset.filter(status__in=['DELIVERED', 'RECEIVED']).count()
             
             # Recent dispatches (last 30 days)
             from datetime import timedelta

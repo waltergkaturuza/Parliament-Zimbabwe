@@ -280,6 +280,8 @@ if settings.DEBUG:
     # In local dev, override the Login route to use debug_local_login to avoid credential issues
     urlpatterns = [
         path('api/auth/login/', debug_local_login, name='auth-login-debug'),
+        # Mirror the v1 path the frontend uses during development
+        path('api/v1/auth/login/', debug_local_login, name='auth-login-debug-v1'),
     # Local-only duplicates for analytics endpoints to avoid 404s in dev
     path('api/analytics/subcenter-distribution-timeline/', lazy_api_view('subcenter_distribution_timeline_view'), name='analytics-subcenter-distribution-timeline-debug'),
     path('api/analytics/top-programs-consumption/', lazy_api_view('top_programs_consumption_timeline_view'), name='analytics-top-programs-consumption-debug'),
