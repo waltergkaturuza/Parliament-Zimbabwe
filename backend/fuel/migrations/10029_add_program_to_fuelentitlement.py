@@ -134,12 +134,25 @@ def forward_safe_migrations(apps, schema_editor):
     
     safe_add_field(apps, schema_editor, 'FuelEntitlement', 'session',
                    models.ForeignKey(ParliamentSession, blank=True, help_text='Parliament session this entitlement is for', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fuel_entitlements'))
+    
+    # Add basic FuelEntitlement fields that might be missing
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'created',
+                   models.DateTimeField(default=django.utils.timezone.now, help_text='When this entitlement was created'))
+    
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'status',
+                   models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('dispatched', 'Dispatched')], default='pending', help_text='Current status of the entitlement', max_length=20))
+    
+    safe_add_field(apps, schema_editor, 'FuelEntitlement', 'user',
+                   models.ForeignKey(User, help_text='The beneficiary who receives this entitlement', on_delete=django.db.models.deletion.CASCADE, related_name='fuel_entitlements'))
 
 
 def reverse_safe_migrations(apps, schema_editor):
     """Reverse the safe migrations"""
     
     # Remove fields safely in reverse order
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'user')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'status')
+    safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'created')
     safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'session')
     safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'approved_date')
     safe_remove_field(apps, schema_editor, 'FuelEntitlement', 'approved_by')
@@ -178,7 +191,7 @@ class Migration(migrations.Migration):
         # Apply ALL field additions safely using custom function
         migrations.RunPython(forward_safe_migrations, reverse_safe_migrations),
         
-        # Only safe field modifications (not additions)
+        # Now safe to alter fields since they were added above
         migrations.AlterField(
             model_name='fuelentitlement',
             name='created',
