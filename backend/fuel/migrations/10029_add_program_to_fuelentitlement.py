@@ -143,7 +143,7 @@ def forward_safe_migrations(apps, schema_editor):
                    models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('dispatched', 'Dispatched')], default='pending', help_text='Current status of the entitlement', max_length=20))
     
     safe_add_field(apps, schema_editor, 'FuelEntitlement', 'user',
-                   models.ForeignKey(User, help_text='The beneficiary who receives this entitlement', on_delete=django.db.models.deletion.CASCADE, related_name='fuel_entitlements'))
+                   models.ForeignKey(User, blank=True, null=True, help_text='The beneficiary who receives this entitlement', on_delete=django.db.models.deletion.CASCADE, related_name='fuel_entitlements'))
 
 
 def reverse_safe_migrations(apps, schema_editor):
@@ -205,6 +205,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='fuelentitlement',
             name='user',
-            field=models.ForeignKey(help_text='The beneficiary who receives this entitlement', on_delete=django.db.models.deletion.CASCADE, related_name='fuel_entitlements', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(blank=True, null=True, help_text='The beneficiary who receives this entitlement', on_delete=django.db.models.deletion.CASCADE, related_name='fuel_entitlements', to=settings.AUTH_USER_MODEL),
         ),
     ]
