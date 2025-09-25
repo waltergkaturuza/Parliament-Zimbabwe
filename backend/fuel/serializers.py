@@ -125,6 +125,41 @@ if HarmonizedBeneficiaryProfile is None:
         pass
 
 
+class BookDispatchListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for dispatch list views - optimized for performance"""
+    from_center = SimpleSubCenterSerializer(read_only=True)
+    to_center = SimpleSubCenterSerializer(read_only=True)
+    dispatched_by = SimpleUserSerializer(read_only=True)
+    received_by = SimpleUserSerializer(read_only=True)
+    dispatch_id = serializers.SerializerMethodField()
+    dispatched_date = serializers.SerializerMethodField()
+    dispatched_time = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BookDispatch
+        fields = [
+            'id', 'dispatch_id', 'from_center', 'to_center', 
+            'dispatched_by', 'received_by', 'total_books', 'total_litres', 
+            'total_value_usd', 'dispatched_date', 'dispatched_time', 
+            'status', 'main_center_dispatch_number'
+        ]
+    
+    def get_dispatch_id(self, obj):
+        return f"DISP-{obj.id}" if obj.id else f"DISP-NEW"
+    
+    def get_dispatched_date(self, obj):
+        if obj.dispatch_date:
+            from django.utils import timezone
+            return timezone.localtime(obj.dispatch_date).strftime('%Y-%m-%d')
+        return None
+
+    def get_dispatched_time(self, obj):
+        if obj.dispatch_date:
+            from django.utils import timezone
+            return timezone.localtime(obj.dispatch_date).strftime('%H:%M')
+        return None
+
+
 class BookDispatchSerializer(serializers.ModelSerializer):
     """Enhanced serializer for book dispatch with intelligent coupon generation support"""
     from_center = SimpleSubCenterSerializer(read_only=True)
@@ -231,23 +266,31 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         return f"DISP-{obj.id}" if obj.id else f"DISP-NEW"
     
     def get_total_coupons(self, obj):
-        """Calculate total coupons in dispatch"""
-        return sum(book.initial_coupon_count or 100 for book in obj.books.all())
+        """Calculate total coupons using prefetched data to avoid N+1 queries"""
+        # Use prefetched books if available
+        books = obj.books.all() if hasattr(obj, '_prefetched_objects_cache') and 'books' in obj._prefetched_objects_cache else obj.books.all()
+        return sum(book.initial_coupon_count or 100 for book in books)
     
     def get_total_value(self, obj):
-        """Calculate total value of dispatch"""
+        """Calculate total value using prefetched data to avoid N+1 queries"""
         total = 0
-        for book in obj.books.all():
+        # Use prefetched books if available
+        books = obj.books.all() if hasattr(obj, '_prefetched_objects_cache') and 'books' in obj._prefetched_objects_cache else obj.books.select_related('box').all()
+        for book in books:
             coupon_count = book.initial_coupon_count or 100
             denomination = book.box.denomination if book.box else 20
             total += coupon_count * denomination
         return total
 
     def get_price_breakdown(self, obj):
-        """Detailed per-book pricing for transparency (USD & optional ZWG)."""
+        """Optimized per-book pricing calculation using prefetched data"""
         breakdown = []
         from decimal import Decimal
-        for book in obj.books.select_related('box').all():
+        
+        # Use prefetched books to avoid N+1 queries
+        books = obj.books.all() if hasattr(obj, '_prefetched_objects_cache') and 'books' in obj._prefetched_objects_cache else obj.books.select_related('box').all()
+        
+        for book in books:
             box = getattr(book, 'box', None)
             if not box:
                 continue
@@ -318,7 +361,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     
     # Frontend compatibility methods for fuel dispatch UI
     def get_beneficiary(self, obj):
-        """Return beneficiary information for frontend compatibility"""
+        """Optimized beneficiary lookup using prefetched data"""
         # For dispatches to beneficiaries, use to_beneficiary
         if obj.to_beneficiary:
             return {
@@ -329,19 +372,25 @@ class BookDispatchSerializer(serializers.ModelSerializer):
                 'phone': getattr(obj.to_beneficiary, 'phone', ''),
                 'email': obj.to_beneficiary.email,
             }
-        # For dispatches to centers, get the first allocated coupon's beneficiary
-        elif obj.books.exists():
+        # For dispatches to centers, use prefetched coupon allocation data
+        elif hasattr(obj, '_prefetched_objects_cache') and obj.books.exists():
+            # Use prefetched data to avoid additional queries
             for book in obj.books.all():
-                allocated_coupon = book.coupons.filter(allocated_to__isnull=False).select_related('allocated_to').first()
-                if allocated_coupon and allocated_coupon.allocated_to:
-                    return {
-                        'id': allocated_coupon.allocated_to.id,
-                        'first_name': allocated_coupon.allocated_to.first_name,
-                        'last_name': allocated_coupon.allocated_to.last_name,
-                        'name': f"{allocated_coupon.allocated_to.first_name} {allocated_coupon.allocated_to.last_name}".strip(),
-                        'phone': getattr(allocated_coupon.allocated_to, 'phone', ''),
-                        'email': allocated_coupon.allocated_to.email,
-                    }
+                # Use prefetched coupons and allocated_to relationship
+                allocated_coupons = book.coupons.all() if hasattr(book, '_prefetched_objects_cache') else book.coupons.select_related('allocated_to').all()
+                for coupon in allocated_coupons:
+                    if coupon.allocated_to:
+                        return {
+                            'id': coupon.allocated_to.id,
+                            'first_name': coupon.allocated_to.first_name,
+                            'last_name': coupon.allocated_to.last_name,
+                            'name': f"{coupon.allocated_to.first_name} {coupon.allocated_to.last_name}".strip(),
+                            'phone': getattr(coupon.allocated_to, 'phone', ''),
+                            'email': coupon.allocated_to.email,
+                        }
+                        break
+                else:
+                    continue
                 break
         return None
     

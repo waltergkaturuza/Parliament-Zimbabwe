@@ -3416,9 +3416,35 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
     serializer_class = BookDispatchSerializer
     permission_classes = [IsAuthenticated]
     
+    # Add pagination for performance
+    from rest_framework.pagination import PageNumberPagination
+    
+    class DispatchPagination(PageNumberPagination):
+        page_size = 20
+        page_size_query_param = 'page_size'
+        max_page_size = 100
+    
+    pagination_class = DispatchPagination
+    
+    def get_serializer_class(self):
+        """Use lightweight serializer for list views"""
+        if self.action == 'list':
+            from .serializers import BookDispatchListSerializer
+            return BookDispatchListSerializer
+        return BookDispatchSerializer
+    
     def get_queryset(self):
         user = self.request.user
-        queryset = BookDispatch.objects.all().select_related('to_center', 'dispatched_by', 'received_by')
+        # Optimized queryset with pagination support and prefetching
+        queryset = BookDispatch.objects.select_related(
+            'to_center', 
+            'dispatched_by', 
+            'received_by',
+            'to_beneficiary'
+        ).prefetch_related(
+            'books__box',  # For price calculations
+            'books__coupons__allocated_to'  # For beneficiary lookups
+        ).order_by('-dispatch_date')  # Latest first for performance
         
         # Handle query parameter filtering
         subcenter_id = self.request.query_params.get('subcenter_id') or self.request.query_params.get('subcenter')

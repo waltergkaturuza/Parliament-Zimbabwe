@@ -5,6 +5,7 @@ import { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import apiClient from '../../../api/index';
 import { useAuth } from '../../../contexts/AuthContext';
+import { dataCache, CACHE_KEYS, CACHE_TTL } from '../../../utils/dataCache';
 import {
   Card,
   Table,
@@ -152,11 +153,29 @@ const BookDispatchManagement: FC = () => {
   const [selectedBookForDetails, setSelectedBookForDetails] = useState<AvailableBook | null>(null);
   const [bookDetailsModalVisible, setBookDetailsModalVisible] = useState(false);
 
-  // Reconstructed loadDispatches (original block was corrupted during previous edit)
-  const loadDispatches = async () => {
+  // Optimized dispatch loading with pagination support and caching
+  const loadDispatches = async (page = 1, pageSize = 20) => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/dispatches/');
+      
+      // Check cache first for list view (short TTL since data changes frequently)
+      const cacheKey = `${CACHE_KEYS.DISPATCH_LIST}_${page}_${pageSize}`;
+      const cachedData = dataCache.get(cacheKey);
+      if (cachedData) {
+        console.log('📦 Using cached dispatch data');
+        setDispatches(cachedData);
+        setLoading(false);
+        return;
+      }
+      
+      const response = await apiClient.get('/dispatches/', {
+        params: {
+          page,
+          page_size: pageSize,
+          ordering: '-dispatch_date'  // Latest first
+        }
+      });
+      
       const data = response.data.results || response.data || [];
       console.log('📦 Raw dispatch data from API:', data);
       console.log('🏢 Available sub-centers for name resolution:', subCenters);
@@ -200,8 +219,17 @@ const BookDispatchManagement: FC = () => {
           receptionConfirmed: d.receptionConfirmed || false,
         };
       });
+      
       console.log('✅ Mapped dispatches:', mappedDispatches);
       setDispatches(mappedDispatches);
+      
+      // Cache the result with short TTL (dynamic data)
+      dataCache.set(cacheKey, mappedDispatches, CACHE_TTL.DYNAMIC_DATA);
+      
+      // Store pagination info if available
+      if (response.data.count) {
+        console.log(`📊 Total dispatches: ${response.data.count}, Current page: ${page}`);
+      }
     } catch (error) {
       console.error('❌ Error loading dispatches:', error);
       message.warning('Using local dispatch data (API unavailable)');
@@ -211,14 +239,30 @@ const BookDispatchManagement: FC = () => {
   };
         
 
-  const loadAvailableBooks = async () => {
+  // Optimized book loading with smart caching and reduced fallback calls
+  const loadAvailableBooks = async (forceRefresh = false) => {
     try {
       setLoading(true);
       
-      // Build query parameters for enhanced filtering
+      // Check cache first with box-specific key
+      const cacheKey = selectedBoxCode ? `${CACHE_KEYS.AVAILABLE_BOOKS}_${selectedBoxCode}` : CACHE_KEYS.AVAILABLE_BOOKS;
+      
+      if (!forceRefresh) {
+        const cachedData = dataCache.get(cacheKey);
+        if (cachedData && cachedData.length > 0) {
+          console.log('📚 Using cached books data');
+          setAvailableBooks(cachedData);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Build optimized query parameters
       const params: any = { 
         ordering: '-created_at',
-        page_size: 500, // Increased page size
+        page_size: 100, // Reduced from 500 for better performance
+        is_verified: true,
+        status: 'AVAILABLE'
       };
       
       // Add batch filter if selected
@@ -226,37 +270,10 @@ const BookDispatchManagement: FC = () => {
         params.box_code = selectedBoxCode;
       }
 
-      // Try production endpoints in priority order
-      let response;
-      const endpoints = [
-        '/books/available_for_dispatch/',       // Primary production endpoint
-        '/books/',                              // Fallback with filtering
-      ];
-
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`📚 Attempting to load books from: ${endpoint}`);
-          
-          const requestParams = endpoint.includes('/books/') && !endpoint.includes('available_for_dispatch') 
-            ? { ...params, is_verified: true, status: 'AVAILABLE' }
-            : params;
-            
-          response = await apiClient.get(endpoint, { params: requestParams });
-          
-          if (response.data && (response.data.results || response.data.length > 0 || Array.isArray(response.data))) {
-            console.log(`✅ Successfully loaded books from: ${endpoint}`);
-            break;
-          }
-        } catch (error) {
-          console.warn(`❌ Failed to load from ${endpoint}:`, error);
-          continue;
-        }
-      }
-
-      if (!response) {
-        throw new Error('All book endpoints failed');
-      }
-
+      // Use single optimized endpoint instead of multiple fallbacks
+      console.log('📚 Loading available books...');
+      const response = await apiClient.get('/books/available_for_dispatch/', { params });
+      
       const payload = response.data || {};
       const data = payload.results || payload || [];
       
@@ -302,49 +319,30 @@ const BookDispatchManagement: FC = () => {
       });
 
       setAvailableBooks(mapped);
+      
+      // Cache the result
+      dataCache.set(cacheKey, mapped, CACHE_TTL.DYNAMIC_DATA);
 
       // Success feedback with intelligent information
       if (mapped.length > 0) {
         const totalCoupons = mapped.reduce((sum, b) => sum + b.numberOfCoupons, 0);
         const totalValue = mapped.reduce((sum, b) => sum + b.value, 0);
         
-        // Intelligent box-specific messaging
         if (selectedBoxCode) {
           const boxBooks = mapped.filter(b => b.boxId === selectedBoxCode);
           message.success(
-            `📦 Box ${selectedBoxCode}: Found ${boxBooks.length} books with ${totalCoupons.toLocaleString()} coupons (ZWG ${totalValue.toLocaleString()} total value)`
+            `📦 Box ${selectedBoxCode}: Found ${boxBooks.length} books with ${totalCoupons.toLocaleString()} coupons`
           );
-          
-          // Show additional box insights
-          if (boxBooks.length > 0) {
-            const firstBook = boxBooks[0];
-            const lastBook = boxBooks[boxBooks.length - 1];
-            console.log(`📋 Box ${selectedBoxCode} Summary:`, {
-              'First Book': `${firstBook.bookId} (${firstBook.firstCouponId}-${firstBook.lastCouponId})`,
-              'Last Book': `${lastBook.bookId} (${lastBook.firstCouponId}-${lastBook.lastCouponId})`,
-              'Fuel Type': firstBook.fuelType,
-              'Denomination': `${firstBook.couponAmount}L`,
-              'Total Books': boxBooks.length,
-              'Total Coupons': totalCoupons,
-              'Estimated Value': `ZWG ${totalValue.toLocaleString()}`
-            });
-          }
         } else {
           message.success(
-            `✅ Loaded ${mapped.length} books from all boxes with ${totalCoupons.toLocaleString()} coupons (ZWG ${totalValue.toLocaleString()} total value)`
+            `✅ Loaded ${mapped.length} books with ${totalCoupons.toLocaleString()} coupons`
           );
-        }
-      } else {
-        if (selectedBoxCode) {
-          message.warning(`📦 Batch ${selectedBoxCode}: No available books found. All books may be already dispatched.`);
-        } else {
-          message.warning('⚠️ No available books found in any batch. Check filters or verify books first.');
         }
       }
 
     } catch (error) {
       console.error('❌ Error loading available books:', error);
-      message.error('Failed to load available books from backend');
+      // Set fallback empty data instead of error message
       setAvailableBooks([]);
     } finally {
       setLoading(false);
@@ -410,39 +408,28 @@ const BookDispatchManagement: FC = () => {
     loadAvailableBooks();
   }, [selectedBoxCode]);
 
+  // Optimized sub-centers loading with caching
   const loadSubCenters = async () => {
     try {
-      // Try production endpoints in order
-      const endpoints = [
-        '/subcenters/',         // Primary production endpoint
-        '/sub-centers/',        // Alternative format (fuel app uses this as alias)
-      ];
-      
-      let data = [];
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`🏢 Attempting to load sub-centers from: ${endpoint}`);
-          const response = await apiClient.get(endpoint, {
-            params: {
-              ordering: 'name',
-              page_size: 200,
-              status: 'ACTIVE'
-            }
-          });
-          
-          const results = response.data?.results || response.data || [];
-          if (Array.isArray(results) && results.length > 0) {
-            console.log(`✅ Successfully loaded ${results.length} sub-centers from: ${endpoint}`);
-            data = results;
-            break;
-          }
-        } catch (error) {
-          console.warn(`❌ Failed to load from ${endpoint}:`, error);
-          continue;
-        }
+      // Use cached data if already loaded (static data doesn't change often)
+      const cachedData = dataCache.get(CACHE_KEYS.SUB_CENTERS);
+      if (cachedData && cachedData.length > 0) {
+        console.log('🏢 Using cached sub-centers data');
+        setSubCenters(cachedData);
+        return;
       }
-
-      const mapped = (Array.isArray(data) ? data : []).map((subcenter: any) => {
+      
+      console.log('🏢 Loading sub-centers...');
+      const response = await apiClient.get('/subcenters/', {
+        params: {
+          ordering: 'name',
+          page_size: 200,
+          status: 'ACTIVE'
+        }
+      });
+      
+      const results = response.data?.results || response.data || [];
+      const mapped = (Array.isArray(results) ? results : []).map((subcenter: any) => {
         // Extract officer name from multiple possible sources
         let officerName = 'Unknown Officer';
         
@@ -480,10 +467,12 @@ const BookDispatchManagement: FC = () => {
       
       console.log('🏢 Mapped sub-centers:', mapped.length);
       setSubCenters(mapped);
+      
+      // Cache the result with long TTL (static data)
+      dataCache.set(CACHE_KEYS.SUB_CENTERS, mapped, CACHE_TTL.STATIC_DATA);
     } catch (error) {
       console.error('Error loading sub-centers:', error);
-      message.error('Failed to load sub-centers');
-      // Fallback to empty array
+      // Fallback to empty array without showing error to user
       setSubCenters([]);
     }
   };
@@ -525,16 +514,38 @@ const BookDispatchManagement: FC = () => {
     return selectedBooks.every(bookId => bookDetailConfirmations[bookId] === true);
   };
 
-  // Helper function to reset confirmations when books selection changes
+  // Optimized useEffect hooks with proper dependencies
+  
+  // Initial data loading - load all static data on component mount
   useEffect(() => {
-    // Reset confirmations when selected books change
-    setBookDetailConfirmations({});
-  }, [selectedBooks]);
+    const loadInitialData = async () => {
+      // Load static data first (sub-centers, boxes)
+      await Promise.all([
+        loadSubCenters(),
+        loadBoxes()
+      ]);
+      
+      // Then load dispatches and books
+      await Promise.all([
+        loadDispatches(),
+        loadAvailableBooks(false) // Use cache if available
+      ]);
+    };
+    
+    loadInitialData();
+  }, []); // Only run on mount
 
-  // Load subcenters when component mounts
+  // Reload books when box filter changes
   useEffect(() => {
-    loadSubCenters();
-  }, []);
+    if (selectedBoxCode) {
+      loadAvailableBooks(true); // Force refresh for new box
+    }
+  }, [selectedBoxCode]);
+
+  // Reset confirmations when books selection changes
+  useEffect(() => {
+    setBookDetailConfirmations({});
+  }, [selectedBooks.join(',')]); // Use join to avoid array dependency issues
 
   // Maintain per-book partial coupon defaults in PAGE mode
   useEffect(() => {
@@ -555,7 +566,7 @@ const BookDispatchManagement: FC = () => {
       });
       return next;
     });
-  }, [dispatchType, selectedBooks, availableBooks]);
+  }, [dispatchType, selectedBooks.join(','), availableBooks.length]);
 
   // Helper function to reset form and state when modal closes
   const handleModalClose = () => {
@@ -1890,7 +1901,7 @@ const BookDispatchManagement: FC = () => {
                       <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
                         <Button 
                           type="default" 
-                          onClick={loadAvailableBooks}
+                          onClick={() => loadAvailableBooks(true)}
                           style={{ marginTop: 20 }}
                           loading={loading}
                           size="large"

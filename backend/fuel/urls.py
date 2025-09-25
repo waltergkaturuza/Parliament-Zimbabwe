@@ -294,6 +294,35 @@ urlpatterns = [
     path('financial-analytics/', lazy_view('analytics_view'), name='financial-analytics'),
     path('statistics/', lazy_view('fuel_statistics'), name='statistics'),  # General statistics endpoint
 
+    # Dispatch aliases required by the frontend
+    path('fuel-dispatches/', lazy_viewset_action('BookDispatchViewSet', {
+        'get': 'list',
+        'post': 'create'
+    }), name='fuel-dispatches-list'),
+    path('fuel-dispatches/<int:pk>/', lazy_viewset_action('BookDispatchViewSet', {
+        'get': 'retrieve',
+        'patch': 'partial_update',
+        'put': 'update',
+        'delete': 'destroy'
+    }), name='fuel-dispatches-detail'),
+    path('fuel-dispatches/stats/', lazy_viewset_action('BookDispatchViewSet', {
+        'get': 'stats'
+    }), name='fuel-dispatches-stats'),
+
+    path('coupon-dispatches/', lazy_viewset_action('BookDispatchViewSet', {
+        'get': 'list',
+        'post': 'create'
+    }), name='coupon-dispatches-list'),
+    path('coupon-dispatches/<int:pk>/', lazy_viewset_action('BookDispatchViewSet', {
+        'get': 'retrieve',
+        'patch': 'partial_update',
+        'put': 'update',
+        'delete': 'destroy'
+    }), name='coupon-dispatches-detail'),
+    path('coupon-dispatches/stats/', lazy_viewset_action('BookDispatchViewSet', {
+        'get': 'stats'
+    }), name='coupon-dispatches-stats'),
+
     # Parliament dashboards expected by frontend
     path('parliament/analytics/', lazy_api_view('parliament_analytics_view'), name='parliament-analytics'),
     path('parliament/reports/', lazy_api_view('parliament_reports_view'), name='parliament-reports'),
