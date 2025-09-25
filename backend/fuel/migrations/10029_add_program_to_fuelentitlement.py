@@ -189,22 +189,6 @@ class Migration(migrations.Migration):
         ),
         
         # Apply ALL field additions safely using custom function
+        # This includes all FuelEntitlement fields with proper configuration
         migrations.RunPython(forward_safe_migrations, reverse_safe_migrations),
-        
-        # Now safe to alter fields since they were added above
-        migrations.AlterField(
-            model_name='fuelentitlement',
-            name='created',
-            field=models.DateTimeField(default=django.utils.timezone.now, help_text='When this entitlement was created'),
-        ),
-        migrations.AlterField(
-            model_name='fuelentitlement',
-            name='status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('dispatched', 'Dispatched')], default='pending', help_text='Current status of the entitlement', max_length=20),
-        ),
-        migrations.AlterField(
-            model_name='fuelentitlement',
-            name='user',
-            field=models.ForeignKey(blank=True, null=True, help_text='The beneficiary who receives this entitlement', on_delete=django.db.models.deletion.CASCADE, related_name='fuel_entitlements', to=settings.AUTH_USER_MODEL),
-        ),
     ]
