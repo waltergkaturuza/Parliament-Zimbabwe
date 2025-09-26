@@ -166,7 +166,7 @@ const NewDispatchComponent: React.FC = () => {
         (selectedBeneficiary as any)?.last_name
       ].filter(Boolean).join(' ').trim() ||
         (selectedBeneficiary?.user ? [`${selectedBeneficiary?.user?.first_name || ''}`, `${selectedBeneficiary?.user?.last_name || ''}`].join(' ').trim() : '') ||
-        (selectedBeneficiary?.constituency?.name || 'beneficiary');
+        (selectedBeneficiary?.name || `User-${selectedBeneficiary?.id || 'Unknown'}`);
 
       message.success({
         content: (
@@ -289,12 +289,13 @@ const NewDispatchComponent: React.FC = () => {
           >
             {beneficiaries.map(beneficiary => {
               const displayName = [
-                // Prefer top-level names if API provides them
+                // Use serializer method fields first (from backend BeneficiaryProfileSerializer)
                 (beneficiary as any)?.first_name,
                 (beneficiary as any)?.last_name
               ].filter(Boolean).join(' ').trim()
                 || (beneficiary?.user ? [`${beneficiary?.user?.first_name || ''}`, `${beneficiary?.user?.last_name || ''}`].join(' ').trim() : '')
-                || (beneficiary?.constituency?.name || 'Unknown Name');
+                || (beneficiary?.name) // Use 'name' field from serializer
+                || `User-${beneficiary?.id || 'Unknown'}`; // Show ID instead of constituency
               
               return (
                 <Option key={beneficiary.id} value={beneficiary.id}>
@@ -318,7 +319,8 @@ const NewDispatchComponent: React.FC = () => {
                     const b: any = selectedBeneficiary;
                     const name = [b?.first_name, b?.last_name].filter(Boolean).join(' ').trim() ||
                       (b?.user ? [`${b?.user?.first_name || ''}`, `${b?.user?.last_name || ''}`].join(' ').trim() : '') ||
-                      (b?.constituency?.name || 'Unknown Name');
+                      b?.name ||
+                      `User-${b?.id || 'Unknown'}`;
                     return name;
                   })()}
                 </Descriptions.Item>
@@ -606,7 +608,8 @@ const NewDispatchComponent: React.FC = () => {
                 const b: any = selectedBeneficiary;
                 const name = [b?.first_name, b?.last_name].filter(Boolean).join(' ').trim() ||
                   (b?.user ? [`${b?.user?.first_name || ''}`, `${b?.user?.last_name || ''}`].join(' ').trim() : '') ||
-                  (b?.constituency?.name || 'Unknown Name');
+                  b?.name ||
+                  `User-${b?.id || 'Unknown'}`;
                 return name;
               })()}
             </Descriptions.Item>
@@ -723,7 +726,8 @@ const FuelCouponDispatch: FC = () => {
       (b as any)?.last_name
     ].filter(Boolean).join(' ').trim() ||
       (b?.user ? [`${b?.user?.first_name || ''}`, `${b?.user?.last_name || ''}`].join(' ').trim() : '') ||
-      (b?.constituency?.name || 'Unknown Name');
+      (b as any)?.name ||
+      `User-${(b as any)?.id || 'Unknown'}`;
     
     const matchesSearch = !searchTerm || displayName.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -831,7 +835,8 @@ const FuelCouponDispatch: FC = () => {
         const sb: any = selectedBeneficiary;
         const name = [sb?.first_name, sb?.last_name].filter(Boolean).join(' ').trim() ||
           (sb?.user ? [`${sb?.user?.first_name || ''}`, `${sb?.user?.last_name || ''}`].join(' ').trim() : '') ||
-          (sb?.constituency?.name || 'beneficiary');
+          sb?.name ||
+          `User-${sb?.id || 'beneficiary'}`;
         message.success(`Successfully dispatched ${result.actualLitersDispatched}L to ${name}`);
         setModalVisible(false);
         setSelectedBeneficiary(null);
@@ -855,7 +860,8 @@ const FuelCouponDispatch: FC = () => {
         const ben: any = record?.beneficiary;
         const name = [ben?.first_name, ben?.last_name].filter(Boolean).join(' ').trim() ||
           (ben?.user ? [`${ben?.user?.first_name || ''}`, `${ben?.user?.last_name || ''}`].join(' ').trim() : '') ||
-          (ben?.constituency?.name || (typeof ben === 'string' || typeof ben === 'number' ? `ID: ${ben}` : 'Unknown'));
+          ben?.name ||
+          (typeof ben === 'string' || typeof ben === 'number' ? `ID: ${ben}` : `User-${ben?.id || 'Unknown'}`);
         const constituency = ben?.constituency?.name || ben?.constituency || '';
         return (
           <Space>
@@ -1057,7 +1063,8 @@ const FuelCouponDispatch: FC = () => {
                 (beneficiary as any)?.last_name
               ].filter(Boolean).join(' ').trim()
                 || (beneficiary?.user ? [`${beneficiary?.user?.first_name || ''}`, `${beneficiary?.user?.last_name || ''}`].join(' ').trim() : '')
-                || (beneficiary?.constituency?.name || 'Unknown Name');
+                || beneficiary?.name
+                || `User-${beneficiary?.id || 'Unknown'}`;
               
               // Entitlement info will be loaded when dispatch modal opens
               

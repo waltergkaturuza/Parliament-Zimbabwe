@@ -286,10 +286,12 @@ urlpatterns = [
     # Use direct function if import succeeded; otherwise fall back to lazy resolver
     # Prefer lightweight api_views implementation to avoid import-time failures
     path('analytics/consumption-trend/', lazy_api_view('analytics_consumption_trend_view'), name='consumption-trend-analytics'),
-    # New analytics endpoints
+    # New analytics endpoints added for subcenter dashboard
     path('analytics/received-breakdown/', get_view_function('analytics_received_breakdown'), name='analytics-received-breakdown'),
     path('analytics/available-by-center/', get_view_function('analytics_available_by_center'), name='analytics-available-by-center'),
     path('analytics/dispatches-timeline/', get_view_function('analytics_dispatches_timeline'), name='analytics-dispatches-timeline'),
+    path('analytics/subcenter-distribution-timeline/', lazy_api_view('subcenter_distribution_timeline_view'), name='subcenter-distribution-timeline'),
+    path('analytics/top-programs-consumption/', lazy_api_view('top_programs_consumption_timeline_view'), name='top-programs-consumption'),
     path('analytics/fuel-requirements/', lazy_view('fuel_statistics'), name='fuel-requirements-analytics'),
     path('financial-analytics/', lazy_view('analytics_view'), name='financial-analytics'),
     path('statistics/', lazy_view('fuel_statistics'), name='statistics'),  # General statistics endpoint
@@ -326,9 +328,6 @@ urlpatterns = [
     # Parliament dashboards expected by frontend
     path('parliament/analytics/', lazy_api_view('parliament_analytics_view'), name='parliament-analytics'),
     path('parliament/reports/', lazy_api_view('parliament_reports_view'), name='parliament-reports'),
-    # New analytics histograms
-    path('analytics/subcenter-distribution-timeline/', lazy_api_view('subcenter_distribution_timeline_view'), name='subcenter-distribution-timeline'),
-    path('analytics/top-programs-consumption/', lazy_api_view('top_programs_consumption_timeline_view'), name='top-programs-consumption'),
     
     # Fuel pricing and statistics endpoints
     path('fuel-stats/', lazy_view('fuel_statistics'), name='fuel-statistics'),
@@ -345,9 +344,7 @@ urlpatterns = [
     # path('subcenters/<int:subcenter_id>/statistics/', lazy_view('subcenter_statistics_detail_view'), name='subcenter-statistics-detail'),
     # path('subcenters/<int:subcenter_id>/recent_activity/', lazy_view('subcenter_recent_activity_view'), name='subcenter-recent-activity'),
     
-    # Analytics endpoints for subcenter dashboard  
-    path('analytics/subcenter-distribution-timeline/', lazy_api_view('analytics_subcenter_distribution_timeline'), name='analytics-subcenter-distribution-timeline'),
-    path('analytics/top-programs-consumption/', lazy_api_view('analytics_top_programs_consumption'), name='analytics-top-programs-consumption'),
+    # Analytics endpoints for subcenter dashboard (removed duplicate - using the one above)
     
     # Dispatcher endpoints
     path('dispatchers/', dispatcher_view, name='dispatchers-list'),
