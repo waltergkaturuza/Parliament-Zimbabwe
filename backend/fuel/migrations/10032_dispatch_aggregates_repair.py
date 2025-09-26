@@ -3,9 +3,21 @@ from decimal import Decimal
 from django.db import connection, migrations, models
 
 
-def _column_names(cursor, table_name):
-    introspection = connection.introspection
-    return {col.name for col in introspection.get_table_description(cursor, table_name)}
+def _column_exists(cursor, table_name, column_name):
+    """Check if column exists using database-agnostic approach"""
+    try:
+        # Try PostgreSQL/MySQL approach
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = %s AND column_name = %s
+        """, [table_name, column_name])
+        return cursor.fetchone() is not None
+    except Exception:
+        # Fallback to Django introspection for SQLite
+        introspection = connection.introspection
+        columns = {col.name for col in introspection.get_table_description(cursor, table_name)}
+        return column_name in columns
 
 
 def ensure_aggregated_litres_column(apps, schema_editor):
@@ -13,8 +25,7 @@ def ensure_aggregated_litres_column(apps, schema_editor):
     table_name = BookDispatch._meta.db_table
 
     with connection.cursor() as cursor:
-        existing_columns = _column_names(cursor, table_name)
-        if "aggregated_litres" in existing_columns:
+        if _column_exists(cursor, table_name, "aggregated_litres"):
             return
 
         field = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"), help_text="Cached total litres for fast reporting")
@@ -27,8 +38,7 @@ def ensure_aggregated_value_column(apps, schema_editor):
     table_name = BookDispatch._meta.db_table
 
     with connection.cursor() as cursor:
-        existing_columns = _column_names(cursor, table_name)
-        if "aggregated_value_usd" in existing_columns:
+        if _column_exists(cursor, table_name, "aggregated_value_usd"):
             return
 
         field = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"), help_text="Cached total USD value for fast reporting")
