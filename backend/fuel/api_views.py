@@ -312,8 +312,13 @@ class SubCenterBeneficiaryAPIViewSet(viewsets.ViewSet):
             beneficiaries = beneficiaries.filter(
                 Q(user__first_name__icontains=search) |
                 Q(user__last_name__icontains=search) |
+                Q(employee_id__icontains=search) |
                 Q(vehicle_make__icontains=search) |
-                Q(vehicle_model__icontains=search)
+                Q(vehicle_model__icontains=search) |
+                Q(vehicle_registration__icontains=search) |
+                Q(constituency__name__icontains=search) |
+                Q(position__icontains=search) |
+                Q(department__icontains=search)
             )
         
         beneficiary_data = []

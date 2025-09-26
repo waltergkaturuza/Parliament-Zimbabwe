@@ -3720,6 +3720,14 @@ class BeneficiaryProfile(TimeStampedModel):
         blank=True,
         related_name='vehicle_beneficiaries'
     )
+    sub_center = models.ForeignKey(
+        'SubCenter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='beneficiaries',
+        help_text="Sub-center this beneficiary is assigned to"
+    )
     employee_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     position = models.CharField(max_length=100, blank=True)
     department = models.CharField(max_length=100, blank=True)

@@ -2195,6 +2195,8 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     # Related objects - custom fields that handle both read and write
     category = CategoryField(required=False)
     constituency = ConstituencyField(required=False) 
+    sub_center = serializers.SerializerMethodField()
+    sub_center_id = serializers.IntegerField(write_only=True, required=False)
     # Party display: show PoliticalParty name/abbr if set; fallback to legacy string
     party = serializers.SerializerMethodField()
     
@@ -2222,6 +2224,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     category_details = BeneficiaryCategorySerializer(source='category', read_only=True)
     constituency_details = ConstituencySerializer(source='constituency', read_only=True)
     vehicle_category_details = VehicleCategorySerializer(source='vehicle_category', read_only=True)
+    sub_center_details = SubCenterSerializer(source='sub_center', read_only=True)
     total_allocated_this_month = serializers.SerializerMethodField()
     pending_entitlements = serializers.SerializerMethodField()
     
@@ -2284,6 +2287,16 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
     def get_profilePhoto(self, obj):
         """Get profile photo from user object"""
         return obj.user.profile_picture if obj.user else ""
+
+    def get_sub_center(self, obj):
+        """Get sub-center information"""
+        if obj.sub_center:
+            return {
+                'id': obj.sub_center.id,
+                'name': obj.sub_center.name,
+                'code': obj.sub_center.code
+            }
+        return None
 
     def get_party(self, obj):
         """Prefer PoliticalParty (name or abbreviation), fallback to legacy string field"""
@@ -2459,6 +2472,7 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
         category_id = validated_data.pop('category', None)
         constituency_id = validated_data.pop('constituency', None)
         vehicle_category_id = validated_data.pop('vehicle_category', None)
+        sub_center_id = validated_data.pop('sub_center_id', None)
         party_value = validated_data.pop('party_affiliation', None)
         if party_value in (None, ''):
             # Accept raw 'party' from request payload when not bound via serializer field
@@ -2594,6 +2608,14 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
             except VehicleCategory.DoesNotExist:
                 pass
 
+        # Sub-center
+        if sub_center_id:
+            try:
+                sub_center = SubCenter.objects.get(id=sub_center_id)
+                validated_data['sub_center'] = sub_center
+            except SubCenter.DoesNotExist:
+                pass
+
         # Map party to PoliticalParty FK
         if party_value not in (None, ""):
             try:
@@ -2678,6 +2700,15 @@ class BeneficiaryProfileSerializer(serializers.ModelSerializer):
                 # If it's already an ID, let Django handle it
             except Constituency.DoesNotExist:
                 print(f"Warning: Constituency '{constituency_id}' not found, skipping update")
+
+        # Handle sub_center field
+        sub_center_id = validated_data.pop('sub_center_id', None)
+        if sub_center_id:
+            try:
+                sub_center = SubCenter.objects.get(id=sub_center_id)
+                validated_data['sub_center'] = sub_center
+            except SubCenter.DoesNotExist:
+                print(f"Warning: SubCenter with ID '{sub_center_id}' not found, skipping update")
         
         # Handle party (source party_affiliation) mapping to PoliticalParty FK
         party_value = validated_data.pop('party_affiliation', None)

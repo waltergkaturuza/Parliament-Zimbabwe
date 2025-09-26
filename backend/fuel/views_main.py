@@ -235,7 +235,11 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(username__icontains=search) |
                 Q(first_name__icontains=search) |
                 Q(last_name__icontains=search) |
-                Q(email__icontains=search)
+                Q(email__icontains=search) |
+                Q(phone__icontains=search) |
+                Q(national_id__icontains=search) |
+                Q(sub_center__name__icontains=search) |
+                Q(sub_center__code__icontains=search)
             )
         
         if role:
@@ -246,9 +250,18 @@ class UserViewSet(viewsets.ModelViewSet):
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         
+        # Apply subcenter filtering if specified
+        subcenter_id = self.request.query_params.get('subcenter_id')
+        if subcenter_id:
+            try:
+                queryset = queryset.filter(sub_center_id=int(subcenter_id))
+            except (ValueError, TypeError):
+                pass
+        
         # Role-based filtering
         if user.is_authenticated:
-            if user.role == 'SUB_CENTER' and user.sub_center:
+            if user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and user.sub_center:
+                # Subcenter officers only see users from their subcenter
                 return queryset.filter(sub_center=user.sub_center)
             # Admin, Main Center, Auditor see all users
             return queryset
@@ -3446,6 +3459,19 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
             'books__coupons__allocated_to'  # For beneficiary lookups
         ).order_by('-dispatch_date')  # Latest first for performance
         
+        # Apply search functionality
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db import models
+            queryset = queryset.filter(
+                models.Q(to_center__name__icontains=search) |
+                models.Q(to_center__code__icontains=search) |
+                models.Q(to_beneficiary__user__first_name__icontains=search) |
+                models.Q(to_beneficiary__user__last_name__icontains=search) |
+                models.Q(main_center_dispatch_number__icontains=search) |
+                models.Q(notes__icontains=search)
+            )
+        
         # Handle query parameter filtering
         subcenter_id = self.request.query_params.get('subcenter_id') or self.request.query_params.get('subcenter')
         if subcenter_id:
@@ -3469,14 +3495,11 @@ class BookDispatchViewSet(viewsets.ModelViewSet):
                     queryset = queryset.filter(to_center__code=subcenter_id)
         
         # Apply role-based filtering
-        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR' or user.role == 'SUPERUSER':
+        if user.role in ['MAIN_CENTER', 'AUDITOR', 'SUPERUSER', 'ADMIN']:
             return queryset
-        elif user.role == 'SUB_CENTER' and user.sub_center:
-            # Include dispatches for their center OR unassigned dispatches
-            from django.db import models
-            return queryset.filter(
-                models.Q(to_center=user.sub_center) | models.Q(to_center_id__isnull=True)
-            )
+        elif user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER'] and user.sub_center:
+            # Only show dispatches for their specific subcenter
+            return queryset.filter(to_center=user.sub_center)
         
         return queryset.none()
     
@@ -5416,8 +5439,18 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Enhanced queryset with optimized database queries and filtering"""
         queryset = BeneficiaryProfile.objects.select_related(
-            'user', 'category', 'constituency', 'vehicle_category'
+            'user', 'category', 'constituency', 'vehicle_category', 'sub_center'
         ).filter(is_active_beneficiary=True)
+        
+        # Apply subcenter filtering for subcenter officers
+        user = self.request.user
+        if hasattr(user, 'role') and user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+            if user.sub_center:
+                # Only show beneficiaries assigned to the same subcenter
+                queryset = queryset.filter(sub_center=user.sub_center)
+            else:
+                # If subcenter officer has no assigned subcenter, show no results
+                queryset = queryset.none()
         
         # Apply search filters
         search = self.request.query_params.get('search')
@@ -5428,7 +5461,10 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
                 Q(employee_id__icontains=search) |
                 Q(vehicle_make__icontains=search) |
                 Q(vehicle_model__icontains=search) |
-                Q(vehicle_registration__icontains=search)
+                Q(vehicle_registration__icontains=search) |
+                Q(constituency__name__icontains=search) |
+                Q(position__icontains=search) |
+                Q(department__icontains=search)
             )
         
         # Apply status filter
