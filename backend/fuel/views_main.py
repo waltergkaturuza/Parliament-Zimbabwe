@@ -532,13 +532,13 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Role-based permissions for subcenter management
         
-        - Development: Allow list access without authentication in DEBUG mode
+        - Development: Allow list and retrieve access without authentication in DEBUG mode
         - Read access: All authenticated users
         - Write access: Main Center, Auditor roles only
         """
-        # Allow public list access in development
+        # Allow public list and retrieve access in development
         from django.conf import settings
-        if settings.DEBUG and self.action == 'list':
+        if settings.DEBUG and self.action in ['list', 'retrieve']:
             return []
             
         if self.action in ['list', 'retrieve', 'overview', 'activities', 'statistics', 'recent_activity']:
@@ -567,13 +567,13 @@ class SubCenterViewSet(viewsets.ModelViewSet):
         
         # Allow public access to active subcenters in development mode
         from django.conf import settings
-        if settings.DEBUG and not user.is_authenticated and self.action == 'list':
+        if settings.DEBUG and not user.is_authenticated and self.action in ['list', 'retrieve']:
             return queryset.filter(is_active=True)
             
         if user.is_authenticated:
             # For dispatch operations, all authenticated users should see all active subcenters
             # This allows proper dispatch destination selection
-            if self.action in ['list']:
+            if self.action in ['list', 'retrieve']:
                 return queryset.filter(is_active=True)
             elif user.role == 'SUB_CENTER' and user.sub_center:
                 # Sub Center officers can only see their assigned center for management
@@ -5504,8 +5504,8 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Role-based permissions for different actions"""
-        # Allow public access to list endpoint in DEBUG mode for development
-        if settings.DEBUG and self.action == 'list':
+        # Allow public access to list and retrieve endpoints in DEBUG mode for development
+        if settings.DEBUG and self.action in ['list', 'retrieve']:
             return []
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
