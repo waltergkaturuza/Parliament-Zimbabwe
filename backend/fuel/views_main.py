@@ -5457,13 +5457,50 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
         
         # Apply subcenter filtering for subcenter officers
         user = self.request.user
-        if hasattr(user, 'role') and user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
-            if hasattr(user, 'sub_center') and user.sub_center:
-                # Only show beneficiaries assigned to the same subcenter
-                queryset = queryset.filter(sub_center=user.sub_center)
+        
+        # DEBUG: Print user info for troubleshooting
+        if settings.DEBUG:
+            print(f"=== BENEFICIARY QUERYSET DEBUG ===")
+            print(f"User: {user}")
+            print(f"User authenticated: {user.is_authenticated}")
+            if user.is_authenticated:
+                print(f"User role: {getattr(user, 'role', 'NO ROLE ATTR')}")
+                print(f"User subcenter: {getattr(user, 'sub_center', 'NO SUBCENTER ATTR')}")
+                if hasattr(user, 'sub_center') and user.sub_center:
+                    print(f"Subcenter ID: {user.sub_center.id}")
+                    print(f"Subcenter Name: {user.sub_center.name}")
+        
+        # In DEBUG mode, skip user-based filtering if user is not authenticated
+        if settings.DEBUG and not user.is_authenticated:
+            print("DEBUG mode: Returning all beneficiaries (no auth)")
+            return queryset
+            
+        # Apply role-based filtering
+        if user.is_authenticated and hasattr(user, 'role'):
+            # Administrators, Main Center, Auditors, and Superusers can see all beneficiaries
+            if user.role in ['ADMIN', 'MAIN_CENTER', 'AUDITOR', 'SUPERUSER']:
+                if settings.DEBUG:
+                    print(f"Admin/MainCenter/Auditor user: Returning all beneficiaries ({queryset.count()})")
+                # Return all beneficiaries without subcenter filtering
+                pass
+            # Subcenter officers only see beneficiaries from their assigned subcenter
+            elif user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
+                if hasattr(user, 'sub_center') and user.sub_center:
+                    # Only show beneficiaries assigned to the same subcenter
+                    filtered_queryset = queryset.filter(sub_center=user.sub_center)
+                    if settings.DEBUG:
+                        print(f"Subcenter filtering applied: {filtered_queryset.count()} beneficiaries")
+                    queryset = filtered_queryset
+                else:
+                    # If subcenter officer has no assigned subcenter, show no results
+                    if settings.DEBUG:
+                        print("No subcenter assigned to user - returning empty queryset")
+                    queryset = queryset.none()
+            # Other roles (like BENEFICIARY) should not see the management interface, but just in case
             else:
-                # If subcenter officer has no assigned subcenter, show no results
-                queryset = queryset.none()
+                if settings.DEBUG:
+                    print(f"Other role ({user.role}): No specific filtering, showing all")
+                # Could restrict here if needed, but for now allow all
         
         # Apply search filters
         search = self.request.query_params.get('search')
