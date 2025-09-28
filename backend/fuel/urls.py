@@ -403,6 +403,16 @@ urlpatterns = [
     path('beneficiaries/stats/', lazy_viewset_action('BeneficiaryProfileViewSet', {
         'get': 'stats'
     }), name='beneficiaries-stats'),
+    path('beneficiaries/unique-categories/', lazy_viewset_action('BeneficiaryProfileViewSet', {
+        'get': 'unique_categories'
+    }), name='beneficiaries-unique-categories'),
+    path('beneficiaries/unique-parties/', lazy_viewset_action('BeneficiaryProfileViewSet', {
+        'get': 'unique_parties'
+    }), name='beneficiaries-unique-parties'),
+    
+    # Public development endpoints (no authentication required)
+    path('public/categories/', lazy_view('public_beneficiary_categories'), name='public-categories'),
+    path('public/parties/', lazy_view('public_political_parties'), name='public-parties'),
 
     # Political parties explicit action routes (router fallback)
     path('political-parties/active_parties/', lazy_viewset_action('PoliticalPartyViewSet', {

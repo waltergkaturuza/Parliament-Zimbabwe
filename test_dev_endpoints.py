@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script to verify the new API endpoints are working
+Test the development API endpoints
 """
 import requests
 import json
@@ -15,9 +15,19 @@ def test_endpoint(url, description):
         print(f"Status Code: {response.status_code}")
         
         if response.status_code == 200:
-            data = response.json()
-            print(f"Response: {json.dumps(data, indent=2)}")
-            return True
+            try:
+                data = response.json()
+                print(f"Success! Data count: {len(data) if isinstance(data, list) else 'Not a list'}")
+                if isinstance(data, list) and len(data) > 0:
+                    print(f"Sample item: {json.dumps(data[0], indent=2)}")
+                elif isinstance(data, dict):
+                    print(f"Response: {json.dumps(data, indent=2)}")
+                else:
+                    print(f"Response: {data}")
+                return True
+            except json.JSONDecodeError:
+                print(f"Response (not JSON): {response.text[:200]}")
+                return False
         else:
             print(f"Error Response: {response.text}")
             return False
@@ -27,14 +37,13 @@ def test_endpoint(url, description):
         return False
 
 def main():
-    """Test all the new endpoints"""
+    """Test all the endpoints"""
     base_url = "http://127.0.0.1:8000/api/v1"
     
     endpoints_to_test = [
+        ("/subcenters/", "Subcenters List"),
         ("/beneficiaries/unique-categories/", "Unique Categories"),
         ("/beneficiaries/unique-parties/", "Unique Parties"),
-        ("/subcenters/", "Subcenters List"),
-        ("/beneficiaries/", "Beneficiaries List"),
     ]
     
     print("Testing API Endpoints...")

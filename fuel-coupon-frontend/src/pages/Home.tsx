@@ -47,6 +47,7 @@ import {
   type ActivityItem, 
   type SystemHealth 
 } from '@/services/homeApi';
+import { debugApiConfig } from '@/utils/debugApi';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -65,6 +66,9 @@ const Home = () => {
 
   // Load data from backend
   useEffect(() => {
+    // Debug API configuration
+    debugApiConfig();
+    
     const loadHomeData = async () => {
       try {
         setLoading(true);

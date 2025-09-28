@@ -192,14 +192,15 @@ const BeneficiaryManagement = () => {
     // allow React Query to cache default; keep default staleTime to avoid unnecessary re-fetches
   });
 
-  // Fetch unique categories from all beneficiaries for better filtering
+  // Fetch unique categories from public endpoint (no auth required)
   const { data: uniqueCategoriesData } = useQuery({
     queryKey: ['unique-beneficiary-categories'],
     queryFn: async () => {
       try {
-        const response = await apiClient.get('/beneficiaries/unique-categories/');
-        return response.data.categories || [];
+        const response = await apiClient.get('/public/categories/');
+        return response.data || [];
       } catch (error) {
+        console.error('Failed to fetch categories from public endpoint:', error);
         // Fallback: extract unique categories from all beneficiaries
         console.log('Extracting unique categories from beneficiaries data');
         const categories = new Set();
@@ -213,14 +214,15 @@ const BeneficiaryManagement = () => {
     enabled: !!allBeneficiaries?.length,
   });
 
-  // Fetch unique parties for better filtering
+  // Fetch unique parties from public endpoint (no auth required)
   const { data: uniquePartiesData } = useQuery({
     queryKey: ['unique-political-parties'],
     queryFn: async () => {
       try {
-        const response = await apiClient.get('/beneficiaries/unique-parties/');
-        return response.data.parties || [];
+        const response = await apiClient.get('/public/parties/');
+        return response.data || [];
       } catch (error) {
+        console.error('Failed to fetch parties from public endpoint:', error);
         // Fallback: extract unique parties from all beneficiaries
         console.log('Extracting unique parties from beneficiaries data');
         const parties = new Set();
@@ -279,8 +281,8 @@ const BeneficiaryManagement = () => {
           is_active: true, 
           page_size: 1000 
         });
-        const data = response.data;
-        return Array.isArray(data) ? data : (data.results || []);
+        // response is already the data from SubCenterService.getSubCenters
+        return Array.isArray(response) ? response : (response.results || []);
       } catch (error) {
         console.error('Failed to fetch subcenters:', error);
         return [];
@@ -295,6 +297,7 @@ const BeneficiaryManagement = () => {
   const systemUsers = systemUsersData || [];
   const beneficiaryCategories = Array.isArray(beneficiaryCategoriesData) ? beneficiaryCategoriesData : [];
   const vehicleMakes = vehicleMakesData || [];
+  const subcenters = subcentersData || [];
   
   // Use unique data from database for better filtering options
   const uniqueCategories = uniqueCategoriesData || [];
@@ -1489,7 +1492,7 @@ const BeneficiaryManagement = () => {
                       style={{ fontSize: '16px', minHeight: '40px' }}
                       loading={subcentersLoading}
                       optionFilterProp="label"
-                      options={subcentersData?.map((subcenter: any) => ({
+                      options={subcenters?.map((subcenter: any) => ({
                         value: subcenter.id,
                         label: subcenter.name
                       })) || []}

@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -531,9 +532,15 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Role-based permissions for subcenter management
         
+        - Development: Allow list access without authentication in DEBUG mode
         - Read access: All authenticated users
         - Write access: Main Center, Auditor roles only
         """
+        # Allow public list access in development
+        from django.conf import settings
+        if settings.DEBUG and self.action == 'list':
+            return []
+            
         if self.action in ['list', 'retrieve', 'overview', 'activities', 'statistics', 'recent_activity']:
             return [IsAuthenticated()]
         
@@ -557,6 +564,12 @@ class SubCenterViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+        
+        # Allow public access to active subcenters in development mode
+        from django.conf import settings
+        if settings.DEBUG and not user.is_authenticated and self.action == 'list':
+            return queryset.filter(is_active=True)
+            
         if user.is_authenticated:
             # For dispatch operations, all authenticated users should see all active subcenters
             # This allows proper dispatch destination selection
@@ -5491,6 +5504,9 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Role-based permissions for different actions"""
+        # Allow public access to list endpoint in DEBUG mode for development
+        if settings.DEBUG and self.action == 'list':
+            return []
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
         return [IsAuthenticated(), BeneficiaryManagementPermission()]
@@ -5632,6 +5648,20 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
             'inactive': inactive,
             'suspended': suspended
         })
+    
+    @action(detail=False, methods=['get'], url_path='unique-categories', permission_classes=[])
+    def unique_categories(self, request):
+        """Get unique beneficiary categories for dropdown - public access for development"""
+        from .models import BeneficiaryCategory
+        categories = BeneficiaryCategory.objects.all().order_by('name')
+        return Response([{'id': cat.id, 'name': cat.name, 'description': cat.description} for cat in categories])
+    
+    @action(detail=False, methods=['get'], url_path='unique-parties', permission_classes=[])
+    def unique_parties(self, request):
+        """Get unique political parties for dropdown - public access for development"""
+        from .models import PoliticalParty
+        parties = PoliticalParty.objects.filter(is_active=True).order_by('name')
+        return Response([{'id': party.id, 'name': party.name, 'abbreviation': party.abbreviation} for party in parties])
 
 
 # Fuel Entitlement ViewSet - Critical for tracking parliament member entitlements
@@ -9977,4 +10007,25 @@ def dispatch_page_config_view(request):
             {'error': 'Failed to fetch dispatch configuration'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# Public development endpoints (no authentication required)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_beneficiary_categories(request):
+    """Get unique beneficiary categories for dropdown - public access for development"""
+    from .models import BeneficiaryCategory
+    categories = BeneficiaryCategory.objects.all().order_by('name')
+    data = [{'id': cat.id, 'name': cat.name, 'description': cat.description} for cat in categories]
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_political_parties(request):
+    """Get unique political parties for dropdown - public access for development"""
+    from .models import PoliticalParty
+    parties = PoliticalParty.objects.filter(is_active=True).order_by('name')
+    data = [{'id': party.id, 'name': party.name, 'abbreviation': party.abbreviation} for party in parties]
+    return Response(data)
 

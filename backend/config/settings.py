@@ -93,16 +93,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CSRF settings for API
+# CSRF settings for API - Generate range of ports for flexible development
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:5174", 
-    "http://localhost:5175",
-    "http://localhost:5176",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
-    "http://127.0.0.1:5176",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # Production URLs
@@ -111,6 +103,13 @@ CSRF_TRUSTED_ORIGINS = [
     "https://jolly-ocean-0e0dee90f.2.azurestaticapps.net",  # Current frontend deployment
     "https://parliament-fuel-frontend.azurestaticapps.net",  # Alternative frontend
 ]
+
+# Add range of development ports (5170-5180) for flexible Vite server allocation
+for port in range(5170, 5181):
+    CSRF_TRUSTED_ORIGINS.extend([
+        f"http://localhost:{port}",
+        f"http://127.0.0.1:{port}"
+    ])
 
 # Allow additional CSRF trusted origins via environment variable (comma-separated)
 # Default to include the Render frontend origin so Render-hosted frontend passes Origin checks
@@ -123,16 +122,8 @@ for origin in ADDITIONAL_CSRF_TRUSTED_ORIGINS:
 
 print(f"DEBUG: CSRF_TRUSTED_ORIGINS = {CSRF_TRUSTED_ORIGINS}")
 
-# CORS settings - Support environment variable override
+# CORS settings - Support environment variable override with flexible port range
 CORS_ALLOWED_ORIGINS_BASE = [
-    "http://localhost:5173",  # React Vite dev server
-    "http://localhost:5174",  # Alternative Vite port
-    "http://localhost:5175",
-    "http://localhost:5176",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
-    "http://127.0.0.1:5176",
     "http://localhost:8000",  # Django backend
     "http://127.0.0.1:8000",  # Django backend
     # Production URLs
@@ -145,6 +136,13 @@ CORS_ALLOWED_ORIGINS_BASE = [
     # Render Frontend URLs
     "https://parliament-zimbabwe-fuel.onrender.com",  # Render frontend deployment
 ]
+
+# Add range of development ports (5170-5180) for flexible Vite server allocation
+for port in range(5170, 5181):
+    CORS_ALLOWED_ORIGINS_BASE.extend([
+        f"http://localhost:{port}",  # React Vite dev server
+        f"http://127.0.0.1:{port}"   # React Vite dev server
+    ])
 
 # Allow additional CORS origins from environment variable
 ADDITIONAL_CORS_ORIGINS = os.getenv('ADDITIONAL_CORS_ORIGINS', '').split(',')
