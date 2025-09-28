@@ -570,8 +570,9 @@ const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({
           <Table
             columns={trailColumns}
             dataSource={auditTrails.filter(trail => 
-              !searchText || trail.title.toLowerCase().includes(searchText.toLowerCase()) ||
-              trail.main_center.toLowerCase().includes(searchText.toLowerCase())
+              !searchText || 
+              (trail.title && trail.title.toString().toLowerCase().includes(searchText.toLowerCase())) ||
+              (trail.main_center && trail.main_center.toString().toLowerCase().includes(searchText.toLowerCase()))
             )}
             rowKey="id"
             loading={loading}

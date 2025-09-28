@@ -221,8 +221,8 @@ const IndividualCouponAllocation: React.FC<IndividualCouponAllocationProps> = ({
   const getFilteredCoupons = () => {
     return availableCoupons.filter(coupon => {
       const matchesSearch = !searchText || 
-        coupon.serial_number.toLowerCase().includes(searchText.toLowerCase()) ||
-        coupon.book_serial.toLowerCase().includes(searchText.toLowerCase());
+        (coupon.serial_number && coupon.serial_number.toString().toLowerCase().includes(searchText.toLowerCase())) ||
+        (coupon.book_serial && coupon.book_serial.toString().toLowerCase().includes(searchText.toLowerCase()));
       const matchesFuelType = !fuelTypeFilter || coupon.fuel_type === fuelTypeFilter;
       const matchesDenomination = !denominationFilter || coupon.denomination === denominationFilter;
       

@@ -665,8 +665,8 @@ const RoleBasedCouponDashboard: React.FC<RoleBasedCouponDashboardProps> = ({
 
   const filteredCoupons = coupons.filter(coupon => {
     const matchesSearch = !searchText || 
-      coupon.serial_number.toLowerCase().includes(searchText.toLowerCase()) ||
-      coupon.current_holder.toLowerCase().includes(searchText.toLowerCase());
+      (coupon.serial_number && coupon.serial_number.toString().toLowerCase().includes(searchText.toLowerCase())) ||
+      (coupon.current_holder && coupon.current_holder.toString().toLowerCase().includes(searchText.toLowerCase()));
     
     return matchesSearch;
   });

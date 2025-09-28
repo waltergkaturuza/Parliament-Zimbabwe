@@ -187,9 +187,9 @@ const CouponTrackingTable: React.FC<CouponTrackingTableProps> = ({
     // Filter locally for immediate response
     if (value) {
       const filtered = coupons.filter(c => 
-        c.serial_number.toLowerCase().includes(value.toLowerCase()) ||
-        c.beneficiary_name?.toLowerCase().includes(value.toLowerCase()) ||
-        c.book_serial.toLowerCase().includes(value.toLowerCase())
+        (c.serial_number && c.serial_number.toString().toLowerCase().includes(value.toLowerCase())) ||
+        (c.beneficiary_name && c.beneficiary_name.toString().toLowerCase().includes(value.toLowerCase())) ||
+        (c.book_serial && c.book_serial.toString().toLowerCase().includes(value.toLowerCase()))
       );
       setCoupons(filtered);
     } else {

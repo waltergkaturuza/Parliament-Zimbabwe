@@ -504,6 +504,8 @@ const BeneficiaryManagement = () => {
       position: beneficiary.title,
       party: beneficiary.party,
       constituency: typeof beneficiary.constituency === 'object' ? beneficiary.constituency.name : beneficiary.constituency,
+      // SubCenter information
+      subCenterId: (beneficiary as any)?.sub_center?.id || (beneficiary as any)?.sub_center_id || null,
       // Vehicle information
       vehicleMake: beneficiary.vehicles?.[0]?.make,
       vehicleModel: beneficiary.vehicles?.[0]?.model,
@@ -830,158 +832,138 @@ const BeneficiaryManagement = () => {
       </div>
 
       {/* Statistics */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={6}>
-          <Card>
-        <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={8}>
-            <Space>
-              <span>Category:</span>
-              <Select
-                style={{ width: 200 }}
-                value={selectedCategory}
-                onChange={setSelectedCategory}
-                placeholder="Select category"
-                allowClear
-              >
-                {beneficiaryFilterCategories.map((cat: string) => (
-                  <Option key={cat} value={cat}>{cat}</Option>
-                ))}
-              </Select>
-            </Space>
-          </Col>
-          <Col xs={24} sm={16}>
-            <Space>
-              <span>Beneficiaries:</span>
-              <Select
-                mode="multiple"
-                style={{ minWidth: 300 }}
-                value={selectedBeneficiaryIds}
-                onChange={setSelectedBeneficiaryIds}
-                placeholder="Select beneficiaries"
-                optionLabelProp="label"
-                showSearch
-              >
-                {filteredBeneficiaries.map((b: any) => {
-                  const displayName = b.user ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim() : (b.constituency?.name || 'Unknown Name');
-                  return (
-                    <Option key={b.id} value={b.id} label={displayName}>
-                      <span><input type="checkbox" checked={selectedBeneficiaryIds.includes(b.id)} readOnly style={{ marginRight: 8 }} />{displayName}</span>
-                    </Option>
-                  );
-                })}
-              </Select>
-            </Space>
+      {/* Compact Statistics */}
+      <div className="mb-3" style={{ 
+        padding: '12px', 
+        backgroundColor: '#fafafa', 
+        borderRadius: '6px', 
+        border: '1px solid #f0f0f0' 
+      }}>
+        <Row gutter={[16, 8]}>
+          <Col xs={24} sm={24} md={24}>
+            <div className="flex flex-wrap justify-between gap-4">
+              <div className="text-center" style={{ minWidth: '80px' }}>
+                <div style={{ color: '#1890ff', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  <TeamOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
+                  {allBeneficiariesResponse?.count || allBeneficiaries?.length || 0}
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Total Beneficiaries</div>
+              </div>
+              
+              <div className="text-center" style={{ minWidth: '70px' }}>
+                <div style={{ color: '#52c41a', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  <UserOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
+                  {allBeneficiaries?.filter((b: any) => {
+                    const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                    const mpCategories = [
+                      'MEMBER OF PARLIAMENT', 'MEMBER_OF_PARLIAMENT', 'MP', 'MINISTER', 'DEPUTY MINISTER',
+                      'ASSISTANT MINISTER', 'CHIEF WHIP', 'DEPUTY CHIEF WHIP', 'SPEAKER', 'DEPUTY SPEAKER',
+                      'COMMITTEE CHAIRPERSON', 'PARLIAMENTARY COMMITTEE MEMBER', 'OPPOSITION LEADER',
+                      'DEPUTY OPPOSITION LEADER', 'BACKBENCHER'
+                    ];
+                    return mpCategories.includes(category) && b.status === 'ACTIVE';
+                  }).length || 0}
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Active MPs</div>
+              </div>
+
+              <div className="text-center" style={{ minWidth: '80px' }}>
+                <div style={{ color: '#722ed1', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  <BankOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
+                  {allBeneficiaries?.filter((b: any) => {
+                    const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                    const senatorCategories = [
+                      'SENATOR', 'DEPUTY SENATOR', 'SENATE PRESIDENT', 'DEPUTY SENATE PRESIDENT',
+                      'SENATE COMMITTEE CHAIRPERSON', 'SENATE COMMITTEE MEMBER'
+                    ];
+                    return senatorCategories.includes(category) && b.status === 'ACTIVE';
+                  }).length || 0}
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Active Senators</div>
+              </div>
+
+              <div className="text-center" style={{ minWidth: '50px' }}>
+                <div style={{ color: '#eb2f96', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  <TeamOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
+                  {allBeneficiaries?.filter((b: any) => {
+                    const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                    const staffCategories = [
+                      'STAFF', 'PARLIAMENTARY STAFF', 'ADMINISTRATIVE STAFF', 'SUPPORT STAFF', 'CLERK', 'ASSISTANT CLERK'
+                    ];
+                    return staffCategories.includes(category) && b.status === 'ACTIVE';
+                  }).length || 0}
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Staff</div>
+              </div>
+
+              <div className="text-center" style={{ minWidth: '60px' }}>
+                <div style={{ color: '#fa8c16', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  <CarOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
+                  {allBeneficiaries?.reduce((sum: number, b: any) => {
+                    const vehicles = b.vehicles || [];
+                    const vehicleCount = Array.isArray(vehicles) ? vehicles.length : (typeof vehicles === 'number' ? vehicles : 0);
+                    return sum + vehicleCount;
+                  }, 0) || 0}
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Vehicles</div>
+              </div>
+
+              <div className="text-center" style={{ minWidth: '90px' }}>
+                <div style={{ color: '#13c2c2', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  {allBeneficiaries?.reduce((sum: number, b: any) => {
+                    const allocation = b.entitlements?.monthlyAllocation || 
+                                     b.entitlements?.monthly_allocation ||
+                                     b.monthlyAllocation || 
+                                     b.monthly_allocation ||
+                                     b.allocation || 0;
+                    const numericAllocation = typeof allocation === 'number' ? allocation : parseFloat(allocation) || 0;
+                    return sum + numericAllocation;
+                  }, 0) || 0}L
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Total Allocation</div>
+              </div>
+
+              <div className="text-center" style={{ minWidth: '70px' }}>
+                <div style={{ color: '#52c41a', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
+                  <CheckCircleOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
+                  {((allBeneficiaries?.filter((b: any) => b.status === 'ACTIVE').length || 0) / (allBeneficiaries?.length || 1) * 100).toFixed(0)}%
+                </div>
+                <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Active Rate</div>
+              </div>
+            </div>
           </Col>
         </Row>
-            <Statistic
-              title="Total Beneficiaries"
-              value={allBeneficiariesResponse?.count || allBeneficiaries?.length || 0}
-              prefix={<TeamOutlined />}
-              loading={statsLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={6}>
-          <Card>
-            <Statistic
-              title="Active MPs"
-              value={allBeneficiaries?.filter((b: any) => {
-                const category = typeof b.category === 'object' ? b.category?.name : b.category;
-                // Include all MP-related categories from the complete list
-                const mpCategories = [
-                  'MEMBER OF PARLIAMENT',
-                  'MEMBER_OF_PARLIAMENT', 
-                  'MP',
-                  'MINISTER',
-                  'DEPUTY MINISTER',
-                  'ASSISTANT MINISTER',
-                  'CHIEF WHIP',
-                  'DEPUTY CHIEF WHIP',
-                  'SPEAKER',
-                  'DEPUTY SPEAKER',
-                  'COMMITTEE CHAIRPERSON',
-                  'PARLIAMENTARY COMMITTEE MEMBER',
-                  'OPPOSITION LEADER',
-                  'DEPUTY OPPOSITION LEADER',
-                  'BACKBENCHER',
-                  'SENATOR',
-                  'DEPUTY SENATOR'
-                ];
-                return mpCategories.includes(category) && b.status === 'ACTIVE';
-              }).length || 0}
-              valueStyle={{ color: '#1890ff' }}
-              prefix={<UserOutlined />}
-              loading={statsLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={6}>
-          <Card>
-            <Statistic
-              title="Total Vehicles"
-              value={allBeneficiaries?.reduce((sum: number, b: any) => {
-                const vehicles = b.vehicles || [];
-                // Handle both array and number formats
-                const vehicleCount = Array.isArray(vehicles) ? vehicles.length : (typeof vehicles === 'number' ? vehicles : 0);
-                return sum + vehicleCount;
-              }, 0) || 0}
-              valueStyle={{ color: '#52c41a' }}
-              prefix={<CarOutlined />}
-              loading={statsLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={6}>
-          <Card>
-            <Statistic
-              title="Monthly Allocations"
-              value={allBeneficiaries?.reduce((sum: number, b: any) => {
-                // Handle multiple possible allocation field names and nested structures
-                const allocation = b.entitlements?.monthlyAllocation || 
-                                 b.entitlements?.monthly_allocation ||
-                                 b.monthlyAllocation || 
-                                 b.monthly_allocation ||
-                                 b.allocation ||
-                                 0;
-                const numericAllocation = typeof allocation === 'number' ? allocation : parseFloat(allocation) || 0;
-                return sum + numericAllocation;
-              }, 0) || 0}
-              suffix="L"
-              valueStyle={{ color: '#722ed1' }}
-              loading={statsLoading}
-            />
-          </Card>
-        </Col>
-      </Row>
+      </div>
 
-      {/* Filters */}
-      <Card>
-        <div className="flex flex-wrap gap-4 items-center">
+      {/* Compact Filters */}
+      <div className="mb-3" style={{ 
+        padding: '8px 12px', 
+        backgroundColor: '#fafafa', 
+        borderRadius: '4px', 
+        border: '1px solid #f0f0f0' 
+      }}>
+        <div className="flex flex-wrap gap-2 items-center text-xs">
+          <span className="font-medium">Filters:</span>
           <Search
-            placeholder="Search by name, ID, or constituency"
-            style={{ width: 300 }}
+            placeholder="Search..."
+            style={{ width: 200 }}
+            size="small"
             onSearch={(value: string) => setFilters({ ...filters, search: value })}
           />
           <Select
-            placeholder="Parliamentary Position"
-            style={{ width: 200 }}
+            placeholder="Position"
+            style={{ width: 120 }}
+            size="small"
             allowClear
             showSearch
             optionFilterProp="label"
-            filterOption={(input, option) => {
-              if (!option) return false;
-              // Match on label, value, and lowercase
-              const label = (option.label || '').toString().toLowerCase();
-              const value = (option.value || '').toString().toLowerCase();
-              return label.includes(input.toLowerCase()) || value.includes(input.toLowerCase());
-            }}
             onChange={(value) => setFilters({ ...filters, category: value })}
             options={categoryOptions}
           />
           <Select
             placeholder="Status"
-            style={{ width: 120 }}
+            style={{ width: 80 }}
+            size="small"
             allowClear
             onChange={(value) => setFilters({ ...filters, status: value })}
             options={[
@@ -992,7 +974,8 @@ const BeneficiaryManagement = () => {
           />
           <Select
             placeholder="Party"
-            style={{ width: 150 }}
+            style={{ width: 100 }}
+            size="small"
             allowClear
             onChange={(value) => setFilters({ ...filters, party: value })}
             options={[
@@ -1002,11 +985,45 @@ const BeneficiaryManagement = () => {
               { label: 'Independent', value: 'Independent' },
             ]}
           />
-          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()} size="small" type="text">
             Refresh
           </Button>
+          
+          <span className="ml-4 font-medium">Advanced:</span>
+          <Select
+            style={{ width: 120 }}
+            size="small"
+            value={selectedCategory}
+            onChange={setSelectedCategory}
+            placeholder="Category"
+            allowClear
+          >
+            {beneficiaryFilterCategories.map((cat: string) => (
+              <Option key={cat} value={cat}>{cat}</Option>
+            ))}
+          </Select>
+          <Select
+            mode="multiple"
+            style={{ width: 160 }}
+            size="small"
+            value={selectedBeneficiaryIds}
+            onChange={setSelectedBeneficiaryIds}
+            placeholder="Select users"
+            optionLabelProp="label"
+            showSearch
+            maxTagCount={1}
+          >
+            {filteredBeneficiaries.map((b: any) => {
+              const displayName = b.user ? `${b.user.first_name || ''} ${b.user.last_name || ''}`.trim() : (b.constituency?.name || 'Unknown Name');
+              return (
+                <Option key={b.id} value={b.id} label={displayName}>
+                  <span><input type="checkbox" checked={selectedBeneficiaryIds.includes(b.id)} readOnly style={{ marginRight: 8 }} />{displayName}</span>
+                </Option>
+              );
+            })}
+          </Select>
         </div>
-      </Card>
+      </div>
 
       {/* Bulk Actions */}
       {selectedRowKeys.length > 0 && (
@@ -1652,7 +1669,7 @@ const BeneficiaryManagement = () => {
                 constituency: values.constituency || null,
                 party: values.party || null,
                 monthly_entitlement_litres: parseFloat(values.monthlyEntitlement || '300'),
-                office_location: values.officeLocation || '',
+                sub_center_id: values.subCenterId || null,
                 employee_id: values.employeeId || null,
                 // Vehicle information
                 vehicle_make: values.vehicleMake || '',
@@ -1820,10 +1837,20 @@ const BeneficiaryManagement = () => {
                 </Col>
                 <Col span={8}>
                   <Form.Item
-                    name="officeLocation"
-                    label="Office Location"
+                    name="subCenterId"
+                    label="SubCenter"
                   >
-                    <Input placeholder="Enter office location" />
+                    <Select
+                      placeholder="Select subcenter"
+                      showSearch
+                      allowClear
+                      loading={subcentersLoading}
+                      optionFilterProp="label"
+                      options={subcenters?.map((subcenter: any) => ({
+                        value: subcenter.id,
+                        label: subcenter.name
+                      })) || []}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
