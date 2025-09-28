@@ -124,7 +124,7 @@ const BeneficiaryManagement = () => {
   const { data: allBeneficiariesResponse, isLoading: statsLoading } = useQuery({
     queryKey: ['all-beneficiaries-stats'],
     queryFn: async () => {
-      const response = await apiClient.get('/beneficiaries/?page_size=1000'); // Get all for statistics
+      const response = await apiClient.get('/beneficiaries/?page_size=10000'); // Get all for statistics - increased limit
       console.log('All beneficiaries for stats:', response.data);
       return response.data;
     },
@@ -839,6 +839,57 @@ const BeneficiaryManagement = () => {
         borderRadius: '6px', 
         border: '1px solid #f0f0f0' 
       }}>
+        {(() => {
+          // Debug statistics calculations
+          const mps = allBeneficiaries?.filter((b: any) => {
+            const category = typeof b.category === 'object' ? b.category?.name : b.category;
+            const mpCategories = [
+              'MP', 'MEMBER OF PARLIAMENT', 'MINISTER', 'DEPUTY MINISTER', 'PRIME MINISTER',
+              'ASSISTANT MINISTER', 'CHIEF WHIP', 'DEPUTY CHIEF WHIP', 'SPEAKER', 'DEPUTY SPEAKER',
+              'COMMITTEE CHAIRPERSON', 'PARLIAMENTARY COMMITTEE MEMBER', 'OPPOSITION LEADER',
+              'DEPUTY OPPOSITION LEADER', 'BACKBENCHER'
+            ];
+            return mpCategories.includes(category) && b.status === 'ACTIVE';
+          }) || [];
+
+          const senators = allBeneficiaries?.filter((b: any) => {
+            const category = typeof b.category === 'object' ? b.category?.name : b.category;
+            const senatorCategories = [
+              'SENATOR', 'DEPUTY SENATOR', 'SENATE PRESIDENT', 'DEPUTY SENATE PRESIDENT',
+              'SENATE COMMITTEE CHAIRPERSON', 'SENATE COMMITTEE MEMBER'
+            ];
+            return senatorCategories.includes(category) && b.status === 'ACTIVE';
+          }) || [];
+
+          const staff = allBeneficiaries?.filter((b: any) => {
+            const category = typeof b.category === 'object' ? b.category?.name : b.category;
+            const staffCategories = [
+              'STAFF', 'PARLIAMENTARY STAFF', 'ADMINISTRATIVE STAFF', 'SUPPORT STAFF', 'CLERK', 'ASSISTANT CLERK'
+            ];
+            return staffCategories.includes(category) && b.status === 'ACTIVE';
+          }) || [];
+
+          console.log('Statistics Calculations Debug:', {
+            totalBeneficiaries: allBeneficiaries?.length,
+            mpsCount: mps.length,
+            senatorsCount: senators.length, 
+            staffCount: staff.length,
+            sampleMPs: mps.slice(0, 3).map((b: any) => ({ 
+              category: typeof b.category === 'object' ? b.category?.name : b.category,
+              status: b.status 
+            })),
+            sampleSenators: senators.slice(0, 3).map((b: any) => ({ 
+              category: typeof b.category === 'object' ? b.category?.name : b.category,
+              status: b.status 
+            })),
+            sampleStaff: staff.slice(0, 3).map((b: any) => ({ 
+              category: typeof b.category === 'object' ? b.category?.name : b.category,
+              status: b.status 
+            })),
+            allCategories: allBeneficiaries?.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean)
+          });
+          return null;
+        })()}
         <Row gutter={[16, 8]}>
           <Col xs={24} sm={24} md={24}>
             <div className="flex flex-wrap justify-between gap-4">
@@ -1065,8 +1116,13 @@ const BeneficiaryManagement = () => {
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} beneficiaries`,
             onChange: (nextPage: number, nextPageSize?: number) => {
-              setPage(nextPage);
-              if (nextPageSize && nextPageSize !== pageSize) setPageSize(nextPageSize);
+              console.log('Pagination change:', { nextPage, nextPageSize, currentPageSize: pageSize });
+              if (nextPageSize && nextPageSize !== pageSize) {
+                setPageSize(nextPageSize);
+                setPage(1); // Reset to first page when page size changes
+              } else {
+                setPage(nextPage);
+              }
             }
           }}
           scroll={{ x: 1400 }}
