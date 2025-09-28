@@ -82,29 +82,74 @@ apiClient.interceptors.request.use(
 // Global error handler for API responses
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('API Response Success:', response.status, response.data);
+    console.log('✅ API Response Success:', {
+      method: response.config.method?.toUpperCase(),
+      url: response.config.url,
+      status: response.status,
+      timestamp: new Date().toISOString()
+    });
     return response;
   },
   async (error) => {
-    console.error('API Response Error:', error);
+    console.error('❌ API Response Error:', {
+      method: error.config?.method?.toUpperCase(),
+      url: error.config?.url,
+      status: error.response?.status,
+      message: error.response?.data?.detail || error.message,
+      timestamp: new Date().toISOString()
+    });
     
     // Handle errors: log them but let AuthContext handle 401s to avoid conflicts
     if (error.response) {
-      console.error('Error response:', error.response.status, error.response.data);
+      console.error('Error response details:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
       
-      if (error.response.status === 403) {
-        console.warn('Access forbidden - insufficient permissions:', error.response.data);
+      if (error.response.status === 401) {
+        console.warn('🔐 Authentication failed - check token validity');
+        
+        // Log token information for debugging
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const isExpired = payload.exp < Math.floor(Date.now() / 1000);
+            console.warn('Token info:', {
+              exists: true,
+              expired: isExpired,
+              expiresAt: new Date(payload.exp * 1000).toISOString(),
+              userId: payload.user_id,
+              role: payload.role
+            });
+          } catch (tokenError) {
+            console.error('❌ Invalid token format:', tokenError);
+          }
+        } else {
+          console.warn('❌ No access token found in localStorage');
+        }
+      } else if (error.response.status === 403) {
+        console.warn('🚫 Access forbidden - insufficient permissions');
+      } else if (error.response.status === 404) {
+        console.warn('🔍 Endpoint not found:', error.config?.url);
       } else if (error.response.status >= 500) {
-        console.error('Server error:', error.response.status, error.response.data);
+        console.error('🔥 Server error:', error.response.status, error.response.data);
       }
-      // Don't handle 401 here - let AuthContext interceptor handle it to avoid conflicts
     } else if (error.request) {
-      // Network or CORS error
-      console.error('API Error (no response):', error);
+      console.error('🌐 Network error - no response received:', {
+        message: error.message,
+        code: error.code,
+        config: {
+          method: error.config?.method,
+          url: error.config?.url,
+          timeout: error.config?.timeout
+        }
+      });
     } else {
-      // Other errors
-      console.error('API Error:', error.message);
+      console.error('⚠️ Request setup error:', error.message);
     }
+    
     return Promise.reject(error);
   }
 );

@@ -203,7 +203,39 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
   };
 
   const handleSubmit = async (values: any) => {
+    console.log('🚀 FuelEntitlements handleSubmit called with:', values);
+    
     try {
+      // Pre-flight authentication check
+      const token = localStorage.getItem('access_token');
+      console.log('Auth check - token exists:', !!token);
+      
+      if (!token) {
+        message.error('Authentication required. Please log in again.');
+        console.warn('❌ No authentication token found');
+        return;
+      }
+
+      // Check if token is expired
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp < now) {
+          message.error('Session expired. Please log in again.');
+          console.warn('❌ Authentication token expired');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          return;
+        }
+        console.log('✅ Authentication token is valid');
+      } catch (tokenError) {
+        console.error('❌ Invalid token format:', tokenError);
+        message.error('Invalid authentication token. Please log in again.');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        return;
+      }
+
       const entitlementData: CreateEntitlementData = {
         beneficiary: values.beneficiary,
         entitlement_type: values.entitlement_type,
@@ -215,10 +247,14 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
         session: values.session
       };
 
+      console.log('📝 Submitting entitlement data:', entitlementData);
+
       if (editingEntitlement) {
+        console.log('✏️ Updating entitlement:', editingEntitlement.id);
         await FuelEntitlementsService.updateEntitlement(editingEntitlement.id, entitlementData);
         message.success('Entitlement updated successfully');
       } else {
+        console.log('➕ Creating new entitlement');
         await FuelEntitlementsService.createEntitlement(entitlementData);
         message.success('Entitlement created successfully');
       }
@@ -227,9 +263,53 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
       setEditingEntitlement(null);
       form.resetFields();
       await Promise.all([loadEntitlements(), loadInitialData()]);
-    } catch (error) {
-      console.error('Error saving entitlement:', error);
-      message.error('Failed to save entitlement');
+      
+    } catch (error: any) {
+      console.error('❌ Error saving entitlement:', error);
+      
+      // Enhanced error handling with specific messages
+      if (error?.response?.status === 401) {
+        message.error('Authentication failed. Please log out and log in again.');
+        console.error('🔐 Authentication error:', error.response.data);
+      } else if (error?.response?.status === 400) {
+        // Handle validation errors
+        const errorData = error.response.data;
+        if (typeof errorData === 'object' && errorData !== null) {
+          const errorMessages = Object.entries(errorData)
+            .map(([field, messages]: [string, any]) => {
+              const msgArray = Array.isArray(messages) ? messages : [messages];
+              return `${field}: ${msgArray.join(', ')}`;
+            })
+            .join('; ');
+          message.error(`Validation error: ${errorMessages}`);
+          console.error('📝 Validation errors:', errorData);
+        } else {
+          message.error(`Bad request: ${errorData || 'Unknown validation error'}`);
+        }
+      } else if (error?.response?.status === 403) {
+        message.error('You do not have permission to perform this action.');
+        console.error('🚫 Permission error:', error.response.data);
+      } else if (error?.response?.status === 404) {
+        message.error('Fuel entitlements endpoint not found. Please contact support.');
+        console.error('🔍 Not found error:', error.response.data);
+      } else if (error?.response?.status >= 500) {
+        message.error('Server error occurred. Please try again later or contact support.');
+        console.error('🔥 Server error:', error.response.data);
+      } else if (error?.code === 'NETWORK_ERROR' || error?.message?.includes('Network Error')) {
+        message.error('Network connection failed. Please check your internet connection.');
+        console.error('🌐 Network error:', error.message);
+      } else if (error?.code === 'TIMEOUT') {
+        message.error('Request timed out. Please try again.');
+        console.error('⏰ Timeout error:', error.message);
+      } else {
+        // Generic error fallback
+        const errorMsg = error?.response?.data?.detail || 
+                        error?.response?.data?.message ||
+                        error?.message || 
+                        'An unexpected error occurred';
+        message.error(`Failed to save entitlement: ${errorMsg}`);
+        console.error('❓ Unknown error:', error);
+      }
     }
   };
 
