@@ -744,9 +744,10 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
             <Select
               placeholder="Select beneficiary"
               showSearch
-              filterOption={(input, option) =>
-                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => {
+                const children = option?.children as unknown as string;
+                return children ? children.toLowerCase().includes(input.toLowerCase()) : false;
+              }}
             >
               {beneficiaries.map(user => (
                 <Option key={user.id} value={user.id}>
@@ -816,9 +817,10 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
                   placeholder="Select program"
                   allowClear
                   showSearch
-                  filterOption={(input, option) =>
-                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                  }
+                  filterOption={(input, option) => {
+                    const children = option?.children as unknown as string;
+                    return children ? children.toLowerCase().includes(input.toLowerCase()) : false;
+                  }}
                 >
                   {programs.map(program => (
                     <Option key={program.id} value={program.id}>
@@ -837,9 +839,10 @@ const FuelEntitlements: FC<FuelEntitlementsPageProps> = () => {
                   placeholder="Select session"
                   allowClear
                   showSearch
-                  filterOption={(input, option) =>
-                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                  }
+                  filterOption={(input, option) => {
+                    const children = option?.children as unknown as string;
+                    return children ? children.toLowerCase().includes(input.toLowerCase()) : false;
+                  }}
                 >
                   {sessions.map(session => (
                     <Option key={session.id} value={session.id}>
