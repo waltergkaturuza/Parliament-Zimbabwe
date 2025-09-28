@@ -64,6 +64,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import BeneficiaryService, { type Beneficiary, type BeneficiaryListResponse } from '@/api/beneficiaries';
+import { SubCenterService } from '@/api/subcenters';
+import type { SubCenter } from '@/types';
 import apiClient from '@/api';
 
 const { Search } = Input;
@@ -266,6 +268,25 @@ const BeneficiaryManagement = () => {
       }
     },
     staleTime: 10 * 60 * 1000, // 10 minutes cache
+  });
+
+  // Fetch subcenters for dropdown
+  const { data: subcentersData, isLoading: subcentersLoading } = useQuery({
+    queryKey: ['subcenters'],
+    queryFn: async () => {
+      try {
+        const response = await SubCenterService.getSubCenters({ 
+          is_active: true, 
+          page_size: 1000 
+        });
+        const data = response.data;
+        return Array.isArray(data) ? data : (data.results || []);
+      } catch (error) {
+        console.error('Failed to fetch subcenters:', error);
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 
   // Ensure constituencies, parties, users, and categories are always arrays
@@ -587,6 +608,23 @@ const BeneficiaryManagement = () => {
           <div className="font-medium">{constituency?.name || 'Not Assigned'}</div>
           {constituency?.province && (
             <div className="text-xs text-gray-500">{constituency.province}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'SubCenter',
+      key: 'subcenter',
+      width: 150,
+      render: (record: Beneficiary) => (
+        <div className="text-sm">
+          <div className="font-medium">
+            {(record as any)?.subcenter_name || 
+             (record as any)?.sub_center?.name || 
+             'Not Assigned'}
+          </div>
+          {(record as any)?.sub_center?.code && (
+            <div className="text-xs text-gray-500">{(record as any).sub_center.code}</div>
           )}
         </div>
       ),
@@ -1213,6 +1251,7 @@ const BeneficiaryManagement = () => {
                 category: values.category, // This will be "MP", "SENATOR", "STAFF", or "OFFICIAL"
                 constituency: values.constituency || null,
                 party: values.party || null,
+                sub_center_id: values.subCenterId || null,
                 monthly_entitlement_litres: parseFloat(values.monthlyEntitlement || '300'),
                 // Vehicle info
                 vehicle_make: values.vehicleMake || '',
@@ -1222,7 +1261,6 @@ const BeneficiaryManagement = () => {
                 vehicle_registration: values.vehicleRegistration || '',
                 fuel_type: values.fuelType || 'PETROL',
                 // Additional fields
-                office_location: values.officeLocation || '',
                 base_allocation: parseFloat(values.baseAllocation || '200'),
                 category_multiplier: parseFloat(values.categoryMultiplier || '1.0'),
                 // Remove fields not in frontend form
@@ -1276,6 +1314,7 @@ const BeneficiaryManagement = () => {
                               email: selectedUser.email || '',
                               phoneNumber: selectedUser.phone_number || '',
                               employeeId: selectedUser.username || '',
+                              subCenterId: selectedUser.sub_center_id || selectedUser.sub_center?.id || null,
                             });
                             message.success(`Auto-populated data from user: ${selectedUser.username}`);
                           }
@@ -1439,10 +1478,22 @@ const BeneficiaryManagement = () => {
                 </Col>
                 <Col span={8}>
                   <Form.Item
-                    name="officeLocation"
-                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Office Location</span>}
+                    name="subCenterId"
+                    label={<span style={{ fontSize: '16px', fontWeight: 600 }}>Subcenter</span>}
                   >
-                    <Input placeholder="Enter office location" size="large" style={{ fontSize: '16px', minHeight: '40px' }} />
+                    <Select
+                      placeholder="Select subcenter"
+                      showSearch
+                      allowClear
+                      size="large"
+                      style={{ fontSize: '16px', minHeight: '40px' }}
+                      loading={subcentersLoading}
+                      optionFilterProp="label"
+                      options={subcentersData?.map((subcenter: any) => ({
+                        value: subcenter.id,
+                        label: subcenter.name
+                      })) || []}
+                    />
                   </Form.Item>
                 </Col>
               </Row>

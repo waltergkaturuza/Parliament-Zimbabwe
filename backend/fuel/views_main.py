@@ -5439,13 +5439,13 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Enhanced queryset with optimized database queries and filtering"""
         queryset = BeneficiaryProfile.objects.select_related(
-            'user', 'category', 'constituency', 'vehicle_category', 'sub_center'
+            'user', 'category', 'constituency', 'vehicle_category', 'sub_center'  # Include sub_center
         ).filter(is_active_beneficiary=True)
         
         # Apply subcenter filtering for subcenter officers
         user = self.request.user
         if hasattr(user, 'role') and user.role in ['SUB_CENTER', 'SUB_CENTER_APPROVER']:
-            if user.sub_center:
+            if hasattr(user, 'sub_center') and user.sub_center:
                 # Only show beneficiaries assigned to the same subcenter
                 queryset = queryset.filter(sub_center=user.sub_center)
             else:

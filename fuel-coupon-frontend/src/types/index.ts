@@ -107,6 +107,8 @@ export interface BeneficiaryProfile {
   user?: User;
   constituency?: Constituency;
   category?: BeneficiaryCategory;
+  sub_center?: SubCenter;
+  subcenter_name?: string;
   vehicle_registration?: string;
   fuel_entitlements?: FuelEntitlement[];
   created_at: string;

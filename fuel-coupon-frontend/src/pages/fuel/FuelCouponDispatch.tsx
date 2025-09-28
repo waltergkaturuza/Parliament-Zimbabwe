@@ -83,11 +83,12 @@ const NewDispatchComponent: React.FC = () => {
 
   const loadBeneficiaries = async () => {
     try {
-      // Prefer the beneficiaries endpoint which includes top-level first_name/last_name
+      // The beneficiaries endpoint now properly filters by subcenter for SUB_CENTER users
       const response = await apiClient.get('/beneficiaries/?page_size=1000');
       setBeneficiaries(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading beneficiaries:', error);
+      setBeneficiaries([]);
     }
   };
 
@@ -304,6 +305,7 @@ const NewDispatchComponent: React.FC = () => {
                     <br />
                     <Text type="secondary">
                       {beneficiary.constituency?.name} - {beneficiary.category?.name || 'Category not specified'}
+                      {(beneficiary as any).subcenter_name && ` - SubCenter: ${(beneficiary as any).subcenter_name}`}
                     </Text>
                   </div>
                 </Option>
@@ -329,6 +331,9 @@ const NewDispatchComponent: React.FC = () => {
                 </Descriptions.Item>
                 <Descriptions.Item label="Category">
                   {selectedBeneficiary.category?.name}
+                </Descriptions.Item>
+                <Descriptions.Item label="SubCenter">
+                  {(selectedBeneficiary as any).subcenter_name || 'Not Assigned'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Member ID">
                   {selectedBeneficiary?.user?.username || 'N/A'}

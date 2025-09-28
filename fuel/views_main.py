@@ -4037,6 +4037,12 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
         if constituency:
             queryset = queryset.filter(constituency__name=constituency)
         
+        # Apply role-based filtering for subcenter officers
+        user = self.request.user if hasattr(self.request, 'user') else None
+        if user and user.role == 'SUB_CENTER' and hasattr(user, 'sub_center') and user.sub_center:
+            # Filter to only show beneficiaries from the officer's subcenter
+            queryset = queryset.filter(sub_center=user.sub_center)
+        
         return queryset
     
     def get_permissions(self):
