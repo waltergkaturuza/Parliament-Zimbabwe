@@ -5701,242 +5701,6 @@ class BeneficiaryProfileViewSet(viewsets.ModelViewSet):
         return Response([{'id': party.id, 'name': party.name, 'abbreviation': party.abbreviation} for party in parties])
 
 
-# Fuel Entitlement ViewSet - Critical for tracking parliament member entitlements
-class FuelEntitlementViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing fuel entitlements - tracks what members are entitled to regardless of stock"""
-    serializer_class = FuelEntitlementSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        user = self.request.user
-        queryset = FuelEntitlement.objects.select_related(
-            'beneficiary', 'session', 'program', 'created_by', 'approved_by'
-        ).all()
-        
-        if user.role == 'MAIN_CENTER' or user.role == 'AUDITOR':
-            return queryset  # Main Center and Auditors see all entitlements
-        elif user.role == 'SUB_CENTER' and user.sub_center:
-            # Sub Center officers see entitlements for beneficiaries in their center
-            return queryset.filter(beneficiary__sub_center=user.sub_center)
-        elif user.role == 'BENEFICIARY':
-            # Beneficiaries see only their own entitlements
-            return queryset.filter(beneficiary=user)
-        
-        return FuelEntitlement.objects.none()
-    
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), MainCenterOrSubCenterPermission()]
-    
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-    
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        """Approve a fuel entitlement"""
-        entitlement = self.get_object()
-        
-        if entitlement.status == 'APPROVED':
-            return Response({'error': 'Entitlement is already approved'}, status=400)
-        
-        entitlement.approve(request.user)
-        
-        return Response({
-            'message': 'Entitlement approved successfully',
-            'entitlement': FuelEntitlementSerializer(entitlement).data
-        })
-    
-    @action(detail=True, methods=['post'])
-    def allocate_fuel(self, request, pk=None):
-        """Allocate fuel against an entitlement"""
-        entitlement = self.get_object()
-        litres_to_allocate = request.data.get('litres', 0)
-        
-        try:
-            litres_to_allocate = float(litres_to_allocate)
-            if litres_to_allocate <= 0:
-                return Response({'error': 'Litres must be greater than 0'}, status=400)
-            
-            entitlement.allocate_fuel(litres_to_allocate)
-            
-            return Response({
-                'message': f'Successfully allocated {litres_to_allocate}L',
-                'entitlement': FuelEntitlementSerializer(entitlement).data
-            })
-            
-        except ValueError as e:
-            return Response({'error': str(e)}, status=400)
-        except Exception as e:
-            return Response({'error': f'Failed to allocate fuel: {str(e)}'}, status=500)
-    
-    @action(detail=False, methods=['get'])
-    def pending_approvals(self, request):
-        """Get all entitlements pending approval"""
-        pending = self.get_queryset().filter(status='PENDING')
-        serializer = self.get_serializer(pending, many=True)
-        return Response({
-            'count': pending.count(),
-            'results': serializer.data
-        })
-    
-    @action(detail=False, methods=['get'])
-    def expired_entitlements(self, request):
-        """Get all expired entitlements"""
-        from django.utils import timezone
-        expired = self.get_queryset().filter(
-            period_end__lt=timezone.now().date(),
-            status__in=['PENDING', 'APPROVED', 'PARTIALLY_ALLOCATED']
-        )
-        serializer = self.get_serializer(expired, many=True)
-        return Response({
-            'count': expired.count(),
-            'results': serializer.data
-        })
-    
-    @action(detail=False, methods=['post'])
-    def bulk_create_monthly_entitlements(self, request):
-        """Create monthly entitlements for all eligible beneficiaries"""
-        from django.utils import timezone
-        from datetime import timedelta
-        import calendar
-        
-        year = request.data.get('year', timezone.now().year)
-        month = request.data.get('month', timezone.now().month)
-        
-        # Calculate period dates
-        period_start = timezone.datetime(year, month, 1).date()
-        last_day = calendar.monthrange(year, month)[1]
-        period_end = timezone.datetime(year, month, last_day).date()
-        
-        # Get all beneficiaries with profiles
-        beneficiaries = User.objects.filter(
-            role='BENEFICIARY',
-            beneficiary_profile__isnull=False,
-            beneficiary_profile__is_active_beneficiary=True
-        ).select_related('beneficiary_profile', 'beneficiary_profile__category')
-        
-        created_entitlements = []
-        errors = []
-        
-        for beneficiary in beneficiaries:
-            try:
-                # Check if entitlement already exists for this period
-                existing = FuelEntitlement.objects.filter(
-                    beneficiary=beneficiary,
-                    entitlement_type='MONTHLY',
-                    period_start=period_start,
-                    period_end=period_end
-                ).exists()
-                
-                if not existing:
-                    # Calculate monthly entitlement based on profile
-                    profile = beneficiary.beneficiary_profile
-                    monthly_litres = profile.calculate_monthly_entitlement()
-                    
-                    entitlement = FuelEntitlement.objects.create(
-                        beneficiary=beneficiary,
-                        entitlement_type='MONTHLY',
-                        litres_entitled=monthly_litres,
-                        period_start=period_start,
-                        period_end=period_end,
-                        created_by=request.user,
-                        status='PENDING'
-                    )
-                    created_entitlements.append(entitlement)
-                    
-            except Exception as e:
-                errors.append({
-                    'beneficiary': beneficiary.get_full_name(),
-                    'error': str(e)
-                })
-        
-        return Response({
-            'message': f'Created {len(created_entitlements)} monthly entitlements',
-            'created_count': len(created_entitlements),
-            'error_count': len(errors),
-            'errors': errors[:10]  # Limit error details
-        })
-                
-#                 if existing:
-#                     continue
-                
-#                 profile = beneficiary.beneficiary_profile
-#                 litres_entitled = profile.monthly_entitlement_litres
-                
-#                 # Apply distance multiplier if applicable
-#                 if profile.constituency:
-#                     distance_multiplier = 1.0 + max(0, (profile.constituency.distance_from_parliament_km - 50) / 50) * 0.1
-#                     litres_entitled *= distance_multiplier
-                
-#                 entitlement = FuelEntitlement.objects.create(
-#                     beneficiary=beneficiary,
-#                     entitlement_type='MONTHLY',
-#                     litres_entitled=litres_entitled,
-#                     period_start=period_start,
-#                     period_end=period_end,
-#                     status='APPROVED',  # Auto-approve monthly entitlements
-#                     justification=f'Monthly entitlement for {calendar.month_name[month]} {year}',
-#                     created_by=request.user,
-#                     approved_by=request.user,
-#                     approved_date=timezone.now()
-#                 )
-#                 created_entitlements.append(entitlement)
-                
-#             except Exception as e:
-#                 errors.append(f'Failed to create entitlement for {beneficiary.get_full_name()}: {str(e)}')
-        
-#         return Response({
-#             'message': f'Created {len(created_entitlements)} monthly entitlements',
-#             'created_count': len(created_entitlements),
-#             'errors': errors,
-#             'period': f'{calendar.month_name[month]} {year}'
-#         })
-
-    @action(detail=False, methods=['get'])
-    def stats(self, request):
-        """Get fuel entitlement statistics"""
-        from django.db.models import Sum, Count, Q
-        from django.utils import timezone
-        
-        queryset = self.get_queryset()
-        
-        # Basic counts
-        total_entitlements = queryset.count()
-        pending_entitlements = queryset.filter(status='PENDING').count()
-        approved_entitlements = queryset.filter(status='APPROVED').count()
-        expired_entitlements = queryset.filter(
-            period_end__lt=timezone.now().date(),
-            status__in=['PENDING', 'APPROVED', 'PARTIALLY_ALLOCATED']
-        ).count()
-        
-        # Aggregate sums  
-        litres_stats = queryset.aggregate(
-            total_litres_entitled=Sum('litres_entitled'),
-            total_litres_allocated=Sum('litres_allocated')
-        )
-        
-        total_litres_entitled = litres_stats['total_litres_entitled'] or 0
-        total_litres_allocated = litres_stats['total_litres_allocated'] or 0
-        
-        # Calculate allocation percentage
-        allocation_percentage = 0
-        if total_litres_entitled > 0:
-            allocation_percentage = (total_litres_allocated / total_litres_entitled) * 100
-        
-        stats = {
-            'total_entitlements': total_entitlements,
-            'pending_entitlements': pending_entitlements,
-            'approved_entitlements': approved_entitlements,
-            'expired_entitlements': expired_entitlements,
-            'total_litres_entitled': float(total_litres_entitled),
-            'total_litres_allocated': float(total_litres_allocated),
-            'allocation_percentage': round(allocation_percentage, 2)
-        }
-        
-        return Response(stats)
-
-
 # ========================= SUBCENTER MANAGEMENT VIEWSETS =========================
 
 class PoolVehicleViewSet(viewsets.ModelViewSet):
@@ -9578,6 +9342,168 @@ class FuelEntitlementViewSet(viewsets.ModelViewSet):
         }
         
         return Response(stats)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Approve a fuel entitlement"""
+        entitlement = self.get_object()
+        
+        if entitlement.status == 'APPROVED':
+            return Response({'error': 'Entitlement is already approved'}, status=400)
+        
+        # Check if model has approve method
+        if hasattr(entitlement, 'approve'):
+            entitlement.approve(request.user)
+        else:
+            # Manual approval if model method doesn't exist
+            entitlement.status = 'APPROVED'
+            entitlement.approved_by = request.user
+            if self._model_has_field('approved_at'):
+                from django.utils import timezone
+                entitlement.approved_at = timezone.now()
+            entitlement.save()
+        
+        return Response({
+            'message': 'Entitlement approved successfully',
+            'entitlement': FuelEntitlementSerializer(entitlement).data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def allocate_fuel(self, request, pk=None):
+        """Allocate fuel against an entitlement"""
+        entitlement = self.get_object()
+        litres_to_allocate = request.data.get('litres', 0)
+        
+        try:
+            litres_to_allocate = float(litres_to_allocate)
+            if litres_to_allocate <= 0:
+                return Response({'error': 'Litres must be greater than 0'}, status=400)
+            
+            # Check if model has allocate_fuel method
+            if hasattr(entitlement, 'allocate_fuel'):
+                entitlement.allocate_fuel(litres_to_allocate)
+            else:
+                # Manual allocation if model method doesn't exist
+                if self._model_has_field('litres_allocated'):
+                    current_allocated = getattr(entitlement, 'litres_allocated', 0) or 0
+                    entitlement.litres_allocated = current_allocated + litres_to_allocate
+                    # Update status based on allocation
+                    if entitlement.litres_allocated >= entitlement.litres_entitled:
+                        entitlement.status = 'ALLOCATED'
+                    else:
+                        entitlement.status = 'PARTIALLY_ALLOCATED'
+                    entitlement.save()
+            
+            return Response({
+                'message': f'Successfully allocated {litres_to_allocate}L',
+                'entitlement': FuelEntitlementSerializer(entitlement).data
+            })
+            
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+        except Exception as e:
+            return Response({'error': f'Failed to allocate fuel: {str(e)}'}, status=500)
+    
+    @action(detail=False, methods=['get'])
+    def pending_approvals(self, request):
+        """Get all entitlements pending approval"""
+        try:
+            pending = self.get_queryset().filter(status='PENDING')
+            serializer = self.get_serializer(pending, many=True)
+            return Response({
+                'count': pending.count(),
+                'results': serializer.data
+            })
+        except Exception as e:
+            return Response({
+                'count': 0,
+                'results': [],
+                'error': str(e)
+            })
+    
+    @action(detail=False, methods=['get'])
+    def expired_entitlements(self, request):
+        """Get all expired entitlements"""
+        try:
+            from django.utils import timezone
+            expired = self.get_queryset().filter(
+                period_end__lt=timezone.now().date(),
+                status__in=['PENDING', 'APPROVED', 'PARTIALLY_ALLOCATED']
+            )
+            serializer = self.get_serializer(expired, many=True)
+            return Response({
+                'count': expired.count(),
+                'results': serializer.data
+            })
+        except Exception as e:
+            return Response({
+                'count': 0,
+                'results': [],
+                'error': str(e)
+            })
+    
+    @action(detail=False, methods=['post'])
+    def bulk_create_monthly_entitlements(self, request):
+        """Create monthly entitlements for all eligible beneficiaries"""
+        try:
+            from django.utils import timezone
+            from django.contrib.auth import get_user_model
+            
+            User = get_user_model()
+            
+            # Get parameters
+            month = request.data.get('month', timezone.now().month)
+            year = request.data.get('year', timezone.now().year)
+            litres_entitled = request.data.get('litres_entitled', 50)  # Default 50L
+            
+            # Get eligible beneficiaries
+            beneficiaries = User.objects.filter(role='BENEFICIARY', is_active=True)
+            if getattr(request.user, 'role', None) == 'SUB_CENTER':
+                beneficiaries = beneficiaries.filter(sub_center=request.user.sub_center)
+            
+            created_count = 0
+            errors = []
+            
+            for beneficiary in beneficiaries:
+                try:
+                    period_start = f"{year}-{month:02d}-01"
+                    # Calculate last day of month
+                    import calendar
+                    last_day = calendar.monthrange(year, month)[1]
+                    period_end = f"{year}-{month:02d}-{last_day:02d}"
+                    
+                    # Check if entitlement already exists
+                    existing = FuelEntitlement.objects.filter(
+                        beneficiary=beneficiary,
+                        period_start=period_start,
+                        period_end=period_end
+                    ).exists()
+                    
+                    if not existing:
+                        FuelEntitlement.objects.create(
+                            beneficiary=beneficiary,
+                            entitlement_type='MONTHLY',
+                            litres_entitled=litres_entitled,
+                            period_start=period_start,
+                            period_end=period_end,
+                            justification=f'Monthly entitlement for {month}/{year}',
+                            created_by=request.user
+                        )
+                        created_count += 1
+                        
+                except Exception as e:
+                    errors.append(f'{beneficiary.username}: {str(e)}')
+            
+            return Response({
+                'message': f'Created {created_count} monthly entitlements',
+                'created_count': created_count,
+                'errors': errors
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to create monthly entitlements: {str(e)}'
+            }, status=500)
 
 
 # NESTED SUBCENTER ENDPOINT VIEWS for specific subcenter statistics and activity
