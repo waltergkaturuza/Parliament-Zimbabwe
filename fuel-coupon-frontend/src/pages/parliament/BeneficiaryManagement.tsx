@@ -100,7 +100,7 @@ const BeneficiaryManagement = () => {
 
   // Pagination for beneficiaries
   const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [totalBeneficiaries, setTotalBeneficiaries] = useState<number>(0);
 
   // Fetch beneficiaries data (server-side pagination)
@@ -119,6 +119,11 @@ const BeneficiaryManagement = () => {
     },
     placeholderData: (previousData) => previousData,
   });
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filters?.search, filters?.status, filters?.category, filters?.party]);
 
   // Fetch ALL beneficiaries for statistics (no pagination)
   const { data: allBeneficiariesResponse, isLoading: statsLoading } = useQuery({
@@ -1184,18 +1189,22 @@ const BeneficiaryManagement = () => {
           pagination={{
             current: page,
             pageSize: pageSize,
-            total: totalBeneficiaries || ((beneficiariesResponse as any)?.count || 0),
+            total: (beneficiariesResponse as any)?.count || totalBeneficiaries || 0,
             showSizeChanger: true,
             showQuickJumper: true,
+            pageSizeOptions: ['10', '20', '50', '100', '200'],
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} beneficiaries`,
             onChange: (nextPage: number, nextPageSize?: number) => {
-              console.log('Pagination change:', { nextPage, nextPageSize, currentPageSize: pageSize });
               if (nextPageSize && nextPageSize !== pageSize) {
                 setPageSize(nextPageSize);
-                setPage(1); // Reset to first page when page size changes
+                setPage(1);
               } else {
                 setPage(nextPage);
               }
+            },
+            onShowSizeChange: (_current: number, size: number) => {
+              setPage(1);
+              setPageSize(size);
             }
           }}
           scroll={{ x: 1400 }}
