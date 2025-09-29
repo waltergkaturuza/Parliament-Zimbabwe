@@ -60,12 +60,7 @@ const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-interface UserStats {
-  total_users: number;
-  active_users: number;
-  new_users_today: number;
-  users_by_role: Record<string, number>;
-}
+// Using UserStats type from api/admin
 
 const UsersManagementPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
@@ -76,19 +71,23 @@ const UsersManagementPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [formRole, setFormRole] = useState<string | undefined>(); // Track role in form
+  // Server-side pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
   // Fetch users data
   const { data: usersData, isLoading: usersLoading, error } = useQuery({
-    queryKey: ['admin-users', searchText, selectedRole, selectedStatus],
+    queryKey: ['admin-users', searchText, selectedRole, selectedStatus, currentPage, pageSize],
     queryFn: async () => {
       try {
         return await adminService.getUsers({
           search: searchText || undefined,
           role: selectedRole,
           is_active: selectedStatus === 'active' ? true : selectedStatus === 'inactive' ? false : undefined,
-          page_size: 50
+          page: currentPage,
+          page_size: pageSize
         });
       } catch (err) {
         console.error('Error fetching users:', err);
@@ -100,6 +99,11 @@ const UsersManagementPage: React.FC = () => {
       }
     }
   });
+
+  // Reset to first page when filters/search change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, selectedRole, selectedStatus]);
 
   // Fetch user stats
   const { data: stats } = useQuery({
@@ -207,8 +211,11 @@ const UsersManagementPage: React.FC = () => {
   const approveUserMutation = useMutation({
     mutationFn: adminService.approveUser,
     onSuccess: (response) => {
-      // Handle enhanced response with email status
-      const emailStatus = response.email_sent ? ' (Email sent successfully)' : ' (Email failed to send)';
+      // Some backends may include email status; treat as optional
+      const r: any = response as any;
+      const emailStatus = r?.email_sent
+        ? ' (Email sent successfully)'
+        : (r?.email_address ? ' (Email failed to send)' : '');
       message.success(`User approved successfully${emailStatus}`);
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       queryClient.invalidateQueries({ queryKey: ['admin-users-stats'] });
@@ -221,11 +228,9 @@ const UsersManagementPage: React.FC = () => {
   const rejectUserMutation = useMutation({
     mutationFn: ({ userId, reason }: { userId: number; reason: string }) => 
       adminService.rejectUser(userId, reason),
-    onSuccess: (response) => {
-      // Handle enhanced response with email status
-      const emailStatus = response.email_sent ? ' (Email sent successfully)' : 
-                         (response.email_address ? ' (Email failed to send)' : ' (No email address on file)');
-      message.success(`User rejected successfully${emailStatus}`);
+    onSuccess: () => {
+      // Backend returns no payload for rejection currently
+      message.success('User rejected successfully');
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       queryClient.invalidateQueries({ queryKey: ['admin-users-stats'] });
     },
@@ -751,9 +756,18 @@ const UsersManagementPage: React.FC = () => {
           rowKey="id"
           loading={usersLoading}
           pagination={{
+            current: currentPage,
+            pageSize,
+            total: usersData?.count || 0,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} users`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              if (size && size !== pageSize) {
+                setPageSize(size);
+              }
+            }
           }}
           scroll={{ x: 800 }}
         />

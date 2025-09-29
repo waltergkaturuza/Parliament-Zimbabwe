@@ -840,53 +840,99 @@ const BeneficiaryManagement = () => {
         border: '1px solid #f0f0f0' 
       }}>
         {(() => {
-          // Debug statistics calculations
+          // Enhanced debug statistics calculations
           const mps = allBeneficiaries?.filter((b: any) => {
             const category = typeof b.category === 'object' ? b.category?.name : b.category;
+            const normalizedCategory = category?.toUpperCase().trim();
             const mpCategories = [
-              'MP', 'MEMBER OF PARLIAMENT', 'MINISTER', 'DEPUTY MINISTER', 'PRIME MINISTER',
+              'MP', 'MEMBER OF PARLIAMENT', 'MEMBER_OF_PARLIAMENT', 'MINISTER', 'DEPUTY MINISTER', 'PRIME MINISTER',
               'ASSISTANT MINISTER', 'CHIEF WHIP', 'DEPUTY CHIEF WHIP', 'SPEAKER', 'DEPUTY SPEAKER',
               'COMMITTEE CHAIRPERSON', 'PARLIAMENTARY COMMITTEE MEMBER', 'OPPOSITION LEADER',
-              'DEPUTY OPPOSITION LEADER', 'BACKBENCHER'
+              'DEPUTY OPPOSITION LEADER', 'BACKBENCHER', 'PARLIAMENT MEMBER', 'PARLIAMENTARY MEMBER'
             ];
-            return mpCategories.includes(category) && b.status === 'ACTIVE';
+            const isActiveStatus = b.status === 'ACTIVE' || b.status === 'active' || (b.is_active !== false && b.user?.is_active !== false);
+            return mpCategories.includes(normalizedCategory) && isActiveStatus;
           }) || [];
 
           const senators = allBeneficiaries?.filter((b: any) => {
             const category = typeof b.category === 'object' ? b.category?.name : b.category;
+            const normalizedCategory = category?.toUpperCase().trim();
             const senatorCategories = [
               'SENATOR', 'DEPUTY SENATOR', 'SENATE PRESIDENT', 'DEPUTY SENATE PRESIDENT',
-              'SENATE COMMITTEE CHAIRPERSON', 'SENATE COMMITTEE MEMBER'
+              'SENATE COMMITTEE CHAIRPERSON', 'SENATE COMMITTEE MEMBER', 'SENATE MEMBER'
             ];
-            return senatorCategories.includes(category) && b.status === 'ACTIVE';
+            const isActiveStatus = b.status === 'ACTIVE' || b.status === 'active' || (b.is_active !== false && b.user?.is_active !== false);
+            return senatorCategories.includes(normalizedCategory) && isActiveStatus;
           }) || [];
 
           const staff = allBeneficiaries?.filter((b: any) => {
             const category = typeof b.category === 'object' ? b.category?.name : b.category;
+            const normalizedCategory = category?.toUpperCase().trim();
             const staffCategories = [
-              'STAFF', 'PARLIAMENTARY STAFF', 'ADMINISTRATIVE STAFF', 'SUPPORT STAFF', 'CLERK', 'ASSISTANT CLERK'
+              'STAFF', 'PARLIAMENTARY STAFF', 'ADMINISTRATIVE STAFF', 'SUPPORT STAFF', 'CLERK', 'ASSISTANT CLERK',
+              'EMPLOYEE', 'OFFICER', 'OFFICIAL', 'ADMINISTRATOR', 'SECRETARIAT', 'SERVICE'
             ];
-            return staffCategories.includes(category) && b.status === 'ACTIVE';
+            const isActiveStatus = b.status === 'ACTIVE' || b.status === 'active' || (b.is_active !== false && b.user?.is_active !== false);
+            return staffCategories.includes(normalizedCategory) && isActiveStatus;
           }) || [];
 
-          console.log('Statistics Calculations Debug:', {
+          // Count vehicles more comprehensively
+          const vehicleCount = allBeneficiaries?.reduce((count: number, b: any) => {
+            // Check vehicles array
+            const vehiclesArray = b.vehicles || [];
+            if (Array.isArray(vehiclesArray) && vehiclesArray.length > 0) {
+              return count + vehiclesArray.length;
+            }
+            
+            // Check vehicleInfo object
+            const vehicleInfo = b.vehicleInfo || {};
+            if (vehicleInfo.make || vehicleInfo.model || vehicleInfo.registrationNumber) {
+              return count + 1;
+            }
+            
+            // Check direct vehicle fields (legacy)
+            if (b.vehicle_make || b.vehicle_model || b.vehicle_registration) {
+              return count + 1;
+            }
+            
+            return count;
+          }, 0) || 0;
+
+          console.log('📊 Enhanced Statistics Debug:', {
             totalBeneficiaries: allBeneficiaries?.length,
             mpsCount: mps.length,
             senatorsCount: senators.length, 
             staffCount: staff.length,
+            vehicleCount: vehicleCount,
             sampleMPs: mps.slice(0, 3).map((b: any) => ({ 
+              name: b.name,
               category: typeof b.category === 'object' ? b.category?.name : b.category,
-              status: b.status 
+              status: b.status,
+              hasVehicle: !!(b.vehicles?.length || b.vehicleInfo?.make || b.vehicle_make)
             })),
             sampleSenators: senators.slice(0, 3).map((b: any) => ({ 
+              name: b.name,
               category: typeof b.category === 'object' ? b.category?.name : b.category,
-              status: b.status 
+              status: b.status,
+              hasVehicle: !!(b.vehicles?.length || b.vehicleInfo?.make || b.vehicle_make)
             })),
             sampleStaff: staff.slice(0, 3).map((b: any) => ({ 
+              name: b.name,
               category: typeof b.category === 'object' ? b.category?.name : b.category,
-              status: b.status 
+              status: b.status,
+              hasVehicle: !!(b.vehicles?.length || b.vehicleInfo?.make || b.vehicle_make)
             })),
-            allCategories: allBeneficiaries?.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean)
+            allCategories: [...new Set(allBeneficiaries?.map((b: any) => typeof b.category === 'object' ? b.category?.name : b.category).filter(Boolean))],
+            categoryCounts: allBeneficiaries?.reduce((counts: any, b: any) => {
+              const cat = typeof b.category === 'object' ? b.category?.name : b.category;
+              counts[cat] = (counts[cat] || 0) + 1;
+              return counts;
+            }, {}),
+            vehicleBreakdown: {
+              withVehiclesArray: allBeneficiaries?.filter((b: any) => b.vehicles?.length > 0).length || 0,
+              withVehicleInfo: allBeneficiaries?.filter((b: any) => b.vehicleInfo?.make || b.vehicleInfo?.model).length || 0,
+              withDirectFields: allBeneficiaries?.filter((b: any) => b.vehicle_make || b.vehicle_model).length || 0
+            }
           });
           return null;
         })()}
@@ -906,13 +952,15 @@ const BeneficiaryManagement = () => {
                   <UserOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
                   {allBeneficiaries?.filter((b: any) => {
                     const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                    const normalizedCategory = category?.toUpperCase().trim();
                     const mpCategories = [
                       'MEMBER OF PARLIAMENT', 'MEMBER_OF_PARLIAMENT', 'MP', 'MINISTER', 'DEPUTY MINISTER',
                       'ASSISTANT MINISTER', 'CHIEF WHIP', 'DEPUTY CHIEF WHIP', 'SPEAKER', 'DEPUTY SPEAKER',
                       'COMMITTEE CHAIRPERSON', 'PARLIAMENTARY COMMITTEE MEMBER', 'OPPOSITION LEADER',
-                      'DEPUTY OPPOSITION LEADER', 'BACKBENCHER'
+                      'DEPUTY OPPOSITION LEADER', 'BACKBENCHER', 'PARLIAMENT MEMBER', 'PARLIAMENTARY MEMBER'
                     ];
-                    return mpCategories.includes(category) && b.status === 'ACTIVE';
+                    const isActiveStatus = b.status === 'ACTIVE' || b.status === 'active' || (b.is_active !== false && b.user?.is_active !== false);
+                    return mpCategories.includes(normalizedCategory) && isActiveStatus;
                   }).length || 0}
                 </div>
                 <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Active MPs</div>
@@ -923,11 +971,13 @@ const BeneficiaryManagement = () => {
                   <BankOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
                   {allBeneficiaries?.filter((b: any) => {
                     const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                    const normalizedCategory = category?.toUpperCase().trim();
                     const senatorCategories = [
                       'SENATOR', 'DEPUTY SENATOR', 'SENATE PRESIDENT', 'DEPUTY SENATE PRESIDENT',
-                      'SENATE COMMITTEE CHAIRPERSON', 'SENATE COMMITTEE MEMBER'
+                      'SENATE COMMITTEE CHAIRPERSON', 'SENATE COMMITTEE MEMBER', 'SENATE MEMBER'
                     ];
-                    return senatorCategories.includes(category) && b.status === 'ACTIVE';
+                    const isActiveStatus = b.status === 'ACTIVE' || b.status === 'active' || (b.is_active !== false && b.user?.is_active !== false);
+                    return senatorCategories.includes(normalizedCategory) && isActiveStatus;
                   }).length || 0}
                 </div>
                 <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Active Senators</div>
@@ -938,10 +988,13 @@ const BeneficiaryManagement = () => {
                   <TeamOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
                   {allBeneficiaries?.filter((b: any) => {
                     const category = typeof b.category === 'object' ? b.category?.name : b.category;
+                    const normalizedCategory = category?.toUpperCase().trim();
                     const staffCategories = [
-                      'STAFF', 'PARLIAMENTARY STAFF', 'ADMINISTRATIVE STAFF', 'SUPPORT STAFF', 'CLERK', 'ASSISTANT CLERK'
+                      'STAFF', 'PARLIAMENTARY STAFF', 'ADMINISTRATIVE STAFF', 'SUPPORT STAFF', 'CLERK', 'ASSISTANT CLERK',
+                      'EMPLOYEE', 'OFFICER', 'OFFICIAL', 'ADMINISTRATOR', 'SECRETARIAT', 'SERVICE'
                     ];
-                    return staffCategories.includes(category) && b.status === 'ACTIVE';
+                    const isActiveStatus = b.status === 'ACTIVE' || b.status === 'active' || (b.is_active !== false && b.user?.is_active !== false);
+                    return staffCategories.includes(normalizedCategory) && isActiveStatus;
                   }).length || 0}
                 </div>
                 <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Staff</div>
@@ -951,9 +1004,29 @@ const BeneficiaryManagement = () => {
                 <div style={{ color: '#fa8c16', fontSize: '18px', fontWeight: 'bold', lineHeight: '1.2' }}>
                   <CarOutlined style={{ fontSize: '14px', marginRight: '4px' }} />
                   {allBeneficiaries?.reduce((sum: number, b: any) => {
+                    // Check vehicles array first
                     const vehicles = b.vehicles || [];
-                    const vehicleCount = Array.isArray(vehicles) ? vehicles.length : (typeof vehicles === 'number' ? vehicles : 0);
-                    return sum + vehicleCount;
+                    if (Array.isArray(vehicles) && vehicles.length > 0) {
+                      return sum + vehicles.length;
+                    }
+                    
+                    // Check vehicleInfo object
+                    const vehicleInfo = b.vehicleInfo || {};
+                    if (vehicleInfo.make || vehicleInfo.model || vehicleInfo.registrationNumber) {
+                      return sum + 1;
+                    }
+                    
+                    // Check direct vehicle fields (legacy compatibility)
+                    if (b.vehicle_make || b.vehicle_model || b.vehicle_registration) {
+                      return sum + 1;
+                    }
+                    
+                    // Check entitlements vehicleCount
+                    if (b.entitlements?.vehicleCount && typeof b.entitlements.vehicleCount === 'number') {
+                      return sum + b.entitlements.vehicleCount;
+                    }
+                    
+                    return sum;
                   }, 0) || 0}
                 </div>
                 <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', whiteSpace: 'nowrap' }}>Vehicles</div>

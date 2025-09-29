@@ -63,16 +63,26 @@ const UsersManagementTab: React.FC<UsersManagementTabProps> = ({ loading = false
   const [editingUser, setEditingUser] = useState<ApiUser | null>(null);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+  // Server-side pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(50);
 
   // Fetch users data
   const { data: users = [], isLoading: usersLoading, error } = useQuery({
-    queryKey: ['users', searchText, selectedRole, selectedStatus],
+    queryKey: ['users', searchText, selectedRole, selectedStatus, currentPage, pageSize],
     queryFn: () => UserService.getUsers({
-      search: searchText,
+      search: searchText || undefined,
       role: selectedRole,
-      is_active: selectedStatus === 'active' ? true : selectedStatus === 'inactive' ? false : undefined
+      is_active: selectedStatus === 'active' ? true : selectedStatus === 'inactive' ? false : undefined,
+      page: currentPage,
+      page_size: pageSize,
     }),
   });
+
+  // Reset to first page when filters/search change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, selectedRole, selectedStatus]);
 
   // Role configuration
   const roleConfig = {
@@ -323,11 +333,13 @@ const UsersManagementTab: React.FC<UsersManagementTabProps> = ({ loading = false
   };
 
   // Statistics for users
+  const usersArray: ApiUser[] = (users as any)?.results ?? (users as any);
+  const totalCount: number = (users as any)?.count ?? (Array.isArray(usersArray) ? usersArray.length : 0);
   const userStats = {
-    total: users.length,
-    active: users.filter((u: ApiUser) => u.is_active).length,
+    total: totalCount,
+    active: usersArray.filter((u: ApiUser) => u.is_active).length,
     byRole: Object.keys(roleConfig).reduce((acc: Record<string, number>, role) => {
-      acc[role] = users.filter((u: ApiUser) => u.role === role).length;
+      acc[role] = usersArray.filter((u: ApiUser) => u.role === role).length;
       return acc;
     }, {} as Record<string, number>)
   };
@@ -423,14 +435,20 @@ const UsersManagementTab: React.FC<UsersManagementTabProps> = ({ loading = false
         {/* Users Table */}
         <Table
           columns={columns}
-          dataSource={users}
+          dataSource={usersArray}
           rowKey="id"
           loading={usersLoading || loading}
           pagination={{
-            pageSize: 10,
+            current: currentPage,
+            pageSize,
+            total: totalCount,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `Total ${total} users`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              if (size && size !== pageSize) setPageSize(size);
+            },
           }}
           scroll={{ x: 1000 }}
         />

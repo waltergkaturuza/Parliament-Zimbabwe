@@ -52,29 +52,14 @@ import {
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import { adminService } from '@/api/admin';
+import { adminService, type User as ApiUser } from '@/api/admin';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  is_active: boolean;
-  is_approved: boolean;
-  date_joined: string;
-  last_login?: string;
-  phone?: string;
-  sub_center?: {
-    id: number;
-    name: string;
-  };
-}
+// Align local User type with API's User to avoid type mismatches
+type User = ApiUser;
 
 interface UserStats {
   total_users: number;
@@ -91,19 +76,23 @@ const UsersManagementPage: React.FC = () => {
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
+  // Server-side pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
   // Fetch users data
   const { data: usersData, isLoading: usersLoading, error } = useQuery({
-    queryKey: ['admin-users', searchText, selectedRole, selectedStatus],
+    queryKey: ['admin-users', searchText, selectedRole, selectedStatus, currentPage, pageSize],
     queryFn: async () => {
       try {
         return await adminService.getUsers({
           search: searchText || undefined,
           role: selectedRole,
           is_active: selectedStatus === 'active' ? true : selectedStatus === 'inactive' ? false : undefined,
-          page_size: 50
+          page: currentPage,
+          page_size: pageSize
         });
       } catch (err) {
         console.error('Error fetching users:', err);
@@ -147,7 +136,8 @@ const UsersManagementPage: React.FC = () => {
               is_approved: true,
               date_joined: '2024-03-01T00:00:00Z',
               last_login: '2025-07-05T14:30:00Z',
-              sub_center: { id: 1, name: 'Bulawayo Regional Office' }
+              sub_center: 1,
+              sub_center_details: { id: 1, name: 'Bulawayo Regional Office', code: 'BYO' }
             }
           ],
           count: 3
@@ -155,6 +145,11 @@ const UsersManagementPage: React.FC = () => {
       }
     }
   });
+
+  // Reset to first page when filters/search change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, selectedRole, selectedStatus]);
 
   // Fetch user stats
   const { data: stats } = useQuery({
@@ -380,7 +375,7 @@ const UsersManagementPage: React.FC = () => {
       key: 'sub_center',
       render: (_, record) => (
         record.sub_center ? (
-          <Tag color="blue">{record.sub_center.name}</Tag>
+          <Tag color="blue">{record.sub_center_details ? record.sub_center_details.name : '-'}</Tag>
         ) : (
           <Text type="secondary">-</Text>
         )
@@ -617,9 +612,16 @@ const UsersManagementPage: React.FC = () => {
           rowKey="id"
           loading={usersLoading}
           pagination={{
+            current: currentPage,
+            pageSize,
+            total: usersData?.count || 0,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} users`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              if (size && size !== pageSize) setPageSize(size);
+            }
           }}
           scroll={{ x: 800 }}
         />
@@ -761,7 +763,7 @@ const UsersManagementPage: React.FC = () => {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Sub Center">
-                {viewingUser.sub_center ? viewingUser.sub_center.name : 'Not assigned'}
+                {viewingUser.sub_center_details ? viewingUser.sub_center_details.name : 'Not assigned'}
               </Descriptions.Item>
               <Descriptions.Item label="Status">
                 <Tag color={viewingUser.is_active ? 'green' : 'red'}>
