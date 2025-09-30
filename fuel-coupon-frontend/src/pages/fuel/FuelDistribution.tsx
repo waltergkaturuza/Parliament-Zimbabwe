@@ -93,19 +93,23 @@ export default function FuelDistribution() {
   const { data: allBeneficiaries, isLoading: loadingAllBeneficiaries } = useQuery({
     queryKey: ['all-beneficiaries'],
     queryFn: async () => {
-      // Fetch all beneficiaries with no pagination to ensure we get all 300+ beneficiaries
-      const response = await apiClient.get('/beneficiaries/?page_size=1000');
-      console.log('All beneficiaries API response:', response.data);
-      console.log('Total beneficiaries count:', response.data.count || response.data?.results?.length || 0);
-      console.log('First 3 beneficiaries sample:', response.data.results?.slice(0, 3).map((b: any) => ({
-        id: b.id,
-        name: b.name,
-        first_name: b.first_name,
-        last_name: b.last_name,
-        constituency: b.constituency,
-        category: b.category
-      })));
-      return response.data.results || response.data;
+      // Fetch all beneficiaries by following pagination until next is null
+      const first = await apiClient.get('/beneficiaries/?page_size=200');
+      const collected: any[] = first.data.results || (Array.isArray(first.data) ? first.data : []);
+      let nextUrl: string | null = first.data?.next || null;
+
+      while (nextUrl) {
+        // Support absolute next URL by removing baseURL prefix
+        const relative = nextUrl.startsWith('http')
+          ? nextUrl.replace(apiClient.defaults.baseURL || '', '')
+          : nextUrl;
+        const nextResp = await apiClient.get(relative);
+        const items = nextResp.data.results || (Array.isArray(nextResp.data) ? nextResp.data : []);
+        collected.push(...items);
+        nextUrl = nextResp.data?.next || null;
+      }
+
+      return collected;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes cache
     retry: 2
