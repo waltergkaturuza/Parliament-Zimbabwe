@@ -871,19 +871,39 @@ const BoxReceiptManagement: FC = () => {
       return false; // Different formats cannot overlap
     }
     
-    // Both ranges use old format - fallback to numeric comparison
-    const r1FirstMatch = range1First.match(/(\d+)$/);
-    const r1LastMatch = range1Last.match(/(\d+)$/);
-    const r2FirstMatch = range2First.match(/(\d+)$/);
-    const r2LastMatch = range2Last.match(/(\d+)$/);
-    
-    if (r1FirstMatch && r1LastMatch && r2FirstMatch && r2LastMatch) {
-      const r1First = parseInt(r1FirstMatch[1]);
-      const r1Last = parseInt(r1LastMatch[1]);
-      const r2First = parseInt(r2FirstMatch[1]);
-      const r2Last = parseInt(r2LastMatch[1]);
+    // Both ranges use old format - use proper PetroTrade serial comparison
+    // This fixes the issue where only last 7 digits were being compared
+    try {
+      // Parse using PetroTrade format
+      const r1FirstParsed = parsePetroTradeSerial(range1First);
+      const r1LastParsed = parsePetroTradeSerial(range1Last);
+      const r2FirstParsed = parsePetroTradeSerial(range2First);
+      const r2LastParsed = parsePetroTradeSerial(range2Last);
       
-      return (r1First <= r2Last && r1Last >= r2First);
+      if (r1FirstParsed.is_valid && r1LastParsed.is_valid && 
+          r2FirstParsed.is_valid && r2LastParsed.is_valid) {
+        
+        // Check if prefixes match (they should for meaningful comparison)
+        if (r1FirstParsed.prefix === r2FirstParsed.prefix) {
+          // Compare using full 7-digit serial numbers, not just trailing digits
+          const r1First = r1FirstParsed.seven_digit_serial;
+          const r1Last = r1LastParsed.seven_digit_serial;
+          const r2First = r2FirstParsed.seven_digit_serial;
+          const r2Last = r2LastParsed.seven_digit_serial;
+          
+          return (r1First <= r2Last && r1Last >= r2First);
+        } else {
+          // Different prefixes cannot overlap
+          return false;
+        }
+      }
+      
+      // Fallback to full string comparison if parsing fails
+      return (range1First <= range2Last && range1Last >= range2First);
+    } catch (error) {
+      console.warn('Error comparing coupon ranges:', error);
+      // Ultimate fallback to string comparison
+      return (range1First <= range2Last && range1Last >= range2First);
     }
     
     return false;

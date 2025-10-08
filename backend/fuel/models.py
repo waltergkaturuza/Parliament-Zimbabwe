@@ -943,8 +943,20 @@ class Box(ArchivableModel):
                     'last_coupon_number': 'Invalid format. Should end with at least 6 digits.'
                 })
         
-        # Validate coupon number sequence
+        # Validate coupon number sequence and uniqueness
         if self.first_coupon_number and self.last_coupon_number:
+            # Use the improved uniqueness validation
+            is_unique, message = self.validate_serial_uniqueness(
+                self.first_coupon_number, 
+                self.last_coupon_number
+            )
+            
+            if not is_unique:
+                raise ValidationError({
+                    'last_coupon_number': f'Serial range validation failed: {message}'
+                })
+            
+            # Also check basic numeric sequence for backward compatibility
             first_num = self._extract_coupon_number(self.first_coupon_number)
             last_num = self._extract_coupon_number(self.last_coupon_number)
             
@@ -954,12 +966,22 @@ class Box(ArchivableModel):
                 })
 
     def _extract_coupon_number(self, coupon_str):
-        """Extract the numeric part from coupon string"""
+        """Extract the numeric part from coupon string using PetroTrade format"""
         try:
+            # First try to use PetroTrade format parsing
+            from .utils.petrotrade_serials import PetroTradeSerial
+            parsed = PetroTradeSerial.parse_serial(coupon_str)
+            if parsed.get('is_valid'):
+                # Use the full 7-digit serial number for uniqueness
+                return parsed['seven_digit_serial']
+            
+            # Fallback to legacy format extraction (for backward compatibility)
             match = re.search(r'(\d+)$', coupon_str)
             return int(match.group(1)) if match else None
-        except (ValueError, AttributeError):
-            return None
+        except (ValueError, AttributeError, ImportError):
+            # If PetroTrade parsing fails, use legacy method
+            match = re.search(r'(\d+)$', coupon_str)
+            return int(match.group(1)) if match else None
 
     def _extract_serial_prefix(self, coupon_str):
         """Extract the prefix part from coupon string (everything before the number)"""
@@ -974,6 +996,43 @@ class Box(ArchivableModel):
         if not prefix:
             return str(number)
         return f"{prefix}{number:06d}"  # Pad to 6 digits
+
+    def validate_serial_uniqueness(self, first_serial: str, last_serial: str):
+        """Validate that the serial range doesn't conflict with existing coupons"""
+        from .utils.petrotrade_serials import PetroTradeSerial
+        
+        try:
+            # Parse both serials using PetroTrade format
+            first_parsed = PetroTradeSerial.parse_serial(first_serial)
+            last_parsed = PetroTradeSerial.parse_serial(last_serial)
+            
+            if not first_parsed.get('is_valid') or not last_parsed.get('is_valid'):
+                return False, "Invalid PetroTrade serial format"
+            
+            # Ensure both serials have the same prefix
+            if first_parsed['prefix'] != last_parsed['prefix']:
+                return False, "First and last serials must have the same prefix"
+            
+            # Check for any existing coupons with serials in this range
+            # Use Django's apps registry to avoid circular imports
+            from django.apps import apps
+            Coupon = apps.get_model('fuel', 'Coupon')
+            
+            # Generate all serials in the range
+            prefix = first_parsed['prefix']
+            start_num = first_parsed['seven_digit_serial']
+            end_num = last_parsed['seven_digit_serial']
+            
+            # Check if any coupon in this range already exists
+            for num in range(start_num, end_num + 1):
+                test_serial = f"{prefix}{num:07d}"
+                if Coupon.objects.filter(coupon_serial=test_serial).exists():
+                    return False, f"Coupon serial {test_serial} already exists"
+            
+            return True, "Serial range is unique"
+            
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
 
     def calculate_from_first_last_serials(self, first_serial, last_serial):
         """
