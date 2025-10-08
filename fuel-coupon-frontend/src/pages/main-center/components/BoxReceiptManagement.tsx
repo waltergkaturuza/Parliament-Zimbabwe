@@ -661,22 +661,65 @@ const BoxReceiptManagement: FC = () => {
     const couponAmount = allFields.find((f: any) => f.name[0] === 'couponAmount')?.value;
     const numberOfBooks = allFields.find((f: any) => f.name[0] === 'numberOfBooks')?.value;
     const fuelPriceUSD = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitreUSD')?.value;
-  const exchangeRate = allFields.find((f: any) => f.name[0] === 'exchangeRate')?.value || 27.50;
+    const exchangeRate = allFields.find((f: any) => f.name[0] === 'exchangeRate')?.value || 27.50;
     const couponsPerBook = allFields.find((f: any) => f.name[0] === 'couponsPerBook')?.value || 100;
     const firstCouponId = allFields.find((f: any) => f.name[0] === 'firstCouponId')?.value;
-  const fuelPriceZWG = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitre')?.value;
-  const manualTotalCoupons = allFields.find((f: any) => f.name[0] === 'totalCoupons')?.value;
-  const manualTotalLitres = allFields.find((f: any) => f.name[0] === 'totalLitres')?.value;
+    const lastCouponId = allFields.find((f: any) => f.name[0] === 'lastCouponId')?.value;
+    const fuelPriceZWG = allFields.find((f: any) => f.name[0] === 'fuelPricePerLitre')?.value;
+    const manualTotalCoupons = allFields.find((f: any) => f.name[0] === 'totalCoupons')?.value;
+    const manualTotalLitres = allFields.find((f: any) => f.name[0] === 'totalLitres')?.value;
 
     // Calculate totals first
-  // Prefer manual overrides if present
-  const computedTotalCoupons = numberOfBooks && couponsPerBook ? numberOfBooks * couponsPerBook : 0;
-  const totalCoupons = typeof manualTotalCoupons === 'number' && manualTotalCoupons > 0 ? manualTotalCoupons : computedTotalCoupons;
-  const computedTotalLitres = couponAmount && totalCoupons ? totalCoupons * (couponAmount as number) : 0;
-  const totalLitres = typeof manualTotalLitres === 'number' && manualTotalLitres > 0 ? manualTotalLitres : computedTotalLitres;
+    // Prefer manual overrides if present
+    const computedTotalCoupons = numberOfBooks && couponsPerBook ? numberOfBooks * couponsPerBook : 0;
+    let totalCoupons = typeof manualTotalCoupons === 'number' && manualTotalCoupons > 0 ? manualTotalCoupons : computedTotalCoupons;
+    
+    // For BOOK tab, support bidirectional calculation
+    if (receiveType === 'BOOK') {
+      // Check if lastCouponId field was just changed
+      const lastCouponChanged = changedFields.some((field: any) => field.name[0] === 'lastCouponId');
+      const firstCouponChanged = changedFields.some((field: any) => field.name[0] === 'firstCouponId');
+      
+      // If last coupon number was manually entered, calculate coupons from range
+      if (lastCouponChanged && firstCouponId && lastCouponId) {
+        const calculatedCoupons = calculateCouponsFromRange(firstCouponId, lastCouponId);
+        if (calculatedCoupons > 0) {
+          totalCoupons = calculatedCoupons;
+          form.setFieldsValue({ 
+            couponsPerBook: calculatedCoupons,
+            totalCoupons: calculatedCoupons
+          });
+          message.success(`✅ Calculated ${calculatedCoupons} coupons from range`, 2);
+        }
+      }
+      // If first coupon changed and we have a last coupon, recalculate
+      else if (firstCouponChanged && firstCouponId && lastCouponId) {
+        const calculatedCoupons = calculateCouponsFromRange(firstCouponId, lastCouponId);
+        if (calculatedCoupons > 0) {
+          totalCoupons = calculatedCoupons;
+          form.setFieldsValue({ 
+            couponsPerBook: calculatedCoupons,
+            totalCoupons: calculatedCoupons
+          });
+        }
+      }
+      // If couponsPerBook was changed and we have firstCouponId, calculate lastCouponId
+      else if (changedFields.some((field: any) => field.name[0] === 'couponsPerBook') && firstCouponId && couponsPerBook > 0) {
+        totalCoupons = couponsPerBook;
+        const calculatedLastCoupon = calculateLastCouponId(firstCouponId, couponsPerBook);
+        form.setFieldsValue({ 
+          lastCouponId: calculatedLastCoupon,
+          totalCoupons: couponsPerBook
+        });
+        message.success(`✅ Last coupon calculated: ${calculatedLastCoupon}`, 2);
+      }
+    }
+    
+    const computedTotalLitres = couponAmount && totalCoupons ? totalCoupons * (couponAmount as number) : 0;
+    const totalLitres = typeof manualTotalLitres === 'number' && manualTotalLitres > 0 ? manualTotalLitres : computedTotalLitres;
 
-    // Enhanced intelligent calculation system
-    if (numberOfBooks && couponsPerBook) {
+    // Enhanced intelligent calculation system for non-BOOK tabs or when not using manual last coupon
+    if (receiveType !== 'BOOK' && numberOfBooks && couponsPerBook) {
       // Update calculated fields immediately
       form.setFieldsValue({
         totalLitres,
@@ -686,46 +729,52 @@ const BoxReceiptManagement: FC = () => {
 
       // Smart last coupon ID calculation
       if (firstCouponId && totalCoupons > 0) {
-        const lastCouponId = calculateLastCouponId(firstCouponId, totalCoupons);
-        form.setFieldsValue({ lastCouponId });
+        const calculatedLastCoupon = calculateLastCouponId(firstCouponId, totalCoupons);
+        form.setFieldsValue({ lastCouponId: calculatedLastCoupon });
         
         // Show success message for automatic calculation
         if (changedFields.some((field: any) => field.name[0] === 'firstCouponId' || field.name[0] === 'numberOfBooks' || field.name[0] === 'couponsPerBook')) {
-          message.success(`✅ Last coupon calculated: ${lastCouponId}`, 2);
-        }
-      }
-
-      // Enhanced monetary value calculations
-      // Priority: if ZWG price edited, derive USD; otherwise use USD to derive ZWG
-      if ((typeof fuelPriceZWG === 'number' && fuelPriceZWG > 0) && exchangeRate) {
-        const derivedUSD = Number(fuelPriceZWG) / Number(exchangeRate);
-        const monetaryValueUSD = totalLitres > 0 ? totalLitres * derivedUSD : 0;
-        const monetaryValueZWG = monetaryValueUSD * Number(exchangeRate);
-        form.setFieldsValue({
-          fuelPricePerLitreUSD: derivedUSD,
-          monetaryValueUSD,
-          monetaryValue: monetaryValueZWG,
-        });
-        if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitre')) {
-          message.info(`💰 Using ZWG price. Derived USD: $${derivedUSD.toFixed(4)}/L`, 3);
-        }
-      } else if (fuelPriceUSD && totalLitres > 0) {
-        const monetaryValueUSD = totalLitres * fuelPriceUSD;
-        const monetaryValueZWG = monetaryValueUSD * exchangeRate;
-        const zwgFromUsd = fuelPriceUSD * exchangeRate;
-        form.setFieldsValue({
-          monetaryValueUSD,
-          monetaryValue: monetaryValueZWG,
-          fuelPricePerLitre: zwgFromUsd,
-        });
-        if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitreUSD')) {
-          message.info(`💰 Total value: $${monetaryValueUSD.toLocaleString()} USD (≈ ZWG ${monetaryValueZWG.toLocaleString()})`, 3);
+          message.success(`✅ Last coupon calculated: ${calculatedLastCoupon}`, 2);
         }
       }
     }
 
-    // Intelligent coupon range generation with validation
-    if (fuelType && couponAmount && numberOfBooks && couponsPerBook && !firstCouponId) {
+    // Always update total litres when any relevant field changes
+    if (totalCoupons && couponAmount) {
+      const updatedTotalLitres = totalCoupons * (couponAmount as number);
+      form.setFieldsValue({ totalLitres: updatedTotalLitres });
+    }
+
+    // Enhanced monetary value calculations
+    // Priority: if ZWG price edited, derive USD; otherwise use USD to derive ZWG
+    if ((typeof fuelPriceZWG === 'number' && fuelPriceZWG > 0) && exchangeRate) {
+      const derivedUSD = Number(fuelPriceZWG) / Number(exchangeRate);
+      const monetaryValueUSD = totalLitres > 0 ? totalLitres * derivedUSD : 0;
+      const monetaryValueZWG = monetaryValueUSD * Number(exchangeRate);
+      form.setFieldsValue({
+        fuelPricePerLitreUSD: derivedUSD,
+        monetaryValueUSD,
+        monetaryValue: monetaryValueZWG,
+      });
+      if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitre')) {
+        message.info(`💰 Using ZWG price. Derived USD: $${derivedUSD.toFixed(4)}/L`, 3);
+      }
+    } else if (fuelPriceUSD && totalLitres > 0) {
+      const monetaryValueUSD = totalLitres * fuelPriceUSD;
+      const monetaryValueZWG = monetaryValueUSD * exchangeRate;
+      const zwgFromUsd = fuelPriceUSD * exchangeRate;
+      form.setFieldsValue({
+        monetaryValueUSD,
+        monetaryValue: monetaryValueZWG,
+        fuelPricePerLitre: zwgFromUsd,
+      });
+        if (changedFields.some((field: any) => field.name[0] === 'fuelPricePerLitreUSD')) {
+          message.info(`💰 Total value: $${monetaryValueUSD.toLocaleString()} USD (≈ ZWG ${monetaryValueZWG.toLocaleString()})`, 3);
+        }
+      }
+
+    // Intelligent coupon range generation with validation (only for non-BOOK tabs)
+    if (receiveType !== 'BOOK' && fuelType && couponAmount && numberOfBooks && couponsPerBook && !firstCouponId) {
       calculateCouponRange(fuelType, couponAmount, totalCoupons).then((couponData) => {
         form.setFieldsValue({
           firstCouponId: couponData.firstCouponId,
@@ -768,6 +817,35 @@ const BoxReceiptManagement: FC = () => {
     } catch (error) {
       console.error('Error calculating last coupon ID:', error);
       return firstCouponId;
+    }
+  };
+
+  // Calculate number of coupons from first and last coupon numbers
+  const calculateCouponsFromRange = (firstCouponId: string, lastCouponId: string): number => {
+    try {
+      if (!firstCouponId || !lastCouponId) return 0;
+      
+      // Extract numeric parts from both coupon IDs
+      const firstMatch = firstCouponId.match(/(\d+)$/);
+      const lastMatch = lastCouponId.match(/(\d+)$/);
+      
+      if (!firstMatch || !lastMatch) {
+        console.warn('Invalid coupon format for range calculation');
+        return 0;
+      }
+      
+      const firstNumber = parseInt(firstMatch[1]);
+      const lastNumber = parseInt(lastMatch[1]);
+      
+      if (lastNumber < firstNumber) {
+        console.warn('Last coupon number is less than first coupon number');
+        return 0;
+      }
+      
+      return lastNumber - firstNumber + 1;
+    } catch (error) {
+      console.error('Error calculating coupons from range:', error);
+      return 0;
     }
   };
 
@@ -921,8 +999,8 @@ const BoxReceiptManagement: FC = () => {
           return;
         }
       } else if (receiveType === 'BOOK') {
-        if (!values.firstCouponId || (!values.couponsPerBook && !values.totalCoupons)) {
-          message.error('First coupon ID and either coupons per book or total coupons are required for Book receipt.');
+        if (!values.firstCouponId) {
+          message.error('First coupon ID is required for Book receipt. Other fields will be auto-calculated from the coupon range.');
           setLoading(false);
           return;
         }
@@ -2839,21 +2917,25 @@ const BoxReceiptManagement: FC = () => {
                   <Col span={8}>
                     <Form.Item
                       label={receiveType === 'BOX' ? 'Coupons per Book' : 
-                             receiveType === 'BOOK' ? 'Coupons in Book' : 
+                             receiveType === 'BOOK' ? 'Coupons per Book' : 
                              'Number of Pages/Coupons'}
                       name="couponsPerBook"
-                      rules={[{ required: true, message: `Please enter ${receiveType === 'PAGE' ? 'number of pages/coupons' : 'coupons per book'}` }]}
+                      rules={receiveType === 'BOOK' ? [] : [{ required: true, message: `Please enter ${receiveType === 'PAGE' ? 'number of pages/coupons' : 'coupons per book'}` }]}
                       tooltip={receiveType === 'BOX' ? 'Number of coupons in each book' : 
-                              receiveType === 'BOOK' ? 'Total coupons in this single book' : 
+                              receiveType === 'BOOK' ? 'Auto-calculated from First and Last coupon numbers' : 
                               'Number of pages/coupons being received'}
                       initialValue={receiveType === 'PAGE' ? 1 : 100}
                     >
                       <InputNumber
                         min={1}
                         max={receiveType === 'PAGE' ? 50 : 200}
-                        style={{ width: '100%' }}
-                        placeholder={receiveType === 'PAGE' ? 'e.g., 5' : 'e.g., 100'}
+                        style={{ 
+                          width: '100%',
+                          backgroundColor: receiveType === 'BOOK' ? '#f9f9f9' : '#ffffff'
+                        }}
+                        placeholder={receiveType === 'BOOK' ? 'Auto-calculated' : receiveType === 'PAGE' ? 'e.g., 5' : 'e.g., 100'}
                         addonBefore={receiveType === 'PAGE' ? '📄' : <BarcodeOutlined />}
+                        readOnly={receiveType === 'BOOK'}
                       />
                     </Form.Item>
                   </Col>
@@ -2863,17 +2945,22 @@ const BoxReceiptManagement: FC = () => {
                   <Col span={8}>
                     <Form.Item
                       label={receiveType === 'BOX' ? 'Total Number of Coupons' : 
-                             receiveType === 'BOOK' ? 'Coupons in Book' : 
+                             receiveType === 'BOOK' ? 'Total Coupons in Book' : 
                              'Total Pages/Coupons'}
                       name="totalCoupons"
                       tooltip={receiveType === 'BOX' ? 'Automatically calculated: Books × Coupons per Book' : 
-                              receiveType === 'BOOK' ? 'Total coupons in this single book' : 
+                              receiveType === 'BOOK' ? 'Auto-calculated from coupon range (Last - First + 1)' : 
                               'Total pages/coupons being received'}
                     >
                       <InputNumber
-                        style={{ width: '100%' }}
+                        style={{ 
+                          width: '100%',
+                          backgroundColor: receiveType === 'BOOK' ? '#f9f9f9' : '#ffffff'
+                        }}
                         formatter={(value) => `${(value || 0).toLocaleString()} ${receiveType === 'PAGE' ? 'pages' : 'coupons'}`}
                         addonBefore={receiveType === 'PAGE' ? '📄' : <BarcodeOutlined />}
+                        readOnly={receiveType === 'BOOK'}
+                        placeholder={receiveType === 'BOOK' ? 'Auto-calculated' : undefined}
                       />
                     </Form.Item>
                   </Col>
@@ -2881,12 +2968,26 @@ const BoxReceiptManagement: FC = () => {
                     <Form.Item
                       label={receiveType === 'PAGE' ? 'Last Page/Coupon Number' : 'Last Coupon Number'}
                       name="lastCouponId"
-                      tooltip={receiveType === 'PAGE' ? 'Automatically calculated from first page + total pages' : 'Automatically calculated from first coupon + total coupons'}
+                      tooltip={
+                        receiveType === 'BOOK' 
+                          ? 'Enter the last coupon number manually or leave blank for auto-calculation' 
+                          : receiveType === 'PAGE' 
+                          ? 'Automatically calculated from first page + total pages' 
+                          : 'Automatically calculated from first coupon + total coupons'
+                      }
+                      rules={receiveType === 'BOOK' ? [
+                        { required: false, message: 'Last coupon number is optional for manual entry' }
+                      ] : []}
                     >
                       <Input
-                        style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#f9f9f9' }}
+                        style={{ 
+                          fontFamily: 'monospace', 
+                          fontSize: '14px', 
+                          backgroundColor: receiveType === 'BOOK' ? '#ffffff' : '#f9f9f9' 
+                        }}
                         addonBefore={receiveType === 'PAGE' ? '📄' : <BarcodeOutlined />}
-                        placeholder="Auto-calculated"
+                        placeholder={receiveType === 'BOOK' ? 'e.g., PU018TY000100' : 'Auto-calculated'}
+                        readOnly={receiveType !== 'BOOK'}
                       />
                     </Form.Item>
                   </Col>
@@ -2908,9 +3009,13 @@ const BoxReceiptManagement: FC = () => {
                 </Row>
 
                 <Alert
-                  message="Smart Calculation Active"
-                  description="The system will automatically calculate the last coupon number, total coupons, and total litres based on your inputs. Ensure the first coupon number is correct."
-                  type="info"
+                  message={receiveType === 'BOOK' ? 'Manual Entry Enabled' : 'Smart Calculation Active'}
+                  description={
+                    receiveType === 'BOOK' 
+                      ? 'For single books, you can manually enter both first and last coupon numbers. The system will automatically calculate coupons in book and total litres from your entries.'
+                      : 'The system will automatically calculate the last coupon number, total coupons, and total litres based on your inputs. Ensure the first coupon number is correct.'
+                  }
+                  type={receiveType === 'BOOK' ? 'success' : 'info'}
                   showIcon
                   style={{ marginTop: 16 }}
                 />
