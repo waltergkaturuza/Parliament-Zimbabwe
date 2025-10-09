@@ -10,10 +10,10 @@ const API_BASE_URL = (() => {
     return fromEnv;
   }
   
-  // Development: Use Vite proxy with v1 API path
+  // Development: Use Vite proxy with API path
   if (import.meta.env.DEV) {
-    console.log('🔧 Development mode: Using proxy /api/v1');
-    return '/api/v1';
+    console.log('🔧 Development mode: Using proxy /api');
+    return '/api';
   }
   
   // Fallback for production: Use correct Render backend URL
