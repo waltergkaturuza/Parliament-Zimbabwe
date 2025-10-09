@@ -175,7 +175,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     average_price_per_litre_usd = serializers.SerializerMethodField()
     average_exchange_rate_usd_zwg = serializers.SerializerMethodField()
     price_breakdown = serializers.SerializerMethodField()
-    main_center_dispatch_number = serializers.CharField(read_only=True)
+    # main_center_dispatch_number = serializers.CharField(read_only=True)  # Temporarily disabled
     
     # Optional linkages for analytics
     program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), required=False, allow_null=True)
@@ -246,7 +246,7 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             'dispatched_by', 'received_by', 'books', 'total_books', 'total_litres', 'total_value_usd',
             'total_value_zwg', 'average_price_per_litre_usd', 'average_exchange_rate_usd_zwg', 'price_breakdown',
             'dispatch_date', 'dispatched_date', 'dispatched_time', 'status', 'dispatch_type',
-            'main_center_dispatch_number',
+            # 'main_center_dispatch_number',  # Temporarily disabled
             # Frontend compatibility fields
             'subCenterId', 'subCenterName', 'sub_center_id', 'sub_center_name', 
             'totalLitres', 'totalValueUsd', 'totalValueZwg',
@@ -270,7 +270,8 @@ class BookDispatchSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'dispatch_id', 'dispatched_time',
-            'total_books', 'total_coupons', 'total_value', 'total_value_usd', 'total_litres', 'total_value_zwg', 'average_price_per_litre_usd', 'average_exchange_rate_usd_zwg', 'price_breakdown', 'main_center_dispatch_number'
+            'total_books', 'total_coupons', 'total_value', 'total_value_usd', 'total_litres', 'total_value_zwg', 'average_price_per_litre_usd', 'average_exchange_rate_usd_zwg', 'price_breakdown'
+            # 'main_center_dispatch_number'  # Temporarily disabled
         ]
     
     def get_dispatch_id(self, obj):
