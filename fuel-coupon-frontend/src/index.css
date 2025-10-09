@@ -428,3 +428,35 @@ input, textarea {
   min-width: 80px !important;
   max-width: 80px !important;
 }
+
+/* Fix for Select dropdown option overflow/alignment issues */
+.ant-select-dropdown .ant-select-item {
+  padding: 8px 12px !important;
+  line-height: 1.4 !important;
+  min-height: auto !important;
+  overflow: hidden !important;
+}
+
+.ant-select-dropdown .ant-select-item-option-content {
+  overflow: hidden !important;
+}
+
+.ant-select-dropdown .ant-select-item-option-content > div {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+}
+
+/* Ensure proper spacing for nested content in Select options */
+.ant-select-dropdown .ant-select-item-option-content div:first-child {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  margin-bottom: 2px !important;
+}
+
+.ant-select-dropdown .ant-select-item-option-content div:last-child {
+  font-size: 12px !important;
+  color: #8c8c8c !important;
+  margin-top: 0 !important;
+}

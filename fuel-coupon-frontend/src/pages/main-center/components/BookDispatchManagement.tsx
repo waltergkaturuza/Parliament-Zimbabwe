@@ -1770,22 +1770,47 @@ const BookDispatchManagement: FC = () => {
                           width: '100%',
                           minWidth: '300px'
                         }}
+                        dropdownStyle={{
+                          maxHeight: '300px',
+                          overflow: 'auto'
+                        }}
+                        optionLabelProp="label"
                         filterOption={(input, option) =>
+                          (option?.label as string)
+                            ?.toLowerCase()
+                            ?.includes(input.toLowerCase()) ||
                           (option?.children as unknown as string)
                             ?.toLowerCase()
                             ?.includes(input.toLowerCase())
                         }
                       >
                         {subCenters.map(sc => (
-                          <Option key={sc.id} value={sc.id}>
-                            <div style={{ padding: '6px 0' }}>
-                              <div style={{ fontWeight: 600, fontSize: '15px' }}>
+                          <Option 
+                            key={sc.id} 
+                            value={sc.id}
+                            label={`${sc.name} - ${sc.location}`}
+                          >
+                            <div style={{ 
+                              padding: '4px 0',
+                              lineHeight: '1.2',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{ 
+                                fontWeight: 600, 
+                                fontSize: '14px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
                                 {sc.name}
                               </div>
                               <div style={{ 
-                                fontSize: '13px', 
+                                fontSize: '12px', 
                                 color: '#8c8c8c',
-                                marginTop: '3px'
+                                marginTop: '2px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
                               }}>
                                 📍 {sc.location} • 👤 {sc.officerName}
                               </div>
