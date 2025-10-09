@@ -188,6 +188,15 @@ class BookDispatchSerializer(serializers.ModelSerializer):
     dispatched_date = serializers.SerializerMethodField()
     dispatched_time = serializers.SerializerMethodField()
     
+    # Frontend compatibility fields for dispatch table
+    subCenterId = serializers.CharField(source='to_center.id', read_only=True)
+    subCenterName = serializers.CharField(source='to_center.name', read_only=True)
+    sub_center_id = serializers.CharField(source='to_center.id', read_only=True)
+    sub_center_name = serializers.CharField(source='to_center.name', read_only=True)
+    totalLitres = serializers.ReadOnlyField(source='total_litres')
+    totalValueUsd = serializers.ReadOnlyField(source='total_value_usd')
+    totalValueZwg = serializers.SerializerMethodField()
+    
     # Generation mode and configuration
     generation_mode = serializers.CharField(max_length=50, required=False, allow_blank=True)
     
@@ -238,6 +247,9 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             'total_value_zwg', 'average_price_per_litre_usd', 'average_exchange_rate_usd_zwg', 'price_breakdown',
             'dispatch_date', 'dispatched_date', 'dispatched_time', 'status', 'dispatch_type',
             'main_center_dispatch_number',
+            # Frontend compatibility fields
+            'subCenterId', 'subCenterName', 'sub_center_id', 'sub_center_name', 
+            'totalLitres', 'totalValueUsd', 'totalValueZwg',
             # Linkages
             'program', 'session',
             # Generation and transport
@@ -321,6 +333,10 @@ class BookDispatchSerializer(serializers.ModelSerializer):
             return float(value) if value is not None else None
         except Exception:
             return None
+    
+    def get_totalValueZwg(self, obj):
+        """Frontend compatibility: Get total ZWG value"""
+        return self.get_total_value_zwg(obj)
 
     def get_average_price_per_litre_usd(self, obj):
         """Get average price per litre USD, handling cases where it might be None"""

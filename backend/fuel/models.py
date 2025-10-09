@@ -5358,6 +5358,7 @@ class BookDispatch(TimeStampedModel):
     # Persisted aggregates (new)
     aggregated_litres = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total litres for fast reporting")
     aggregated_value_usd = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total USD value for fast reporting")
+    aggregated_value_zwg = models.DecimalField(max_digits=14, decimal_places=2, default=0, help_text="Cached total ZWG value for fast reporting")
 
     def recalculate_aggregates(self, save=True):
         """Recalculate serial ranges, coupon totals, litres and value.
@@ -5416,6 +5417,34 @@ class BookDispatch(TimeStampedModel):
                     price_per_litre = Decimal('1.45')
             total_value += Decimal(str(coupon_count * denomination)) * Decimal(str(price_per_litre))
 
+        # Calculate ZWG value
+        total_value_zwg = Decimal('0')
+        cached_rate = None
+        for book in related_books:
+            box = getattr(book, 'box', None)
+            if not box:
+                continue
+            coupon_count = getattr(book, 'initial_coupon_count', None) or 100
+            denomination = getattr(box, 'denomination', None) or 20
+            litres = Decimal(str(coupon_count * denomination))
+            price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None)
+            if price_per_litre is None:
+                try:
+                    if cached_rate is None:
+                        current_price = FuelPrice.get_current_price()
+                        if current_price:
+                            price_per_litre = current_price.price_per_litre_usd
+                            cached_rate = getattr(current_price, 'exchange_rate_usd_zwg', None)
+                except Exception:
+                    price_per_litre = None
+            if price_per_litre is None:
+                price_per_litre = Decimal('1.45')
+            exchange_rate = getattr(box, 'exchange_rate_zwg_usd', None)
+            if exchange_rate is None:
+                exchange_rate = cached_rate
+            if exchange_rate:
+                total_value_zwg += litres * Decimal(str(price_per_litre)) * Decimal(str(exchange_rate))
+
         # If serials not derived via Coupon model, create synthetic range if any books
         if first_serial is None and related_books:
             # Synthesize using book IDs for traceability
@@ -5430,6 +5459,7 @@ class BookDispatch(TimeStampedModel):
         self.total_coupons = total_coupons
         self.aggregated_litres = total_litres
         self.aggregated_value_usd = total_value
+        self.aggregated_value_zwg = total_value_zwg
 
         # Auto-generate main center dispatch number if missing and instance has id
         if not self.main_center_dispatch_number and self.id:
@@ -5439,7 +5469,7 @@ class BookDispatch(TimeStampedModel):
             # Only save changed fields for efficiency
             self.save(update_fields=[
                 'first_serial','last_serial','total_coupons','aggregated_litres',
-                'aggregated_value_usd','main_center_dispatch_number'
+                'aggregated_value_usd','aggregated_value_zwg','main_center_dispatch_number'
             ])
 
     @property
@@ -5527,18 +5557,13 @@ class BookDispatch(TimeStampedModel):
 
     @property
     def total_value_zwg(self):
-        """Total ZWG value using each box's exchange_rate_zwg_usd if provided.
-
-        If a box lacks an exchange rate we attempt to derive from FuelPrice (if its exchange_rate_usd_zwg present)
-        else we skip ZWG contribution for that portion (acts as 0).
-        """
+        """Total ZWG value using cached value when available, otherwise calculate dynamically."""
+        if self.aggregated_value_zwg and self.aggregated_value_zwg > 0:
+            return self.aggregated_value_zwg
+            
+        # Fallback to dynamic calculation
         from decimal import Decimal
         total_zwg = Decimal('0')
-        # Lazy import to avoid circular dependency
-        try:
-            from .models import FuelPrice  # type: ignore
-        except Exception:
-            FuelPrice = None  # noqa: N806
         cached_rate = None
         for book in self.books.select_related('box').all():
             box = getattr(book, 'box', None)
@@ -5550,7 +5575,7 @@ class BookDispatch(TimeStampedModel):
             price_per_litre = getattr(box, 'fuel_price_per_litre_usd', None)
             if price_per_litre is None:
                 try:
-                    if FuelPrice and cached_rate is None:
+                    if cached_rate is None:
                         current_price = FuelPrice.get_current_price()
                         if current_price:
                             price_per_litre = current_price.price_per_litre_usd
