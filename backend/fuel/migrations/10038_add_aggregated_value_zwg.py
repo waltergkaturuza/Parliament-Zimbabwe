@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('fuel', '10036_book_first_coupon_serial_book_is_generated_and_more'),
+        ('fuel', '10037_safe_add_columns'),
     ]
 
     operations = [
